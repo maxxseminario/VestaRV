@@ -1,26 +1,10 @@
 #!/usr/bin/env python3
-"""Build the TRM PDF from a generated latex/TRM tree, reproducibly.
+"""VestaRV: build the TRM PDF from a generated latex/TRM tree, reproducibly.
 
-This is the Bazel port of the `pdf` target in platform/common/Makefile.
-It copies the (read-only) input tree into a writable scratch directory,
-removes every stale auxiliary file, and runs pdflatex three times with
-SOURCE_DATE_EPOCH and FORCE_SOURCE_DATE pinned.
-
-Three passes is not superstition: pass 1 writes the .aux/.toc, pass 2
-resolves the cross-references those files feed, and pass 3 settles the
-page numbers that lastpage and the tables of contents moved in pass 2.
-Fewer passes give a converged-looking PDF that still differs byte for
-byte from the next build of the same sources.
-
-SOURCE_DATE_EPOCH is an arbitrary fixed instant, not the build time.
-With it set, pdfTeX pins /CreationDate, /ModDate and the trailer /ID, so
-identical sources give a byte-identical PDF.  That is what makes the
-publish check a meaningful byte-diff.  Do not derive it from HEAD or from
-the wall clock, or rebuilds stop being reproducible.
-
-The TRM's VISIBLE revision date is a separate thing entirely.  It is baked
-into include/defines.tex at GENERATION time from VESTA_TRM_DATE_EPOCH, so
-it is not this script's business and cannot be corrected here.
+Copies the read-only input tree to scratch, clears stale auxiliaries and runs pdflatex three
+times: pass 1 writes the .aux/.toc, pass 2 resolves cross-references, pass 3 settles the page
+numbers pass 2 moved. SOURCE_DATE_EPOCH is a fixed instant, not the build time, so pdfTeX pins
+the dates and the trailer /ID. The TRM's visible revision date is baked at generation time.
 """
 
 import argparse

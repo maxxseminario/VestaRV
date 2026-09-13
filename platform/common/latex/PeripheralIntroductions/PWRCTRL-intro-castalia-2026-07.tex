@@ -1,10 +1,9 @@
-% PWRCTRL chapter. Section order is the per-peripheral template enforced by
-% python/check_intro_names.py. The power-domain figure and the domain
-% description live in POWERDOMAINS-castalia.tex (the consolidated
-% reset/clocks/power chapter); this chapter keeps the register-level sequencer
-% and boot-gate behaviour. Hart numbering is derived, never written out: the
-% gateable harts are 1--\MaxHartIndex{} at every hart count and \PwrGateMask
-% is the PWRCR mask those bits make (include/defines.tex).
+% VestaRV: PWRCTRL chapter of the TRM.
+% Section order is the per-peripheral template enforced by python/check_intro_names.py.
+% The power-domain figure and the domain description live in POWERDOMAINS-castalia.tex;
+% this chapter keeps the register-level sequencer and boot-gate behaviour. Hart
+% numbering is derived, never written out: gateable harts are 1--\MaxHartIndex{} at
+% every hart count and \PwrGateMask is the PWRCR mask they make (include/defines.tex).
 \section{Overview}
 
 The power controller (\peripheral{PWRCTRL}) switches the power domains of the channel tiles, harts 1 to \MaxHartIndex{}, and in configurations wired for field power it also owns the boot gate that holds every hart in reset until the harvested supply is good. The power domains themselves, and what cold gating means for software, are described in the Reset, clocks and power chapter (Section \ref{s:powerdomains}).

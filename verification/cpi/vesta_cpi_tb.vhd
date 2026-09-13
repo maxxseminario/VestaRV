@@ -1,8 +1,7 @@
-/* CPI-measurement testbench for the `vesta` core, derived from opensource_sim/isa/vesta_isa_tb.vhd.
-   It keeps that harness's bus contract exactly (RAM base 0x8000, mem_ready = '1', one cycle of read latency, wen active-LOW per lane) so the numbers describe the core, not a new memory model.
-   Two counters run on the free-running clk: every clk rising edge after reset release, and every edge at which the core's own inst_retired strobe is high.
-   inst_retired is reached by a VHDL-2008 external name rather than a new port, so the RTL is untouched; it is the SAME signal csr_unit counts minstret on, which makes the instruction count architectural rather than an estimate.
-   A magic-address write decodes the benchmarks' existing setStats() hook: value 1 opens the kernel window and value 2 closes it, giving a kernel-only CPI alongside the whole-program one. */
+-- VestaRV: CPI-measurement testbench for the vesta core
+-- Derived from opensource_sim/isa/vesta_isa_tb.vhd and keeping that harness's bus contract exactly (RAM base 0x8000, mem_ready = '1', one cycle of read latency, wen active-LOW per lane), so the numbers describe the core and not a new memory model.
+-- Two counters run on the free-running clk: every clk rising edge after reset release, and every edge at which the core's inst_retired strobe is high. inst_retired is reached by a VHDL-2008 external name rather than a new port, so the RTL is untouched, and it is the same signal csr_unit counts minstret on, which makes the instruction count architectural rather than an estimate.
+-- A magic-address write decodes the benchmarks' existing setStats() hook: value 1 opens the kernel window and value 2 closes it, giving a kernel-only CPI alongside the whole-program one.
 
 library ieee;
 use ieee.std_logic_1164.all;

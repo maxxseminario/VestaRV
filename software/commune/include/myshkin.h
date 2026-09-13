@@ -1,19 +1,16 @@
-//  Memory Map Constants Header File for Myshkin MCU
-//  Maxx Seminario 
+// VestaRV: Myshkin MCU memory map and register constants
+// C view: peripheral base addresses, register address constants and the bare memory-mapped register macros.
 
-#pragma once	// Ensures this file will be included only once per source file
+#pragma once
 
-// If using C++, ensure functions have C linkage
 #ifdef __cplusplus
 extern "C" {
-#endif	// extern "C"
+#endif
 
-/** Includes **/
 #include <stdint.h> 
 #include <bits.h> //custom bit declarations - can put here if troubled. 
 
 
-/** Defines **/
 #define ASIC_NAME	"myshkin"
 #define ASIC_DEFINE_myshkin
 
@@ -29,23 +26,12 @@ extern "C" {
 #define MMR_32_PTR(_peripheralBaseAddress, _registerOffset)	MMR_32_BIT_MACRO(((uint32_t)_peripheralBaseAddress) + ((uint32_t)_registerOffset))
 
 
-/** Legacy bare SYSTEM register macros - mutual exclusion with the generated structs **/
-// Eight SYSTEM registers are published here as object-like macros whose names
-// the generated headers in software/include/regs/ also use as struct MEMBERS:
-// SYSCLKCR, CLKDIVCR, CRCDATA, CRCSTATE, WDTPASS, WDTCR, WDTSR, WDTVAL. An
-// object-like macro of a member name expands inside the struct declaration, so
-// system_t does not parse and every later use of SYSTEM_REGS->SYSCLKCR is
-// corrupted (report R6-2). The two views are therefore mutually exclusive per
-// translation unit, and this is the switch:
-//
-//   default                     the bare macros, exactly as before
-//   -DVESTA_REGS_STRUCTS        the generated structs; the bare macros are
-//                               suppressed whatever the include order
-//   regs header included first  suppressed automatically (SYSTEM_REGS_H is set)
-//
-// Nothing else is gated. The <REG>_ADDRESS constants and the <REG>_PTR(base)
-// forms further down stay available in both modes, so a file migrating one
-// call site at a time still has an address for the ones it has not moved.
+// The bare SYSTEM register macros and the generated structs in software/include/regs/
+// are MUTUALLY EXCLUSIVE per translation unit: SYSCLKCR, CLKDIVCR, CRCDATA, CRCSTATE,
+// WDTPASS, WDTCR, WDTSR and WDTVAL are object-like macros here and struct members
+// there, so leaving both live makes system_t fail to parse. The switch below picks
+// one: default is the bare macros; -DVESTA_REGS_STRUCTS, or including a regs header
+// first, suppresses them. The <REG>_ADDRESS and <REG>_PTR(base) forms stay in both.
 #if defined(VESTA_REGS_STRUCTS) || defined(SYSTEM_REGS_H)
 #define VESTA_LEGACY_SYSTEM_MMR	0
 #else
@@ -53,7 +39,7 @@ extern "C" {
 #endif
 
 
-//  ---------- Peripheral Base Addresses ----------
+// Peripheral Base Addresses
 #define PERIPH_GPIO0_BASE       (0x4000)    
 #define PERIPH_GPIO1_BASE       (0x4100)
 #define PERIPH_SPI0_BASE        (0x4200)
@@ -65,10 +51,9 @@ extern "C" {
 #define PERIPH_GPIO2_BASE       (0x4800)
 #define PERIPH_SYSTEM0_BASE     (0x4900)
 #define PERIPH_NPU0_BASE        (0x4A00)
-// PERIPH_SARADC0_BASE removed 2026-09-05 (report 08 finding 8): 0x4B00 is
-// PWRCTRL on Castalia (MemoryMap.vhd:1020), so the name pointed a SARADC write
-// at PWRCR. See the fuller note in myshkin_s.h.
-// PERIPH_AFE0_BASE names the rev-1 afe_stub bank; it retires with that bank.
+// PERIPH_SARADC0_BASE is deliberately absent: 0x4B00 is PWRCTRL on Castalia, so the
+// name aimed a SARADC write at PWRCR. PERIPH_AFE0_BASE names the rev-1 afe_stub bank
+// and retires with it.
 #define PERIPH_AFE0_BASE        (0x4C00)  // rev-1 afe_stub site 0 (64 B sub-slot)
 #define PERIPH_GPIO3_BASE       (0x4D00)
 #define PERIPH_I2C0_BASE        (0x4E00) 
@@ -83,7 +68,7 @@ extern "C" {
 #define RAM_END_ADDR            (0x13FFF)
 #define RAM_SIZE                (0xA000)
 
-//  ---------- GPIO Register Offsets ----------
+// GPIO Register Offsets
 #define GPIO_PxIN               (0x00)    //  offset = 0 bytes
 #define GPIO_PxOUT              (0x04)    //  offset = 4 bytes
 #define GPIO_PxOUTS             (0x08)    //  offset = 8 bytes
@@ -96,14 +81,14 @@ extern "C" {
 #define GPIO_PxSEL              (0x24)    //  offset = 36 bytes
 #define GPIO_PxREN              (0x28)    //  offset = 40 bytes
 
-//  ---------- SPI Register Offsets ----------
+// SPI Register Offsets
 #define SPI_CR                  (0x00)    //  offset = 0 bytes
 #define SPI_SR                  (0x04)    //  offset = 4 bytes
 #define SPI_TX                  (0x08)    //  offset = 8 bytes
 #define SPI_RX                  (0x0C)    //  offset = 12 bytes
 #define SPI_FOS                 (0x10)    //  offset = 16 bytes TODO: Implement
 
-//  ---------- TIMER Register Offsets ----------
+// TIMER Register Offsets
 #define TIMER_CR                  (0x00)  //  offset = 0 bytes
 #define TIMER_SR                  (0x04)  //  offset = 4 bytes
 #define TIMER_VAL                 (0x08)  //  offset = 8 bytes
@@ -114,14 +99,14 @@ extern "C" {
 #define TIMER_CAP1                (0x1C)  //  offset = 28 bytes
 
 
-//  ---------- UART Register Offsets ----------
+// UART Register Offsets
 #define UART_CR                 (0x00)      //  offset = 0 bytes
 #define UART_SR                 (0x04)      //  offset = 4 bytes
 #define UART_BR                 (0x08)      //  offset = 8 bytes
 #define UART_RX                 (0x0C)      //  offset = 12 bytes
 #define UART_TX                 (0x10)      //  offset = 16 bytes
 
-//  ---------- SYSTEM Register Offsets ----------
+// SYSTEM Register Offsets
 #define SYS_CLK_CR              (0x00)      //  offset = 0 bytes
 #define SYS_CLK_DIV_CR          (0x04)      //  offset = 4 bytes
 #define SYS_BLOCK_PWR           (0x08)      //  offset = 8 bytes
@@ -144,13 +129,13 @@ extern "C" {
 
 
 
-//  ---------- NPU Register Offsets ----------
+// NPU Register Offsets
 #define NPU_CR                  (0x00)      //  offset = 0 bytes
 #define NPU_IVSAR               (0x04)      //  offset = 4 bytes
 #define NPU_WVSAR               (0x08)      //  offset = 8 bytes
 #define NPU_OVSAR               (0x0C)      //  offset = 12 bytes
 
-//  ---------- AFE Register Offsets ----------
+// AFE Register Offsets
 #define AFE_CR                  (0x00)      //  offset = 0 bytes
 #define AFE_TPR                 (0x04)      //  offset = 4 bytes
 #define AFE_SR                  (0x08)      //  offset = 8 bytes
@@ -171,13 +156,13 @@ extern "C" {
 #define BIAS_RIN_DSADC          (0x40)      //  offset = 64 bytes
 #define BIAS_RFB_DSADC          (0x44)      //  offset = 68 bytes
 
-//  ---------- SARADC Register Offsets ----------
+// SARADC Register Offsets
 #define SARADC_CR               (0x00)      //  offset = 0 bytes
 #define SARADC_CDIV             (0x04)      //  offset = 4 bytes
 #define SARADC_SR               (0x08)      //  offset = 8 bytes
 #define SARADC_DATA             (0x0C)      //  offset = 12 bytes
 
-//  ---------- UART Register Bit Masks  ----------
+// UART Register Bit Masks
 // UART Control Register bit masks
 #define UCR_EN_MASK          (0x20)      // Bit 5: UART Enable
 #define UCR_PEN_MASK         (0x10)      // Bit 4: Parity Enable
@@ -197,7 +182,7 @@ extern "C" {
 #define USR_UTCIF_MASK       (0x01)      // Bit 0: TX Complete Interrupt Flag
 
 
-// ---------- SPI Register Bit Masks  ----------
+// SPI Register Bit Masks
 // SPI Control Register bit masks
 #define SPI_MODE_MASK          (0x40000)  // Bit 18: SPI Mode
 #define SPI_TX_SB_MASK         (0x20000)  // Bit 17: TX Stop Bit
@@ -217,7 +202,7 @@ extern "C" {
 #define SPI_TCIF_MASK          (0x02)     // Bit 1: Transmit Complete Interrupt Flag
 #define SPI_TXEIF_MASK         (0x01)     // Bit 0: Transmit Buffer Empty Interrupt Flag
 
-// ---------- NPU Register Bit Masks  ----------
+// NPU Register Bit Masks
 // NPU Control Register (NPUCR) bit masks
 #define NPUBEN_MASK            (0x40000)  // Bit 18: NPU Bias Enable
 #define NPUAEN_MASK            (0x20000)  // Bit 17: NPU Activation Enable
@@ -225,7 +210,7 @@ extern "C" {
 #define NPUNI_MASK             (0xFF00)   // Bits 15-8: Number of Inputs
 #define NPUNN_MASK             (0x00FF)   // Bits 7-0: Number of Neurons
 
-// ---------- TIMER Register Bit Masks  ----------
+// TIMER Register Bit Masks
 // Timer Control Register (TIMxCR) bit masks
 #define TIMER_CLK_DIV_MASK      (0xF0000)  // Bits 19-16: Timer Clock Divider
 #define TIMER_CMP1_INIT_MASK    (0x8000)   // Bit 15: Timer Compare 1 Initialize
@@ -313,9 +298,7 @@ extern "C" {
 
 
 
-//=============================================================================
 // GPIO0 Pin Assignments
-//=============================================================================
 #define GPIO0_CS_PIN           (0x00)     // P1.0 - SPI Flash Chip Select
 #define GPIO0_MISO_PIN         (0x01)     // P1.1 - SPI Master In Slave Out
 #define GPIO0_MOSI_PIN         (0x02)     // P1.2 - SPI Master Out Slave In
@@ -335,9 +318,7 @@ extern "C" {
 #define GPIO0_TRAP_MASK        (0x40)     // P1.6 - TRAP (Output Only)
 #define GPIO0_BOOT_MASK        (0x80)     // P1.7 - Boot Mode
 
-//=============================================================================
 // GPIO1 Pin Assignments
-//=============================================================================
 #define GPIO1_CS1_PIN          (0x00)     // P2.0 - SPI1 Chip Select
 #define GPIO1_MISO1_PIN        (0x01)     // P2.1 - SPI1 Master In Slave Out
 #define GPIO1_MOSI1_PIN        (0x02)     // P2.2 - SPI1 Master Out Slave In
@@ -357,9 +338,7 @@ extern "C" {
 #define GPIO1_UART1_TX_MASK    (0x40)     // P2.6 - UART1 Transmit
 #define GPIO1_UART1_RX_MASK    (0x80)     // P2.7 - UART1 Receive
 
-//=============================================================================
 // GPIO2 Pin Assignments (TIMER0, TIMER1)
-//=============================================================================
 #define GPIO2_T0_CMP0_PIN      (0x00)     // P3.0 - Timer 0 Compare 0
 #define GPIO2_T0_CMP1_PIN      (0x01)     // P3.1 - Timer 0 Compare 1
 #define GPIO2_T0_CAP0_PIN      (0x02)     // P3.2 - Timer 0 Capture 0
@@ -1035,7 +1014,7 @@ typedef struct
 
 
 
-/********** Register Offsets and Bit Fields **********/
+// Register Offsets and Bit Fields
 
 /** SYSTEM **/
 // SYSCLKCR
@@ -1204,7 +1183,7 @@ typedef struct
 // #define DCO1MFREQ_LSB	(0)
 
 
-/********** Peripheral Structure Pointer Macros **********/
+// Peripheral Structure Pointer Macros
 
 #define SYSTEM	((SYSTEM_t *) SYSTEM_BASE)
 #define GPIO1	((GPIOx_8bit_t *) GPIO1_BASE)
@@ -1258,7 +1237,7 @@ typedef struct
 #define SPI0FOS				MMR_32_BIT_MACRO(SPI0FOS_ADDRESS)
 
 
-/********** GPIO Pins **********/
+// GPIO Pins
 // Only Pins that are needed for forth interpreter.
 /** GPIO1 Pins **/
 // P1.0 secondary function (when P1SEL(0) = '1'): CS_FLASH
@@ -1408,7 +1387,6 @@ typedef struct
 
     // Bit Definitions (was bits.h)
 
-    /** Defines **/
     #define BIT0	(0x00000001)
     #define BIT1	(0x00000002)
     #define BIT2	(0x00000004)

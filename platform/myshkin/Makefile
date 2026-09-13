@@ -1,12 +1,11 @@
-# VestaRV Toolchain Generator Makefile
-# Automates generation of headers, linker scripts, and documentation
+# VestaRV: Myshkin toolchain generator. Emits the firmware headers, the linker
+# scripts and the LaTeX documentation from python/generate.py.
+# Everything it writes is tracked, so review with git status after a run.
 
 .PHONY: all help generate show config clean pdf install-deps
 
-# Default target
 all: generate
 
-# Help target - show available commands
 help:
 	@echo "=========================================="
 	@echo "VestaRV Toolchain Generator"
@@ -26,7 +25,6 @@ help:
 	@echo "Documentation:   README.md"
 	@echo "=========================================="
 
-# Generate all toolchain files
 generate:
 	@echo "=========================================="
 	@echo "VestaRV Toolchain Generator"
@@ -50,11 +48,9 @@ generate:
 	@echo "  • latex/TRM/"
 	@echo ""
 
-# Show current configuration
 show config:
 	@./show_config.sh
 
-# Compile PDF documentation
 pdf:
 	@echo "=========================================="
 	@echo "Compiling Technical Reference Manual (TRM) PDF"
@@ -77,7 +73,7 @@ pdf:
 	@echo ""
 	@echo ""
 
-# Clean generated files (WARNING: This removes toolchain files!)
+# Removes the generated toolchain files, not only build artifacts.
 clean:
 	@echo "⚠️  WARNING: This will remove ALL generated toolchain files!"
 	@echo "Files to be removed:"
@@ -103,7 +99,6 @@ clean:
 		echo "❌ Clean cancelled"; \
 	fi
 
-# Check dependencies
 install-deps:
 	@echo "=========================================="
 	@echo "Checking Dependencies"

@@ -1,3 +1,5 @@
+# VestaRV: firmware image build helpers and their gates.
+
 load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 
 package(default_visibility = ["//visibility:public"])
@@ -23,55 +25,25 @@ py_binary(
 # memory.x / periph.x and the *_START/_SIZE fragments, so all must travel
 # together.
 #
-# THE .x AND .txt FILES HERE ARE THE LINK ENVIRONMENT THE MASK PLATE WAS
-# COMPILED FROM, and as of 2026-08-23 they are also a verbatim copy of
-# //platform/common:castalia_linker_scripts.  The recorded divergence is empty.
+# THE .x AND .txt FILES HERE ARE THE LINK ENVIRONMENT THE MASK PLATE WAS COMPILED
+# FROM, and they are a verbatim copy of //platform/common:castalia_linker_scripts,
+# so the recorded divergence is empty. The two sets are allowed to diverge again
+# when the chip map moves; :rom_plate_link_env_test is what makes that visible.
+# The boot image and its two recorded goldens share one md5,
+# cea7e60f4723f63acfd92c5883716f1e; the physical rom2k_hvt_pg plate is TWO cuts
+# behind them and stays stale until signoff_mp recompiles it.
 #
-# They were NOT a copy until then.  They were frozen at 2026/04/20 and had gone
-# stale under the chip: 16 KiB ROM where the part has 8 KiB, and one flat RAM
-# window 0x0814C-0x0FFFF where the part has an 8 KiB TCM, a mirror of it, then
-# NPU_RAM and SHARED_RAM.  Refreshing them was blocked by ONE thing, and it was
-# a real defect rather than a packaging problem: rv4th.c put 0x5D70 bytes of
-# Forth interpreter arrays in .noinit, which fits the old 32436-byte window and
-# overflows the real 7708-byte one by 16212 bytes.  The stale script is why that
-# never failed a build.  On the part it did not fail at all -- it wrote through
-# the TCM mirror at 0xA000 back onto the vector table and the stack, and past
-# 0xC000 into the shared NPU staging RAM.
+# A stale script here is not a packaging problem. While memory.x described a
+# 16 KiB TCM against a real 8 KiB one, rv4th.c linked 0x5D70 bytes of .noinit
+# into a 7708-byte window with every gate green: on the part that wrote through
+# the TCM mirror at 0xA000 onto the vector table and the stack, and past 0xC000
+# into the shared NPU staging RAM. The fix is at source, THE TCM BUDGET in
+# software/bootrom_mp/src/rv4th.c and the ASSERT at the bottom of
+# linker-scripts/MCU-bootrom.ld.
 #
-# That was fixed at source (see THE TCM BUDGET in software/bootrom_mp/src/rv4th.c
-# and the ASSERT at the bottom of linker-scripts/MCU-bootrom.ld), so the boot ROM
-# now links against the true map.  The boot image moved with it, and its two
-# recorded goldens (software/bootrom_mp/testdata/rom_rcf_golden.txt and
-# tools/cosim/gate/bootrom_mp_rom.rcf) and the physical rom2k_hvt_pg plate were
-# re-cut in the same change.  Five files, one md5:
-#     d177e8314f2de080150070762b3d80f7   (was cab1bbe82d67d959d514dda9e338e3f9)
-#
-# RE-CUT AGAIN 2026-09-05 (report 08 findings 2 and 6: sp 0xBFFC -> 0xA000,
-# bounded flash polls, boot watchdog). Same five files, one md5:
-#     99b0c95dfb3fc0da52a49d1a68efa904   (was d177e8314f2de080150070762b3d80f7)
-# EXCEPT the fifth: the physical rom2k_hvt_pg plate is NOT yet recompiled.
-#
-# REFRESHED AGAIN 2026-09-12, and this time the chip moved under the plate
-# rather than the source under the chip. config/castalia.json collapsed into the
-# generator's built-in defaults (owner decision: one default silicon chip), so
-# the default generation is the wound peripheral set: NUM_IRQ_SRCS 121 -> 124,
-# the vector table 484 -> 496 bytes, RAM start 0x081E4 -> 0x081F0, and periph.x
-# gained the QSPI0/I3C0/RTC0/PWM0/OW0/DMA0/TRNG0/I2CT0/EVFAB symbol blocks.
-# The six files here were refreshed from //platform/common:castalia_linker_scripts,
-# so the recorded divergence stays empty, and the boot image was re-cut with them:
-#     cea7e60f4723f63acfd92c5883716f1e   (was 99b0c95dfb3fc0da52a49d1a68efa904)
-# The physical rom2k_hvt_pg plate is now TWO cuts stale. Refreshing this
-# directory is what makes the boot ROM link against the chip that is actually
-# being taped out; before it, the plate was linked against a 21-peripheral map
-# no configuration ships.
-#
-# The six MCU.ld firmware images were unaffected: they link against either set,
-# and were built both ways on 2026-08-23 with every .rcf and .hex byte identical.
-# Only the .elf symbol table moves, because periph.x contributes absolute symbols.
-#
-# :rom_plate_link_env_test still guards this directory, and its job did not
-# change: the two sets are allowed to diverge again when the chip map moves, but
-# never in silence.  A divergence that reappears means the plate is stale again.
+# The six MCU.ld firmware images link against either set with every .rcf and .hex
+# byte identical; only the .elf symbol table moves, because periph.x contributes
+# absolute symbols.
 filegroup(
     name = "linker_scripts",
     srcs = glob([
@@ -137,7 +109,6 @@ py_test(
     main = "scripts/check_plate_link_env.py",
 )
 
-# ---------------------------------------------------------------------------
 # IMAGE-vs-MEMORY-MAP GATE
 #
 # The guard above proves the FROZEN link environment has not drifted. It says
@@ -148,9 +119,9 @@ py_test(
 #   the chip's TCM                              0x8000-0x9FFF (8 KiB)
 #
 # 16,060 bytes past the end of RAM, for over a week, with every gate green.
-# Nothing was wrong with the link: MCU-bootrom.ld INCLUDEs a memory.x frozen on
-# 2026/04/20 that still describes a 16 KiB TCM, the real TCM halved on
-# 2026-08-16, and the linker cheerfully honoured the description it was given.
+# Nothing was wrong with the link: MCU-bootrom.ld INCLUDEd a stale memory.x that
+# still described a 16 KiB TCM after the real TCM halved to 8 KiB, and the linker
+# cheerfully honoured the description it was given.
 # A linker script is a claim about the chip, and no gate was checking the claim
 # against the chip.
 #
@@ -228,7 +199,7 @@ py_test(
 # these are red today for a reason that is understood and is NOT the same
 # defect as the boot ROM's.
 #
-# KNOWN RED. The 2026-08-16 TCM halving (0x8000-0xBFFF -> 0x8000-0x9FFF) left
+# KNOWN RED. The TCM halving (0x8000-0xBFFF -> 0x8000-0x9FFF) left
 # verification/env/p/link.ld and verification/env/p/link_shared.ld pinning the
 # whole ISR bank and the NPU ideal-output vector into what is now a hole:
 #   .npu0_yhat     0xB000     comment still reads "(TCM)"
@@ -246,7 +217,7 @@ py_test(
 # the 0xA000-0xBFFF hole and re-homes the oversized CPI working sets, per
 # BAZEL.md "Known red". It is NOT a carve-out for the boot ROM: flashboot.elf
 # sits in :firmware_image_map_test above, untagged, and that target reported it
-# 16,060 bytes over before the .noinit fix landed on 2026-08-23.
+# 16,060 bytes over before the .noinit fix landed.
 py_test(
     name = "verification_image_map_test",
     size = "small",

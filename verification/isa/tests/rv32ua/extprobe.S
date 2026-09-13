@@ -1,22 +1,8 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extprobe.S  (core-features work, 2026-07-08)
-#-----------------------------------------------------------------------------
-# Base-ISA + misa probe — the POSITIVE control of the configurable-extension
-# (ENABLE_MUL/DIV/ATOMICS/COMPRESSED/BITMANIP generic) test group. Built
-# whole-file `.option norvc`/`norelax` so the image contains ONLY 32-bit
-# base-ISA encodings and runs on ANY core configuration, including a chip
-# with every extension stripped:
-#   * exercises RV32I arithmetic, branches, and a load/store round trip
-#   * reads misa (new read-only CSR 0x301) and requires MXL=01 (RV32) + I
-# PASSES on every build. Its five extoff siblings (extmul/extdiv/extamo/
-# extrvc/extzb) share this skeleton and dispatch on the misa extension bits:
-# extension advertised -> execute it and check results -> PASS; extension
-# absent -> fall INTO the instruction, which must take the illegal-instruction
-# trap (observed as trap_flag by the stripped-build harness; surviving it is
-# an explicit FAIL).
-#*****************************************************************************
+# VestaRV: base-ISA and misa probe, the positive control of the extension group
+# Built whole-file `.option norvc` and `norelax`, so the image contains ONLY 32-bit base-ISA encodings and runs on any core configuration, including one with every extension stripped. It exercises RV32I arithmetic, branches and a load/store round trip, then reads misa and requires MXL = 01 for RV32 plus I, and it PASSES on every build.
+# Its siblings extmul, extdiv, extamo, extrvc and extzb share this skeleton and dispatch on the misa extension bits: when the extension is advertised they execute it and check the result, and when it is absent they fall INTO the instruction, which must take the illegal-instruction trap, observed as trap_flag by the stripped-build harness. Surviving it is an explicit FAIL.
 
 #include "riscv_test.h"
 #include "test_macros.h"

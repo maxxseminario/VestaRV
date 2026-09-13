@@ -1,44 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shperiph.S  (M7c; M12 single-ROM boot rework; Argus A3 claim-based rework)
-#-----------------------------------------------------------------------------
-# HART-GENERIC shared SPI1 + UART1 test — the M7c signature test.
-#
-# M12: tiles are NO LONGER preloaded. Hart 0 stages this TCM image once and
-# launches all tiles 1..NHARTS-1 into tile_entry through the bootrom loader
-# (mp_boot.h); each tile then parks on the GO gate.
-#
-# M7c moved the two session peripherals with clean buses onto the mp_arbiter,
-# at their legacy addresses (M11 map): SPI1 = 0x4300, UART1 = 0x4500. Register
-# offsets unchanged; old windows read zeros. SPI1's flash FSM is compiled out.
-#
-# ARGUS A3 CLAIM-BASED OWNERSHIP (user decision 2026-07-10): the two session
-# peripherals are a POOL of claimable roles. Any hart may atomically CLAIM a
-# free peripheral through the HW mutex bank (0x6000, 1-insn acquire); the winner
-# owns it EXCLUSIVELY (mutex never released) and runs its FULL exercise once
-# (reset proof + config with readback + transmit + flag dance), then records
-# ROLEDONE[i]. Harts that find both peripherals taken just park. With NHARTS >=
-# NROLES claimers the mutex bank guarantees BOTH peripherals are exercised
-# EXACTLY once regardless of which hart wins which — deterministic, N-agnostic.
-# Verified passing at N=4 AND N=18.
-#
-#   Role 0 = SPI1 exercise   Role 1 = UART1 exercise   (mutex i guards role i)
-#
-# Both cores are SMCLK-domain (baud gens) => hart 0 writes SYS_CLK_CR=0 FIRST
-# (M6 rule; bootrom parks SMCLK on LFXT) and proves the reset CRs before opening
-# GO. BR=1: UART frame ~13.3us, SPI 8-bit ~1.3us. Polls bounded 20000.
-# MISO1 floats in the tb, so the test never reads SPIxRX (an RX access would
-# auto-clear TCIF; we clear via the SR write path deliberately).
-#
-# Shared words (>= 0x101E0, clear of earlier tests' words, all < 0x10500):
-#     GO            = 0x101E0            0x5E560000 after hart 0 opens the gate
-#     DONE[h]       = 0x101E4 + 4*h      0x5E550000+h after hart h finishes
-#     ROLEDONE[i]   = 0x101E4 + 4*NHARTS + 4*i   0x5E500000+i after role i runs
-#   (mutex bank 0x6000+4*i provides the atomic claim; nothing in shared RAM)
-# ROLEDONE sits at DONE_BASE + 4*NHARTS so the DONE array can't overrun it
-# (N=18: DONE 0x101E4..0x10228, ROLEDONE 0x1022C..0x10230).
-#*****************************************************************************
+# VestaRV: shared SPI1 and UART1 test
+# SPI1 is at 0x4300 and UART1 at 0x4500, both on the mp_arbiter; the old private windows read zeros, and SPI1's flash FSM is compiled out.
+# CLAIM-BASED OWNERSHIP: the two peripherals are a POOL of claimable roles rather than a fixed hartid-to-role map, which strands harts at large N. Any hart atomically claims a free one through the HW mutex bank at 0x6000 with a one-instruction acquire; the winner owns it exclusively, never releases the mutex, runs the full exercise once (reset proof, config with readback, transmit, flag dance) and records ROLEDONE[i]. Harts that find both taken park. With NHARTS >= NROLES claimers the bank guarantees both peripherals run exactly once whichever hart wins which. Role 0 is SPI1 and role 1 is UART1, with mutex i guarding role i.
+# BOTH CORES ARE SMCLK-DOMAIN baud generators, so hart 0 writes SYS_CLK_CR = 0 FIRST, because the boot ROM parks SMCLK on LFXT, and proves the reset CRs before opening GO. At BR = 1 a UART frame is about 13.3 us and an 8-bit SPI transfer about 1.3 us; every poll is bounded at 20000.
+# MISO1 FLOATS IN THE TB, so the test never reads SPIxRX: an RX access would auto-clear TCIF, and the flag is cleared through the SR write path deliberately.
+# Shared words, all below 0x10500: GO = 0x101E0, DONE[h] = 0x101E4 + 4*h, ROLEDONE[i] = 0x101E4 + 4*NHARTS + 4*i. ROLEDONE follows the NHARTS-sized DONE array so it cannot be overrun; at N=18 DONE runs 0x101E4..0x10228 and ROLEDONE 0x1022C..0x10230.
 
 #include "riscv_test.h"
 #include "test_macros.h"

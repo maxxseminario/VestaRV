@@ -1,26 +1,9 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# privmst.S   (P0 privprobe OFF-polarity poison, 2026-07-28)
-#-----------------------------------------------------------------------------
-# mstatus (CSR 0x300, machine status) is absent from maindec.vhd's csr_addr_valid
-# whitelist, so ANY access to it is an UNKNOWN CSR -> illegal instruction
-# (the X1 Deliverable-A base repair).
-#
-# P-series contract (p0_specs.md 2.1/5.2): with ENABLE_TRAPCSR off -- which is
-# EVERY build today, the P0 scaffold hard-errors on a true -- this encoding must
-# take the ILLEGAL-INSTRUCTION trap. The probe PINS that OFF polarity so P1
-# cannot silently regress it while adding the standard trap architecture.
-#
-# Run ONLY under the trap-watching harness (behavioral_mp_stripped/run_extoff.sh
-# + trap_watch.tcl, where trap_flag => TRAP_OK) -- never in the default
-# behavioral_mp array, which would hang on the terminal TRAP_STATE. Surviving
-# PAST the encoding => the gating is broken => explicit FAIL.
-#
-# P1 NOTE: when ENABLE_TRAPCSR graduates, convert this file to the extjvt.S
-# shape (#ifdef CORE_ENABLE_TRAPCSR positive arm / #else this poison) rather
-# than deleting it -- the OFF polarity stays a required gate.
-#*****************************************************************************
+# VestaRV: mstatus must trap with ENABLE_TRAPCSR off
+# mstatus (CSR 0x300, machine status) is absent from maindec.vhd's csr_addr_valid whitelist, so any access to it is an unknown CSR and must take the ILLEGAL-INSTRUCTION trap on every build that leaves ENABLE_TRAPCSR off.
+# The probe PINS the OFF polarity, so that adding the standard trap architecture cannot silently regress it. RUN IT ONLY UNDER THE TRAP-WATCHING HARNESS (behavioral_mp_stripped/run_extoff.sh with trap_watch.tcl, where trap_flag means TRAP_OK), never in the default runner array, which would hang on the terminal TRAP_STATE. Surviving past the encoding means the gating is broken and is an explicit FAIL.
+# When ENABLE_TRAPCSR graduates, convert this file to the extjvt.S shape, an #ifdef CORE_ENABLE_TRAPCSR positive arm with this poison in the #else, rather than deleting it: the OFF polarity stays a required gate.
 
 #include "riscv_test.h"
 #include "test_macros.h"

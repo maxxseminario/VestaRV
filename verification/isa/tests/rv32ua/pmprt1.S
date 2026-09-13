@@ -1,49 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# pmprt1.S   (P3 RED TEAM — the MRET-TARGET FETCH is checked at the OLD
-#             privilege, so U executes ONE X-denied instruction)
-#-----------------------------------------------------------------------------
-# ON-ONLY DIRECTED TEST (needs a trapCsr+umode+pmp build).
-#
-# THE HYPOTHESIS.  vesta's fetch check is
-#     f_addr   = pc_next
-#     f_priv_m = trap_priv_mode          (vesta.vhd:1861-1862)
-# sampled into `pmp_f_deny_r` on EVERY clk_cpu edge (vesta.vhd:1878-1889).
-# MTRAP_RET drives pc_next = mepc and `pc_en <= '1'` (vesta.vhd:3202-3207), so
-# the MRET TARGET's fetch transaction issues DURING MTRAP_RET — but the
-# privilege POP (csr_unit `mret_we` arm, csr_unit.vhd:1006-1029) lands on the
-# SAME clock edge that ends MTRAP_RET.  The fetch is therefore permission-
-# checked at the OLD privilege (M) and CONSUMED at the NEW one (U).
-#
-# THE VEHICLE.  Entry 0 fences ONE code word (NA4, R=1 W=0 X=0) — U may READ
-# it but must never EXECUTE it.  M then MRETs straight at that word.
-#   * SPEC-CORRECT: an instruction access fault (cause 1) with
-#     mepc = mtval = the fenced word's address, taken FROM U.
-#   * CURRENT RTL (the hypothesis): the word EXECUTES in U.  It is
-#     `addi s10, s10, 1`, so s10 is the escape witness; the next word
-#     (outside the NA4 region, so legitimately fetchable in U) jumps to the
-#     common exit and the test reports.
-# Either way the flow is BOUNDED — there is no loop anywhere in this file.
-#
-# CLASSIFICATION IF IT BITES: a one-instruction execute-permission ESCAPE.
-# Not reachable by U alone (U controls neither mepc nor MPP), so it is a
-# privilege-boundary DEVIATION rather than a U-exploitable hole — but it is
-# exactly the window a "revoke X, then resume the task" handler relies on.
-#
-# THE MAP:
-#   entry 0  NA4  &rt1_xword   R=1 W=0 X=0   the fenced CODE word
-#   entry 1  OFF  0                          entry 2's TOR base
-#   entry 2  TOR  0x00000000-0x0001FFFF  R=W=X=1
-#
-# REGISTER CONTRACT (standard mode pushes NOTHING — a U sp is untrusted):
-#   s3  trap counter          s4/s5/s6  cause/mepc/mtval of the LAST non-ECALL
-#   s7  handler resume PC     s9  M continuation after ECALL
-#   s10 ESCAPE WITNESS (must stay 0)      t4  CHECK ID
-#
-# BUILD-TIME DISPATCH: ON iff -DCORE_ENABLE_TRAPCSR -DCORE_ENABLE_UMODE
-# -DCORE_ENABLE_PMP.  Deliberately NOT in the default behavioral_mp array.
-#*****************************************************************************
+# VestaRV: red team, the MRET target is fetch-checked at the old privilege
+# ON-ONLY, needing a trapCsr, umode and pmp build. THE HYPOTHESIS: vesta's fetch check takes f_addr from pc_next and f_priv_m from trap_priv_mode, sampled into pmp_f_deny_r on every clk_cpu edge. MTRAP_RET drives pc_next from mepc and asserts pc_en, so the MRET TARGET's fetch issues DURING MTRAP_RET, while the privilege pop in csr_unit's mret_we arm lands on the SAME clock edge that ends MTRAP_RET. The fetch is therefore permission-checked at the OLD privilege, M, and consumed at the NEW one, U.
+# THE VEHICLE: entry 0 fences ONE code word NA4 with R = 1, W = 0, X = 0, so U may read it but must never execute it, and M then MRETs straight at that word. Spec-correct is an instruction access fault, cause 1, with mepc = mtval = the fenced word's address, taken from U. If the hypothesis holds the word EXECUTES in U; it is `addi s10, s10, 1`, so s10 is the escape witness, and the next word, outside the region and legitimately fetchable in U, jumps to the common exit. Either way the flow is BOUNDED, with no loop anywhere in this file.
+# CLASSIFICATION IF IT BITES: a one-instruction execute-permission escape. It is not reachable by U alone, since U controls neither mepc nor MPP, so it is a privilege-boundary deviation rather than a U-exploitable hole, but it is exactly the window a "revoke X, then resume the task" handler relies on.
+# THE MAP: entry 0 NA4 on &rt1_xword with R = 1, W = 0, X = 0, the fenced code word; entry 1 OFF at 0, entry 2's TOR base; entry 2 TOR 0x00000000-0x0001FFFF with R = W = X = 1.
+# REGISTER CONTRACT, standard mode pushing nothing because a U sp is untrusted: s3 the trap counter, s4, s5 and s6 the cause, mepc and mtval of the last non-ECALL trap, s7 the handler resume PC, s9 the M continuation after ECALL, s10 the ESCAPE WITNESS which must stay 0, and t4 the CHECK ID.
+# BUILD-TIME DISPATCH: assembled only with -DCORE_ENABLE_TRAPCSR, -DCORE_ENABLE_UMODE and -DCORE_ENABLE_PMP; deliberately not in the default runner array.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,32 +1,10 @@
 #!/usr/bin/env python3
-"""rdl_legacy_snapshot.py -- write the frozen constant table
-//platform/common:rdl_pkg_vs_legacy_test grades the generated packages against.
+"""VestaRV: write the frozen constant table rdl_pkg_vs_legacy_test grades the packages against.
 
-RUN THIS ONCE, BEFORE A PERIPHERAL MIGRATES, AND NEVER AS PART OF A GATE. The
-whole value of rdl_legacy_constants.json is that it was written down at a moment
-when the RTL still held its own copy of the numbers; a gate that regenerated it
-would grade the emitter against itself and prove nothing. It is checked in, it
-is edited by hand when a register deliberately changes, and the change is
-reviewed like any other register change.
-
-Two kinds of entry, and the difference matters when reading a failure:
-
-  decodeConstants   READ OUT OF THE RTL TEXT. The word-offset constants the
-                    peripheral's decode names -- a local `SLOT_CR`, the memory
-                    map package's `RegSlotUARTxCR`, NPU's `MmrAddrNPUCR`,
-                    irq_router's `W_CLAIM` -- with the md5 of the file each was
-                    read from. This half is an INDEPENDENT copy: it does not run
-                    through SystemRDL at any point.
-
-  registers/fields  FROZEN FROM THE EMISSION at the timestamp below, after
-                    reports R2/R3 had graded every .rdl against its decode and
-                    //platform/common:rdl_vs_vhdl_<block>_test had been green on
-                    all twenty-two. This half is independent in TIME, not in
-                    source: it catches an .rdl edit that was not meant to change
-                    a register, which is the failure mode a regenerate-and-diff
-                    gate cannot see.
-
-    usage:  rdl_legacy_snapshot.py [--out <path>]
+Run once before a peripheral migrates and never as part of a gate: regenerating it would grade
+the emitter against itself. decodeConstants are read out of the RTL text with the md5 of each
+source file, an independent copy that never runs through SystemRDL; registers and fields are
+frozen from the emission, independent in time, and catch an unintended .rdl edit.
 """
 
 import argparse

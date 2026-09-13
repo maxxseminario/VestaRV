@@ -1,48 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shuart.S  (M6; M12 single-ROM boot rework)
-#-----------------------------------------------------------------------------
-# HART-GENERIC shared-UART0 test — the M6 signature test.
-#
-# M12: tiles are NO LONGER preloaded. Hart 0 stages this TCM image once and
-# launches harts 1-3 into tile_entry through the bootrom loader (mp_boot.h);
-# each tile then parks on the token exactly as before. The token ring itself
-# (0x10170) is unchanged — it is the message-ordering serializer, separate
-# from the one-time launch.
-#
-# M6 moved UART0 (the console UART) off hart 0's private peripheral bus and
-# onto the mp_arbiter; M11's map rework put it back at its ORIGINAL 0x4400
-# (shared window page 0, slot 4): all 4 harts reach its registers there
-# (CR/SR/BR/RX/TX at +0x0/4/8/C/10, same offsets as ever). The arbiter's
-# whole-transaction grant serializes register accesses; MESSAGE-level
-# ownership is software's job — here a token ring (order 0->1->2->3).
-#
-# Shared words (>= 0x10170, clear of all earlier tests' words):
-#     TOKEN    = 0x10170          whose turn it is (shram zero-init => hart 0)
-#     DONE[h]  = 0x10180 + 4*h    0xC0DE0000+h after hart h transmitted
-# Argus A3: TOKEN sits below the DONE base, so the NHARTS-sized DONE array
-# (N=18: 0x10184..0x101C4, < 0x10500) can't overrun it. Every tile runs the
-# SAME transmit role (no per-hart role dispatch), so this test parameterizes
-# cleanly to any NHARTS.
-#
-# Hart 0 (SPI boot):  verify CR/TX read their reset zeros through the live
-#   shared window, program BR=1 + CR=EN through 0x4400, read both back,
-#   transmit 'A' + full UTCIF flag dance, TOKEN=1. Then bounded-wait
-#   TOKEN==4 and verify DONE[1..3].
-# Harts 1-3 (launched by hart 0, then parked on TOKEN reads): on TOKEN==h verify BR still
-#   reads the hart-0 value (shared config really is shared), transmit 'A'+h,
-#   UTCIF flag dance, DONE[h], TOKEN=h+1, inline PASS + forever-verify.
-#
-# Flag dance per byte (proves the smclk-domain UART core really ran, and the
-# read/write/clear paths all work through the arbiter): write TX, poll SR
-# bit0 (UTCIF) ==1, write SR=1 (clear pulse), poll UTCIF ==0. BR=1 => baud =
-# 24MHz/32, one 10-bit frame = 320 mclk ~ 13.3us. All polls bounded at 20000
-# (must trip inside the 100ms tb watchdog).
-#
-# No IRQs anywhere: CR interrupt enables stay 0, SYS_IRQ_EN resets masked,
-# and nothing writes the CLINT. sp is set anyway (IRQ_SV contract).
-#*****************************************************************************
+# VestaRV: shared UART0 test
+# UART0 is on the mp_arbiter at 0x4400 with CR/SR/BR/RX/TX at +0/4/8/C/10, and all harts reach it there. The arbiter's whole-transaction grant serialises REGISTER accesses; MESSAGE-level ownership is software's job, and here it is a token ring in order 0 -> 1 -> 2 -> 3, separate from the one-time launch.
+# Shared words: TOKEN = 0x10170 (zero-init, so hart 0 goes first), DONE[h] = 0x10180 + 4*h (0xC0DE0000 + h). TOKEN sits below the DONE base so the NHARTS-sized array cannot overrun it; N=18 tops at 0x101C4. Every tile runs the same transmit role, so the test parameterises cleanly to any NHARTS.
+# Hart 0 proves CR and TX read their reset zeros through the live shared window, programs BR = 1 and CR = EN, reads both back, transmits 'A' with the full flag dance and sets TOKEN = 1, then waits for TOKEN == NHARTS and verifies every DONE. Each tile, on its turn, first proves BR still reads hart 0's value, which is what makes the configuration demonstrably shared.
+# Flag dance per byte, which proves the smclk-domain UART core really ran and that read, write and clear all work through the arbiter: write TX, poll SR bit 0 (UTCIF) to 1, write SR = 1 to pulse the clear, poll UTCIF back to 0. At BR = 1 the baud is 24 MHz/32 and a 10-bit frame is 320 mclk, about 13.3 us. Every poll is bounded at 20000, inside the 100 ms tb watchdog.
+# No interrupts anywhere: the CR interrupt enables stay 0, SYS_IRQ_EN resets masked and nothing writes the CLINT. sp is still set, because the IRQ_SV contract requires it.
 
 #include "riscv_test.h"
 #include "test_macros.h"

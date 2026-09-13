@@ -1,69 +1,13 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# privpmpmx.S   (P3 — THE D5 TEST: a PMP-denied access issues NO TRANSACTION)
-#-----------------------------------------------------------------------------
-# ON-ONLY DIRECTED MP TEST (needs a trapCsr+umode+pmp build). privpmp proves
-# that a denied access TRAPS with the right cause/mtval/mepc. THIS file proves
-# the harder half of ~/work/chip_docs/castalia/priv_arch/p0_specs.md §4 / §4.1 —
-# the STRICT PRE-ISSUE guarantee (user ruling D5):
-#
-#     a denied access performs NO BUS TRANSACTION, so the SIDE-EFFECTING READS
-#     in the shared window are never triggered by a faulting access.
-#
-# The shared window contains two read-with-side-effect registers: the HW mutex
-# bank (a `lw` is an ATOMIC RETURN-OLD-AND-CLAIM) and the irq_router CLAIM
-# register (a read drains the pending interrupt). A check that lands AFTER the
-# arbiter grant is therefore a silent lock leak or a stolen interrupt — a
-# failure that NO cause/mtval check can see, because the trap looks perfect.
-#
-# THE PROOF (a claim is only observable from ANOTHER hart):
-#   1. hart 0, M-mode with mstatus.MPRV=1 and MPP=U, so the DATA privilege is
-#      U while the instruction fetch stays M (no U-mode code region needed).
-#   2. hart 0 executes  lw t3, 0(0x603C)  — MUTEX 15. PMP entry 0 fences that
-#      exact word (NA4, R=W=X=0), so the access must be DENIED: mcause 5,
-#      mtval = 0x603C, mepc = the load's own PC, and rd (t3) UNTOUCHED.
-#   3. hart 0 launches hart 1 through the M12 bootrom loader.
-#   4. hart 1 — which has its own, empty PMP bank and is unconstrained —
-#      performs the SAME `lw` and publishes what it read.
-#   5. THE VERDICT: hart 1 must read 0 (the mutex was FREE). If hart 0's denied
-#      load had reached the arbiter it would have claimed the mutex and never
-#      released it, so hart 1 would read hart 0's marker (hartid+1 = 1) and
-#      this test FAILs bounded at CHECK 40.
-#
-# Mutex 15 is used by no other test in the suite, and the tests run in
-# isolation (one image per simulation), so the bank is provably all-free at
-# reset for this run.
-#
-# SHARED-WORD LEDGER (CLAUDE.md rule: everything a test uses stays < 0x10500
-# and inside the bootrom zero range < 0x10800). This test takes the TOP TWO
-# words of the reserved band 0x102A0-0x1037F — the band grows from the
-# bottom, so the top is the lowest-collision choice.
-# BOTH are N-agnostic scalars (no per-hart array), so they are correct at
-# NHARTS=4 and NHARTS=18 alike:
-#     0x10378  PMPMX_MRD    what hart 1 read from mutex 15 (0 = it was FREE)
-#     0x1037C  PMPMX_DONE1  hart 1's completion flag (0x40BE0001)
-#
-# BOUNDEDNESS: the only loop is hart 0's DONE poll, with an explicit 100000
-# iteration budget (the shmutex figure — it covers the serialized tile ROM
-# copy at launch and fits inside the 100 ms tb watchdog).
-#
-# REGISTER CONTRACT (standard mode pushes NOTHING):
-#   s2  mutex 15's address    s3  trap counter      s4/s5/s6  cause/mepc/mtval
-#   s7  handler resume PC     s8  expected mepc     s10 mhartid
-#   t3  the denied load's rd (pre-seeded, must survive)   t4  CHECK ID
-#
-# BUILD-TIME DISPATCH: ON iff all three of -DCORE_ENABLE_TRAPCSR
-# -DCORE_ENABLE_UMODE -DCORE_ENABLE_PMP are appended to RISCV_GCC_OPTS on a
-# staged pmp build. privpmpmx is deliberately NOT in the default behavioral_mp
-# runner array, so the #else arm must never execute.
-#
-# NAME: the runner contract fixes the rcf basename at EXACTLY 22 characters
-# ("../rcf/" + 22 = riscv_tb's 29-char TEST_FILE generic), so an rv32ua test
-# name may be at most 9 characters. "privpmpmtx" (the name used in
-# p0_specs.md §4) would produce a 23-char rcf that xrun.sh rejects outright;
-# this file is therefore privpmpmx -> rv32ua-p-privpmpmx.rcf (exactly 22).
-#*****************************************************************************
+# VestaRV: a PMP-denied access must issue no bus transaction
+# ON-ONLY multi-hart test, needing a trapCsr, umode and pmp build. privpmp proves a denied access traps with the right cause, mtval and mepc; THIS file proves the STRICT PRE-ISSUE guarantee, that a denied access performs NO BUS TRANSACTION at all.
+# WHY THAT MATTERS: the shared window holds two read-with-side-effect registers, the HW mutex bank, where a load is an atomic return-old-and-claim, and the irq_router CLAIM register, where a read drains the pending interrupt. A check that lands AFTER the arbiter grant is a silent lock leak or a stolen interrupt, which no cause or mtval check can see, because the trap looks perfect.
+# THE PROOF, since a claim is only observable from ANOTHER hart: hart 0 runs in M-mode with mstatus.MPRV = 1 and MPP = U, so the DATA privilege is U while the instruction fetch stays M and no U-mode code region is needed; it executes `lw t3, 0(0x603C)` against MUTEX 15, which PMP entry 0 fences NA4 with R = W = X = 0, so the access must be denied with mcause 5, mtval 0x603C, mepc the load's own PC and rd untouched. Hart 0 then launches hart 1 through the boot ROM loader; hart 1 has its own empty PMP bank, performs the SAME load and publishes what it read. HART 1 MUST READ 0, meaning the mutex was free: had hart 0's denied load reached the arbiter it would have claimed the mutex and never released it, so hart 1 would read hart 0's marker.
+# Mutex 15 is used by no other test and the suite runs one image per simulation, so the bank is provably all-free at reset for this run.
+# Shared words, both N-agnostic scalars so they are correct at any NHARTS, taking the TOP TWO words of the reserved band 0x102A0-0x1037F, since that band grows from the bottom: 0x10378 PMPMX_MRD, what hart 1 read from mutex 15, and 0x1037C PMPMX_DONE1, hart 1's completion flag 0x40BE0001. The only loop is hart 0's DONE poll, bounded at 100000 iterations, which covers the serialised tile ROM copy at launch and fits inside the 100 ms tb watchdog.
+# REGISTER CONTRACT, standard mode pushing nothing: s2 mutex 15's address, s3 the trap counter, s4, s5 and s6 cause, mepc and mtval, s7 the handler resume PC, s8 the expected mepc, s10 mhartid, t3 the denied load's rd, pre-seeded and required to survive, and t4 the CHECK ID.
+# BUILD-TIME DISPATCH: assembled only with all three of -DCORE_ENABLE_TRAPCSR, -DCORE_ENABLE_UMODE and -DCORE_ENABLE_PMP; this file is deliberately not in the default runner array. THE NAME IS CONSTRAINED BY THE RUNNER: the rcf basename must be exactly 22 characters, so the spec's "privpmpmtx" would produce a 23-character rcf that xrun.sh rejects.
 
 #include "riscv_test.h"
 #include "test_macros.h"

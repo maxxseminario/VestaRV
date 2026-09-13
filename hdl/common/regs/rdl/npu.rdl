@@ -1,17 +1,6 @@
-// ===========================================================================
-// npu.rdl: the register map of hdl/common/periph/NPU.vhd (the MMR block at
-// the end of the file, decoded off MabMmrAInt).
-//
-// THE VHDL IS THE AUTHORITY. Slot numbers are MemoryMap.vhd's MmrAddrNPU*
-// and everything resets to 0.
-//
-// NPUTHINK (NPUCR bit 16) is a SEPARATE FLOP, not part of the NPUCR vector:
-// byte lane 2 splits around it (`NPUCR(23 downto 17) <= D(23 downto 17);
-// NPUTHINK <= D(16)`), the read mux re-inserts it at bit 16, and NpuDone
-// clears it. It is therefore a plain read/write bit that hardware also
-// clears -- writing 0 to it stops nothing, but it is not write-1-only, which
-// is what the generator's rw1 code claims.
-// ===========================================================================
+// VestaRV: the register map of hdl/common/periph/NPU.vhd, the MMR block at the end of the file decoded off MabMmrAInt
+// The VHDL is the authority: slot numbers are MemoryMap.vhd's MmrAddrNPU* and everything resets to 0.
+// NPUTHINK (NPUCR bit 16) is a SEPARATE FLOP, not part of the NPUCR vector: byte lane 2 splits around it (`NPUCR(23 downto 17) <= D(23 downto 17); NPUTHINK <= D(16)`), the read mux re-inserts it at bit 16, and NpuDone clears it. It is therefore a plain read/write bit that hardware also clears, not the write-1-only bit the generator's rw1 code claims.
 
 `include "vesta_udp.rdl"
 

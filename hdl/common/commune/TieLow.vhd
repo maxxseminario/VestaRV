@@ -1,8 +1,7 @@
+-- VestaRV: constant logic-0 source, used to tie off unused inputs.
 library ieee;
 use ieee.std_logic_1164.all;
 
-
--- Constant logic-0 source used to tie off unused inputs.
 entity TieLow is
 	port
 	(

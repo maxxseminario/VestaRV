@@ -1,111 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shtcm.S  (CPR4 — the TAPE-OUT-CONFIG orchestrator test: read-only TCM
-#           apertures, CPR3/R3 + amendments A1/A2/A3)
-#-----------------------------------------------------------------------------
-# THE ONE ORCHESTRATOR TEST THAT RUNS ON THE TAPE-OUT CONFIGURATION. `shorch`
-# keys on the AFE/EIS stub bank and is therefore selected only where cqAfeStubs
-# is on; the TCM apertures exist wherever the ORCHESTRATOR does, so this
-# file's CATALOG tag is `tiles orch` and it is selected on every orchestrator
-# configuration, the tape-out one included. It is the rehearsed successor of the CPR3 scratch file `zztcmw.S`
-# (parked in ~/work/chip_docs/castalia/castalia_penta/): leg A below is that
-# file's graded self-read leg, absorbed verbatim, because it is the ONLY
-# chip-level coverage of the A3 fix.
-#
-#   hart 0        = the always-on soft ORCHESTRATOR: boot master, management
-#                   hart (the ONE master the apertures answer), tb a0 gate.
-#   harts 1..N-1  = the gateable channel tiles.
-#
-# TCM APERTURE MAP (CPR3/R3). Hart h's private TCM byte B is readable at
-#     TCMWIN[h] + (B - 0x8000),  TCMWIN[h] = 0x20000 + 0x4000*h
-# so the two marker words at TCM 0xBF00/0xBF04 (above the ISR bank 0xBAFF, far
-# below the stack top 0xBFF0) appear at window offset 0x3F00/0x3F04:
-#     hart 0 -> 0x23F00   hart 1 -> 0x27F00   hart 2 -> 0x2BF00
-#     hart 3 -> 0x2FF00   hart 4 -> 0x33F00
-# The port is READ-ONLY, MANAGEMENT-HART-ONLY, and a gated tile's aperture
-# completes with zeros (R4/R4-A2). tcm_ext_addr is a TCM WORD index; the
-# request is held until done and must drop >= 1 mclk between transactions
-# (one-shot rearm); latency is 6 mclk, deterministic.
-#
-# THE SIX LEGS, IN ORDER, AND WHAT EACH ONE IS FOR
-#   READY  every tile plants TWO distinct words in its OWN TCM and publishes
-#          READY[h]. Distinct per (hart, word) means no window can alias
-#          another and hide: reading tile 3 and getting tile 2's marker is a
-#          FAIL, not a coincidence.
-#   A      hart 0 reads its OWN window (0x23F00) EIGHT times and SURVIVES it —
-#          the CPR3b/A3 leg. THE GRADE IS NOT THE VALUE, IT IS THE SURVIVAL:
-#          at CPR3 the data was right (the marker came back six mclk after the
-#          request) and the reading core's INSTRUCTION STREAM was not (PC
-#          0x83E0 -> 0x842E, into another hart's payload, then tile_park, so a0
-#          was never written and the test died on the tb watchdog). Root cause:
-#          hart_tile's Q shadow released on a tx_busy-derived timer while the
-#          core stays frozen for the WHOLE arbiter transaction (the aperture
-#          slave holds s_stall), so live Q — a function of the EXTERNAL address
-#          — reached the frozen core's fetch path. The straight-line canaries
-#          after the loop are the survival assertion: they are reachable ONLY
-#          by executing the instructions the assembler actually emitted. All
-#          four tiles are spinning on the shared bus throughout, which is what
-#          makes the arbiter transaction — and hart 0's freeze — long.
-#   B      hart 0 reads EVERY tile's window: both marker words per tile, then
-#          word 0 a second time (the one-shot rearm — a slave that held req
-#          across two accesses would get one done and wait forever here).
-#   C      NEGATIVE CONTROL WITH A VACUITY GUARD. Tile 2 reads tile 1's window
-#          AND hart 0's window: both are DENIED (s_master /= 0) and must read
-#          0. In the same breath the same tile reads an ordinary shared word
-#          (READY[1], planted nonzero by tile 1) and must SEE it — so "0" is a
-#          denial and not a dead prober. Then it publishes DRPT nonzero: hart 0
-#          FAILs if DRPT is zero, because a probe that never ran would leave
-#          DSEEN at the bootrom's zero and pass a vacuous control.
-#   E      WRITE-DROPPED. Hart 0 writes poison to a live tile's window and to
-#          its own, and both words read back UNCHANGED (the aperture launches
-#          only on sh_we = "0000"; a write is answered with zeros and never
-#          reaches the tile).
-#   D      THE R4-A2 PROOF. Gate tile 1 (PWRCR bit 1; PWRSR nibble 1 == 3 =
-#          OFF) and read its window eight times. THE ASSERTION IS THE
-#          TERMINATION: a gated tile's tcm_ext_done is iso-clamped to 0, so an
-#          aperture slave that waited for it would hang the shared bus behind a
-#          sleeping tile with the management hart stalled on it — that failure
-#          is a 100 ms watchdog timeout, not a FAIL. Each read must RETURN and
-#          must return zero. Then an ordinary shared read proves the bus
-#          survived, PWRCR = 0 re-ignites the tile, and the tile is RELAUNCHED
-#          (its TCM is cold — wake is an M12 cold boot) to plant DIFFERENT
-#          markers, which hart 0 reads through the same window: the recovery
-#          is proven by data that can only have come from the re-ignited tile.
-#   A'     the self-read again, in a different chip state (one tile has been
-#          through a full gate/wake cycle). Hart 0's window is never gated
-#          (R4-A2), so it must still answer and must still be survivable.
-#
-# Shared-word ledger (CPR4; LEDGER RULE: the per-hart array is 4*NHARTS bytes
-# and every control word follows it at base + 4*NHARTS + k, so a bigger N can
-# never overrun them; all < 0x10500 and inside the bootrom zero range):
-#     READY[h] = 0x103F0 + 4*h      h = 0..N-1 (h=0 unused, uniform indexing
-#                                   with TCMWIN[h] — the map this test walks)
-#     DSEEN    = 0x103F0 + 4*NHARTS      (N=5: 0x10404) tile 2's denied reads,
-#                                   ORed: ANY nonzero bit fails
-#     DCTRL    = DSEEN + 4               (N=5: 0x10408) tile 2's vacuity read
-#     DRPT     = DSEEN + 8               (N=5: 0x1040C) "the probe ran"
-#   Claim = the 8-word block 0x103F0-0x1040C at N=5. Free there: shexec's
-#   DONE[h] tops out at 0x103E8 below and shfault's HEARTBEAT starts 0x10440
-#   above. At N=18 the block would overlap shexec's DONE tail — benign AND
-#   unreachable: this row selects only on `orch`, and no 18-hart orchestrator
-#   configuration exists (Argus has no orchestrator), on top of the
-#   one-image-per-sim isolation rule.
-#
-# BUDGETS. MP_STAGE_IMAGE(1024) — 4 KiB carries the IVT and this payload; a
-# full 16 KiB copy per launch costs ~4 ms of tile time and four of them would
-# crowd the 100 ms tb watchdog. Post-launch gathers are 400000 iterations
-# (the zztcmw-proven value; it covers four serialized ROM copies under
-# four-way bus contention). NOTE the deliberate tradeoff, since the house rule
-# on retry budgets is the opposite one: a 400000-iteration SHARED-bus poll
-# does not trip inside the watchdog, so if a launch never lands this reports
-# as a HANG and not as a clean FAIL. That is accepted here and only here — a
-# tile that has not booted within four ROM copies is a hang either way. Every
-# other bound in this file (20000) trips well inside the watchdog.
-#
-# No smclk-domain peripheral is touched (pwr_ctrl and the apertures are mclk),
-# so the bootrom SMCLK->LFXT trap does not apply.
-#*****************************************************************************
+# VestaRV: orchestrator TCM-aperture test, tape-out configuration
+# THE ONE ORCHESTRATOR TEST THAT RUNS ON THE TAPE-OUT CONFIGURATION: shorch keys on the AFE/EIS stub bank and is selected only where cqAfeStubs is on, while the TCM apertures exist wherever the orchestrator does, so this file's catalog tag is `tiles orch`. Hart 0 is the always-on soft orchestrator, boot master, management hart and tb a0 gate; harts 1..N-1 are the gateable channel tiles.
+# APERTURE MAP: hart h's private TCM byte B is readable at TCMWIN[h] + (B - 0x8000), TCMWIN[h] = 0x20000 + 0x4000*h, so the marker words at TCM 0xBF00/0xBF04 (above the ISR bank at 0xBAFF, below the stack top 0xBFF0) appear at window offset 0x3F00/0x3F04: 0x23F00 for hart 0 through 0x33F00 for hart 4. THE PORT IS READ-ONLY AND MANAGEMENT-HART-ONLY, and a gated tile's aperture completes with zeros. tcm_ext_addr is a TCM WORD index, the request is held until done and must drop for at least one mclk between transactions (one-shot rearm), and the latency is a deterministic 6 mclk.
+# LEGS. READY: every tile plants two distinct words in its own TCM and publishes READY[h], distinct per (hart, word) so no window can alias another and hide. A: hart 0 reads its OWN window eight times and must SURVIVE it, which is the grade, not the value; the aperture slave holds s_stall for the whole arbiter transaction, and a Q shadow released on a tx_busy-derived timer while the core is still frozen puts a value that depends on the EXTERNAL address into the frozen core's fetch path, landing the PC in another hart's payload. The straight-line canaries after the loop are the survival assertion, reachable only by executing the instructions the assembler emitted, and all four tiles spin on the shared bus throughout to keep the transaction, and the freeze, long. B: hart 0 reads every tile's window, both markers then word 0 again, which catches a slave that held req across two accesses. C: negative control with a vacuity guard, where tile 2 is denied both tile 1's window and hart 0's and must read 0, must in the same breath SEE an ordinary shared word planted nonzero, and must publish DRPT nonzero, because a probe that never ran would leave DSEEN at the bootrom's zero and pass vacuously. E: hart 0's writes to a live tile's window and its own must read back unchanged, since the aperture launches only on sh_we = "0000". D: gate tile 1 (PWRCR bit 1, PWRSR nibble 1 == 3) and read its window eight times, where THE ASSERTION IS THE TERMINATION, because a gated tile's tcm_ext_done is iso-clamped to 0 and a slave that waited for it would hang the shared bus behind a sleeping tile; then re-ignite, relaunch the tile cold and read its DIFFERENT markers. A': the self-read again after a full gate and wake cycle, since hart 0's window is never gated.
+# Shared words, all below 0x10500 and inside the bootrom zero range, with the per-hart array 4*NHARTS bytes and every control word after it: READY[h] = 0x103F0 + 4*h (h = 0 unused, for uniform indexing with TCMWIN[h]), DSEEN = 0x103F0 + 4*NHARTS (tile 2's denied reads, ORed, so any nonzero bit fails), DCTRL = DSEEN + 4 (the vacuity read), DRPT = DSEEN + 8.
+# BUDGETS, and one of them breaks the house rule deliberately. MP_STAGE_IMAGE(1024) stages 4 KiB, enough for the IVT and this payload, because a full 16 KiB copy per launch costs about 4 ms of tile time and four of them would crowd the 100 ms tb watchdog. Post-launch gathers are 400000 iterations, which covers four serialised ROM copies under four-way contention but does NOT trip inside the watchdog, so a launch that never lands reports as a hang rather than a clean FAIL. That is accepted here and only here. Every other bound in this file is 20000.
+# Nothing smclk-domain is touched, so the boot ROM's SMCLK-to-LFXT trap does not apply.
 
 #include "riscv_test.h"
 #include "test_macros.h"

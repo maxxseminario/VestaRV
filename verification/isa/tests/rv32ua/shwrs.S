@@ -1,36 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shwrs.S   (X1 Zawrs directed multi-core wake test)
-#-----------------------------------------------------------------------------
-# The Zawrs lock-wakeup story. Hart A (hart 0, the gate) takes an LR on a shared
-# word and executes wrs.nto; hart B (hart 1) — after a deliberate delay long
-# enough that A is definitely stalled — STORES to that word, which kills A's
-# global reservation in resv_unit and must wake A. reservation-kill must WIN
-# over the software watchdog.
-#
-# SOFTWARE WATCHDOG (so a never-wake bug FAILs cleanly inside the 1-minute sim,
-# never hangs): after storing, hart B polls A_WOKE with a bounded budget. If A
-# acknowledges the wake, B is done (no backstop). If the budget expires (A is
-# stuck — wrs.nto has no timeout), B raises BACKSTOP_FIRED and fires a backstop
-# msip at hart 0, forcing A out of the stall via the interrupt-pending wake so
-# the verdict is a clean FAIL. A distinguishes the paths: it reads BACKSTOP_FIRED
-# on wake — 0 => it woke on the reservation kill (PASS); 1 => it only woke on the
-# backstop (reservation-kill lost => FAIL). This is exactly what the negative
-# control (seed "never wake on invalidation") exercises: it drives the backstop
-# path and a clean watchdog FAIL.
-#
-# Shared-window words (< 0x10500 loader rows, > shafe 0x10498, bootrom-zeroed):
-#     SH_WORD     = 0x104A0   the LR-reserved shared word
-#     SH_A_WOKE   = 0x104A4   A sets = 1 once wrs.nto wakes
-#     SH_BACKSTOP = 0x104A8   B sets = 1 immediately before firing the backstop
-#     SH_B_DONE   = 0x104AC   B progress marker
-#
-# Build-time dispatch on CORE_ENABLE_ZAWRS (never from an include): OFF = the
-# DEFAULT build (macro undefined) degrades to a trivially-passing single-hart
-# variant so the suite stays green; ON = built by explicitly appending the -D
-# flag (see the extzawrs.S header for the exact RISCV_GCC_OPTS command).
-#*****************************************************************************
+# VestaRV: Zawrs wake on a foreign store killing the reservation
+# Hart 0 takes an LR on a shared word and executes wrs.nto; hart 1, after a delay long enough that hart 0 is definitely stalled, STORES to that word, which kills the global reservation in resv_unit and must wake hart 0. THE RESERVATION KILL MUST WIN OVER THE SOFTWARE WATCHDOG.
+# THE SOFTWARE WATCHDOG EXISTS SO A NEVER-WAKE BUG FAILS CLEANLY RATHER THAN HANGING, since wrs.nto has no timeout. After storing, hart 1 polls the wake flag with a bounded budget; if it expires, hart 1 raises BACKSTOP_FIRED and sends a backstop msip to hart 0, forcing it out of the stall through the interrupt-pending wake. Hart 0 distinguishes the paths by reading BACKSTOP_FIRED on wake: 0 means it woke on the reservation kill and passes, 1 means it only woke on the backstop and the kill was lost. That is exactly what the negative control exercises.
+# Shared words, above the neighbouring band and below the loader rows at 0x10500, all bootrom-zeroed: SH_WORD = 0x104A0, the LR-reserved word; SH_A_WOKE = 0x104A4; SH_BACKSTOP = 0x104A8, set immediately before firing the backstop; SH_B_DONE = 0x104AC.
+# BUILD-TIME DISPATCH on CORE_ENABLE_ZAWRS, never from an include: the default build leaves it undefined and degrades to a trivially passing single-hart variant so the suite stays green, and the ON arm is built by explicitly appending the define, with the exact command in extzawrs.S's header.
 
 #include "riscv_test.h"
 #include "test_macros.h"

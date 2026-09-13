@@ -1,50 +1,10 @@
 #!/usr/bin/env python3
-"""gen_gemm_vectors.py -- FROZEN golden-vector generator for the NPU GEMM mode
-(MODE=3, `~/work/chip_docs/castalia/digperiphs/npu_gemm_design.md` D2/D10,
-adjudicated 2026-07-23), built entirely on npu_fixed.py's validated, bit-exact
-MAC model. Emits one case per design-doc case roster into gemm_vectors/, at the
-FROZEN MCU/chip generics:
+"""VestaRV: frozen golden-vector generator for the NPU GEMM mode, Q0.24 in, Q7.24 out.
 
-    X_M=0  W_M=7  Y_M=7  N=24  RHO=2      (Q0.24 in, Q7.24 weight/acc/out)
-
-GEMM = M independent MLP THINKs (D2 KEY FINDING): for each output row m, hold
-input vector A[m][:], and sweep N output columns, each a length-K dot against
-column n's contiguous weights B[:][n]. This file therefore NEVER reimplements
-mac_step/resize/sigmoid -- every value comes from npu_fixed.think_layer(),
-called once per row exactly as npu_gemm_design.md D10 shows:
-
-    C[m], _ = think_layer(A[m], w_list, ni=K-1, nn=N-1, ben=0, aen=AEN,
-                           x_m=0, w_m=7, y_m=7, n_bits=24, rho=2, w_offset=0)
-
-Golden-file interface (D10, FROZEN):
-    npu_gemm_<case>_cfg.txt  -- 9 scalars, one per line, in order:
-                                M K N BEN AEN ACTF IVSAR WVSAR OVSAR
-                                (BEN is always 0 -- D6 contract-only bias).
-    npu_gemm_<case>_in.txt   -- M*K lines, A ROW-MAJOR: A[m][k] at line m*K+k.
-    npu_gemm_<case>_w.txt    -- K*N lines, B COLUMN-MAJOR: w_list[n*K+k] =
-                                B[k][n] (one column's K weights contiguous --
-                                exactly the flat array think_layer() walks
-                                contiguously per neuron/column).
-    npu_gemm_<case>_exp.txt  -- M*N lines, C ROW-MAJOR: C[m][n] at line m*N+n,
-                                Q7.24 (or Q0.24 sigmoid raw when AEN=1).
-    All data values are raw fixed-point words reinterpreted as signed decimal
-    ints (the conv/xnor idiom -- no comment lines in the data files).
-
-A/B legality (npu_gemm_design.md binding inputs): A raw is Q0.24, legal range
-[-2**24, 2**24) (real A in [-1,1), the DUT's 25-bit SramQ_in(24 downto 0)
-slice); B/C raw is Q7.24, legal range [-2**31, 2**31) (real B/C in [-128,128)).
-
-MANDATORY SELF-TESTS (design-doc ADJUDICATION ADDENDUM A1): this generator
-builds every case's data IN MEMORY first, runs five self-tests against that
-data (M=1 subsumption, k-reverse discriminance, B-transpose discriminance,
-saturation evidence, round-activity), and ONLY IF ALL PASS does it write the
-golden files to disk -- an assertion failure here means the vectors do not
-yet "bite" and must be re-tuned before anything is emitted.
-
-Usage:
-    /usr/bin/python3 gen_gemm_vectors.py
-    (no arguments -- builds every case, self-tests, then regenerates every
-    case into ./gemm_vectors/)
+GEMM is M independent MLP THINKs, so every value comes from npu_fixed.think_layer() called
+once per output row; nothing here reimplements mac_step, resize or sigmoid. A is row-major
+and B column-major, which is the contiguous walk think_layer() makes per column. The five
+self-tests run against in-memory data and only an all-pass writes the golden files.
 """
 import os
 import random
@@ -54,9 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from npu_fixed import (think_layer, mac_step, resize_sfixed, _sat_bounds,  # noqa: E402
                         ROUND_TRUNCATE, SAT_SATURATE)
 
-# ---------------------------------------------------------------------------
 # Frozen MCU/chip generics (npu_gemm_design.md binding inputs)
-# ---------------------------------------------------------------------------
 X_M = 0
 W_M = 7
 Y_M = 7
@@ -72,17 +30,12 @@ B_MIN, B_MAX = -(1 << 31), (1 << 31)          # Q7.24 legal raw range [min, max)
 MIN_OUT, MAX_OUT = _sat_bounds(Y_M, N_BITS)   # (-2**31, 2**31 - 1), Q7.24 sat bounds
 
 
-# ---------------------------------------------------------------------------
 # The one arithmetic entry point (D10): M independent think_layer() THINKs.
-# ---------------------------------------------------------------------------
 def gemm_compute(A, w_list, M, K, N, aen, actf=0):
-    """A: list of M lists, each length K (row-major A[m][k], raw Q0.24).
-    w_list: flat length K*N, COLUMN-MAJOR (w_list[n*K+k] = B[k][n]).
-    Returns C: list of M lists, each length N (C[m][n]).
-    Reuses think_layer() verbatim, once per row, w_offset=0 every call
-    (B is reused across all M rows -- npu_gemm_design.md KEY FINDING #3).
-    actf=0 default keeps the sigmoid-legacy behavior every pre-P4.4 call
-    site here relies on."""
+    """A is M lists of K raw Q0.24 values, row-major; w_list is flat length K*N, column-major.
+    Returns C as M lists of N. Reuses think_layer() verbatim once per row with w_offset 0, since
+    B is reused across all M rows; actf=0 keeps the sigmoid-legacy behaviour.
+    """
     C = []
     for m in range(M):
         out_m, _ = think_layer(A[m], w_list, ni=K - 1, nn=N - 1, ben=0, aen=aen,
@@ -92,25 +45,17 @@ def gemm_compute(A, w_list, M, K, N, aen, actf=0):
     return C
 
 
-# ---------------------------------------------------------------------------
 # Self-test support: a walk REPLICA (bookkeeping only -- calls ONLY
 # npu_fixed.mac_step for the actual arithmetic, and npu_fixed.resize_sfixed
 # with a DIFFERENT round_style purely to detect whether rounding fired; it
 # never reimplements the round/saturate RULE itself, it just asks the
 # library's own two public, already-parameterized entry points what each
 # would have done, and diffs). Used by self-tests (d) and (e).
-# ---------------------------------------------------------------------------
 def _mac_step_with_round_flag(acc_raw, a_raw, b_raw, acc_m, n_bits):
-    """new_acc is EXACTLY npu_fixed.mac_step's real result (round-to-nearest,
-    saturate) -- the arithmetic path used everywhere else in this file.
-    `rounded` additionally asks resize_sfixed (also npu_fixed's own function,
-    not reimplemented here) what the TRUNCATING resize would have produced
-    from the identical exact widened sum, and reports whether the two
-    differ. The "exact widen" recomputed here (acc<<n + a*b) is the
-    documented, lossless VHDL '+'/'*' step npu_fixed.py's own module
-    docstring says is NEVER itself an approximation -- only resize
-    rounds/saturates, and both resize calls below let resize_sfixed (not
-    this file) decide that."""
+    """new_acc is exactly npu_fixed.mac_step's result. `rounded` asks resize_sfixed what the
+    truncating resize would have produced from the identical exact widened sum and reports
+    whether the two differ; the widening step is lossless, so only the resizes decide.
+    """
     new_acc = mac_step(acc_raw, a_raw, b_raw, acc_m, n_bits)
     exact_sum = (acc_raw << n_bits) + a_raw * b_raw
     trunc_acc = resize_sfixed(exact_sum, 2 * n_bits, acc_m, n_bits,
@@ -120,15 +65,9 @@ def _mac_step_with_round_flag(acc_raw, a_raw, b_raw, acc_m, n_bits):
 
 
 def replicate_gemm_walk(A, w_list, M, K, N, y_m=Y_M, n_bits=N_BITS):
-    """Replica of the m-outer/n-inner GEMM accumulation walk (D2: AccResetN
-    per column, k=0..K-1 IN ORDER, no bias), calling ONLY mac_step for the
-    arithmetic. Returns:
-      finals[m][n] -- final Q(y_m).(n_bits) raw accumulator (pre-activation)
-      sat_events   -- [(m, n, k)] where an INTERMEDIATE step (k < K-1) landed
-                      exactly on a saturation bound
-      round_count  -- total MAC steps where round-to-nearest changed the
-                      pre-round (truncated) value
-      total_steps  -- total MAC steps = M*N*K
+    """Replica of the m-outer, n-inner GEMM walk, calling only mac_step for the arithmetic. Returns
+    finals[m][n] pre-activation, sat_events as (m, n, k) where an intermediate step landed on a
+    saturation bound, round_count where rounding changed the truncated value, and total_steps.
     """
     finals = [[0] * N for _ in range(M)]
     sat_events = []
@@ -150,13 +89,11 @@ def replicate_gemm_walk(A, w_list, M, K, N, y_m=Y_M, n_bits=N_BITS):
     return finals, sat_events, round_count, total_steps
 
 
-# ---------------------------------------------------------------------------
 # Address allocation (conv/xnor idiom: sequential, staggered, non-zero-based
 # -- catches base-add bugs). maxfit gets its OWN pinned region (below) since
 # its 3888-word footprint would otherwise consume nearly the whole RAM out
 # from under every other case's shared cursor; per the conv/xnor precedent,
 # cases are not required to coexist in one staged image.
-# ---------------------------------------------------------------------------
 class AddrAlloc(object):
     def __init__(self, start=64):
         self.cursor = start
@@ -188,10 +125,10 @@ def write_cfg(case, values):
 
 def build_case(case, M, K, N, aen, actf, a_fn=None, b_fn=None, A=None, w_list=None,
                ivsar=None, wvsar=None, ovsar=None, note=""):
-    """Builds one case's A/w_list/C IN MEMORY (no disk I/O) and records it in
-    CASE_DATA. Either supply (a_fn, b_fn) callables of (m,k)/(k,n), or
-    already-built (A, w_list) lists directly (used by maxfit's seeded-random
-    stimulus, to avoid any re-evaluation-order subtlety in a lazy callable)."""
+    """Build one case's A, w_list and C in memory and record it in CASE_DATA. Supply either
+    (a_fn, b_fn) callables of (m,k) and (k,n), or already-built (A, w_list) lists, which avoids
+    re-evaluation-order subtleties in a lazy callable.
+    """
     if A is None:
         A = [[a_fn(m, k) for k in range(K)] for m in range(M)]
     if w_list is None:
@@ -261,12 +198,9 @@ def write_case_files():
         write_lines(os.path.join(OUT_DIR, "npu_gemm_%s_exp.txt" % case), d['flat_C'])
 
 
-# ---------------------------------------------------------------------------
 # Case builders (npu_gemm_design.md pinned roster; all pure-integer stimulus
 # -- no floats anywhere in the arithmetic/construction path).
-# ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
 # k-reverse tie engineering (feeds test (b)). PROOF-OF-NEED (empirically
 # verified while building this generator, see devlog): round-half-to-even
 # accumulate-and-resize-every-step is, absent an exact tie or an
@@ -282,7 +216,6 @@ def write_case_files():
 # out of 2**48) with the OTHER taps chosen so the running accumulator's
 # parity at that tie differs between the forward and reversed walk -- only
 # then does the tie's "round to even" resolve differently by order.
-# ---------------------------------------------------------------------------
 def _ext_gcd(a, b):
     if a == 0:
         return b, 0, 1
@@ -560,9 +493,7 @@ def gen_aen_relu_exp():
           % (path, len(flat_relu), ndiff, len(flat_relu)))
 
 
-# ---------------------------------------------------------------------------
 # MANDATORY SELF-TESTS (design-doc ADJUDICATION ADDENDUM A1)
-# ---------------------------------------------------------------------------
 SELFTEST_SUMMARY = {}
 
 
@@ -638,12 +569,10 @@ def test_b_transpose_discriminance():
 
 
 def test_saturation_evidence():
-    """(d) saturation evidence on sat: replicate the walk with EXPLICIT
-    mac_step calls (via replicate_gemm_walk, which imports mac_step from
-    npu_fixed -- never reimplemented) to COUNT mid-accumulation saturation
-    events, confirm >=1 output ends saturated, >=1 output LEAVES saturation
-    afterward, and the replica walk's final accs equal think_layer's own
-    outputs (faithfulness)."""
+    """Saturation evidence: replicate the walk with explicit mac_step calls to count mid-accumulation
+    saturation events, confirm at least one output ends saturated and at least one leaves
+    saturation afterward, and that the replica's final accumulators equal think_layer's outputs.
+    """
     d = CASE_DATA['sat']
     A, w_list, M, K, N = d['A'], d['w_list'], d['M'], d['K'], d['N']
     finals, sat_events, round_count, total_steps = replicate_gemm_walk(A, w_list, M, K, N)

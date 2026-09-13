@@ -1,37 +1,21 @@
-"""VestaRV "Argus" (18 harts) as a riscv-tests/debug harness target.
+"""VestaRV: Argus, 18 harts, as a riscv-tests/debug harness target.
 
-LOCAL FILE (not vendored upstream) -- see ../../VENDORED.md.
+Local file, not vendored upstream; see ../../VENDORED.md.
 
-This is `vesta_castalia.py` with FOUR differences and no others, which is the
-point: the two chips come out of the same generator, so a target file that
-diverged in any further respect would be describing a chip that does not exist.
+It is vesta_castalia.py with four differences and no others, which is the point: the two
+chips come out of the same generator, so any further divergence would describe a chip that
+does not exist. Eighteen harts rather than four, and the hart count is exactly what an
+attach gets wrong if it is guessed. A different openocd_config_path, whose .cfg differs
+from Castalia's in one hart count and one IDCODE. No NPU, recorded here so the absence
+reads as deliberate rather than forgotten. And timeout_sec 600 rather than 120, a MEASURED
+divergence: the examine walks every hart, so the attach cost scales with the hart count and
+at 120 the N=18 attach failed after 240 s.
 
-  1. EIGHTEEN harts, not four.  d5_spec 5.3 asks Argus for the harness ATTACH
-     plus a smoke subset -- the full table at N=18 is priced, not owed -- and
-     the attach is exactly what a hart count gets wrong if it is guessed.
-
-  2. `openocd_config_path = "vesta_argus.cfg"`, which differs from the
-     Castalia .cfg in one number (NHARTS) and one IDCODE (0x1A265EEF).
-
-  3. NO NPU, and it does not appear here because no harness test touches it --
-     recorded so the absence reads as deliberate.
-
-  4. `timeout_sec = 600`, not Castalia's 120 -- a MEASURED divergence (D5
-     validation wave, agent D; R-D5-12).  The examine walks every hart, so
-     the attach cost scales with the hart count, and with `timeout_sec = 120`
-     the N=18 attach failed at 240.66 s -- the vMustReplyEmpty signature
-     AFTER all 18 harts had examined cleanly.  600 matches
-     `server_timeout_sec`, whose N=18 need was itself measured
-     (d5 implementation report 2.4).
-
-EVERYTHING ELSE IS DELIBERATELY IDENTICAL, including the one that is easy to
-get wrong:
-
-  * `ram = 0x00014000`, `ram_size = 0x4000`.  The shared-window map is
-     N-parameterized in the CLINT registers, NOT in the bulk RAM: 0x14000 is
-     unclaimed at BOTH N (the N=18 bootrom loader rows end at 0x1061F and the
-     debug page at 0x1087F, both far below it).  The link script is shared for
-     the same reason.
+EVERYTHING ELSE IS DELIBERATELY IDENTICAL, including the one that is easy to get wrong:
+ram = 0x14000 with ram_size = 0x4000. The shared-window map is N-parameterised in the CLINT
+registers, NOT in the bulk RAM, and 0x14000 is unclaimed at both hart counts, since the
+N=18 loader rows and the debug page both end far below it. The link script is shared for
+the same reason.
 """
 
 import os

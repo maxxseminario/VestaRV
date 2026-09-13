@@ -1,23 +1,7 @@
-// ===========================================================================
-// dma.rdl: the register map of hdl/common/periph/DMA.vhd.
-//
-// THE VHDL IS THE AUTHORITY. Three things it says that the generator's
-// register table does not:
-//   DMAxCRC resets to 0xFFFF (`crc_acc <= X"FFFF"`), not 0. The register's
-//     own prose already says so; only the reset column disagrees.
-//   DMAxCnSRC / DMAxCnDST / DMAxCnLEN are FULL 32-bit stores and full 32-bit
-//     readbacks (`src_reg(ch) <= wdata`, `rdata_out <= src_reg(ch)`), so
-//     bits 31:17 are writable scratch, not reserved-zero. Out-of-window and
-//     misaligned values are rejected at GO with CHnERR rather than masked.
-//   DMAxCR.DMAGO and DMAxCR.DMAABORT are write-1 command strobes that read 0
-//     (they are absent from the CR read mux), not read/write bits.
-//
-// Every write in the block is byte-lane-0 qualified, so software uses
-// full-word stores. DMAxDESC (slot 19) is reserved: reads 0, writes ignored.
-//
-// DMAGO and DMAABORT are written sw=w without `singlepulse`: SystemRDL 2.0
-// restricts singlepulse to a ONE-BIT field, and both are four bits wide.
-// ===========================================================================
+// VestaRV: the register map of hdl/common/periph/DMA.vhd
+// The VHDL is the authority, and says three things the generator's register table does not. DMAxCRC resets to 0xFFFF (`crc_acc <= X"FFFF"`), not 0. DMAxCnSRC / DMAxCnDST / DMAxCnLEN are FULL 32-bit stores and full 32-bit readbacks, so bits 31:17 are writable scratch, not reserved-zero, and out-of-window or misaligned values are rejected at GO with CHnERR rather than masked. DMAxCR.DMAGO and DMAxCR.DMAABORT are write-1 command strobes that read 0, not read/write bits.
+// Every write in the block is byte-lane-0 qualified, so software uses full-word stores. DMAxDESC (slot 19) is reserved: reads 0, writes ignored.
+// DMAGO and DMAABORT are written sw=w without `singlepulse`: SystemRDL 2.0 restricts singlepulse to a ONE-BIT field, and both are four bits wide.
 
 `include "vesta_udp.rdl"
 

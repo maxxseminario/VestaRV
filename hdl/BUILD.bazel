@@ -1,4 +1,4 @@
-# All hand-written VHDL sources as one filegroup.
+# VestaRV: all hand-written VHDL sources as one filegroup.
 # The *.pre_pack / *.pre_vhdl2008 sidecar files carry different extensions and
 # are therefore excluded by the globs automatically.
 # hdl/common/tb is its own package (it has a BUILD file), so the glob cannot

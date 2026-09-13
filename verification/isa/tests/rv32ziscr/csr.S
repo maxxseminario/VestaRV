@@ -1,28 +1,6 @@
-#*****************************************************************************
-# CSR_TESTBENCH.S
-#-----------------------------------------------------------------------------
-# CSR (Control and Status Register) testbench for RISC-V RV32IMC
-# Tests performance counter CSR registers for read/write functionality
-#
-# CSR Register Map (from VHDL):
-# - MCYCLE    (0xB00) - Machine cycle counter low   - 32 bits R/W
-# - MCYCLEH   (0xB80) - Machine cycle counter high  - 32 bits R/W  
-# - MINSTRET  (0xB02) - Machine instret counter low - 32 bits R/W
-# - MINSTRETH (0xB82) - Machine instret counter high- 32 bits R/W
-# - CYCLE     (0xC00) - User cycle counter low      - 32 bits R (shadow)
-# - CYCLEH    (0xC80) - User cycle counter high     - 32 bits R (shadow)
-# - INSTRET   (0xC02) - User instret counter low    - 32 bits R (shadow)
-# - INSTRETH  (0xC82) - User instret counter high   - 32 bits R (shadow)
-# - TIME      (0xC01) - User time counter low       - 32 bits R (returns 0)
-# - TIMEH     (0xC81) - User time counter high      - 32 bits R (returns 0)
-#
-# Test Categories:
-# 1. Machine Counter Register Tests (MCYCLE, MCYCLEH, MINSTRET, MINSTRETH)
-# 2. User Shadow Register Tests (CYCLE, CYCLEH, INSTRET, INSTRETH)  
-# 3. Time Register Tests (TIME, TIMEH)
-# 4. CSR Operation Tests (CSRRW, CSRRS, CSRRC)
-# 5. Counter Increment Tests
-#-----------------------------------------------------------------------------
+# VestaRV: performance-counter CSR test
+# Exercises the machine counters MCYCLE/MCYCLEH (0xB00/0xB80) and MINSTRET/MINSTRETH (0xB02/0xB82) for read and write, their user-mode read-only shadows CYCLE/CYCLEH (0xC00/0xC80) and INSTRET/INSTRETH (0xC02/0xC82), and TIME/TIMEH (0xC01/0xC81), which read 0 on this core.
+# Covers the CSRRW, CSRRS and CSRRC forms and the free-running increment of both counters.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,22 +1,10 @@
 #!/usr/bin/env python3
-"""rdl_vs_vhdl_test.py -- an .rdl description and the VHDL that implements it
-describe the same registers.
+"""VestaRV: an .rdl description and the VHDL that implements it describe the same registers.
 
-THE VHDL IS THE AUTHORITY, so this gate reads the RTL rather than any generated
-artifact: the decode constants, the implemented-bit tables and the reset tables
-are parsed out of the peripheral's own source and compared against the compiled
-.rdl. What is compared, per register:
-
-    word offset      the W_* / RegSlot* / WORD_BASE the decode actually uses
-    reset value      the RSTVAL table, or the reset branch of the write process
-    storage mask     the mask of bits that hold a software-written flop
-
-The storage mask is the one that carries real information, because it is where a
-register map and its decode usually part company: a field added to the .rdl but
-not to IMPL is a field software can write and hardware never sees.
-
-    rdl_vs_vhdl_test.py --periph {uart,gpio,...} [--rdl-config <rdl.json>]
-                        [--vhdl <file>] [--memorymap-vhd <file>]
+The VHDL is the authority, so the decode constants, IMPL tables and reset tables are parsed out
+of the peripheral's own source, not from a generated artifact, and compared per register on
+word offset, reset value and storage mask. The storage mask carries the information: a field
+added to the .rdl but not to IMPL is one software can write and hardware never sees.
 """
 
 import os
@@ -62,22 +50,10 @@ REGS_VHDL_DIR = os.path.join(REPO, 'hdl', 'common', 'regs', 'vhdl')
 
 
 def _decodeText(vhdlPath):
-    """The entity's source plus the text of every generated register package it
-       `use`s.
-
-       Report R8a moved each peripheral's word-offset constants out of its
-       architecture (or out of work.MemoryMap) and into a tracked
-       hdl/common/regs/vhdl/<x>_regs_pkg.vhd generated from the same .rdl. THE
-       VHDL STAYS THE AUTHORITY AND THIS GATE STILL READS IT: what changes is
-       that "the VHDL" is now the entity plus the package it compiles against,
-       so the readers below follow the context clause instead of failing on
-       constants that are no longer declared locally.
-
-       What that costs, for a migrated block: the constants read here came from
-       the .rdl, so this gate
-       stops being .rdl-against-an-independent-copy for it. The independent copy
-       is rdl_pkg_vs_legacy_test, which holds the package against the constants
-       frozen before the migration. Both gates are needed."""
+    """The entity's source plus the text of every generated register package it `use`s. The VHDL is
+    still the authority, but for a migrated block it is the entity plus the package it compiles
+    against, so this stops being rdl-against-an-independent-copy; that copy is the legacy test.
+    """
     src = _read(vhdlPath)
     parts = [src]
     for m in re.finditer(r'use\s+work\.(\w+_regs_pkg)\.all\s*;', src):
@@ -91,22 +67,18 @@ def _decodeText(vhdlPath):
 
 
 def _slotText(vhdlPath, memoryMapPath):
-    """Everything a slot constant could be declared in, for this entity.
-
-       The memory-map package is appended only where the entity still `use`s it:
-       a migrated peripheral has swapped that clause for its own package, and
-       reading the memory map anyway would let this gate pass on a constant the
-       entity can no longer see."""
+    """Everything a slot constant could be declared in, for this entity. The memory-map package is
+    appended only where the entity still `use`s it: a migrated peripheral has swapped that clause,
+    and reading the memory map anyway would pass on a constant the entity cannot see.
+    """
     text = _decodeText(vhdlPath)
     if re.search(r'use\s+work\.MemoryMap\.all\s*;', text, re.I):
         text += '\n' + _read(memoryMapPath)
     return text
 
 
-# ---------------------------------------------------------------------------
 # The three decode readers. Each returns {registerName: {'word', 'reset', 'impl'}}
 # with `impl` None where the VHDL states no implemented-bit table.
-# ---------------------------------------------------------------------------
 
 def _aggregatePairs(src, constName, arrayType):
     """`constant NAME : TYPE := (KEY => x"...", ..., others => ...);` as a dict."""
@@ -123,19 +95,9 @@ def _aggregatePairs(src, constName, arrayType):
 
 
 def _decodeSource(path, package):
-    """The text the decode's constants live in.
-
-    SystemRDL level 2 (2026-09-10, report R6): a migrated entity no longer
-    declares its word offsets, IMPL or RSTVAL itself; it `use`s a generated
-    package that exports them under those names. The entity is still checked --
-    it must carry the context clause, or these constants are not the ones it
-    compiles against -- but the values are read from the package.
-
-    Note what this costs: for such a peripheral the comparison below is no
-    longer .rdl-against-an-independent-copy, because the package IS the .rdl.
-    The independent copy moved to rdl_pkg_vs_legacy_test.py, which holds the
-    package against the hand-written constants frozen at the migration. Both
-    gates are needed; neither replaces the other.
+    """The text the decode's constants live in. A migrated entity no longer declares its word
+    offsets, IMPL or RSTVAL, so it is checked for the context clause and the values are read from
+    the package it uses. The independent copy of those constants is rdl_pkg_vs_legacy_test.
     """
     src = _read(path)
     if ('use work.%s.all;' % package) not in src:
@@ -149,8 +111,7 @@ def _decodeSource(path, package):
     return _read(pkgPath)
 
 
-# ---------------------------------------------------------------------------
-# THE periph_regs READER (report R12a, 2026-09-11)
+# THE periph_regs READER
 #
 # A block whose bus side is an instance of hdl/common/periph_regs.vhd no longer
 # has a case decode, a reset branch or a write-1-to-clear arm to read: its decode
@@ -164,11 +125,10 @@ def _decodeSource(path, package):
 #
 # -- and then reads word, reset and IMPL out of that package's tables.
 #
-# What this costs is the same thing report R6 already paid at level 3: for such a
+# What this costs is what level 3 already paid: for such a
 # block the comparison below is no longer .rdl-against-an-independent-copy. The
 # independent copy is rdl_pkg_vs_legacy_test.py, which holds every value in the
 # package against the constant that was hand-written before the migration.
-# ---------------------------------------------------------------------------
 
 _REGFILE_TABLES = ('RSTVAL', 'IMPL', 'W1C', 'WOSET', 'WOT', 'PULSE', 'RCLR', 'HWOWN')
 
@@ -230,8 +190,7 @@ def makeRegfileReader(package):
     return read
 
 
-# ---------------------------------------------------------------------------
-# THE GENERIC READER (added by the 20-block sweep, R2 2026-09-10)
+# THE GENERIC READER
 #
 # The reader above is bespoke because UART's decode is split across two files.
 # The other twenty blocks share ONE house style, so they share one reader:
@@ -264,7 +223,6 @@ def makeRegfileReader(package):
 # per block; every one of those four resets every field to '0', so the static
 # reader's silence costs nothing today and the fallback is only worth building
 # when one of them acquires a non-zero reset.
-# ---------------------------------------------------------------------------
 
 CONSTANTS_VHD = os.path.join(REPO, 'hdl', 'common', 'constants.vhd')
 
@@ -379,7 +337,6 @@ def makeGenericReader(spec):
 
     return read
 
-# ---------------------------------------------------------------------------
 # The twenty house-style blocks. `storage` maps a register to the reset-branch
 # SIGNAL that holds it, or to a literal when the reset lives outside the
 # register-write process (DMA's CRC accumulator is owned by the engine process,
@@ -389,7 +346,6 @@ def makeGenericReader(spec):
 # still be in the file for the literal slot table and the literal resets to mean
 # anything: it is what makes a hand-written table a reading of the RTL rather
 # than a copy of it.
-# ---------------------------------------------------------------------------
 
 def _names(mapping):
     return lambda k: mapping.get(k)
@@ -446,7 +402,7 @@ _PWR_SLOTS = {'PWRCR': 0, 'PWRSR': 1, 'PWRWAKE': 5, 'PWRSTS': 6, 'TASKWKM': 7}
 _PWR_RESET = {'PWRCR': 0, 'PWRWAKE': 0, 'TASKWKM': 0}
 
 GENERIC_BLOCKS = {
-    # GPIO is on periph_regs (report R12e). It was parked until NUM_AFS became a
+    # GPIO is on periph_regs. It was parked until NUM_AFS became a
     # generic and the entity could drop `use work.MemoryMap.all`; its slots and
     # its tables now both come from gpio_regs_pkg. The three PxOUT ALIAS words
     # are the point: PxOUTS -> hw_set, PxOUTC -> hw_clr, PxOUTT -> hw_we with a
@@ -462,11 +418,11 @@ GENERIC_BLOCKS = {
                           r'hw_we_s    <= \(RegSlotPxOUT => wot_s\(RegSlotPxOUTT\),',
                           r'clr_if <= w1c_s\(RegSlotPxIF\)\(num_pins - 1 downto 0\);',
                           r'NUM_AFS\s+:\s+natural := 8;']),
-    # SPI is a periph_regs block (report R12d): no case decode, no reset branch,
+    # SPI is a periph_regs block: no case decode, no reset branch,
     # no write-1 arm to read. RDTHRU is a function of ENABLE_EXTENDED_MEM, since
     # SPIxFOS exists on SPI0 only and must read 0 on SPI1. The SPIxTX launch
     # takes the module's combinational wr_hit, which carries the old decode's
-    # `wen /= "1111"` qualifier itself (report R12f).
+    # `wen /= "1111"` qualifier itself.
     'spi': dict(vhdl='SPI.vhd', regfile='spi_regs_pkg',
                 require=[r'u_regs\s*:\s*entity work\.periph_regs',
                          r'STROBE_HOLD => true',
@@ -475,7 +431,7 @@ GENERIC_BLOCKS = {
                          r'clr_spi_teif <= w1c_s\(RegSlotSPIxSR\)\(SPITEIF_LSB\);',
                          r'or rd_str\(RegSlotSPIxRX\) or wr_str\(RegSlotSPIxRX\);',
                          r"if wrh_s\(RegSlotSPIxTX\) = '1'"]),
-    # TIMER is a periph_regs pilot (report R12a): no case decode, no reset
+    # TIMER is a periph_regs pilot: no case decode, no reset
     # branch, no write-1 arm to read. WIDEWR marks TIMxVAL, word 2 of 8, as the
     # word any enabled lane writes whole, which is what `if wen /= "1111" then`
     # used to say.
@@ -486,7 +442,7 @@ GENERIC_BLOCKS = {
                            r'RDTHRU      => "00100000"',
                            r'latch_timer_value <= wr_str\(RegSlotTIMxVAL\);',
                            r'clear_compare0_flag <= w1c_s\(RegSlotTIMxSR\)\(CMP0IF_LSB\);']),
-    # SYSTEM is on periph_regs (report R12e), and is the first block whose table
+    # SYSTEM is on periph_regs, and is the first block whose table
     # is SPARSE: eleven registers over eighteen words, the seven retired SYS_IRQ
     # slots emitted as all-zero _reserved_ rows so a row index is still a word
     # offset. Its two per-word write qualifiers are the module's new ones:
@@ -500,7 +456,7 @@ GENERIC_BLOCKS = {
                             r'and write_data = WDT_UNLCK_PASSWD else',
                             r'and write_data = WDT_CLR_PASSWD   else',
                             r'clr_wdt_if <= w1c_s\(RegSlotSYS_WDT_SR\)\(SYSWDTIF_LSB\);']),
-    # NPU is a periph_regs block (report R12d): no MMR_WRITE case, no reset branch,
+    # NPU is a periph_regs block: no MMR_WRITE case, no reset branch,
     # and no read splice -- NPUTHINK is NPUCR bit 16 of the register file's own
     # storage, set by the fabric task through hw_set and cleared by NpuDone through
     # hw_clr. REGISTERED_READ is false because MabMmrQ is combinational by contract
@@ -513,7 +469,7 @@ GENERIC_BLOCKS = {
                          r'NPUTHINK_LSB => task_think',
                          r'NPUTHINK_LSB => NpuDone',
                          r'acc_s\(MmrAddrNPUSR\)']),
-    # QSPI is a periph_regs block (report R12b). Its decode IS qspi_regs_pkg's
+    # QSPI is a periph_regs block. Its decode IS qspi_regs_pkg's
     # table; what is left to read in the entity is the instance, the strobe
     # retirement its clk_baud consumers need, the three SR clears and the launch
     # guard that still takes the combinational acc_hit plus its own WEn(0).
@@ -523,7 +479,7 @@ GENERIC_BLOCKS = {
                           r'clr_tcif\s+<= w1c_s\(SLOT_SR\)\(QSPITCIF_LSB\);',
                           r"acc_s\(SLOT_CMD\) = '1' and WEn\(0\) = '0'",
                           r'constant SLOT_SR\s*:\s*natural\s*:=\s*5;']),
-    # I2C is on periph_regs (report R12e). Its read stays COMBINATIONAL and
+    # I2C is on periph_regs. Its read stays COMBINATIONAL and
     # MCU.vhd's i2c_rdata_bridge stays the flop, which is what REGISTERED_READ =>
     # false buys; I2CxAR's reset is the default_SAD generic, which reaches the
     # storage through RSTVAL_OR because the .rdl cannot describe a generic.
@@ -535,7 +491,7 @@ GENERIC_BLOCKS = {
                          r'RegSlotI2CxAR => pad\(default_SAD\)',
                          r"wr_inh <= \(RegSlotI2CxMTX => not I2CMEN, others => '0'\);",
                          r'ClearI2CSTR\s*<=\s*w1c_s\(RegSlotI2CxSR\)\(I2CSTR_LSB\);']),
-    # CLINT is a periph_regs block (report P4). Its register SET is a function of
+    # CLINT is a periph_regs block. Its register SET is a function of
     # NHARTS and its layout of MTIME_W / CMP_W, so clint_regs_pkg carries the eight
     # tables as FUNCTIONS of all three; rdl_vhdl._checkRegfileFn grades them
     # against this .rdl at every hart count below. mtimecmp's all-ones reset is now
@@ -554,7 +510,7 @@ GENERIC_BLOCKS = {
                            r'regs_q\(CMP_W \+ 2\*h \+ 1\) & regs_q\(CMP_W \+ 2\*h\)',
                            r'msip\(h\) <= regs_q\(MSIP0_WORD \+ h\)\(CLINTMSIPH0_LSB\);']
                           + _FN_TABLE_REQUIRE('NHARTS, MTIME_W, CMP_W')),
-    # MUTEX is a periph_regs block (report P4). Its register SET is a function of
+    # MUTEX is a periph_regs block. Its register SET is a function of
     # NMUTEX and its owner field of MW, so mutex_bank_regs_pkg carries the eight
     # tables as FUNCTIONS of both; rdl_vhdl._checkRegfileFn grades them against
     # this .rdl at every shipped (NMUTEX, MW) pair. The claim rule is what stayed
@@ -576,7 +532,7 @@ GENERIC_BLOCKS = {
                                 r'constant W_PENDL\s*:\s*natural\s*:=\s*516;',
                                 r'constant W_INSVCL\s*:\s*natural\s*:=\s*520;',
                                 r'constant NUM_EN_WORDS\s*:\s*natural\s*:=\s*\(NUM_SRCS \+ 31\) / 32;']),
-    # PWRCTRL is a periph_regs block (report P4). Its register SET is a function of
+    # PWRCTRL is a periph_regs block. Its register SET is a function of
     # NHARTS, so pwr_ctrl_regs_pkg carries the eight tables as FUNCTIONS of it and
     # the entity calls them in its generic map; rdl_vhdl._checkRegfileFn grades
     # those functions against this .rdl at every shipped hart count, which is the
@@ -594,7 +550,7 @@ GENERIC_BLOCKS = {
                               r'task_wkm <= regs_q\(W_TASKWKM\)\(PD_HI downto 1\);',
                               r'hw_clr_s\(PWRCR_WORD\)\(PD_HI downto 1\) <= task_wkm;']
                              + _FN_TABLE_REQUIRE('NHARTS')),
-    # I3C is a periph_regs block (report R12b). The DAT window is an indexed
+    # I3C is a periph_regs block. The DAT window is an indexed
     # four-entry side table, not register storage, so its three words are RDTHRU
     # and their writes stay in the clk domain behind acc_hit. I3CxCR's reset
     # (SDAPP = 1) is now the package's RSTVAL row, which is what the reader reads.
@@ -605,7 +561,7 @@ GENERIC_BLOCKS = {
                          r'clr_ibip\s+<= w1c_s\(SLOT_SR\)\(I3CIBIP_LSB\);',
                          r"acc_s\(SLOT_TX\) = '1' and WEn\(0\) = '0'",
                          r"acc_s\(SLOT_DAT\) = '1'"]),
-    # NFC is a periph_regs block (report R12d). RDTHRU marks NFCxDATA, word 7 of
+    # NFC is a periph_regs block. RDTHRU marks NFCxDATA, word 7 of
     # 10: the description gives it eight bits of storage, but the byte a read
     # returns comes from one of the two 64-byte windows, which stay in the
     # peripheral. The index auto-increment is a hardware write to NFCxIDX.NFCIDX,
@@ -618,7 +574,7 @@ GENERIC_BLOCKS = {
                          r'NFCIDX_MSB downto NFCIDX_LSB => idx_inc',
                          r'clr_fieldf   <= w1c_s\(SLOT_SR\)\(NFCFIELDF_LSB\);',
                          r'payload_mem\(idx\) <= wdata\(NFCDATA_MSB downto NFCDATA_LSB\);']),
-    # RTC is a periph_regs block (report R12b). SEC and SUB store the write
+    # RTC is a periph_regs block. SEC and SUB store the write
     # staging pair and read the counter's coherent snapshot (RDTHRU); the four
     # staging words take a whole-word write (WIDEWR); and because every write in
     # the block is lane-0 qualified, the lane vector handed to the register file
@@ -629,7 +585,7 @@ GENERIC_BLOCKS = {
                          r'WIDEWR      => "0111100"',
                          r'wen_eff <= WEn when WEn\(0\) = \'0\' else "1111";',
                          r'constant SLOT_TRIM\s*:\s*natural\s*:=\s*6;']),
-    # PWM is a periph_regs block (report R12c): the fourteen per-field flops are
+    # PWM is a periph_regs block: the fourteen per-field flops are
     # the IMPL bits of four stored words, and there is no case decode, reset
     # branch or write-1 arm left to read. No WIDEWR row: the decode it replaced
     # already merged per byte lane. The hooks take the COMBINATIONAL acc_hit,
@@ -641,7 +597,7 @@ GENERIC_BLOCKS = {
                          r"acc_s\(SLOT_PER\) = '1' or acc_s\(SLOT_DTY0\) = '1'",
                          r"wdata\(FLTTRIG_LSB\) = '1'",
                          r"if wdata\(FLTF_LSB\) = '1' then clr_flt_tgl <= not clr_flt_tgl;"]),
-    # OneWire is a periph_regs block (report R12c). OWxCMD and OWxDIV are the
+    # OneWire is a periph_regs block. OWxCMD and OWxDIV are the
     # two WIDEWR words: the decode it replaced qualified every write on WEn(0)
     # alone and then wrote OWBITVAL at bit 8 and OWDIV at 15:0, both in lane 1.
     # The OWxCMD write snapshots OWODS and OWxTX and launches, off acc_hit.
@@ -650,7 +606,7 @@ GENERIC_BLOCKS = {
                              r'WIDEWR      => "0100100"',
                              r"cmd_wr <= '1' when \(acc_s\(SLOT_CMD\) = '1' and WEn\(0\) = '0'\)",
                              r"if wdata\(OWTCIF_LSB\)   = '1' then clr_tcif_tgl"]),
-    # DMA is a periph_regs block (report R12d). It decoded a bare integer word
+    # DMA is a periph_regs block. It decoded a bare integer word
     # index, so the migration was a body rewrite: twenty words, WIDEWR everywhere
     # (the old decode qualified every write on WEn(0) and then wrote the full
     # word), RDTHRU on DMAxCR, the four LEN words, DMAxCRC and on every register
@@ -665,11 +621,11 @@ GENERIC_BLOCKS = {
                          r'sr_hit  <= acc_s\(DMAxSR_WORD\)  and not WEn\(0\);',
                          r'r\(wLen\(ch\)\) := \x271\x27;',
                          r'crc_acc\s*<=\s*X"FFFF";']),
-    # TRNG is a periph_regs block (report R12c) and the tree's one onread=rclr
+    # TRNG is a periph_regs block and the tree's one onread=rclr
     # register lives here. The read-consume stays qualified on WEn = "1111", but
     # that qualifier is now the module's own: rd_hit is acc_hit ANDed with
     # WEn = "1111", combinational, so dr_read_acc is one indexing and no
-    # hand-written direction test (report R12f). It is rd_hit and not the
+    # hand-written direction test. It is rd_hit and not the
     # module's rd_clr because this block's ClkMem is gated by EnMemPeriph, so a
     # strobe flop set on the access edge is only sampled by the NEXT bus access.
     # TRNGxCR is the one WIDEWR word (TRNGDECIM sits at 11:8, lane 1, under a
@@ -680,7 +636,7 @@ GENERIC_BLOCKS = {
                           r'rd_hit      => rdh_s,',
                           r'dr_read_acc <= rdh_s\(SLOT_DR\);',
                           r"wdata\(TRNGALMF_LSB\) = '1'"]),
-    # I2CTarget is a periph_regs block (report R12c). I2CTxCR and I2CTxWDG are
+    # I2CTarget is a periph_regs block. I2CTxCR and I2CTxWDG are
     # the two WIDEWR words (SAD at 14:8, SADM at 22:16 and WDTO at 15:0 all
     # reach past lane 0 under a WEn(0) qualifier). An I2CTxTX write loads the
     # buffer, which the module now holds, and launches off acc_hit.
@@ -689,13 +645,13 @@ GENERIC_BLOCKS = {
                                r'WIDEWR      => "10001"',
                                r"if acc_s\(SLOT_TX\) = '1' and WEn\(0\) = '0' then",
                                r"if wdata\(I2CTAMF_LSB\)     = '1' then clr_amf_tgl"]),
-    # EVFAB is on periph_regs (report R12e), on a SPARSE table: twenty-nine
+    # EVFAB is on periph_regs, on a SPARSE table: twenty-nine
     # registers over thirty-two words, words 12-14 all-zero _reserved_ rows. The
     # ACTION half (slots 7-11) is untouched and still decodes in the free-running
     # clk domain, because exactly-one-action-per-write is not a ClkMem property.
     # EVFCHENSET / EVFCHENCLR are the tree's first HWALIAS: software set and clear
     # aliases of EVFCHEN, which the description rightly calls hw=r. They take the
-    # module's combinational wr_hit (report R12f); because wr_inh is WEn(0) on
+    # module's combinational wr_hit; because wr_inh is WEn(0) on
     # every word here, wr_hit IS "addressed and WEn(0) = '0'", which is what the
     # hand-written qualifier spelled.
     'evfab': dict(vhdl='EVFAB.vhd', regfile='evfab_regs_pkg',
@@ -730,7 +686,7 @@ def _wrapRequire(spec, reader):
     return read
 
 
-# UART and TIMER are the two periph_regs pilots (report R12a). The bespoke
+# UART and TIMER are the two periph_regs pilots. The bespoke
 # readUart that read UART's hand-written case decode is gone with the decode; the
 # reading of the entity that replaced it is the `require` list below plus
 # test_uart_write_one_to_clear_bits.
@@ -822,8 +778,7 @@ class RdlVsVhdlTest(unittest.TestCase):
                 self.assertLess(bf.MSB, rt.Size, '%s.%s runs past the register width'
                                 % (name, bf.Name))
 
-    # -----------------------------------------------------------------------
-    # THE PARAMETERISED BLOCKS (report R7). Everything above grades ONE
+    # THE PARAMETERISED BLOCKS. Everything above grades ONE
     # elaboration -- the five-hart default, which is what the tracked chip and
     # every gate around it use. Since CLINT, MUTEX, IRQROUTER and PWRCTRL became
     # the SOURCE of the published map for every configuration, their .rdl also
@@ -832,7 +787,6 @@ class RdlVsVhdlTest(unittest.TestCase):
     # configurations and compare it against the same formula read out of the
     # VHDL generic decode, so a typo in the .rdl cannot move argus's or the
     # single-hart configurations' addresses unnoticed.
-    # -----------------------------------------------------------------------
 
     def _elaborate(self, **params):
         spec = READERS[PERIPH]
@@ -936,15 +890,10 @@ class RdlVsVhdlTest(unittest.TestCase):
                                  '%s must stay at the NHARTS-independent word %d' % (name, word))
 
     def test_uart_write_one_to_clear_bits(self):
-        """UART only: the three W1C flags the entity wires out of periph_regs are
-           the three the description marks woclr, at the same bit positions.
-
-           Before report R12a this read the SR arm of a hand-written case. The arm
-           is gone: the entity now takes `w1c_hit(RegSlotUARTxSR)(<FIELD>_LSB)`
-           per flag, and the bit position comes from the field constant rather
-           than from a literal. That is still a statement of the RTL -- it names
-           which flags this block retires on a written 1, and a flag the .rdl
-           stopped calling woclr would arm nothing."""
+        """UART only: the three W1C flags the entity wires out of periph_regs are the three the
+        description marks woclr, at the same bit positions. The entity takes w1c_hit per flag with the
+        bit from the field constant, so a flag the .rdl stopped calling woclr would arm nothing.
+        """
         if PERIPH != 'uart':
             self.skipTest('UART-specific')
         src = _read(self.vhdlPath)

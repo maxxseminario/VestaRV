@@ -1,29 +1,10 @@
 #!/usr/bin/python3.6
-"""emit.py -- turn a built stream into a `.S` file for verification/isa.
+"""VestaRV: turn a built stream into a .S file for verification/isa.
 
-THE CENSUS CONTRACT
--------------------
-Everything between the global symbols `k3_stream_begin` and `k3_stream_end` is
-the CENSUS RANGE, and inside it exactly one rule holds:
-
-    every emitted line assembles to exactly ONE machine instruction.
-
-No pseudo-instructions (`li`, `la`, `mv`, `nop`, `ret`, `call`, `j`, `beqz`,
-...), because `li` assembles to one OR TWO encodings depending on the constant
-and a manifest counting "what I asked for" would then disagree with a census
-counting "what is in the image" by a number nobody could predict.  Constants
-inside the range are materialised with explicit `lui`/`addi`.  `.option norvc`
-and `.option norelax` are pushed around the range so neither the assembler nor
-the linker may re-encode anything.
-
-Outside the range -- prologue, epilogue, ISR, data -- pseudo-instructions are
-free, and are used, because nothing counts them.
-
-The range is delimited by SYMBOLS rather than by marker instructions so that the
-census reads its bounds out of the ELF symbol table: structurally determined,
-with nothing to calibrate (method rule 7).
-
-Python 3.6 compatible.
+Inside the census range, between the symbols k3_stream_begin and k3_stream_end, every emitted
+line must assemble to exactly one machine instruction: no pseudo-instructions, constants
+materialised with explicit lui/addi, and `.option norvc`/`norelax` pushed around the range.
+The bounds are symbols, so the census reads them from the ELF symbol table. Python 3.6.
 """
 
 import stream as _stream
@@ -92,11 +73,9 @@ def _guard_hi(i):
 
 
 def required_march(cfg):
-    """The `-march` this config's emitted classes need.
-
-    Only the knobs this generator has emitters for appear; a knob that is ON but
-    unemitted needs no march fragment because nothing is emitted for it (and it
-    is named separately in the manifest, never silently dropped).
+    """The -march this config's emitted classes need. Only knobs this generator has emitters for
+    appear; a knob that is on but unemitted needs no march fragment, and is named separately in
+    the manifest rather than silently dropped.
     """
     s = 'rv32i'
     if cfg.isa.get('mul') and cfg.isa.get('div'):
@@ -126,12 +105,9 @@ def required_march(cfg):
 
 
 def _init_values(rng, n):
-    """Deterministic seed values for the pool registers.
-
-    A fixed spine of architecturally interesting constants first (0, -1,
-    INT_MIN, INT_MAX, and two shift-edge values), then random 32-bit words.  The
-    spine is what makes `div`'s INT_MIN/-1 and shift-by-31 paths reachable from
-    the ordinary random draws as well as from `_e_div`'s explicit setup.
+    """Deterministic seed values for the pool registers: a fixed spine of architecturally interesting
+    constants first, then random 32-bit words. The spine is what makes div's INT_MIN over -1 and
+    the shift-by-31 paths reachable from the ordinary random draws.
     """
     spine = [0x00000000, 0xFFFFFFFF, 0x80000000, 0x7FFFFFFF,
              0x00000001, 0x0000001F, 0xAAAAAAAA, 0x55555555]
@@ -184,7 +160,7 @@ def render(builder, cfg, name, seed, profile, length, irq_observe):
         irqclaim=irq_claim,
         obsflag='' if irq_observe else ' \\\n#       --no-irq-observe'))
 
-    # ---------------- prologue (pseudo-instructions allowed) --------------
+    # prologue (pseudo-instructions allowed)
     L.append('    # ---- prologue: establish the invariants the body relies on')
     L.append('    li   sp, 0x%X                 # IRQ_SV pushes the return PC '
              'at sp-4 (M5b)' % _stream.SP_INIT)
@@ -215,7 +191,7 @@ def render(builder, cfg, name, seed, profile, length, irq_observe):
         L.append('    li   x%-2d, 0x%08X' % (r, v))
     L.append('')
 
-    # ---------------- the census range ------------------------------------
+    # the census range
     L.append('    # ===================================================================')
     L.append('    # CENSUS RANGE.  Every line below assembles to exactly ONE')
     L.append('    # instruction: no pseudo-instructions, no compression, no')
@@ -249,7 +225,7 @@ def render(builder, cfg, name, seed, profile, length, irq_observe):
     L.append('    .option pop')
     L.append('')
 
-    # ---------------- epilogue --------------------------------------------
+    # epilogue
     L.append('    # ---- epilogue: the discipline checks.  These are the ONLY')
     L.append('    # things that can turn this stream into a FAIL at the a0 gate.')
     L.append('    la   t0, k3_scratch')
@@ -299,7 +275,7 @@ def render(builder, cfg, name, seed, profile, length, irq_observe):
     L.append('    RVTEST_FAIL')
     L.append('')
 
-    # ---------------- ISR + IVT -------------------------------------------
+    # ISR + IVT
     if builder.irq_sites:
         L.append('    # ---- CLINT msip handler (IVT slot 83, hardware-vectored,')
         L.append('    # legacy delivery).  Clears the LEVEL before iret or the')
@@ -336,7 +312,7 @@ def render(builder, cfg, name, seed, profile, length, irq_observe):
     L.append('    RVTEST_CODE_END')
     L.append('')
 
-    # ---------------- data -------------------------------------------------
+    # data
     L.append('  .data')
     L.append('RVTEST_DATA_BEGIN')
     L.append('')
@@ -378,7 +354,7 @@ def render(builder, cfg, name, seed, profile, length, irq_observe):
         # against the value that was actually installed.
         #
         # UNUSED ENTRIES POINT AT `k3_bad`, and that is a fail-safe choice
-        # (method rule 15) rather than a tidy one: an unused entry can only be
+        # rather than a tidy one: an unused entry can only be
         # reached if something has gone wrong with the index, and the wrong
         # thing to do then is to land on a plausible address and carry on.
         # k3_bad is RVTEST_FAIL.

@@ -1,19 +1,8 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extmul.S  (core-features work, 2026-07-08)
-#-----------------------------------------------------------------------------
-# M-extension (multiply half) adaptive probe — see extprobe.S for the group
-# contract. Whole-file norvc/norelax base-ISA skeleton; dispatches on misa.M
-# (bit 12, advertised only when BOTH ENABLE_MUL and ENABLE_DIV are true):
-#   * M advertised  -> MUL/MULH must produce correct results -> PASS
-#   * M absent      -> the MUL below must take the illegal-instruction trap
-#                      (stripped-build harness watches trap_flag); executing
-#                      PAST it is an explicit FAIL — misa lied.
-# LIMITATION: with a split config (ENABLE_MUL /= ENABLE_DIV) misa.M is 0 but
-# mul still executes -> this test reports FAIL. Split-M configs need their
-# own CORE_ENABLE_*-aware build (not part of the all-on/all-off controls).
-#*****************************************************************************
+# VestaRV: M-extension adaptive probe, multiply half
+# Whole-file norvc and norelax base-ISA skeleton, dispatching on misa.M, bit 12, which is advertised only when BOTH ENABLE_MUL and ENABLE_DIV are true. With M advertised, MUL and MULH must produce correct results; with M absent, the MUL must take the illegal-instruction trap, and executing past it is an explicit FAIL, because misa lied.
+# LIMITATION: with a split configuration where ENABLE_MUL and ENABLE_DIV differ, misa.M reads 0 while mul still executes, so this test reports FAIL. A split-M configuration needs its own CORE_ENABLE_-aware build. See extprobe.S for the group contract.
 
 #include "riscv_test.h"
 #include "test_macros.h"

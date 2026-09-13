@@ -1,151 +1,11 @@
 #!/usr/bin/python3.6
-# -*- coding: utf-8 -*-
-"""mk_inject.py — build the ORDERED MMIO replay list for `vesta_ref cosim`.
+# coding: utf-8
+"""VestaRV: build the ordered MMIO replay list and the ISR-bracket realignment script for cosim.
 
-Phase V3 (kickoff §4 "MMIO load injection"). Reads an RTL trace produced by
-`hdl/common/vesta/vesta_tracer.vhd` and emits one record per unmodelled-region
-load, IN EMISSION ORDER:
-
-    <addr8> <size1> <value8>          lowercase hex, no 0x
-
-WHY ORDER AND NOT ADDRESS (the load-bearing design point, v3_design.md §2.1):
-the boot window reads SPI0's status register at 0x4204 **6,140 times with four
-different values**, and the control flow depends on which value comes back. An
-address-keyed table cannot express that. An order-keyed list reproduces the
-RTL's loop trip counts exactly, so the two instruction streams stay aligned
-through a data-dependent poll loop with no model of the peripheral at all.
-
-THE VALUE IS THE RAW BUS WORD (amendment A6). Before A6 the trace's `M L` data
-field was a hardcoded zero (`vesta_tracer.vhd:449/456/458/479`); it now carries
-the 32-bit word the memory interface returned. `vesta_ref` takes the addressed
-lane itself (`word >> 8*(addr mod 4)`, masked to `size`), so this script passes
-the word through untouched — it never pre-extracts, because the raw word is
-what the RTL saw and the lane arithmetic belongs in one place.
-
-REFUSALS — this script never fabricates a value (Fable rulings, 2026-07-30):
-  * an `x` nibble anywhere in the value (amendment A5) is REFUSED by default.
-    `--allow-x <ordinal>:<addr>:<value>` (repeatable) or `--allow-x-file <f>`
-    overrides ONE specific record, and the substitution is PRINTED to stderr and
-    to a `# allow-x` provenance line in the output. Ruling A2: refuse by
-    default, allowlist only with the substitution recorded in the run log.
-  * a load the tracer marked `# NODATA` (emitted outside a retire group, so its
-    data could not be back-filled) is REFUSED — A6 requires the injector to
-    refuse rather than inject a fabricated 0.
-
-SECOND PRODUCT — `--bracket-out FILE` (V3 ISR-BRACKET mechanism)
-
-Spike cannot model VestaRV's legacy vectored trap (custom `iret`, IVT dispatch,
-hardware PC push), so the reference is never interrupted.  Instead the RTL's ISR
-window is BRACKETED OUT of the comparison and the reference is REALIGNED across
-it.  In the same single pass this script already makes over the trace it can
-therefore also emit the realignment script the reference needs:
-
-    B <retire_index> <resume_pc8>              set the reference pc here
-    S <retire_index> <addr8> <size1> <data8>   write this into reference RAM here
-
-A bracket runs from a `T` record to the `X iret` that matches it (a STACK, so a
-nested trap does not close the outer bracket).  The resume PC is determined
-TRACE-INTERNALLY: if the ISR stored to the very address the `# IRETPOP`
-diagnostic names — the stacked-PC slot — the LAST such store is the resume PC
-(REDIRECTED); otherwise it is the `T` record's `epc` (SEQUENTIAL).  That is what
-keeps "`iret` reads the stacked PC back from RAM" a VERIFIED property rather
-than an assumed one: `compare.py --bracket-isr` checks the same value against
-the first post-`iret` retire's pc, with no help from the reference.
-
-THE `<retire_index>` IS THE **REFERENCE** MODEL'S RETIRE COUNT, i.e. post-entry
-`R` records with previously-bracketed ISR retires EXCLUDED — because that is the
-counter `vesta_ref` maintains (minstret delta) and the reference never executes
-an ISR.  The raw post-entry RTL retire number is carried alongside on every line
-and in the provenance (`rtl_retires=`), and the two coincide for the first
-bracket.  Getting this wrong is silent: the reference would realign N retires
-late, where N is the number of instructions the earlier ISRs retired.
-
-MMIO stores are NOT replayed (`--mmio`, default `0x4000:0x4000`): the device is
-not modelled, and writing e.g. the CLINT `msip` clear at 0x5000 into the
-reference's RAM array would fabricate memory the RTL does not have.  Every
-exclusion is logged, in the file and on stderr.
-
-The trap-entry return-PC push (the A7 `# IRQPUSH` diagnostic) IS replayed, as an
-`S` at the bracket point: it is a genuine committed store whose value the
-program can read back (`rv32ui-p-irqctx` does exactly that — it pre-seeds the
-slot with `55aa55aa` and later loads it expecting the pushed `0000831e`), and
-without it the reference's RAM diverges from the RTL's on a COMPARED `rdval`.
-It is counted separately (`push=`) so the ISR store census stays exact, it never
-participates in the REDIRECTED determination (the push address is by
-construction the pop address, which would make every bracket look redirected),
-and `--no-replay-push` turns it off for a negative control.
-
-EXIT CODES
-    0  list written
-    1  usage / unreadable trace
-    5  refused (x-tainted or NODATA record without an allowlist entry)
-
-===============================================================================
-V4 (multi-hart) ADDITIONS -- the four mechanisms of v4_design.md §4.1
-===============================================================================
-
-They all ride the ONE realignment script (`--bracket-out`, consumed by
-`vesta_ref --bracket`), because they are all "do this to the reference state
-immediately before reference retire N":
-
-    P <retire_index> <addr8> <size1> <data8>   PLANT   (M1, amendment A13)
-    G <retire_index> <rd2> <val8>              register replay (M3, A12)
-    F <retire_index>                           force the next sc.w to FAIL (M4, A14)
-
-* PLANT (`--plant BASE:SIZE|auto`).  A load whose address lies in the
-  SHARED-AND-WRITABLE window is served by POKING the reference's RAM before the
-  consuming retire, NOT by an MMIO callback.  Forced by spike's own semantics:
-  `simif_t::reservable()` defaults to `addr_to_mem()`, so `lr.w`/`sc.w` into a
-  callback hole THROWS (measured -- probe_a13_a14 P4: mcause=5, no commit), and
-  LR/SC is the entire point of the multi-hart phase.  The window is DERIVED from
-  the RTL (`--plant auto`, see derive_plant_window) and never hardcoded twice.
-  A plant does NOT disturb an in-flight reservation (probe P3), so P and F are
-  orthogonal and a plant may safely land inside an LR/SC window.
-
-* SLEEP BRACKET.  A bracket now opens on `X <hart> <cycle> wfi_enter` as well as
-  on a `T`, and the `T` the wake delivers is ABSORBED into that same bracket
-  rather than nesting inside it -- because the park window has ONE exit event
-  (the wake ISR's `X iret`) and therefore needs exactly one realignment point.
-  This is what carries harts 1-3 across
-  [EXTINGUISH .. legacy trap .. loader ISR .. IGNITE .. iret], none of which the
-  reference can execute.  A bracket that never closes (a hart parked FOREVER)
-  truncates the reference at the park, which is the correct behaviour, and says so.
-
-* `G` (register replay).  The ROM loader ISR is NOT register-transparent -- the
-  tile entry ABI is "sp valid, everything else undefined" -- so an S-only bracket
-  lands the reference holding park-loop register values while the RTL holds
-  loader leftovers.  Every committed `rd` inside the window is replayed.  Only
-  the LAST write to each register is emitted (they are all applied at one point,
-  so the last wins); the RAW count is kept in the census so the collapse is
-  auditable.  THE CONCESSION IS EXPLICIT: the ISR's register writes become
-  ASSERTED, exactly as its stores already are.
-
-* `F` (forced SC failure).  An isolated reference's reservation is cleared only
-  by its own `sc.w`, so its SC ALWAYS succeeds; the RTL's failures must be forced
-  with `mmu_t::yield_load_reservation()`.
-  HOW FAILURE IS DETECTED: from the retire's `rd`, and ONLY from `rd`.  See
-  `_resolve_sc()` for the measurement that forces this.  An earlier draft of this
-  file derived it from the PRESENCE OR ABSENCE OF AN `M … S` RECORD, on the theory
-  that this would leave `rd` a compared field.  THAT ORACLE IS WRONG ON THIS RTL
-  and the correction is amendment A15: a globally-failed `sc.w` STILL EMITS AN
-  `M … S` record, because the core's local check passes and drives `wen` while the
-  suppression happens downstream in `resv_unit` (`s_we_gated`,
-  resv_unit.vhd:120-123).  Since EVERY cross-hart kill takes that path, a
-  store-presence oracle would emit no `F` at all for the entire A14 population.
-  CONSEQUENCE, per Fable's A14 restatement (2026-07-30): the SC's `rd` is
-  ASSERTED, not compared -- comparing a value you forced is not comparison.  The
-  compared set for an SC is its ADDRESS, the CONSISTENCY of store-presence with
-  the asserted outcome, and its DOWNSTREAM effects (what later loads read back).
-  Still NOT checked either way: whether the RTL's SC *should* have failed
-  (`resv_unit`'s adjudication is taken as true).
-
-* THE INJECT PARTITION (A13, the V3-declared V4 prerequisite).  A load inside a
-  bracketed window is DROPPED from the mainline replay list instead of being
-  emitted into it: the reference never executes the interior, so it never asks
-  for those values, and the interior's memory effects reach it through the S/G
-  replay instead.  V3 emitted them and warned (`vesta_ref` then exited 7
-  INJECT-MISMATCH).  Every drop is counted and annotated (`# BRACKET n DROPPED …`
-  plus a per-bracket census), so A5's "never silently skipped" survives.
+Reads a vesta_tracer.vhd trace and emits one `<addr8> <size1> <value8>` record per
+unmodelled-region load in emission order, not keyed by address: a repeated read of one
+register returns different values and the control flow depends on which. Retire indices are
+the reference model's count. Never fabricates: an x-tainted or NODATA record exits 5.
 """
 
 import argparse
@@ -176,11 +36,9 @@ def parse_window(text):
 
 
 def _vhdl_natural(path, name, decl="constant"):
-    """`<decl> <name> : natural := <n>;` -> int, or None.
-
-    `decl` is "constant" for a package/architecture constant and "" for a
-    GENERIC default (the declaration syntax is otherwise identical). Accepts a
-    decimal or a 16#..# literal, which is how the generator writes some of them.
+    """`<decl> <name> : natural := <n>;` to int, or None. `decl` is "constant" for a package or
+    architecture constant and "" for a generic default, the syntax being otherwise identical.
+    Accepts a decimal or a 16#..# literal.
     """
     lead = (re.escape(decl) + r'\s+') if decl else r'^\s*'
     pat = re.compile(lead + re.escape(name) +
@@ -200,28 +58,9 @@ def _vhdl_natural(path, name, decl="constant"):
 
 
 def _hart_tile_sh_aw_binding(mcu_path):
-    """(instances, bound) -- how many hart_tile/orch_tile instances MCU.vhd has,
-    and how many of them BIND the SH_AW generic explicitly.
-
-    CPR8/R7. The SH_AW cross-check below used to demand that MCU.vhd's
-    `constant SH_AW` equal hart_tile.vhd's GENERIC DEFAULT, on the reasoning
-    that a silently-diverged default is how a mis-derived window goes
-    unnoticed. That reasoning only holds while the default is what the build
-    USES. It is not: every generated MCU.vhd binds `SH_AW => SH_AW` on every
-    hart instance, so the MCU constant is the authority and the entity default
-    is a fail-safe for a hypothetical unbound instantiation.
-
-    The promotion made that distinction load-bearing rather than academic: the
-    shipped default is now the orchestrator chip at SH_AW=16 (memory map v2)
-    while `config/castalia4.json` still emits an MCU.vhd at SH_AW=15, and one
-    entity default cannot equal both. So the check inverts: PROVE the binding
-    exists on every instance (a strictly stronger assertion than the equality
-    it replaces), and only fall back to demanding equality when some instance
-    leaves the generic unbound -- which is the only case in which the default
-    could ever reach the RTL.
-
-    oracle_isa.py carries the identical reader for the identical reason; the
-    two parsers stay parallel, as they already were for `_vhdl_natural`.
+    """(instances, bound): how many hart_tile and orch_tile instances MCU.vhd has, and how many bind
+    SH_AW explicitly. No entity default can equal both shipped values, so this proves the binding
+    and demands equality with the default only where an instance leaves it unbound.
     """
     inst = re.compile(r'entity\s+work\.(?:hart_tile|orch_tile)\b', re.I)
     bind = re.compile(r'\bSH_AW\s*=>')
@@ -248,30 +87,9 @@ def _hart_tile_sh_aw_binding(mcu_path):
 
 
 def derive_plant_window(root):
-    """(base, size) of the SHARED-AND-WRITABLE window, DERIVED from the RTL.
-
-    v4_design.md §4.3 requires this to be computed from the same constants the
-    images are built from, never hardcoded twice -- the Argus (N=18) shape moves
-    the addresses, and a stale literal here would silently plant nothing.
-
-      base = RamStartAddress + RamSize        (MemoryMap.vhd) -- the top of the
-             PRIVATE TCM. The shared window resumes immediately above it: the
-             master-side decode excludes exactly the TCM slice
-             (`addr(16:14) /= "010"`, CLAUDE.md / hart_tile.vhd:59).
-      top  = 2 ** (SH_AW + 2)                 (MCU.vhd's `constant SH_AW`, the
-             AUTHORITATIVE value -- it is what MCU passes down to every
-             hart_tile and to mp_arbiter). `sh_sel` qualifies on
-             `addr(31:SH_AW+2) = 0` (hart_tile.vhd:654) and adddec.vhd:418
-             states the flash boundary is its strict complement, so the shared
-             address space is exactly [0, 2**(SH_AW+2)).
-             hart_tile.vhd's GENERIC DEFAULT is read as a cross-check and a
-             disagreement is fatal: a silently-diverged default is exactly how a
-             mis-derived window would go unnoticed.
-
-    Everything below `base` is either the shared boot ROM (read-only, identical
-    for every hart, already modelled via --rom) or the shared peripheral window
-    (already served by the --mmio callback replay), so the complement is exactly
-    "shared and writable" = NPU staging RAM + shared bulk RAM.
+    """(base, size) of the shared-and-writable window, derived from the RTL rather than hardcoded:
+    base is RamStartAddress + RamSize, the top of the private TCM, and top is 2**(SH_AW+2).
+    Everything below base is the shared ROM or the peripheral window, both already modelled.
     """
     mm = os.path.join(root, "MemoryMap.vhd")
     mcu = os.path.join(root, "MCU.vhd")
@@ -378,7 +196,7 @@ def main(argv=None):
                     help="do NOT replay the A7 trap-entry return-PC push into "
                          "reference RAM (negative control; the default replays "
                          "it, see the module docstring)")
-    # ---- V4 ---------------------------------------------------------------
+    # V4
     ap.add_argument("--plant", metavar="BASE:SIZE|auto", default=None,
                     help="V4/A13: serve loads in this SHARED-AND-WRITABLE window "
                          "by POKING reference RAM (P records in --bracket-out) "
@@ -413,7 +231,7 @@ def main(argv=None):
         sys.stderr.write("mk_inject: %s\n" % e)
         return EXIT_USAGE
 
-    # ---- V4: the plant window --------------------------------------------
+    # V4: the plant window
     pbase = psize = None
     pderiv = "-"
     if a.plant is not None:
@@ -456,7 +274,7 @@ def main(argv=None):
     pending_plant = None   # index into `plants` of the P emitted on the previous line
     n_seen = n_skipped_pre = 0
 
-    # -- ISR-BRACKET state (only used when --bracket-out is given) ----------
+    # -- ISR-BRACKET state (only used when --bracket-out is given)
     # `n_retire`     = raw post-entry R records seen (the RTL retire number).
     # `n_ref_retire` = the same count with bracketed ISR retires EXCLUDED, i.e.
     #                  the REFERENCE model's retire count, which is what the
@@ -469,7 +287,7 @@ def main(argv=None):
     last_pop = None     # addr from an immediately preceding IRETPOP
     diag_bad = []       # IRQPUSHBAD / IRETPOPBAD sightings, surfaced verbatim
 
-    # -- V4 state -----------------------------------------------------------
+    # -- V4 state
     plants = []         # (ref_index, addr, size, val, rtl_retire) at depth 0
     plant_pre = 0       # plant-window loads skipped before --entry
     sc_fails = []       # ref_index of every sc.w the RTL FAILED
@@ -503,32 +321,9 @@ def main(argv=None):
         return b
 
     def _resolve_sc():
-        """Decide the pending sc.w's verdict FROM `rd`, and cross-check it.
-
-        THE ORACLE IS `rd` (0 = success, 1 = failure -- the architectural result
-        the instruction writes), NOT the presence of an `M … S` record. MEASURED,
-        on all six sc.w retires of `shlrsc` hart 0, and it is decisive:
-
-          a GLOBALLY-failed SC STILL EMITS AN `M … S` RECORD.
-
-        The core's LOCAL check (`reservation_valid` + address match) passes, so it
-        drives `wen` and the tracer -- which samples the core's PORT, per
-        invariant 7 -- records the presentation. The write is then suppressed
-        DOWNSTREAM, by `resv_unit`'s `s_we_gated` (resv_unit.vhd:120-123), and
-        only `sc_fail_ext` comes back to the core, which reports `rd`=1. Proof
-        that nothing committed: shlrsc case 5's readback two retires later reads
-        the OLD word (`M L 0001000c 4 0000115c` right after
-        `M S 0001000c 4 000015b3`).
-        Every CROSS-HART kill is on that path (a foreign write clears
-        `resv_unit`'s table entry, never the core's own copy), so a
-        store-presence oracle would emit NO `F` for the entire A14 population --
-        ~29,000 per hart in `shcount` -- and the reference's SC would succeed
-        against an RTL failure at every one of them.
-
-        `# SCFAILRD` (A3) is a witness for the LOCALLY-failed SUBSET only: it is
-        a read issued in `SC_CHECK`, which happens only when the core itself
-        declines to write. So its ABSENCE is not evidence of success and is not
-        reported; its PRESENCE on an `rd`=0 SC is a genuine disagreement and is.
+        """Decide the pending sc.w's verdict from `rd`, 0 success and 1 failure, and cross-check it. A
+        globally failed SC still emits an `M ... S` record, the write being suppressed downstream in
+        resv_unit, so a store-presence oracle would emit no F for any cross-hart kill.
         """
         if sc_pend is None:
             return
@@ -563,7 +358,7 @@ def main(argv=None):
         failed = (s["rdval"] != "00000000")
         if failed and not a.no_force_sc:
             sc_fails.append(s["ref"])
-        # ---- cross-checks. Reported; NEVER used to override `rd`. ----------
+        # cross-checks. Reported; NEVER used to override `rd`.
         if (not failed) and s["scfailrd"]:
             sc_inconsistent.append(
                 (s["ln"], "sc.w reports SUCCESS (rd=00000000) but the tracer "
@@ -604,7 +399,7 @@ def main(argv=None):
         if failed and s["scfailrd"]:
             sc_shape["local"] += 1
 
-    # ---- A10 pre-pass: index the bit-granular x masks ----------------------
+    # A10 pre-pass: index the bit-granular x masks
     # `# XBITS <hart> <cycle> <field> <mask> <defined>` BINDS BACKWARD -- it
     # describes the record on the line ABOVE it. The main loop decides what to
     # do with a record when it reaches that record's line, i.e. BEFORE the mask
@@ -704,7 +499,7 @@ def main(argv=None):
             # the verdict is taken at the NEXT record-bearing line.
             _resolve_sc(); sc_pend = None
             n_retire += 1
-            # ---- V4/A14: is this retire an sc.w? ------------------------------
+            # V4/A14: is this retire an sc.w?
             # Decoded PROPERLY -- opcode/funct3/funct5, never a string pattern:
             # `sc.w` is funct5=00011 funct3=010 opcode=0101111, with aq/rl
             # (bits 26:25) masked OUT because sc.w.aq/.rl are the same
@@ -730,7 +525,7 @@ def main(argv=None):
                            "scfailrd": scfailrd_here,
                            "scghost": scghost_here}
             if depth > 0:
-                # ---- V4/A12: the ISR's committed register writes ---------
+                # V4/A12: the ISR's committed register writes
                 # rd == "00" is x0, i.e. no architectural write.
                 if len(f) >= 7 and f[5].lower() != "00":
                     if "x" in f[6].lower():
@@ -833,7 +628,7 @@ def main(argv=None):
                              "ADDRESS %s\n" % (ln, addr_s))
             return EXIT_REFUSED
 
-        # ---- V4/A13: the PLANT window ------------------------------------
+        # V4/A13: the PLANT window
         if pbase is not None and pbase <= addr < pbase + psize:
             if not started:
                 plant_pre += 1
@@ -895,7 +690,7 @@ def main(argv=None):
                     "    --allow-x %d:%s:<8hex>\n"
                     % (ordn, addr_s, val_s, ordn, addr_s))
                 return EXIT_REFUSED
-            # ---- A10: VERIFY the substitution instead of trusting it --------
+            # A10: VERIFY the substitution instead of trusting it
             # Before A10 this was an unchecked hand-off: the operator supplied
             # 8 hex digits and mk_inject wrote them into the reference's mouth.
             # `x` was NIBBLE-granular, so nothing could tell whether those
@@ -1021,8 +816,8 @@ def main(argv=None):
     # RTL it observed was the bug, and removing the bug removed the observation.
     # `# SCFAILRD` is now extinct in every trace.
     #
-    # This is rule R-WT-4 (audit what was measuring a defect when you remove it)
-    # arriving from an EARLIER wave, and it is left VISIBLE rather than
+    # The census's two halves are audited whenever a defect is removed, and a gap
+    # is left VISIBLE rather than
     # papered over: an unwitnessed failure is not wrong -- `rd` is still the
     # oracle and the F is still emitted -- but a census whose halves silently
     # stop summing is how a real gap gets normalised.
@@ -1064,32 +859,9 @@ def write_brackets(a, brackets, depth, cur, diag_bad, base, size,
                    plants=(), sc_fails=(), n_sc=0, n_ref_retire=0, n_retire=0,
                    pbase=None, psize=None, pderiv="-", plant_pre=0,
                    sc_inconsistent=()):
-    """Emit the `vesta_ref --bracket` realignment script.
-
-    V3: one `B` per bracket carrying the TRACE-INTERNALLY determined resume PC,
-    and one `S` per replayed store.  V4 adds, into the same script because they
-    are all "do this immediately before reference retire N":
-
-        P  the shared-window plants        (A13, --plant)
-        G  the ISR's register writes       (A12, one per register, last-write)
-        F  forced sc.w failure             (A14)
-
-    Every decision is stamped into a `# bracket N` provenance line and echoed to
-    stderr: the point of the mechanism is that the realignment is auditable, not
-    that it is invisible.
-
-    THE FILE MUST BE SORTED BY RETIRE INDEX, ASCENDING.  `vesta_ref`'s
-    `load_bracket_list` REJECTS the whole script otherwise ("retire indices are
-    not in ascending order") because its applier is single-pass -- so the
-    brackets, the plants and the forced-SC records cannot be written as three
-    separate blocks: a `B`/`S`/`G` set at retire 11 and an `F` at retire 171320
-    interleave with plants at every index in between.  Every line is therefore
-    emitted through `_emit(index, prio, text)` and the whole file is sorted at the
-    end on `(index, prio)` with a STABLE sort, so records keep their trace order
-    within one bucket.  `prio` mirrors the normative A11-A14 application order
-    (`S`+`P` -> `G` -> `F` -> `B`); within one index vesta_ref buckets by tag and
-    applies that order itself, so the priority is for the human reader, while the
-    ASCENDING INDEX is a hard requirement of the consumer.
+    """Emit the reference's bracket realignment script: B per bracket with the resume PC, S per
+    replayed store, P for plants, G for the ISR's register writes, F for a forced sc.w failure.
+    The consumer's applier is single-pass, so the whole file is stably sorted into ascending index.
     """
     P_COMMENT, P_STORE, P_PLANT, P_REG, P_SCFAIL, P_PC = -1, 0, 1, 2, 3, 4
     entries = []                      # (index, prio, seq, text)
@@ -1206,7 +978,7 @@ def write_brackets(a, brackets, depth, cur, diag_bad, base, size,
         _emit(b["ref_index"], P_PC, "B %d %s   # rtl_retire=%d"
               % (b["ref_index"], expected, b["rtl_start"]))
 
-    # ---- V4: the PLANTS (A13) -------------------------------------------
+    # V4: the PLANTS (A13)
     # Emitted at their own retire index, NOT in a trailing block: the file has to
     # be ascending by index (see the docstring), and plants interleave with the
     # brackets and the F records.
@@ -1224,7 +996,7 @@ def write_brackets(a, brackets, depth, cur, diag_bad, base, size,
               "P %d %s %s %s   # rtl_retire=%d" % (ridx, pa, ps, pd, rtlr))
         n_P += 1
 
-    # ---- V4: the FORCED SC FAILURES (A14) -------------------------------
+    # V4: the FORCED SC FAILURES (A14)
     for r in sc_fails:
         _emit(r, P_SCFAIL, "F %d" % r)
 

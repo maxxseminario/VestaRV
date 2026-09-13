@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# VestaRV: convert an Intel hex image to the RCF text format the VHDL ROMs read.
 
 import argparse
 from intelhex import IntelHex

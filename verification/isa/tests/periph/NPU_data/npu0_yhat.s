@@ -1,4 +1,5 @@
-# NPU Test Weights
+# VestaRV: NPU golden expected output vector
+# Emitted into its own section .npu0_yhat so the test can place it at the NPU's window; it is data, not code, despite the "ax" flags.
 .section .npu0_yhat , "ax"
 npu0_yhat:
 # NPU Data Here

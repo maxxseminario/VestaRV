@@ -1,16 +1,9 @@
-"""Bulk memory / flash operations built on the SerialManager.
+"""VestaRV: bulk memory and flash operations built on the SerialManager.
 
-These orchestrate multiple transactions (word-wise ! upload, mr dumps, the fw
-flash handshake).  They are synchronous -- each step blocks on the transaction
-Future -- so REST handlers run them in a thread executor while the event loop
-stays free.  Every step still goes through the one serial queue, so nothing
-interleaves.
-
-Rationale for the key choices:
-* ASCII mr (mode 0) is prompt-framed and carries a CRC; binary mr (mode 1) is
-  length-counted (payload+2 CRC bytes) because a payload byte can be 0x3E ('>').
-* mw is a ROM stub (rv4th.c case 93 is empty) -- uploads MUST use ! loops.
-* fw is interactive: header -> '$' -> 256 bytes -> 4-hex CRC -> 'Y'/'N'.
+Synchronous, each step blocking on its transaction Future, so REST handlers run them in a
+thread executor; every step still goes through the one serial queue. ASCII mr (mode 0) is
+prompt-framed and carries a CRC, binary mr (mode 1) is length-counted because a payload byte
+can be 0x3E. mw is an empty ROM stub, so uploads must use ! loops.
 """
 
 import base64
@@ -32,7 +25,7 @@ FLASH_TIMEOUT = 6.0
 
 
 def flash_info() -> Dict[str, int]:
-    """Flash geometry for GET /api/flash/info (Fable ruling 3)."""
+    """Flash geometry for GET /api/flash/info."""
     return {
         "page_size": FLASH_PAGE,
         "page_count": FLASH_PAGE_COUNT,
@@ -44,9 +37,7 @@ def _result(future: Any, timeout: float) -> Any:
     return future.result(timeout=timeout + 1.0)
 
 
-# ---------------------------------------------------------------------------
 # Memory read
-# ---------------------------------------------------------------------------
 
 def read_memory(manager: SerialManager, addr: int, length: int,
                 mode: int = 0, timeout: float = BINARY_TIMEOUT) -> Dict[str, Any]:
@@ -107,18 +98,14 @@ def format_hexdump(addr: int, data: bytes, width: int = 16) -> str:
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
 # Memory write (word-wise ! loop) + erase
-# ---------------------------------------------------------------------------
 
 def write_memory(manager: SerialManager, addr: int, words: List[int],
                  verify: bool = True, timeout: float = 2.0,
                  progress: Optional[Callable[[int, int], None]] = None
                  ) -> Dict[str, Any]:
-    """Write *words* (32-bit each) sequentially from *addr* via ``!`` loops.
-
-    With *verify*, each word is read back with ``h.`` and compared.  Returns
-    {written, verified, mismatches:[{index, addr, wrote, read}]}.
+    """Write *words*, 32 bits each, sequentially from *addr* via `!` loops. With *verify* each word is
+    read back and compared. Returns {written, verified, mismatches:[{index, addr, wrote, read}]}.
     """
     mismatches = []  # type: List[Dict[str, Any]]
     verified = 0
@@ -151,16 +138,12 @@ def erase_memory(manager: SerialManager, addr: int, length: int,
     return {"addr": addr & ~3, "length": length & ~3, "erased": True}
 
 
-# ---------------------------------------------------------------------------
 # Flash
-# ---------------------------------------------------------------------------
 
 def _page_to_addr(page: int) -> int:
-    """Convert a 0-based flash PAGE INDEX to its byte address for fe/fw.
-
-    The REST/API "page" is a page index (0..page_count-1); the ROM fe/fw words
-    take a byte address whose low 8 bits are ignored (256-byte page boundary),
-    so the byte address is page*256 (Fable ruling, G2).
+    """Convert a 0-based flash page index to its byte address for fe and fw. The API page is an index
+    while the ROM words take a byte address whose low 8 bits are ignored, so the address is
+    page*256.
     """
     if not (0 <= page < FLASH_PAGE_COUNT):
         raise ValueError("flash page index out of range 0..%d: %d"
@@ -196,12 +179,9 @@ def flash_read(manager: SerialManager, addr: int, length: int,
 def flash_write_page(manager: SerialManager, page: int, data: bytes,
                      verify_crc: bool = True,
                      timeout: float = FLASH_TIMEOUT) -> Dict[str, Any]:
-    """Write one 256-byte page via the fw binary handshake.  *page* is a page
-    INDEX (converted to byte address page*256, Fable ruling G2).
-
-    Short data is padded with 0xFF; longer data is rejected.  With *verify_crc*
-    a mismatch between the host and chip CRC aborts the write ('N') and reports
-    ok=False.  Returns {page, crc, expected_crc, ok, written}.
+    """Write one 256-byte page via the fw binary handshake; *page* is an index, converted to
+    page*256. Short data is padded with 0xFF and longer data rejected; with *verify_crc* a CRC
+    mismatch aborts the write and reports ok=False. Returns {page, crc, expected_crc, ok, written}.
     """
     if len(data) > FLASH_PAGE:
         raise ValueError("flash page data must be <= %d bytes" % FLASH_PAGE)

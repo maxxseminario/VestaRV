@@ -1,3 +1,5 @@
+-- VestaRV: core ALU
+-- Arithmetic, logic, shifts, the optional M multiplier and divider, the A-extension min/max, the Zb* bit-manipulation set and the Zkn crypto primitives, selected by a 7-bit alu_control code.
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
@@ -111,7 +113,7 @@ architecture behav of alu is
     end function;
 
 
-    /* ========== Zknd/Zkne AES-32 shared crypto primitives ==========
+    /* Zknd/Zkne AES-32 shared crypto primitives.
        ONE forward S-box and ONE inverse S-box (256 B each) serve all four aes32* ops through a single aes32_datapath() body byte-steered by bs, with the GF(2^8) MixColumn terms computed combinationally.
        Everything here must stay pure combinational, with fixed latency and data-independent timing, to hold the constant-time invariant. */
     type aes_sbox_t is array (0 to 255) of std_logic_vector(7 downto 0);
@@ -331,7 +333,7 @@ begin
             ResultSignal <= (others => '0');
 
             case alu_control is
-                -- ========== Base RV32I operations (7-bit alu_control encoding) ==========
+                -- Base RV32I operations (7-bit alu_control encoding)
                 when "0000000" => -- Addition
                     ResultSignal <= std_logic_vector(unsigned(a) + unsigned(b));
                 when "0000001" => -- Subtraction
@@ -361,7 +363,7 @@ begin
                 when "0001011" => -- Pass A (added for AMO)
                     ResultSignal <= a;
 
-                -- ========== RV32M multiply/divide operations ==========
+                -- RV32M multiply/divide operations
                 when "0001100" => -- MUL (signed * signed, low 32 bits)
                     if ENABLE_MUL then
                         mult_result := std_logic_vector(signed(a)*signed(b));
@@ -392,7 +394,7 @@ begin
                         end if;
                     end if;
                     
-                -- ========== RV32A atomic MIN/MAX operations ==========
+                -- RV32A atomic MIN/MAX operations
                 when "0010100" => -- AMOMIN (signed)
                     if ENABLE_ATOMICS then
                         if signed(a) < signed(b) then
@@ -429,7 +431,7 @@ begin
                         end if;
                     end if;
 
-                -- ========== RV32 Zba Shift-and-Add Instructions ==========
+                -- RV32 Zba Shift-and-Add Instructions
                 when "0011000" => -- SH1ADD: rd = (rs1 << 1) + rs2
                     if ENABLE_BITMANIP then
                         ResultSignal <= std_logic_vector(unsigned(a(XLEN-2 downto 0) & '0') + unsigned(b));
@@ -447,7 +449,7 @@ begin
                         ResultSignal <= std_logic_vector(unsigned(std_logic_vector'(a(XLEN-4 downto 0) & "000")) + unsigned(b));
                     end if;
 
-                -- ========== RV32 Zbb Basic Bit-manipulation Instructions ==========
+                -- RV32 Zbb Basic Bit-manipulation Instructions
 
                 -- Logical operations with complement
                 when "0011011" => -- ANDN: rd = rs1 & ~rs2 (Zbb or Zbkb-shared)
@@ -568,7 +570,7 @@ begin
                     end if;
 
 
-                -- ========== RV32 Zbs Single-bit Instructions ==========
+                -- RV32 Zbs Single-bit Instructions
                 when "0101100" => -- BCLR/BCLRI: Bit clear (rd = rs1 & ~(1 << rs2))
                     if ENABLE_BITMANIP then
                         bit_index := to_integer(unsigned(b(SHAMT_W-1 downto 0)));
@@ -601,7 +603,7 @@ begin
                     end if;
 
 
-                -- ========== RV32 Zbc Carry-less Multiplication Instructions ==========
+                -- RV32 Zbc Carry-less Multiplication Instructions
                 when "0110000" => -- CLMUL: carry-less multiply, low half (Zbc or Zbkc)
                     if ENABLE_BITMANIP or ENABLE_ZBKC then
                         mult_result := clmul_64(a, b);
@@ -621,7 +623,7 @@ begin
                         ResultSignal <= mult_result(2*XLEN-2 downto XLEN-1);
                     end if;
 
-                -- ========== RV32 Zicond Conditional-Zero Instructions (a = rs1, b = rs2) ==========
+                -- RV32 Zicond Conditional-Zero Instructions (a = rs1, b = rs2)
                 when "0110011" => -- CZERO.EQZ: rd = (rs2==0) ? 0 : rs1
                     if ENABLE_ZICOND then
                         if b = ALU_ZERO_X then
@@ -640,7 +642,7 @@ begin
                         end if;
                     end if;
 
-                -- ========== RV32 Zknd/Zkne AES-32 instructions ==========
+                -- RV32 Zknd/Zkne AES-32 instructions
                 -- Single-cycle combinational, sharing one S-box pair and the GF MixColumn terms; a = rs1, b = rs2, bs = instr[31:30] on a separate ALU input.
                 when "0111100" => -- aes32esi:  encrypt, SubBytes only
                     if ENABLE_ZKN then
@@ -659,7 +661,7 @@ begin
                         ResultSignal <= aes32_datapath(a, b, bs, true, true);
                     end if;
 
-                -- ========== RV32 Zknh SHA-256 and SHA-512 sigma/sum ops ==========
+                -- RV32 Zknh SHA-256 and SHA-512 sigma/sum ops
                 -- Pure combinational xor/rotate/shift trees: single-cycle and constant-time, with a = rs1 and b = rs2, and rotate/shift amounts taken from the ratified Zknh pseudocode.
 
                 -- SHA-256 (unary: operate on rs1 = a only).
@@ -752,7 +754,7 @@ begin
                             shift_left (unsigned(b), 14));
                     end if;
 
-                -- ========== Zbkb crypto bit-manip, single-cycle combinational (a = rs1, b = rs2) ==========
+                -- Zbkb crypto bit-manip, single-cycle combinational (a = rs1, b = rs2)
                 when "0110101" => -- PACK: rd = (rs2[15:0] << 16) | rs1[15:0]
                     if ENABLE_ZBKB then
                         ResultSignal <= b(15 downto 0) & a(15 downto 0);
@@ -788,7 +790,7 @@ begin
                         end loop;
                     end if;
 
-                -- ========== Zbkx crossbar permute (fixed mux tree, single-cycle) ==========
+                -- Zbkx crossbar permute (fixed mux tree, single-cycle)
                 -- Each result byte or nibble i takes rs1's byte or nibble at the index in rs2, or zero when that index is out of range.
                 when "0111010" => -- XPERM8: byte crossbar (index rs2.byte[i], <4)
                     if ENABLE_ZBKX then

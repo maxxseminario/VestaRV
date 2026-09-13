@@ -1,7 +1,4 @@
-/**
- **	bits.h
- ** Bit definition header file
- **/
+// VestaRV: BIT0 through BIT31 single-bit mask constants
 
 
 
@@ -9,7 +6,6 @@
 
 
 
-/** Defines **/
 #define BIT0	(0x00000001)
 #define BIT1	(0x00000002)
 #define BIT2	(0x00000004)

@@ -1,58 +1,9 @@
-# mcu_vhd.py — golden-master MCU.vhd emitter (RTL-generation track, Phase 2)
-#
-# Emits out/hdl/MCU.vhd from hdl_templates/MCU.template.vhd. The template is the
-# verified hdl/common/MCU.vhd with the DESCRIPTION-DRIVEN regions carved out and
-# replaced by "--@GEN:<name>@" marker lines; this module regenerates those
-# regions from python/generate.py's peripheral description:
-#   - irq-signal-decls / irq-comb    : per-vector IRQ signals + the irq_comb aggregate
-#   - shslv-subdecode / shslv-rd-sel : shared-window slave decode + registered read-select
-#                                      (M11 map: pages on s_addr(14:12), window slots on
-#                                      s_addr(9:6) at the legacy numbering)
-#   - rdata-bridge                   : bridge registers for COMBINATIONAL-read slaves
-#   - sh-rdata-mux / polarity-shims  : slave read mux + active-low en/wen shims
-#   - bus:<instance>                 : each peripheral instance's memory-bus port map
-#
-# A1 (Argus N-hart generalization, 2026-07-10) adds the numHarts-driven regions:
-#   - a0-ports                       : per-tile-hart a0 observation ports (entity)
-#   - arb-fabric-decls / clint-irq-decls / meip-decl / pd-decls /
-#     tile-raw-decls / sh-master-decl : the per-hart fabric signal widths
-#   - hart0-instance / tile-instances : the hart_tile instances (hart 0's
-#     special wiring vs the tiles' router rows — per-instance WIRING only)
-#   - arb-generic / resv-generic     : mp_arbiter / resv_unit N generics
-#   - clint-instance                 : NHARTS + the A0 layout-formula ADDR_W
-#   - irq-router-instance / tile-rstn / iso-clamps
-# At numHarts=4 every one of these reproduces the golden master BYTE-
-# IDENTICALLY (check_mcu_vhd.py STRICT is the gate). Other hart counts emit
-# well-formed VHDL, but the RTL only elaborates after the A2/A3 platform
-# generalizations (mp_arbiter s_master width, mutex_bank master port,
-# irq_router/pwr_ctrl regrow, sh_sel/SH_AW/flash move) — pwr0's instance and
-# the pd_* hookup stay 4-hart RTL until pwr_ctrl regrows at A2.
-#
-# CP2 (Castalia-Penta, 2026-08-13) adds the THIRD hart-instance emitter beside
-# emitHart0Instance and tileInstance:
-#   - orch-instance                   : the always-on SOFT ORCHESTRATOR hart,
-#     `hart<N-1> : entity work.orch_tile` — hart-0-style power/reset (no
-#     pwr_ctrl row, no iso clamps, sh_* direct into its arbiter slice) with
-#     tile-style boot/IRQ wiring. Driven by the managementHart knob; emits
-#     NOTHING at managementHart=0, which is what keeps the golden master
-#     byte-identical. The knob also (a) shortens the pd_*/tile_rstn/iso-clamp/
-#     tile-raw ranges to the GATEABLE tiles (pwrHarts) while CLINT, irq_router,
-#     debug_module and every master index stay on the full nHarts, and (b)
-#     passes afe_stub's MGMT_HART / eis0's OWNER_HART (D4).
-#
-# Division of truth (mirrors Phase 1's McuMpCompat rules):
-#   - generate.py owns the per-peripheral FACTS (slots, base addresses, sharedBus
-#     class, combinationalRead, clock domain) — change the chip there.
-#   - this module owns the RTL's STRUCTURE: signal-name spellings, list orders and
-#     narrative comments transcribed from the golden master (the RTL wins).
-#   - cross-checks RAISE when the two disagree, so a description change that the
-#     transcribed structure cannot express fails the build instead of emitting
-#     silently-wrong RTL.
-#
-# The drop-in bar (same as Phase 1): python/check_mcu_vhd.py exit 0 — the emitted
-# file is BYTE-IDENTICAL to hdl/common/MCU.vhd apart from the generated header.
-#
-# Python 3.6 compatible.
+# VestaRV: golden-master MCU.vhd emitter.
+# Emits out/hdl/MCU.vhd from hdl_templates/MCU.template.vhd, regenerating the regions the
+# template marks with --@GEN:<name>@ from generate.py's peripheral description and knobs.
+# generate.py owns the per-peripheral facts (slots, base addresses, sharedBus class,
+# combinationalRead, clock domain); this module owns the RTL structure and raises when the two
+# disagree. The bar is check_mcu_vhd.py exit 0. Python 3.6 compatible.
 
 import datetime
 import os
@@ -62,12 +13,9 @@ EMDASH = '—'
 
 
 def generatedOnStamp():
-	'''The "Generated on ..." wall-clock stamp printed in every emitted file header.
-	   It is the ONLY nondeterministic byte in the generator's output, which makes a
-	   sandboxed rebuild differ from the previous one for no content reason.
-	   SOURCE_DATE_EPOCH (the reproducible-builds convention) pins it when set; unset,
-	   which is every in-tree `make generate`, this is exactly the old
-	   datetime.now() behavior.'''
+	'''The "Generated on ..." wall-clock stamp in every emitted file header, the only
+	nondeterministic byte in the generator's output. SOURCE_DATE_EPOCH pins it when set.
+	'''
 	epoch = os.environ.get('SOURCE_DATE_EPOCH', '').strip()
 	if epoch.isdigit():
 		return datetime.datetime.utcfromtimestamp(int(epoch)).strftime('%Y/%m/%d at %H:%M:%S')
@@ -82,33 +30,24 @@ def _clog2(n):
 	return w
 
 
-# Address-bus width of the rom2k_hvt_pg macro rom0 instantiates in the fixed
-# region of MCU.template.vhd: 2048 x 32, A(10:0), i.e. 8 KiB. This is a MACRO
-# FACT, never a knob — memory.romSize can ask for any 1 KiB multiple up to
-# 0x4000, and the entity at rom0 answers exactly 8 KiB of it. Emitting it as a
-# named constant is what lets MCU.vhd check the map's ROM against the array it
-# actually has; swapping the entity for another ROM macro means changing this
-# number with it.
-#
-# 12 -> 11 on 2026-08-23, with memory.romSize 16384 -> 8192 in generate.py and
-# `entity work.rom_hvt_pg` -> `entity work.rom2k_hvt_pg` in MCU.template.vhd.
-# rom2k_hvt_pg was compiled from the final rv32ic boot image (1,844 of 2,048
-# words used) and installed beside rom_hvt_pg, which stays where it is because
-# the IP directory is shared with the taped-out Myshkin part.
+# Address-bus width of the rom2k_hvt_pg macro rom0 instantiates in the fixed region of
+# MCU.template.vhd: 2048 x 32, A(10:0), which is 8 KiB. This is a macro fact, not a knob:
+# memory.romSize may ask for any 1 KiB multiple up to 0x4000 and the entity at rom0 answers
+# exactly 8 KiB of it. Emitting it as a named constant is what lets MCU.vhd check the map's
+# ROM against the array it has. Swapping the entity for another ROM macro means changing
+# this number with it.
 ROM_MACRO_ADDR_BITS = 11
 
-# Prose spelling of small hart counts ("identical on all four tiles"); larger
-# counts fall back to digits ("identical on all 18 tiles").
+# Prose spelling of small hart counts ("identical on all four tiles"); larger counts fall
+# back to digits.
 _HARTS_WORD = {2: 'two', 3: 'three', 4: 'four', 5: 'five', 6: 'six', 7: 'seven',
 	8: 'eight', 9: 'nine', 10: 'ten', 11: 'eleven', 12: 'twelve'}
 
-# ---------------------------------------------------------------------------
-# Transcribed RTL structure (spellings + orders from hdl/common/MCU.vhd)
-# ---------------------------------------------------------------------------
+# Transcribed RTL structure: spellings and orders from hdl/common/MCU.vhd.
 
-# Shared-window slaves: description name -> RTL signal spellings.
+# Shared-window slaves, description name to RTL signal spellings.
 #   sel   = shslv_<sel>_sel / _en / shslv_rd_<sel>
-#   shim  = <shim>_sh_en_n (None for 'native' slaves that take active-high en)
+#   shim  = <shim>_sh_en_n, None for 'native' slaves that take active-high en
 #   rdata = the signal the slave drives into sh_rdata_mux
 SHSLV = {
 	'CLINT':     {'sel': 'clint', 'shim': None,    'rdata': 'clint_rdata'},
@@ -131,26 +70,25 @@ SHSLV = {
 	'I2C1':      {'sel': 'i2c1',  'shim': 'i2c1',  'rdata': 'i2c1_sh_rdata'},
 }
 
-# X-collapse fix (2026-07-20): shim peripherals whose RTL clocks status/RX
-# snapshot registers on falling_edge(en_mem). Their shims take the
-# falling-mclk re-registered shslv_<sel>_en_q strobe (emitPolarityShims);
-# I3C0/NFC0 carry the same treatment inside their own instance regions.
-# GPIO/SYSTEM/NPU sample en_mem only on rising clk_mem edges - raw strobe.
+# Shim peripherals whose RTL clocks status and RX snapshot registers on
+# falling_edge(en_mem). Their shims take the falling-mclk re-registered shslv_<sel>_en_q
+# strobe (emitPolarityShims); I3C0 and NFC0 carry the same treatment inside their own
+# instance regions. GPIO, SYSTEM and NPU sample en_mem only on rising clk_mem edges and
+# take the raw strobe.
 CAPTURE_CLOCK = {'SPI0', 'SPI1', 'UART0', 'UART1', 'TIMER0', 'TIMER1',
 	'I2C0', 'I2C1', 'QSPI0'}
 
-# M11/M12 memory slaves (structural — hard macros, not description
-# peripherals): sel spelling -> the macro Q net that feeds sh_rdata_mux
-# directly (the macro IS the 1-cycle registered read). 'rom' = the M12
-# shared boot ROM at page 000 (read-only rom2k_hvt_pg).
+# Memory slaves: structural hard macros, not description peripherals. The sel spelling maps
+# to the macro Q net that feeds sh_rdata_mux directly, because the macro is the one-cycle
+# registered read. 'rom' is the shared boot ROM at page 000, a read-only rom2k_hvt_pg.
 MEMSLV = {
 	'rom': 'rom_q',
 	'npuram': 'npuram_q',
 	'bank0': 'bank0_q', 'bank1': 'bank1_q', 'bank2': 'bank2_q', 'bank3': 'bank3_q',
 }
 
-# Milestone each peripheral moved onto the shared window (RTL history; used in
-# the transcribed port-map comments)
+# Milestone each peripheral moved onto the shared window, used in the transcribed port-map
+# comments.
 MOVED_IN = {
 	'UART0': 'M6',
 	'GPIO1': 'M7b', 'GPIO2': 'M7b', 'GPIO3': 'M7b', 'TIMER0': 'M7b', 'TIMER1': 'M7b',
@@ -160,15 +98,12 @@ MOVED_IN = {
 	'SYSTEM': 'M11', 'GPIO0': 'M11', 'SPI0': 'M11',
 }
 
-# M11 canon: page-0 slot decode in slot-numeric order (new RTL authored by
-# the M11 rework — the milestone-history ordering of the pre-M11 fabric is
-# retired with it). EN/RD run memory slaves first, then the window pages,
-# then the slots.
+# Page-0 slot decode in slot-numeric order. EN and RD run memory slaves first, then the
+# window pages, then the slots.
 PG0_SEL_ORDER = ['GPIO0', 'GPIO1', 'SPI0', 'SPI1', 'UART0', 'UART1', 'TIMER0', 'TIMER1',
 	'GPIO2', 'SYSTEM', 'NPU', 'GPIO3', 'I2C0', 'I2C1']
-# M17: NATIVE slaves living IN a page-0 slot (slot-decoded like the shim
-# peripherals above, but speaking the arbiter protocol directly — no shim).
-# PWRCTRL took slot 11 (0x4B00), vacated by SARADC0 in the digital-only respin.
+# Native slaves living in a page-0 slot: slot-decoded like the shim peripherals above, but
+# speaking the arbiter protocol directly with no shim. PWRCTRL took slot 11 (0x4B00).
 PG0_NATIVE_ORDER = ['PWRCTRL']
 EN_ORDER = ['rom', 'npuram', 'bank0', 'bank1', 'bank2', 'bank3', 'CLINT', 'MUTEX', 'IRQROUTER', 'PWRCTRL'] + PG0_SEL_ORDER
 RD_ORDER = list(EN_ORDER)
@@ -192,9 +127,9 @@ SHIM_GROUPS = [
 	 ['SYSTEM', 'GPIO0', 'SPI0'], 14),
 ]
 
-# I2C interrupt-declaration comments, transcribed verbatim (the RTL wording is
-# NOT derivable from the IRQB descriptions: Master vs Master Mode differs
-# between I2C0 and I2C1 in the RTL)
+# I2C interrupt-declaration comments, transcribed verbatim: the RTL wording is not derivable
+# from the IRQB descriptions, because Master versus Master Mode differs between I2C0 and
+# I2C1 in the RTL.
 I2C_DECL_COMMENTS = {
 	('str', 0): 'Start Received Interrupt', ('str', 1): 'Start Received Interrupt',
 	('spr', 0): 'Stop Received Interrupt', ('spr', 1): 'Stop Received Interrupt',
@@ -211,15 +146,12 @@ I2C_DECL_COMMENTS = {
 	('sxc', 0): 'Slave Transfer Complete Interrupt', ('sxc', 1): 'Slave Transfer Complete Interrupt',
 }
 
-# ---------------------------------------------------------------------------
-# G1a (2026-07-11): I2C1 is the first config-droppable peripheral INSTANCE.
-# The four regions below are transcribed VERBATIM from the golden master (they
-# were fixed template content until G1a carved them out); each emitter returns
-# them unchanged when I2C1 is present and degrades the I2C1 rows when it is
-# dropped (aggregate choices -> '0' hi-Z idiom, muxes/decls removed, comments
-# reworded). The two pure-verbatim blocks (pad decls, the i2c1 instance) live
-# in hdl_templates/MCU.template.i2c1.vhd instead (NPU side-template mechanism).
-# ---------------------------------------------------------------------------
+# I2C1 is a config-droppable peripheral instance. The four regions below are transcribed
+# verbatim from the golden master; each emitter returns them unchanged when I2C1 is present
+# and degrades the I2C1 rows when it is dropped (aggregate choices become the '0' hi-Z
+# idiom, muxes and declarations are removed, comments are reworded). The two pure-verbatim
+# blocks, the pad declarations and the i2c1 instance, live in
+# hdl_templates/MCU.template.i2c1.vhd instead.
 I2C_FABRIC_DECLS = [
 	"        -- I2C movers: I2C0/I2C1 (window slots 14/15).",
 	"        -- The I2C register READ is COMBINATIONAL (rdata_out collapses to register 0 the moment EnMemPeriph deasserts), so the bridge REGISTERS it at the latch-to-data edge (i2c*_sh_rdata below).",
@@ -347,42 +279,36 @@ GPIO3_PRIMARY_PLANES = [
 	'        );',
 ]
 
-# ---------------------------------------------------------------------------
-# G1b (2026-07-11): UART1 / SPI1 / TIMER1 join I2C1 as config-droppable
-# INSTANCES. Same machinery: the mixed fixed/config regions below are
-# transcribed VERBATIM from the golden master and degrade line-by-line when an
-# instance is dropped (aggregate choices -> the '0' hi-Z idiom, muxes/decls
-# removed, comments reworded); the pure-verbatim pad-decl + instance blocks
-# live in hdl_templates/MCU.template.{uart1,spi1,timer1}.vhd (side templates).
-# The AF2-AF7 output-spread planes are NOT transcribed: they are emitted from
-# the description's FromSpread altFuncs (generate.py filters _GPIO_AF_SPREAD
-# by config first), with SPREAD_SIG below owning the RTL signal spellings —
-# check_mcu_vhd.py STRICT at defaults is the transcription proof.
-# ---------------------------------------------------------------------------
-# The shared timer/UART/SPI output pool's RTL signal spellings (spread planes
-# wire LITERAL pin indices; a plane slot with no surviving function reads '0')
+# UART1, SPI1 and TIMER1 join I2C1 as config-droppable instances, on the same machinery:
+# the mixed fixed and config regions below are transcribed verbatim from the golden master
+# and degrade line by line when an instance is dropped. The pure-verbatim pad-declaration
+# and instance blocks live in hdl_templates/MCU.template.{uart1,spi1,timer1}.vhd.
+# The AF2-AF7 output-spread planes are not transcribed: they are emitted from the
+# description's FromSpread altFuncs, which generate.py filters by configuration first, with
+# SPREAD_SIG below owning the RTL signal spellings. check_mcu_vhd.py STRICT at defaults is
+# the transcription proof.
+# SPREAD_SIG is the shared timer, UART and SPI output pool's RTL signal spellings. Spread
+# planes wire literal pin indices, and a plane slot with no surviving function reads '0'.
 SPREAD_SIG = {
 	'TX0': 'tx0', 'TX1': 'tx1', 'SCK1': 'sck1', 'MOSI1': 'mosi1',
 	'T0CMP0': 't0_cmp0', 'T0CMP1': 't0_cmp1', 'T1CMP0': 't1_cmp0', 'T1CMP1': 't1_cmp1',
-	# pin-mux v2: io slots carried by the spread planes (their INPUT side is a
-	# separate relocation mux — RX0 in the fixed template, MISO1 in
-	# SPI1_INPUT_TAPS — keyed on the pin's PxAFS, always-visible idiom)
+	# io slots carried by the spread planes. Their input side is a separate relocation mux,
+	# RX0 in the fixed template and MISO1 in SPI1_INPUT_TAPS, keyed on the pin's PxAFS.
 	'RX0': 'rx0', 'MISO1': 'miso1',
-	# digperiphs #5 (A7): PWM0 outputs REPLACE the P2.2/P2.3 AF2 redundant timer-
-	# compare spread copies (generate.py gates this on peripherals.pwm). The pwm0/
-	# pwm1 output-alias scalars are emitted in the gated PWM instance region
-	# (emitPwmInstance); harmless keys when PWM is off (nothing references them).
+	# PWM0 outputs replace the P2.2 and P2.3 AF2 redundant timer-compare spread copies;
+	# generate.py gates this on peripherals.pwm. The pwm0 and pwm1 output-alias scalars are
+	# emitted in the gated PWM instance region (emitPwmInstance), and the keys are harmless
+	# when PWM is off because nothing references them.
 	'PWM0': 'pwm0', 'PWM1': 'pwm1',
-	# digperiphs #5 RE-PIN (Stage H): OW0's open-drain DQ REPLACES the redundant
-	# T0CMP1 spread copy on P4.7 AF2 (generate.py gates this on peripherals.onewire).
-	# An io slot like RX0/MISO1: the out/dir planes come from the OneWire entity's
-	# OW_DQ_OUT/OW_DQ_DIR, the ren plane from the pad's own PxREN preference
-	# (ow0_dq_ren, aliased in the gated OW0 instance region), and the pad INPUT is a
-	# separate AFS-keyed relocation mux there too.
+	# OW0's open-drain DQ replaces the redundant T0CMP1 spread copy on P4.7 AF2; generate.py
+	# gates this on peripherals.onewire. It is an io slot like RX0 and MISO1: the out and dir
+	# planes come from the OneWire entity's OW_DQ_OUT and OW_DQ_DIR, the ren plane from the
+	# pad's own PxREN preference (ow0_dq_ren, aliased in the gated OW0 instance region), and
+	# the pad input is a separate AFS-keyed relocation mux there too.
 	'OW_DQ': 'ow0_dq',
 }
-# Per-port spread-block header comments (transcribed; the flatten lines are
-# emitted by the same region so the whole block is one marker per port)
+# Per-port spread-block header comments, transcribed. The flatten lines are emitted by the
+# same region, so the whole block is one marker per port.
 SPREAD_HEADERS = {
 	0: ['        -- Flattened AF planes (7 downto 1 unassigned, plane 0 = AF0): the boot/flash/clock port keeps exactly one alternate function per pin.',
 		'        -- GPIO0 AF output-function spread: aggregates + 8-plane flatten'],
@@ -649,14 +575,11 @@ ANALOG_TIE_OFFS = [
 	"    dtp3_out <= '0';  dtp3_dir <= '0';  dtp3_ren <= '0';",
 ]
 
-# digperiphs #1 (2026-07-18): page-0 slot 12 (0x4C00) is shared real estate.
-# By default the four AFE register stubs + the shared EIS engine stub occupy it
-# (transcribed VERBATIM below — they were fixed template content until this
-# carve; emitted whenever geo['afeStubs'], the Castalia golden-master default,
-# so the default MCU.vhd stays byte-identical). With afeStubs off the QSPI0
-# controller can claim the slot instead (geo['qspi']); the two are mutually
-# exclusive. The AFE decl/instance blocks are emitted by emitSlot12Decls /
-# emitSlot12Instances (the --@GEN:slot12-decls@ / slot12-instances@ markers).
+# Page-0 slot 12 (0x4C00) is shared real estate. Under geo['afeStubs'] the four AFE register
+# stubs and the shared EIS engine stub occupy it, transcribed verbatim below; under
+# geo['qspi'] the QSPI0 controller claims the slot instead. The two are mutually exclusive.
+# The AFE declaration and instance blocks are emitted by emitSlot12Decls and
+# emitSlot12Instances, at the --@GEN:slot12-decls@ and slot12-instances@ markers.
 AFE_SLOT12_DECLS = [
 	'        -- AFE digital register stubs (four 64 B sub-slots of page-0 slot 12 @0x4C00/40/80/C0) + the shared EIS engine stub (IRQ-router page top quarter @0x7C00-0x7FFF).',
 	'        -- Each is an afe_stub with an s_master ownership gate and a REGISTERED read (no bridge); the EIS block is hart-0-only.',
@@ -713,9 +636,9 @@ AFE_SLOT12_INSTANCES = [
 #   periph   : description peripheral name
 #   ports    : port names in the RTL's order for this component type
 #   width    : port-name column width (component-type formatting)
-#   trailing : per-line trailing-space flags (RTL formatting quirks), or None
+#   trailing : per-line trailing-space flags matching the RTL formatting, or None
 #   comment  : 'slot' (derived page-3 comment), 'plain' (window comment, no slot),
-#              'i2c'/'npu' (two-line combinational-read comments), or None
+#              'i2c' or 'npu' (two-line combinational-read comments), or None
 BUS_ORDER_A = ['clk_mem', 'en_mem', 'wen', 'addr_periph', 'write_data', 'read_data']	# SYSTEM/UART/TIMER
 BUS_ORDER_B = ['clk_mem', 'en', 'wen', 'write_data', 'read_data', 'addr_periph']	# GPIO
 BUS_ORDER_C = ['clk_mem', 'en_mem', 'wen', 'write_data', 'read_data', 'addr_periph']	# SPI
@@ -736,8 +659,8 @@ BUS_SPECS = {
 	'npu0':    {'periph': 'NPU', 'ports': None, 'width': None, 'trailing': None, 'comment': 'npu'},
 }
 
-# M11 shared-window geometry (the peripheral window at 0x4000; page 0 = the
-# 16 legacy-numbered slots, pages 1-3 = CLINT / MUTEX / IRQROUTER)
+# Shared-window geometry: the peripheral window at 0x4000, page 0 being the 16
+# legacy-numbered slots and pages 1-3 CLINT, MUTEX and IRQROUTER.
 SHARED_WINDOW_BASE = 0x4000
 SHARED_SLOT_SIZE = 0x100
 CLINT_BASE = 0x5000
@@ -755,166 +678,131 @@ class McuVhdEmitter():
 		self.slotSpelling = gen.McuMpCompat['periphSlotSpelling']
 		self.irqVectors = gen.McuMpCompat['irqVectors']
 
-		# A2 (Argus): shared-window geometry — SH_AW, bank count and NPU
-		# presence drive the memory-slave regions. Castalia defaults.
+		# Shared-window geometry: SH_AW, bank count and NPU presence drive the memory-slave
+		# regions.
 		geo = getattr(gen, 'McuMpGeometry', None) or {}
 		self.shAw = geo.get('shAw', 15)
-		# CPR3/R1 (Castalia-Penta rework): the ORCHESTRATOR PRESENCE flag.
-		# False = no orchestrator, and EVERY orchestrator-aware emitter
-		# degenerates to its pre-CP form (check_mcu_vhd.py STRICT is the bar).
-		# True = HART 0 is the always-on soft orchestrator: the SAME hart-0
-		# instance region, the SAME wiring bundle (flash quartet, sleep_cpu,
-		# trap_out, pgen_mem(1), a0, arbiter slice 0, no pd_* row, no clamps),
-		# but bound to `entity work.orch_tile` instead of `hart_tile` -- and
-		# harts 1..numHarts-1 become fully uniform channel tiles. There is no
-		# index to carry any more, which is the whole point of R1/R2: the CP2
-		# knob was an index whose OFF sentinel was 0, so it could not express
-		# "the orchestrator is hart 0" at all.
+		# Orchestrator presence. False = no orchestrator, and every orchestrator-aware emitter
+		# degenerates to its pre-orchestrator form, which check_mcu_vhd.py STRICT grades.
+		# True = hart 0 is the always-on soft orchestrator: the same hart-0 instance region and
+		# the same wiring bundle (flash quartet, sleep_cpu, trap_out, pgen_mem(1), a0, arbiter
+		# slice 0, no pd_* row, no clamps), but bound to `entity work.orch_tile` instead of
+		# `hart_tile`, and harts 1..numHarts-1 become fully uniform channel tiles. There is no
+		# index to carry: the orchestrator is always hart 0.
 		self.orch = bool(geo.get('orchestrator', False))
-		# CPR3/R3: the read-only TCM apertures -- byte base per hart, [] when
-		# there are none. Their presence is what widens SH_AW to 16 and what
-		# adds the five aperture slaves; keying the emitters on THIS list
-		# rather than on self.orch keeps "is there an aperture fabric" one
-		# question with one answer.
+		# The read-only TCM apertures: byte base per hart, or [] when there are none. Their
+		# presence is what widens SH_AW to 16 and adds the aperture slaves. The emitters key on
+		# this list rather than on self.orch, so "is there an aperture fabric" has one answer.
 		self.tcmWindows = list(geo.get('tcmWindows', []))
 		self.banks = geo.get('sharedRamBanks', 4)
 		self.npu = geo.get('npu', True)
 		self.npuBlocks = npuBlocks or {}
-		# G1a: droppable second I2C instance (the first config-droppable
-		# peripheral INSTANCE — window slot 15, vectors 70-82, SDA1/SCL1 pads)
+		# Droppable second I2C instance: window slot 15, vectors 70-82, SDA1/SCL1 pads.
 		self.i2c1 = geo.get('i2c1', True)
 		self.i2c1Blocks = i2c1Blocks or {}
-		# G1b: droppable UART1 / SPI1 / TIMER1 instances (window slots 5/3/7,
-		# vectors 52-54 / 11-12 / 22-27; primaries on P2.6/7, P2.0-3, P3.4-7)
+		# Droppable UART1, SPI1 and TIMER1 instances: window slots 5, 3 and 7, vectors 52-54,
+		# 11-12 and 22-27; primaries on P2.6/7, P2.0-3 and P3.4-7.
 		self.uart1 = geo.get('uart1', True)
 		self.uart1Blocks = uart1Blocks or {}
 		self.spi1 = geo.get('spi1', True)
 		self.spi1Blocks = spi1Blocks or {}
 		self.timer1 = geo.get('timer1', True)
 		self.timer1Blocks = timer1Blocks or {}
-		# digperiphs #1: page-0 slot 12 (0x4C00) occupant. afeStubs (default,
-		# golden master) = the four AFE stubs + shared EIS engine stub; qspi =
-		# the QSPI0 controller instead. Mutually exclusive (both decode slot 12).
+		# Page-0 slot 12 (0x4C00) occupant: afeStubs gives the four AFE stubs and the shared EIS
+		# engine stub, qspi gives the QSPI0 controller. Mutually exclusive, since both decode
+		# slot 12.
 		self.afeStubs = geo.get('afeStubs', True)
 		self.qspi = geo.get('qspi', False)
 		if self.afeStubs and self.qspi:
 			raise Exception('MCU.vhd emitter: afeStubs and qspi both claim page-0 slot 12')
-		# digperiphs #2: I3C0 in MUTEX-page (page 2) sub-slot 1 @0x6100. When set,
-		# the mutex-bank decode is tightened to sub-slot 0 (0x6000-0x60FF) and a
-		# page-2 sub-decode + the I3C0 shim/instance are hand-emitted. I3C0 is NOT
-		# a page-0 shim peripheral, so it lives outside shslv/pg0SelOrder/rdOrder
-		# (its rd-sel, rdata-mux and enable are emitted in explicit self.i3c blocks,
-		# the AFE-stub precedent). Default false => every one of those is inert.
+		# I3C0 in mutex-page (page 2) sub-slot 1 at 0x6100. When set, the mutex-bank decode is
+		# tightened to sub-slot 0 (0x6000-0x60FF) and a page-2 sub-decode plus the I3C0 shim and
+		# instance are hand-emitted. I3C0 is not a page-0 shim peripheral, so it lives outside
+		# shslv, pg0SelOrder and rdOrder: its rd-sel, rdata-mux and enable are emitted in explicit
+		# self.i3c blocks, on the AFE-stub precedent.
 		self.i3c = geo.get('i3c', False)
-		# OVERLAY (2026-09-12): an out-of-tree overlay reads its own knobs out of
-		# the SAME geometry dict every emitter here reads, so entity, memory map
-		# and testbench cannot disagree about what was built. With no overlay
-		# every overlay entry point below returns nothing and this emitter is
-		# byte-for-byte the one that shipped. See python/overlay.py.
+		# An out-of-tree overlay reads its own knobs out of the same geometry dict every emitter
+		# here reads, so entity, memory map and testbench cannot disagree about what was built.
+		# With no overlay every overlay entry point below returns nothing. See python/overlay.py.
 		import overlay as _ovl
 		self.overlay = _ovl
 		_ovl.call('mcuInit', emitter=self, geo=geo)
-		# digperiphs #3: NFC0 in MUTEX-page (page 2) sub-slot 2 @0x6200. Same shape
-		# as I3C0 (native slave outside the page-0 shim fabric; hand-emitted
-		# sub-decode + shim/instance under self.nfc). When either I3C or NFC is
-		# present the mutex-bank decode is tightened to sub-slot 0. Default false.
+		# NFC0 in mutex-page sub-slot 2 at 0x6200, the same shape as I3C0: a native slave outside
+		# the page-0 shim fabric, with a hand-emitted sub-decode, shim and instance under
+		# self.nfc. When either I3C or NFC is present the mutex-bank decode tightens to sub-slot 0.
 		self.nfc = geo.get('nfc', False)
-		# digperiphs #4: RTC0 in MUTEX-page (page 2) sub-slot 5 @0x6500. Same
-		# native-slave shape as I3C0/NFC0/GPIO4/GPIO5 (outside the page-0 shim
-		# fabric; hand-emitted sub-decode + shim/instance under self.rtc), but with
-		# a PLAIN raw-strobe en shim — NO falling_edge(EnMemPeriph) pre-latch and NO
-		# CAPTURE_CLOCK en_q (D4): the first library block clean of both. Default
-		# false => every RTC region is inert (byte-identical default).
+		# RTC0 in mutex-page sub-slot 5 at 0x6500, the same native-slave shape as I3C0, NFC0,
+		# GPIO4 and GPIO5, with a hand-emitted sub-decode, shim and instance under self.rtc, but
+		# on a plain raw-strobe en shim: no falling_edge(EnMemPeriph) pre-latch and no
+		# CAPTURE_CLOCK en_q. It is the first library block clean of both.
 		self.rtc = geo.get('rtc', False)
-		# digperiphs #5: PWM0 in MUTEX-page (page 2) sub-slot 6 @0x6600. Same
-		# native-slave shape as RTC0 — a PLAIN raw-strobe en shim (NO
-		# falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q, D4). Zero
-		# INPUT pins: the two outputs pwm_out(0)/(1) are aliased into the AF spread
-		# (P2.2/P2.3 AF2, A7). Default false => every PWM region is inert
-		# (byte-identical default; the two spread slots keep their T0CMP0/T0CMP1 copies).
+		# PWM0 in mutex-page sub-slot 6 at 0x6600, the same native-slave shape as RTC0 on a plain
+		# raw-strobe en shim. Zero input pins: the two outputs pwm_out(0) and (1) are aliased into
+		# the AF spread at P2.2 and P2.3 AF2, and when PWM is off those two slots keep their
+		# T0CMP0 and T0CMP1 copies.
 		self.pwm = geo.get('pwm', False)
-		# digperiphs #5: OW0 (1-Wire master) in MUTEX-page (page 2) sub-slot 7 @0x6700.
-		# Same native-slave shape as RTC0/PWM0 — a PLAIN raw-strobe en shim (NO
-		# falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q, D4). One pad:
-		# DQ on P4.7/GPIO31 AF2 open-drain (rstREN=1) — the pin-mux-v2 REPLACED-SPREAD-
-		# SLOT mechanism: the out/dir/ren planes fall out of the GPIO3 AF spread emitter
-		# (SPREAD_SIG['OW_DQ']), and the pad input mux + the ren alias are emitted with
-		# the gated instance. Default false => every OneWire region is inert
-		# (byte-identical default; the P4.7 AF2 slot keeps its T0CMP1 spread copy).
+		# OW0, the 1-Wire master, in mutex-page sub-slot 7 at 0x6700, the same native-slave shape
+		# as RTC0 and PWM0 on a plain raw-strobe en shim. One pad: DQ on P4.7/GPIO31 AF2,
+		# open-drain, rstREN=1, through the replaced-spread-slot mechanism. The out, dir and ren
+		# planes fall out of the GPIO3 AF spread emitter via SPREAD_SIG['OW_DQ'], and the pad input
+		# mux and the ren alias are emitted with the gated instance. When OneWire is off the P4.7
+		# AF2 slot keeps its T0CMP1 spread copy.
 		self.onewire = geo.get('onewire', False)
-		# DP-S3 (field-powered NFC mode): True wires pwr0's supervision inputs
-		# (pgood_pad => prt6_in(7), strap_pad => prt6_in(6), field_detect =>
-		# nfc0_field_detect-or-'0'); False ties all three inert ('1'/'0'/'0').
-		# The pgood_rstn/hart0_rstn decls and the reset folds are emitted
-		# UNCONDITIONALLY (a tied gate is stuck released — provable no-op);
-		# only the pwr0 port-map ties vary. Independent of every other knob
-		# since the Stage H re-pin (OW0's DQ left P6.6 for P4.7 AF2).
+		# Field-powered mode. True wires pwr0's supervision inputs (pgood_pad => prt6_in(7),
+		# strap_pad => prt6_in(6), field_detect => nfc0_field_detect or '0'); False ties all three
+		# inert at '1', '0', '0'. The pgood_rstn and hart0_rstn declarations and the reset folds
+		# are emitted unconditionally, because a tied gate is stuck released and therefore a
+		# provable no-op; only the pwr0 port-map ties vary. Independent of every other knob.
 		self.fieldpower = geo.get('fieldPower', True)
-		# digperiphs #6: DMA0 in MUTEX-page (page 2) sub-slot 8 @0x6800. Same
-		# native-slave shape as RTC0/PWM0/OW0 (outside the page-0 shim fabric;
-		# hand-decoded SEL + a PLAIN raw-strobe en shim, NO falling_edge(EnMemPeriph)
-		# pre-latch and NO CAPTURE_CLOCK en_q, D4). UNLIKE every prior library block
-		# DMA0 is ALSO an arbiter MASTER (the FIRST new master since the four harts):
-		# self.dma widens the shared fabric from N=numHarts to N=numHarts+1 (the DMA is
-		# master index numHarts, the LAST slice) -- see nMasters()/masterW() and the
-		# arb_* / mp_arbiter / resv_unit / mutex_bank / irq_router emitters below.
-		# dmaChannels ({2,4}) is the DMA entity NCH generic (register map is the
-		# 4-channel superset regardless). Default false => every DMA region is inert
-		# (byte-identical default; arbiter stays N=numHarts / MW / sh_master unchanged).
+		# DMA0 in mutex-page sub-slot 8 at 0x6800, the same native-slave shape as RTC0, PWM0 and
+		# OW0: hand-decoded SEL on a plain raw-strobe en shim. Unlike every other library block
+		# DMA0 is also an arbiter master, the first new master since the four harts: self.dma
+		# widens the shared fabric from N=numHarts to N=numHarts+1, with the DMA at master index
+		# numHarts, the last slice. See nMasters(), masterW() and the arb_*, mp_arbiter,
+		# resv_unit, mutex_bank and irq_router emitters below. dmaChannels, 2 or 4, is the DMA
+		# entity's NCH generic; the register map is the 4-channel superset regardless.
 		self.dma = geo.get('dma', False)
 		self.dmaChannels = geo.get('dmaChannels', 4)
 		if self.dma and self.dmaChannels not in (2, 4):
 			raise Exception('MCU.vhd emitter: dmaChannels must be 2 or 4, got ' + str(self.dmaChannels))
-		# digperiphs (I2CT): I2CT0 (hardware-autonomous I2C target) in MUTEX-page (page 2)
-		# sub-slot 10 @0x6A00. Same native-slave shape as RTC0/PWM0/OW0 — a PLAIN raw-strobe
-		# en shim (NO falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q, D4). NO
-		# new pins: I2CT0 shares I2C0's SDA0/SCL0 pad planes. The instance FANS OUT the
-		# existing sda0_in/scl0_in inputs to its SDA_IN/SCL_IN and drives the NEW open-drain
-		# DIR scalars i2ct0_sda_dir/i2ct0_scl_dir from its SDA_DIR/SCL_DIR ports; the
-		# wired-AND merge of those into the sda0/scl0 DIR planes is a SEPARATE shared-RTL edit
-		# (they are consumed nowhere in this emitter — an unused-signal state is expected at
-		# this stage). Default false => every I2CT0 region is inert (byte-identical default).
+		# I2CT0, the hardware-autonomous I2C target, in mutex-page sub-slot 10 at 0x6A00, the same
+		# native-slave shape as RTC0, PWM0 and OW0 on a plain raw-strobe en shim. No new pins:
+		# I2CT0 shares I2C0's SDA0/SCL0 pad planes. The instance fans out the existing sda0_in and
+		# scl0_in inputs to its SDA_IN and SCL_IN, and drives the new open-drain DIR scalars
+		# i2ct0_sda_dir and i2ct0_scl_dir from its SDA_DIR and SCL_DIR ports. The wired-AND merge
+		# of those into the sda0 and scl0 DIR planes is a separate shared-RTL edit, so those
+		# scalars are consumed nowhere in this emitter and an unused-signal state is expected.
 		self.i2ctarget = geo.get('i2ctarget', False)
-		# digperiphs (TRNG): TRNG0 (ring-oscillator entropy source + harvest engine) in
-		# MUTEX-page (page 2) sub-slot 9 @0x6900. Same native-slave shape as
-		# RTC0/PWM0/OW0/DMA0/I2CT0 -- a PLAIN raw-strobe en shim (NO falling_edge
-		# (EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q, D4). Zero pins: the entropy
-		# source is a SIBLING instance (u_ro, TrngRoEnsemble) wired through trng0's
-		# ro_enable/ro_sel/ro_sclk (out) / ro_raw (in) ports -- not a pad group. trngRings
-		# ({4,8}) is the shared NRO generic for BOTH trng0 and u_ro (the register map is
-		# NRO-invariant). Default false => every TRNG region is inert (byte-identical
-		# default).
-		# D2: the Debug Module. Assembly level, always-on mclk, knob-gated by
-		# debug.enable -- and the SECOND new arbiter MASTER after the DMA.
-		# D3 adds the JTAG DTM (dtm0) behind the SAME knob: no debug.jtag
-		# sub-knob exists, because the OR-merge keeps the raw-DMI drive path
-		# alive with the DTM present-and-inert (d3_cdc_spec 7).
+		# TRNG0, the ring-oscillator entropy source and harvest engine, in mutex-page sub-slot 9
+		# at 0x6900, the same native-slave shape as RTC0, PWM0, OW0, DMA0 and I2CT0 on a plain
+		# raw-strobe en shim. Zero pins: the entropy source is a sibling instance, u_ro
+		# (TrngRoEnsemble), wired through trng0's ro_enable, ro_sel and ro_sclk outputs and ro_raw
+		# input, not a pad group. trngRings, 4 or 8, is the shared NRO generic for both trng0 and
+		# u_ro, and the register map is NRO-invariant.
+		# The Debug Module is assembly level on the always-on mclk, gated by debug.enable, and is
+		# the second new arbiter master after the DMA. The same knob carries the JTAG DTM (dtm0):
+		# there is no debug.jtag sub-knob, because the OR-merge keeps the raw-DMI drive path alive
+		# with the DTM present and inert.
 		self.debug = geo.get('debug', False)
-		# D3: the CONFIG FILE's chipName (never the CHIP_NAME env override,
-		# which is documentation-only) -- one half of the IDCODE chip-identity
-		# discriminator in jtagIdcode().
+		# The config file's chipName, never the CHIP_NAME environment override, which is
+		# documentation-only. One half of the IDCODE chip-identity discriminator in jtagIdcode().
 		self.chipNameConfigured = geo.get('chipNameConfigured', '')
 		self.trng = geo.get('trng', False)
 		self.trngRings = geo.get('trngRings', 8)
 		if self.trng and self.trngRings not in (4, 8):
 			raise Exception('MCU.vhd emitter: trngRings must be 4 or 8, got ' + str(self.trngRings))
-		# digperiphs (EVFAB): EVFAB0 (event/trigger fabric, PPI-style crossbar) in
-		# MUTEX-page (page 2) sub-slot 11 @0x6B00. Same native-slave shape as
-		# RTC0/PWM0/OW0/DMA0/TRNG0/I2CT0 -- a PLAIN raw-strobe en shim (NO
-		# falling_edge(EnMemPeriph) pre-latch and NO CAPTURE_CLOCK en_q, D4). Zero pins,
-		# VECTORLESS (no irq net at all, D20). Its instance region ALSO owns the
-		# crossbar wiring: the ev_in / gpio0_evin / task_busy inputs and the
-		# task_pulse fan-out, with every producer or consumer whose block this config
-		# drops TIED '0' (D23 -- never left open). The tap PORT-MAP lines on the
-		# existing peripheral instances are emitted conditionally next to those
-		# instances (generated ones inline, fixed/side-template ones through the
-		# --@GEN:evfab-taps:<inst>@ markers). Default false => every EVFAB region is
-		# inert and no existing instance grows a port (byte-identical default).
+		# EVFAB0, the event and trigger fabric, in mutex-page sub-slot 11 at 0x6B00, the same
+		# native-slave shape as RTC0, PWM0, OW0, DMA0, TRNG0 and I2CT0 on a plain raw-strobe en
+		# shim. Zero pins and vectorless: no irq net at all. Its instance region also owns the
+		# crossbar wiring, the ev_in, gpio0_evin and task_busy inputs and the task_pulse fan-out,
+		# with every producer or consumer whose block this configuration drops tied '0' rather than
+		# left open. The tap port-map lines on the existing peripheral instances are emitted
+		# conditionally next to those instances: generated ones inline, fixed and side-template
+		# ones through the --@GEN:evfab-taps:<inst>@ markers.
 		self.eventFabric = geo.get('eventFabric', False)
 
-		# Geometry-filtered copies of the transcribed structure tables. The
-		# module-level tables stay the Castalia golden-master transcription;
-		# these are what the emitters consume.
+		# Geometry-filtered copies of the transcribed structure tables. The module-level tables
+		# stay the golden-master transcription; these are what the emitters consume.
 		self.shslv = dict(SHSLV)
 		self.pg0SelOrder = list(PG0_SEL_ORDER)
 		self.busSpecs = dict(BUS_SPECS)
@@ -924,13 +812,12 @@ class McuVhdEmitter():
 			self.memslv['npuram'] = 'npuram_q'
 		for b in range(self.banks):
 			self.memslv['bank' + str(b)] = 'bank' + str(b) + '_q'
-		# CPR3/R3: the five READ-ONLY TCM APERTURES join the MEMORY-slave family
-		# (rom / npuram / banks), which is what puts them through the standard
-		# machinery for free: the page sub-decode loop, the `shslv_<sel>_en`
-		# loop, the registered `shslv_rd_<sel>` process and the sh_rdata_mux all
-		# iterate enOrder/rdOrder. Every aperture reads the SAME rdata register
-		# -- the arbiter serializes, so only one aperture transaction exists at
-		# a time, and the FSM zeroes that register on any access it refuses.
+		# The read-only TCM apertures join the memory-slave family (rom, npuram, banks), which is
+		# what puts them through the standard machinery: the page sub-decode loop, the
+		# shslv_<sel>_en loop, the registered shslv_rd_<sel> process and the sh_rdata_mux all
+		# iterate enOrder and rdOrder. Every aperture reads the same rdata register, because the
+		# arbiter serializes so only one aperture transaction exists at a time, and the FSM zeroes
+		# that register on any access it refuses.
 		for h in range(len(self.tcmWindows)):
 			self.memslv['tcmw' + str(h)] = 'tcmw_rdata'
 		if not self.npu:
@@ -949,10 +836,10 @@ class McuVhdEmitter():
 					comment = [c.replace('I2C0/I2C1', 'I2C0 (I2C1 dropped)') for c in comment]
 				groups.append((comment, names, pad))
 			self.shimGroups = groups
-		# G1b drops: same shslv/order/bus/shim treatment as I2C1. The M7c shim
-		# group covers SPI1+UART1 (comment reworded per survivor; the group
-		# disappears when both are dropped); TIMER1 leaves the M7b group whose
-		# comment stays valid for the surviving TIMER0/GPIO movers.
+		# Dropped UART1, SPI1 and TIMER1 get the same shslv, order, bus and shim treatment as
+		# I2C1. The M7c shim group covers SPI1 and UART1, its comment reworded per survivor, and
+		# disappears when both are dropped; TIMER1 leaves the M7b group, whose comment stays valid
+		# for the surviving TIMER0 and GPIO movers.
 		for flag, pname, bkey in ((self.uart1, 'UART1', 'uart1'),
 				(self.spi1, 'SPI1', 'spi1'), (self.timer1, 'TIMER1', 'timer1')):
 			if flag:
@@ -977,10 +864,10 @@ class McuVhdEmitter():
 					comment = m7c
 				groups.append((comment, names, pad))
 			self.shimGroups = groups
-		# digperiphs #1: QSPI0 is an ADDED page-0 slot-12 slave (the opposite of
-		# the droppable instances above). It enters the shim/decode/read-mux
-		# fabric like any 'periph' peripheral; its instance (with the QSPI serial
-		# pins) is emitted by emitSlot12Instances, not a bus: side block.
+		# QSPI0 is an added page-0 slot-12 slave, the opposite of the droppable instances above.
+		# It enters the shim, decode and read-mux fabric like any 'periph' peripheral; its
+		# instance, with the QSPI serial pins, is emitted by emitSlot12Instances rather than a
+		# bus: side block.
 		if self.qspi:
 			self.shslv['QSPI0'] = {'sel': 'qspi0', 'shim': 'qspi0', 'rdata': 'qspi0_sh_rdata'}
 			insertAt = self.pg0SelOrder.index('GPIO3') if 'GPIO3' in self.pg0SelOrder else len(self.pg0SelOrder)
@@ -990,86 +877,83 @@ class McuVhdEmitter():
 				 '-- Active-low one-cycle en and resv-gated lanes, like the other shim peripherals.'],
 				['QSPI0'], 14))
 		self.shimGroups = [g for g in self.shimGroups if g[1]]
-		# digperiphs #2: I3C0 is a sharedBus='native' slave, but it lives on the
-		# MUTEX page (not page 0), so its SEL is hand-decoded in emitShslvSubdecode
-		# rather than the pg0SelOrder loop. It DOES join the shslv/en/rd fabric so
-		# the standard enable, registered rd-sel and rdata-mux loops cover it (the
-		# instance emits its own active-low en shim). shim=None = no polarity-shim
-		# group (like the other native slaves); its en_n is made in emitI3cInstance.
+		# I3C0 is a sharedBus='native' slave that lives on the mutex page rather than page 0, so
+		# its SEL is hand-decoded in emitShslvSubdecode rather than by the pg0SelOrder loop. It
+		# does join the shslv, en and rd fabric, so the standard enable, registered rd-sel and
+		# rdata-mux loops cover it, and the instance emits its own active-low en shim. shim=None
+		# means no polarity-shim group, as for the other native slaves; its en_n is made in
+		# emitI3cInstance.
 		if self.i3c:
 			self.shslv = dict(self.shslv)
 			self.shslv['I3C0'] = {'sel': 'i3c0', 'shim': None, 'rdata': 'i3c0_sh_rdata'}
-		# digperiphs #3: NFC0 joins the same native-slave fabric (MUTEX-page
-		# sub-slot 2). Its SEL is hand-decoded in emitShslvSubdecode; the shslv
-		# entry (shim=None) puts it through the standard enable / registered rd-sel
-		# / rdata-mux loops, and its active-low en shim lives in emitNfcInstance.
+		# NFC0 joins the same native-slave fabric at mutex-page sub-slot 2. Its SEL is hand-decoded
+		# in emitShslvSubdecode; the shslv entry (shim=None) puts it through the standard enable,
+		# registered rd-sel and rdata-mux loops, and its active-low en shim lives in
+		# emitNfcInstance.
 		if self.nfc:
 			self.shslv = dict(self.shslv)
 			self.shslv['NFC0'] = {'sel': 'nfc0', 'shim': None, 'rdata': 'nfc0_sh_rdata'}
-		# digperiphs #4: RTC0 joins the same native-slave fabric (MUTEX-page
-		# sub-slot 5). Its SEL is hand-decoded in emitShslvSubdecode; the shslv
-		# entry (shim=None) puts it through the standard enable / registered rd-sel
-		# / rdata-mux loops, and its active-low RAW-strobe en shim lives in
-		# emitRtcInstance (no en_q register — D4).
+		# RTC0 joins the same native-slave fabric at mutex-page sub-slot 5. Its SEL is hand-decoded
+		# in emitShslvSubdecode; the shslv entry (shim=None) puts it through the standard enable,
+		# registered rd-sel and rdata-mux loops, and its active-low raw-strobe en shim lives in
+		# emitRtcInstance, with no en_q register.
 		if self.rtc:
 			self.shslv = dict(self.shslv)
 			self.shslv['RTC0'] = {'sel': 'rtc0', 'shim': None, 'rdata': 'rtc0_sh_rdata'}
-		# digperiphs #5: PWM0 joins the same native-slave fabric (MUTEX-page
-		# sub-slot 6). Its SEL is hand-decoded in emitShslvSubdecode; the shslv
-		# entry (shim=None) puts it through the standard enable / registered rd-sel
-		# / rdata-mux loops, and its active-low RAW-strobe en shim lives in
-		# emitPwmInstance (no en_q register — D4).
+		# PWM0 joins the same native-slave fabric at mutex-page sub-slot 6. Its SEL is hand-decoded
+		# in emitShslvSubdecode; the shslv entry (shim=None) puts it through the standard enable,
+		# registered rd-sel and rdata-mux loops, and its active-low raw-strobe en shim lives in
+		# emitPwmInstance, with no en_q register.
 		if self.pwm:
 			self.shslv = dict(self.shslv)
 			self.shslv['PWM0'] = {'sel': 'pwm0', 'shim': None, 'rdata': 'pwm0_sh_rdata'}
-		# digperiphs #5: OW0 joins the same native-slave fabric (MUTEX-page sub-slot
-		# 7). Its SEL is hand-decoded in emitShslvSubdecode; the shslv entry (shim=None)
-		# puts it through the standard enable / registered rd-sel / rdata-mux loops, and
-		# its active-low RAW-strobe en shim lives in emitOwInstance (no en_q register, D4).
+		# OW0 joins the same native-slave fabric at mutex-page sub-slot 7. Its SEL is hand-decoded
+		# in emitShslvSubdecode; the shslv entry (shim=None) puts it through the standard enable,
+		# registered rd-sel and rdata-mux loops, and its active-low raw-strobe en shim lives in
+		# emitOwInstance, with no en_q register.
 		if self.onewire:
 			self.shslv = dict(self.shslv)
 			self.shslv['OW0'] = {'sel': 'ow0', 'shim': None, 'rdata': 'ow0_sh_rdata'}
-		# digperiphs #6: DMA0 joins the same native-slave fabric (MUTEX-page sub-slot
-		# 8). Its SEL is hand-decoded in emitShslvSubdecode; the shslv entry (shim=None)
-		# puts its register file through the standard enable / registered rd-sel /
-		# rdata-mux loops, and its active-low RAW-strobe en shim lives in
-		# emitDmaInstance (no en_q register, D4). The DMA's MASTER port + the fabric
-		# widening are separate (emitArbFabricDecls / the arbiter generics / the slice-4
+		# DMA0 joins the same native-slave fabric at mutex-page sub-slot 8. Its SEL is hand-decoded
+		# in emitShslvSubdecode; the shslv entry (shim=None) puts its register file through the
+		# standard enable, registered rd-sel and rdata-mux loops, and its active-low raw-strobe en
+		# shim lives in emitDmaInstance, with no en_q register. The DMA's master port and the
+		# fabric widening are separate (emitArbFabricDecls, the arbiter generics and the slice-4
 		# port map), not part of the slave-fabric membership here.
 		if self.dma:
 			self.shslv = dict(self.shslv)
 			self.shslv['DMA0'] = {'sel': 'dma0', 'shim': None, 'rdata': 'dma0_sh_rdata'}
-		# digperiphs (I2CT): I2CT0 joins the same native-slave fabric (MUTEX-page sub-slot
-		# 10). Its SEL is hand-decoded in emitShslvSubdecode; the shslv entry (shim=None) puts
-		# its register file through the standard enable / registered rd-sel / rdata-mux loops,
-		# and its active-low RAW-strobe en shim lives in emitI2ctInstance (no en_q register, D4).
+		# I2CT0 joins the same native-slave fabric at mutex-page sub-slot 10. Its SEL is
+		# hand-decoded in emitShslvSubdecode; the shslv entry (shim=None) puts its register file
+		# through the standard enable, registered rd-sel and rdata-mux loops, and its active-low
+		# raw-strobe en shim lives in emitI2ctInstance, with no en_q register.
 		if self.i2ctarget:
 			self.shslv = dict(self.shslv)
 			self.shslv['I2CT0'] = {'sel': 'i2ct0', 'shim': None, 'rdata': 'i2ct0_sh_rdata'}
-		# digperiphs (TRNG): TRNG0 joins the same native-slave fabric (MUTEX-page sub-slot
-		# 9). Its SEL is hand-decoded in emitShslvSubdecode; the shslv entry (shim=None)
-		# puts its register file through the standard enable / registered rd-sel /
-		# rdata-mux loops, and its active-low RAW-strobe en shim lives in emitTrngInstance
-		# (no en_q register, D4). The sibling u_ro TrngRoEnsemble instance (D6) is emitted
-		# alongside trng0 in the same instance region -- it is not itself a bus slave.
+		# TRNG0 joins the same native-slave fabric at mutex-page sub-slot 9. Its SEL is
+		# hand-decoded in emitShslvSubdecode; the shslv entry (shim=None) puts its register file
+		# through the standard enable, registered rd-sel and rdata-mux loops, and its active-low
+		# raw-strobe en shim lives in emitTrngInstance, with no en_q register. The sibling u_ro
+		# TrngRoEnsemble instance is emitted alongside trng0 in the same instance region and is not
+		# itself a bus slave.
 		if self.trng:
 			self.shslv = dict(self.shslv)
 			self.shslv['TRNG0'] = {'sel': 'trng0', 'shim': None, 'rdata': 'trng0_sh_rdata'}
-		# digperiphs (EVFAB): EVFAB0 joins the same native-slave fabric (MUTEX-page
-		# sub-slot 11). Its SEL is hand-decoded in emitShslvSubdecode; the shslv entry
-		# (shim=None) puts its register file through the standard enable / registered
-		# rd-sel / rdata-mux loops, and its active-low RAW-strobe en shim lives in
-		# emitEvfabInstance (no en_q register, D4). The description peripheral is named
-		# EVFAB (single instance, unindexed registers like PWRCTRL/MUTEX), while the
-		# RTL nets/instance carry the 0 (evfab0_*) like every other page-2 block.
+		# EVFAB0 joins the same native-slave fabric at mutex-page sub-slot 11. Its SEL is
+		# hand-decoded in emitShslvSubdecode; the shslv entry (shim=None) puts its register file
+		# through the standard enable, registered rd-sel and rdata-mux loops, and its active-low
+		# raw-strobe en shim lives in emitEvfabInstance, with no en_q register. The description
+		# peripheral is named EVFAB, a single instance with unindexed registers like PWRCTRL and
+		# MUTEX, while the RTL nets and instance carry the 0 (evfab0_*) like every other page-2
+		# block.
 		if self.eventFabric:
 			self.shslv = dict(self.shslv)
 			self.shslv['EVFAB'] = {'sel': 'evfab0', 'shim': None, 'rdata': 'evfab0_sh_rdata'}
-		# Mission B: GPIO4/GPIO5 are UNCONDITIONAL native slaves on the MUTEX page
-		# (sub-slots 3/4 @0x6300/0x6400). Same native-fabric membership as I3C0/NFC0
-		# (shim=None, hand-decoded SEL, own en_n shim inside the instance emitter),
-		# but the instance is a full GPIO block with a registered-read shim + AF
-		# muxing. They join the enable / registered rd-sel / rdata-mux loops.
+		# GPIO4 and GPIO5 are unconditional native slaves on the mutex page, sub-slots 3 and 4 at
+		# 0x6300 and 0x6400. Same native-fabric membership as I3C0 and NFC0 (shim=None,
+		# hand-decoded SEL, own en_n shim inside the instance emitter), but the instance is a full
+		# GPIO block with a registered-read shim and AF muxing. They join the enable, registered
+		# rd-sel and rdata-mux loops.
 		self.shslv = dict(self.shslv)
 		self.shslv['GPIO4'] = {'sel': 'gpio4', 'shim': None, 'rdata': 'gpio4_sh_rdata'}
 		self.shslv['GPIO5'] = {'sel': 'gpio5', 'shim': None, 'rdata': 'gpio5_sh_rdata'}
@@ -1082,9 +966,8 @@ class McuVhdEmitter():
 			+ (['I2CT0'] if self.i2ctarget else []) \
 			+ (['TRNG0'] if self.trng else []) \
 			+ (['EVFAB'] if self.eventFabric else [])
-		# An overlay's native slaves join the fabric here: it appends to
-		# self.shslv and to the order list, and every enable / rd-sel / rdata
-		# loop below then covers them with no further change.
+		# An overlay's native slaves join the fabric here: it appends to self.shslv and to the
+		# order list, and every enable, rd-sel and rdata loop below then covers them unchanged.
 		self.nativeOrder = nativeOrder
 		self.overlay.call('mcuSlaves', emitter=self)
 		nativeOrder = self.nativeOrder
@@ -1107,7 +990,7 @@ class McuVhdEmitter():
 
 	def crossCheck(self):
 		'''RAISE when the description and the transcribed RTL structure disagree.'''
-		# 1. sharedBus='periph' membership must match the transcribed shim/mux structure
+		# 1. sharedBus='periph' membership must match the transcribed shim and mux structure
 		descShared = set(p.Name for p in self.gen.Peripherals if getattr(p, 'SharedBus', None) == 'periph')
 		rtlShared = set(n for n in self.shslv if self.shslv[n]['shim'] is not None)
 		if descShared != rtlShared:
@@ -1120,8 +1003,8 @@ class McuVhdEmitter():
 			raise Exception('MCU.vhd emitter: sharedBus=native peripherals ' + str(sorted(descNative))
 				+ ' do not match the transcribed RTL fabric ' + str(sorted(rtlNative)))
 
-		# 2. M11 window geometry: the three native MP blocks own pages 1-3;
-		# every shared peripheral sits in page 0 at its LEGACY slot number.
+		# 2. Window geometry: the three native MP blocks own pages 1-3, and every shared peripheral
+		# sits in page 0 at its legacy slot number.
 		if self.periph('CLINT').BaseAddress != CLINT_BASE:
 			raise Exception('MCU.vhd emitter: CLINT base address ' + hex(self.periph('CLINT').BaseAddress)
 				+ ' != ' + hex(CLINT_BASE))
@@ -1139,7 +1022,7 @@ class McuVhdEmitter():
 				raise Exception('MCU.vhd emitter: ' + name + ' base address ' + hex(p.BaseAddress)
 					+ ' does not match window slot ' + str(slot) + ' (' + hex(expected) + ')')
 
-		# 3. Bridge membership == combinationalRead metadata
+		# 3. Bridge membership must equal the combinationalRead metadata
 		descComb = set(p.Name for p in self.gen.Peripherals if getattr(p, 'CombinationalRead', False))
 		expectComb = set(['I2C0']) | (set(['I2C1']) if self.i2c1 else set()) | (set(['NPU']) if self.npu else set())
 		if descComb != expectComb:
@@ -1152,7 +1035,7 @@ class McuVhdEmitter():
 		slots = [self.winSlot(n) for n in self.pg0SelOrder + PG0_NATIVE_ORDER]
 		if len(set(slots)) != len(slots) or any(s < 0 or s > 15 for s in slots):
 			raise Exception('MCU.vhd emitter: page-0 slots must be unique and within 0..15 (reserved gaps allowed)')
-		# M17: native page-0 slaves (PWRCTRL) must be native AND sit at their slot address
+		# Native page-0 slaves (PWRCTRL) must be native and sit at their slot address
 		for name in PG0_NATIVE_ORDER:
 			if name not in rtlNative:
 				raise Exception('MCU.vhd emitter: ' + name + ' must be sharedBus=native (page-0 native slave)')
@@ -1170,9 +1053,8 @@ class McuVhdEmitter():
 		if shimAll != rtlShared:
 			raise Exception('MCU.vhd emitter: SHIM_GROUPS do not cover the shared peripherals')
 
-		# 5. A2 geometry sanity: the window must round to a power of two that
-		# holds the bank row, and the NPU-block splice source must be loaded
-		# whenever the NPU is present.
+		# 5. Geometry sanity: the window must round to a power of two that holds the bank row, and
+		# the NPU-block splice source must be loaded whenever the NPU is present.
 		if 0x10000 + self.banks * 0x4000 > (1 << (self.shAw + 2)):
 			raise Exception('MCU.vhd emitter: ' + str(self.banks) + ' banks do not fit under SH_AW=' + str(self.shAw))
 		if self.npu and self.npuBlocks == {}:
@@ -1185,8 +1067,8 @@ class McuVhdEmitter():
 				raise Exception('MCU.vhd emitter: ' + tpl.upper() + ' present but MCU.template.'
 					+ tpl + '.vhd blocks were not loaded')
 
-		# 6. G1b: every FromSpread altFunc must be a known output-pool member
-		# (SPREAD_SIG owns the RTL signal spelling the spread planes wire)
+		# 6. Every FromSpread altFunc must be a known output-pool member; SPREAD_SIG owns the RTL
+		# signal spelling the spread planes wire.
 		for gi in range(4):
 			for pin in self.periph('GPIO' + str(gi)).Pins:
 				for af in pin.AltFuncs:
@@ -1225,9 +1107,7 @@ class McuVhdEmitter():
 			sig += '_c'
 		return sig
 
-	# ------------------------------------------------------------------
-	# Region emitters (each returns a list of lines, no trailing newlines)
-	# ------------------------------------------------------------------
+	# Region emitters. Each returns a list of lines with no trailing newlines.
 
 	def irqSignalName(self, irqbName):
 		'''IRQB_* constant name -> MCU.vhd irq signal text (irq_comb right-hand side).'''
@@ -1249,7 +1129,7 @@ class McuVhdEmitter():
 				# One vector declaration per GPIO port, grouped where GPIO0 appears
 				if len(emittedGpio) > 0:
 					continue
-				# Mission B: 6 GPIO ports now (GPIO4/GPIO5 added), all declared here.
+				# Six GPIO ports, all declared here.
 				for port in range(6):
 					lines.append(' ' * 8 + 'signal ' + ('irq_gpio' + str(port)).ljust(17)
 						+ ': std_logic_vector(7 downto 0);  -- GPIO' + str(port) + ' Interrupt')
@@ -1273,14 +1153,14 @@ class McuVhdEmitter():
 			if irqbName.startswith('IRQB_CLINT_'):
 				continue	# emitted below with the M5b comment
 			if irqbName == 'IRQB_RSVD55' and self.afeStubs:
-				# CQ2b: ex-AFE0 slot = the AGGREGATED AFE_SHARED source. OR of the
-				# four per-hart AFE IF level lines; hart 0 (the only master that
-				# can read all four AFE IF words) demuxes it in its source-55 handler.
+				# The ex-AFE0 slot is the aggregated AFE_SHARED source: the OR of the four per-hart AFE IF
+				# level lines. Hart 0, the only master that can read all four AFE IF words, demuxes it in
+				# its source-55 handler.
 				lines.append(' ' * 12 + irqbName.ljust(16)
 					+ '=> afe_eis_irq(0) or afe_eis_irq(1) or afe_eis_irq(2) or afe_eis_irq(3),')
 				continue
 			if irqbName == 'IRQB_RSVD56' and self.afeStubs:
-				# CQ2b: ex-SARADC0 slot = the shared EIS engine level (hart-0-only).
+				# The ex-SARADC0 slot is the shared EIS engine level, hart-0 only.
 				lines.append(' ' * 12 + irqbName.ljust(16) + '=> afe_eis_irq(4),')
 				continue
 			if irqbName.startswith('IRQB_RSVD'):
@@ -1305,8 +1185,8 @@ class McuVhdEmitter():
 		irtrBits = format((IRQROUTER_BASE >> 12) & 3, '02b')
 		psl = self.pageSlice()
 		lines = []
-		# NOTE the comment spells the ARBITER port name (s_addr), the code the
-		# fabric net (sh_addr) — transcribed from the golden master.
+		# The comment spells the arbiter port name (s_addr) and the code the fabric net (sh_addr),
+		# transcribed from the golden master.
 		lines.append(ind + '-- Page select on s_addr(' + str(self.shAw - 1) + ':12): page ' + self.pageBits(0) + ' is the shared boot ROM (the single rom2k_hvt_pg ' + self.allHartsPhrase() + (' resets' if self.nHarts() == 1 else ' reset') + ' into), page ' + self.pageBits(2) + ' is the TCM region (tile-private, never arrives here).')
 		lines.append(ind + '-- The ROM select is the exception to the page decode: it is sized by RomSize, so a ROM smaller than its page leaves the tail of page ' + self.pageBits(0) + ' unmapped instead of mirrored.')
 		lines.append(ind + 'shslv_rom_sel'.ljust(16) + ' <= \'1\' when sh_addr(SH_AW-1 downto RomAddrBits) = RomSelZeros else \'0\';')
@@ -1325,13 +1205,13 @@ class McuVhdEmitter():
 		lines.append(ind + '-- peripheral-window pages on sh_addr(11:10): page 0 = the 16 slots, page 1 = CLINT, page 2 = MUTEX bank, page 3 = IRQ router')
 		lines.append(ind + 'shslv_pg0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "00" else \'0\';')
 		lines.append(ind + 'shslv_clint_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + clintBits + '" else \'0\';')
-		# Mission B: page-2 (MUTEX/0x6000) is ALWAYS carved into 256 B sub-slots on
-		# sh_addr(9:6) now — GPIO4/GPIO5 (sub-slots 3/4) are unconditional. The mutex
-		# bank keeps sub-slot 0 (0x6000-0x60FF); I3C0 sub-slot 1 (0x6100), NFC0
-		# sub-slot 2 (0x6200), GPIO4 sub-slot 3 (0x6300), GPIO5 sub-slot 4 (0x6400);
-		# the rest reserved. Tightening the mutex decode from the page-wide alias
-		# retires the aliased CLAIM side effect (an aliased mutex read used to fire an
-		# atomic claim). All 16 mutexes live below 0x6040, so this is behaviorally safe.
+		# Page 2 (MUTEX, 0x6000) is always carved into 256 B sub-slots on sh_addr(9:6), because
+		# GPIO4 and GPIO5 at sub-slots 3 and 4 are unconditional. The mutex bank keeps sub-slot 0
+		# (0x6000-0x60FF), I3C0 sub-slot 1 (0x6100), NFC0 sub-slot 2 (0x6200), GPIO4 sub-slot 3
+		# (0x6300) and GPIO5 sub-slot 4 (0x6400); the rest are reserved. Tightening the mutex
+		# decode from the page-wide alias retires the aliased CLAIM side effect, where an aliased
+		# mutex read fired an atomic claim. All 16 mutexes live below 0x6040, so this is
+		# behaviourally safe.
 		lines.append(ind + '-- Page 2 (MUTEX/0x6000) is carved into 256 B sub-slots on sh_addr(9:6): mutex bank sub-slot 0 (0x6000-0x60FF), I3C0 sub-slot 1 (0x6100), NFC0 sub-slot 2 (0x6200), GPIO4 sub-slot 3 (0x6300), GPIO5 sub-slot 4 (0x6400).')
 		lines.append(ind + '-- Keep the mutex decode narrow: a page-wide alias fires the atomic CLAIM side effect on any page-2 read (all 16 mutexes live below 0x6040).')
 		lines.append(ind + 'shslv_mtx_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0000" else \'0\';')
@@ -1342,36 +1222,36 @@ class McuVhdEmitter():
 		lines.append(ind + 'shslv_gpio4_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0011" else \'0\';')
 		lines.append(ind + 'shslv_gpio5_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0100" else \'0\';')
 		if self.rtc:
-			# digperiphs #4: RTC0 = page-2 sub-slot 5 (0x6500).
+			# RTC0 is page-2 sub-slot 5 (0x6500).
 			lines.append(ind + 'shslv_rtc0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0101" else \'0\';')
 		if self.pwm:
-			# digperiphs #5: PWM0 = page-2 sub-slot 6 (0x6600).
+			# PWM0 is page-2 sub-slot 6 (0x6600).
 			lines.append(ind + 'shslv_pwm0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0110" else \'0\';')
 		if self.onewire:
-			# digperiphs #5: OW0 = page-2 sub-slot 7 (0x6700).
+			# OW0 is page-2 sub-slot 7 (0x6700).
 			lines.append(ind + 'shslv_ow0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "0111" else \'0\';')
 		if self.dma:
-			# digperiphs #6: DMA0 = page-2 sub-slot 8 (0x6800). Slave register file
-			# only; the DMA's MASTER port slices into arb_*(numHarts) separately.
+			# DMA0 is page-2 sub-slot 8 (0x6800). Slave register file only; the DMA's master port
+			# slices into arb_*(numHarts) separately.
 			lines.append(ind + 'shslv_dma0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "1000" else \'0\';')
 		if self.trng:
-			# digperiphs (TRNG): TRNG0 = page-2 sub-slot 9 (0x6900).
+			# TRNG0 is page-2 sub-slot 9 (0x6900).
 			lines.append(ind + 'shslv_trng0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "1001" else \'0\';')
 		if self.i2ctarget:
-			# digperiphs (I2CT): I2CT0 = page-2 sub-slot 10 (0x6A00).
+			# I2CT0 is page-2 sub-slot 10 (0x6A00).
 			lines.append(ind + 'shslv_i2ct0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "1010" else \'0\';')
 		if self.eventFabric:
-			# digperiphs (EVFAB): EVFAB0 = page-2 sub-slot 11 (0x6B00).
+			# EVFAB0 is page-2 sub-slot 11 (0x6B00).
 			lines.append(ind + 'shslv_evfab0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "1011" else \'0\';')
-		# An overlay's page-2 sub-slot decodes. It is handed the indent and the
-		# page's own address bits so its lines match the shape of the tree's.
+		# An overlay's page-2 sub-slot decodes. It is handed the indent and the page's own address
+		# bits so its lines match the shape of the tree's.
 		lines.extend(self.overlay.lines('mcuSubdecode', emitter=self, indent=ind, pageBits=mtxBits))
 		if self.afeStubs:
 			lines.append(ind + '-- Page-3 sub-decode: irq_router keeps 0x7000-0x7BFF and the shared EIS engine stub owns the top quarter 0x7C00-0x7FFF (the router ADDR_W=10 decode is inert above word 522, so only aliased space is taken).')
 			lines.append(ind + 'shslv_irtr_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" and sh_addr(9 downto 8) /= "11" else \'0\';')
 			lines.append(ind + 'shslv_eis_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" and sh_addr(9 downto 8) = "11" else \'0\';')
 		else:
-			# digperiphs #1: no EIS stub — irq_router owns the whole page 3.
+			# No EIS stub: irq_router owns the whole page 3.
 			lines.append(ind + 'shslv_irtr_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" else \'0\';')
 		lines.append(ind + '-- page-0 slots (slot = sh_addr(9:6)) at the LEGACY 0x4000 numbering: every peripheral at its original Myshkin address, shared by ' + self.allHartsPhrase(spelled=False))
 		for name in self.pg0SelOrder:
@@ -1383,11 +1263,10 @@ class McuVhdEmitter():
 			selName = 'shslv_' + self.shslv[name]['sel'] + '_sel'
 			lines.append(ind + selName.ljust(16) + ' <= shslv_pg0_sel when sh_addr(9 downto 6) = "'
 				+ format(self.winSlot(name), '04b') + '" else \'0\';')
-		# CQ2a: AFE stubs subdivide page-0 slot 12 (0x4C00) into four 64 B
-		# sub-slots on sh_addr(5:4). The s_master ownership gate lives inside
-		# afe_stub; here we only address-decode the sub-slots. (digperiphs #1:
-		# only when the AFE stubs occupy slot 12 — with qspi the slot is decoded
-		# whole as shslv_qspi0_sel in the pg0SelOrder loop above.)
+		# The AFE stubs subdivide page-0 slot 12 (0x4C00) into four 64 B sub-slots on sh_addr(5:4).
+		# The s_master ownership gate lives inside afe_stub; only the sub-slot address decode is
+		# here. With qspi instead of the stubs the slot is decoded whole as shslv_qspi0_sel in the
+		# pg0SelOrder loop above.
 		if self.afeStubs:
 			lines.append(ind + '-- The AFE stubs subdivide page-0 slot 12 (0x4C00) into four 64 B sub-slots on sh_addr(5:4); the s_master ownership gate is inside afe_stub.')
 			lines.append(ind + 'shslv_afe_sel'.ljust(16) + ' <= shslv_pg0_sel when sh_addr(9 downto 6) = "1100" else \'0\';')
@@ -1397,7 +1276,7 @@ class McuVhdEmitter():
 		for key in self.enOrder:
 			sel = self.selOf(key)
 			lines.append(ind + ('shslv_' + sel + '_en').ljust(16) + ' <= sh_en and shslv_' + sel + '_sel;')
-		# CQ2a: AFE sub-slot + EIS enables
+		# AFE sub-slot and EIS enables
 		if self.afeStubs:
 			for sub in range(4):
 				lines.append(ind + ('shslv_afe' + str(sub) + '_en').ljust(16) + ' <= sh_en and shslv_afe' + str(sub) + '_sel;')
@@ -1465,8 +1344,8 @@ class McuVhdEmitter():
 		for i, key in enumerate(self.rdOrder):
 			row = self.rdataOf(key).ljust(14) + ' when ' + ('shslv_rd_' + self.selOf(key)).ljust(16) + " = '1' else"
 			lines.append((prefix if i == 0 else cont) + row)
-		# CQ2a: AFE sub-slot + EIS reads (each afe_stub gates internally, so a
-		# denied read already returns 0 on these nets)
+		# AFE sub-slot and EIS reads. Each afe_stub gates internally, so a denied read already
+		# returns 0 on these nets.
 		if self.afeStubs:
 			for sel in ['afe0', 'afe1', 'afe2', 'afe3', 'eis']:
 				lines.append(cont + (sel + '_rdata').ljust(14) + ' when ' + ('shslv_rd_' + sel).ljust(16) + " = '1' else")
@@ -1474,9 +1353,9 @@ class McuVhdEmitter():
 		return lines
 
 	def emitSlot12Decls(self):
-		'''digperiphs #1: page-0 slot 12 (0x4C00) declarative region. The AFE
-		stubs + EIS (golden-master default, VERBATIM) OR the QSPI0 controller
-		fabric nets, else nothing (slot 12 unused).'''
+		'''Page-0 slot 12 (0x4C00) declarative region: the AFE stubs and EIS verbatim, or the QSPI0
+		controller fabric nets, or nothing when slot 12 is unused.
+		'''
 		if self.afeStubs:
 			return list(AFE_SLOT12_DECLS)
 		if self.qspi:
@@ -1499,17 +1378,9 @@ class McuVhdEmitter():
 		return []
 
 	def emitSlot12Instances(self):
-		'''digperiphs #1: page-0 slot 12 (0x4C00) instance region. AFE + EIS
-		stubs (default, VERBATIM) OR the QSPI0 controller, else nothing.
-
-		CPR3/R2: with an orchestrator the four AFE sites follow the TILES, so
-		their OWNER_HART literals shift +1 (harts 1..4 own AFE0..AFE3), and
-		eis0 stays exactly as written -- OWNER_HART => 0, the management hart,
-		which is hart 0 in both shapes. MGMT_HART is never named anywhere any
-		more: it was the CP2 way of moving the management privilege OFF hart 0,
-		and R1 moved the orchestrator ONTO hart 0 instead. Its entity default 0
-		is therefore correct on every configuration -- which is what
-		check_entity_defaults.py's MGMT_HART axis now grades.'''
+		'''Page-0 slot 12 (0x4C00) instance region: the AFE and EIS stubs verbatim, or the QSPI0
+		controller, or nothing.
+		'''
 		if self.afeStubs:
 			if not self.orch:
 				return list(AFE_SLOT12_INSTANCES)
@@ -1541,30 +1412,18 @@ class McuVhdEmitter():
 		return []
 
 	def afeStubsOrchOwners(self):
-		'''CPR3/R2: the AFE/EIS instance block on an orchestrator config.
-		DEGRADES THE VERBATIM TEXT LINE BY LINE (the G1a idiom) rather than
-		re-transcribing it, so the two versions cannot drift: only the five
-		`generic map (...)` lines and the narrative comment lines that name the
-		owners are touched.
-
-		THE DECISION ON eis0, stated because it is a choice and not a
-		default-fallout: its line is re-emitted UNCHANGED, `OWNER_HART => 0`,
-		explicitly rather than by omission. Explicit costs nothing (the
-		non-orchestrator build never reaches this function, so byte-identity is
-		untouched either way) and it obeys the M14 netlist-boundary rule that
-		burned the hw_clint_en silicon bug -- an ownership that matters should
-		be written down, not inherited. It is also re-emitted through its OWN
-		branch rather than falling through, so this function keeps two
-		orchestrator emission sites for check_entity_defaults.py to find.'''
+		'''The AFE/EIS instance block on an orchestrator config, degrading the verbatim text line by
+		line so the two versions cannot drift. eis0 is re-emitted unchanged and through its own
+		branch, so an ownership that matters is written down rather than inherited.
+		'''
 		out = []
 		for ln in AFE_SLOT12_INSTANCES:
 			t = ln.strip()
 			if t.startswith('generic map (OWNER_HART =>'):
 				owner = int(t.split('=>')[1].split(')')[0].strip())
 				if 'EIS' in ln:
-					# The EIS engine is MANAGEMENT-HART-only, and the management
-					# hart is hart 0 in both shapes -- so this line does not
-					# move. Emitted here, not inherited (see the docstring).
+					# The EIS engine is management-hart only and the management hart is hart 0 in both
+					# shapes, so this line does not move. Emitted here, not inherited; see the docstring.
 					out.append('        generic map (OWNER_HART => 0)'
 						+ '   -- 0x7C00: EIS engine, management hart 0 only')
 				else:
@@ -1573,9 +1432,8 @@ class McuVhdEmitter():
 					out.append('        generic map (OWNER_HART => ' + str(n) + ')'
 						+ '   -- ' + site + ': tile hart ' + str(n) + ' or hart 0')
 				continue
-			# Both narrative rewrites land on the SAME line now that the banner
-			# is one line, so they run in sequence rather than as exclusive
-			# branches.
+			# Both narrative rewrites land on the same line now that the banner is one line, so they
+			# run in sequence rather than as exclusive branches.
 			if 'its owner hart OR hart 0' in ln or 'is hart-0-only' in ln:
 				ln = ln.replace('its owner hart OR hart 0',
 					'its owner TILE hart (1-4) OR hart 0, the orchestrator')
@@ -1584,9 +1442,9 @@ class McuVhdEmitter():
 		return out
 
 	def emitI3cDecls(self):
-		'''digperiphs #2: I3C0 (page-2 sub-slot 1 @0x6100) declarative region.
-		Fabric nets for the hand-emitted shim + the placeholder serial pins;
-		nothing when I3C is absent.'''
+		'''I3C0 (page-2 sub-slot 1, 0x6100) declarative region: fabric nets for the hand-emitted shim
+		and the placeholder serial pins; nothing when I3C is absent.
+		'''
 		if not self.i3c:
 			return []
 		return [
@@ -1605,9 +1463,9 @@ class McuVhdEmitter():
 		]
 
 	def emitI3cInstance(self):
-		'''digperiphs #2: I3C0 instance region (page-2 sub-slot 1 @0x6100).
-		The active-low en shim + the I3C entity + placeholder pin ties; nothing
-		when I3C is absent.'''
+		'''I3C0 instance region: the active-low en shim, the I3C entity and the placeholder pin ties;
+		nothing when I3C is absent.
+		'''
 		if not self.i3c:
 			return []
 		return [
@@ -1648,9 +1506,9 @@ class McuVhdEmitter():
 		]
 
 	def emitNfcDecls(self):
-		'''digperiphs #3: NFC0 (page-2 sub-slot 2 @0x6200) declarative region.
-		Fabric nets for the hand-emitted shim + the placeholder digital-AFE pins;
-		nothing when NFC is absent.'''
+		'''NFC0 (page-2 sub-slot 2, 0x6200) declarative region: fabric nets for the hand-emitted shim
+		and the placeholder digital-AFE pins; nothing when NFC is absent.
+		'''
 		if not self.nfc:
 			return []
 		return [
@@ -1668,9 +1526,9 @@ class McuVhdEmitter():
 		]
 
 	def emitNfcInstance(self):
-		'''digperiphs #3: NFC0 instance region (page-2 sub-slot 2 @0x6200). The
-		active-low en shim + the NFC entity + placeholder AFE ties; nothing when
-		NFC is absent.'''
+		'''NFC0 instance region: the active-low en shim, the NFC entity and the placeholder AFE ties;
+		nothing when NFC is absent.
+		'''
 		if not self.nfc:
 			return []
 		lines = [
@@ -1705,16 +1563,14 @@ class McuVhdEmitter():
 			'            rf_tx_en     => nfc0_rf_tx_en,',
 			'            afe_en       => nfc0_afe_en);',
 		]
-		# digperiphs (EVFAB): EV8/EV9 producer taps (toggle exports)
+		# EV8 and EV9 producer taps (toggle exports)
 		return self.evfabInsertTaps(lines, '            irq_crcerr   => irq_nfc0_crcerr,', 'nfc0')
 
 	def emitRtcDecls(self):
-		'''digperiphs #4: RTC0 (page-2 sub-slot 5 @0x6500) declarative region.
-		Fabric nets for the hand-emitted RAW-strobe shim; nothing when RTC is
-		absent. UNLIKE I3C0/NFC0 there is NO shslv_rtc0_en_q register (D4: the RTC
-		has no falling_edge(EnMemPeriph) snapshot capture, so no re-registered
-		strobe) and NO placeholder pins (the block is zero-pin; its only external
-		signal is the already-bonded ungated lfxt_in).'''
+		'''RTC0 (page-2 sub-slot 5, 0x6500) declarative region: fabric nets for the raw-strobe shim,
+		nothing when RTC is absent. No en_q register and no placeholder pins: the block is
+		zero-pin, its only external signal being the already-bonded ungated lfxt_in.
+		'''
 		if not self.rtc:
 			return []
 		return [
@@ -1728,9 +1584,9 @@ class McuVhdEmitter():
 		]
 
 	def emitRtcInstance(self):
-		'''digperiphs #4: RTC0 instance region (page-2 sub-slot 5 @0x6500). The
-		PLAIN raw-strobe active-low en shim + the RTC entity; nothing when RTC is
-		absent. No enq_reg process (D4), no placeholder ties (zero pins).'''
+		'''RTC0 instance region (page-2 sub-slot 5, 0x6500): the plain raw-strobe active-low en shim and
+		the RTC entity; nothing when RTC is absent. No en_q process and no placeholder ties.
+		'''
 		if not self.rtc:
 			return []
 		lines = [
@@ -1751,16 +1607,14 @@ class McuVhdEmitter():
 			'            wdata       => sh_wdata,',
 			'            rdata_out   => rtc0_sh_rdata);',
 		]
-		# digperiphs (EVFAB): EV1/EV0 producer taps
+		# EV1 and EV0 producer taps
 		return self.evfabInsertTaps(lines, '            irq_rtc     => irq_rtc0,', 'rtc0')
 
 	def emitPwmDecls(self):
-		'''digperiphs #5: PWM0 (page-2 sub-slot 6 @0x6600) declarative region.
-		Fabric nets for the hand-emitted RAW-strobe shim + the two output-alias
-		scalars fed into the AF spread (P2.2/P2.3 AF2, A7); nothing when PWM is
-		absent. Like RTC0 there is NO shslv_pwm0_en_q register (D4) and NO
-		placeholder INPUT pins (the block is zero-input; its only external signals
-		are the two outputs, aliased onto already-bonded spread pins).'''
+		'''PWM0 (page-2 sub-slot 6, 0x6600) declarative region: fabric nets for the raw-strobe shim
+		plus the two output-alias scalars fed into the AF spread. No en_q register and no
+		placeholder input pins; the only external signals are the two aliased outputs.
+		'''
 		if not self.pwm:
 			return []
 		return [
@@ -1779,10 +1633,9 @@ class McuVhdEmitter():
 		]
 
 	def emitPwmInstance(self):
-		'''digperiphs #5: PWM0 instance region (page-2 sub-slot 6 @0x6600). The
-		PLAIN raw-strobe active-low en shim + the PWM entity + the two output-alias
-		assignments into the AF spread; nothing when PWM is absent. No en_q process
-		(D4), no placeholder input ties (zero input pins).'''
+		'''PWM0 instance region: the plain raw-strobe active-low en shim, the PWM entity and the two
+		output-alias assignments into the AF spread. No en_q process, no input ties.
+		'''
 		if not self.pwm:
 			return []
 		lines = [
@@ -1812,15 +1665,14 @@ class McuVhdEmitter():
 			"    pwm1_dir <= '1';",
 			"    pwm1_ren <= '0';",
 		]
-		# digperiphs (EVFAB): EV2/EV3 producer taps + the T4 fault-trip task
+		# EVFAB: the EV2/EV3 producer taps and the T4 fault-trip task
 		return self.evfabInsertTaps(lines, '            irq_evt     => irq_pwm0_evt,', 'pwm0')
 
 	def emitOwDecls(self):
-		'''digperiphs #5: OW0 (1-Wire master, page-2 sub-slot 7 @0x6700) declarative
-		region. Fabric nets for the hand-emitted RAW-strobe shim + the whole DQ pad
-		scalar group (out/dir/ren driven into the P4.7 AF2 spread slot, in tapped from
-		the pad by the relocation mux). Nothing when OneWire is absent. Like RTC0/PWM0
-		there is NO shslv_ow0_en_q register (D4).'''
+		'''OW0 (1-Wire master, page-2 sub-slot 7, 0x6700) declarative region: fabric nets for the
+		raw-strobe shim plus the DQ pad scalar group, out/dir/ren driven into the P4.7 AF2 spread
+		slot and in tapped from the pad by the relocation mux. No en_q register.
+		'''
 		if not self.onewire:
 			return []
 		return [
@@ -1837,12 +1689,10 @@ class McuVhdEmitter():
 		]
 
 	def emitOwInstance(self):
-		'''digperiphs #5: OW0 instance region (page-2 sub-slot 7 @0x6700). The PLAIN
-		raw-strobe active-low en shim + the OneWire entity; nothing when OneWire is
-		absent. No en_q process (D4). The DQ pad OUTPUT group (OW_DQ_OUT/DIR + the
-		ow0_dq_ren pull alias) crosses to the P4.7 AF2 SPREAD slot emitted by
-		emitAfSpread(3); the pad INPUT tap (OW_DQ_IN) is the AFS-keyed relocation mux
-		emitted right here — the RX0/MISO1 v2 io-slot idiom.'''
+		'''OW0 instance region: the plain raw-strobe active-low en shim and the OneWire entity. The DQ
+		output group crosses to the P4.7 AF2 spread slot emitted by emitAfSpread(3); the input tap
+		is the AFS-keyed relocation mux emitted here.
+		'''
 		if not self.onewire:
 			return []
 		return [
@@ -1872,12 +1722,10 @@ class McuVhdEmitter():
 		]
 
 	def emitDmaDecls(self):
-		'''digperiphs #6: DMA0 (page-2 sub-slot 8 @0x6800) declarative region.
-		Fabric nets for the hand-emitted RAW-strobe slave shim; nothing when DMA is
-		absent. Like RTC0/PWM0/OW0 there is NO shslv_dma0_en_q register (D4). The DMA's
-		two irq levels (irq_dma0_done / irq_dma0_err -> vectors 118/119) are auto-declared
-		by emitIrqSignalDecls from the IRQB_DMA0_* vector names; the master-port nets slice
-		DIRECTLY into arb_*(numHarts), so no intermediate master signals are declared.'''
+		'''DMA0 (page-2 sub-slot 8, 0x6800) declarative region: fabric nets for the raw-strobe slave
+		shim. The two irq levels are auto-declared by emitIrqSignalDecls from the vector names, and
+		the master-port nets slice directly into arb_*(numHarts).
+		'''
 		if not self.dma:
 			return []
 		return [
@@ -1891,12 +1739,10 @@ class McuVhdEmitter():
 		]
 
 	def emitDmaInstance(self):
-		'''digperiphs #6: DMA0 instance region (page-2 sub-slot 8 @0x6800). The PLAIN
-		raw-strobe active-low slave en shim + the DMA entity (slave register port +
-		MASTER port sliced into arb_*(numHarts) at depth 0 + the trigger taps + the two
-		irq levels) + the D18 fabric ties. Nothing when DMA is absent. No en_q process
-		(D4). The MASTER-port width widening (arb_* -> numHarts+1 slices) is in
-		emitArbFabricDecls; the arbiter/resv/mutex/router generics regrow via nMasters().'''
+		'''DMA0 instance region: the raw-strobe active-low slave en shim and the DMA entity, its master
+		port sliced into arb_*(numHarts) at depth 0. The width widening is in emitArbFabricDecls;
+		the arbiter, resv, mutex and router generics regrow via nMasters().
+		'''
 		if not self.dma:
 			return []
 		n = self.nHarts()			# the DMA is master index numHarts (the LAST slice)
@@ -1906,8 +1752,8 @@ class McuVhdEmitter():
 		we_lo = str(4 * n)
 		lr_hi = str(2 * n + 1)
 		lr_lo = str(2 * n)
-		# A8/A9: tap the EXISTING IE-gated irq_* LEVELS (not raw flags — none is a port);
-		# QSPI0/NFC0 are knob-gated fabric citizens, so their taps are conditional.
+		# Tap the existing IE-gated irq_* levels, not the raw flags, none of which is a port.
+		# QSPI0 and NFC0 are knob-gated fabric citizens, so their taps are conditional.
 		qspiTap = 'irq_qspi0_rxf' if self.qspi else "'0'"
 		nfcTap = 'irq_nfc0_rxf' if self.nfc else "'0'"
 		lines = [
@@ -1946,17 +1792,14 @@ class McuVhdEmitter():
 			'    arb_lrsc(' + lr_hi + ' downto ' + lr_lo + ') <= "00";',
 			"    arb_lock(" + ns + ") <= '0';",
 		]
-		# digperiphs (EVFAB): the T0/T1 GO tasks + the EV10-EV12 event pulses + ch_busy
+		# The T0 and T1 GO tasks, the EV10-EV12 event pulses and ch_busy
 		return self.evfabInsertTaps(lines, '            m_rdata     => arb_rdata,', 'dma0')
 
 	def emitI2ctDecls(self):
-		'''digperiphs (I2CT): I2CT0 (hardware-autonomous I2C target, page-2 sub-slot 10
-		@0x6A00) declarative region. Fabric nets for the hand-emitted RAW-strobe shim +
-		the NEW open-drain DIR scalars driven from the instance's SDA_DIR/SCL_DIR. Nothing
-		when I2CT0 is absent. Like RTC0/PWM0/OW0 there is NO shslv_i2ct0_en_q register (D4).
-		The two irq levels (irq_i2ct0_ae / irq_i2ct0_data -> vectors 122/123) are
-		auto-declared by emitIrqSignalDecls from the IRQB_I2CT0_* vector names. NO input
-		signal is declared: SDA_IN/SCL_IN fan out from the EXISTING sda0_in/scl0_in.'''
+		'''I2CT0 (hardware-autonomous I2C target, page-2 sub-slot 10, 0x6A00) declarative region:
+		fabric nets for the raw-strobe shim plus the open-drain DIR scalars. No input signal is
+		declared: SDA_IN and SCL_IN fan out from the existing sda0_in and scl0_in.
+		'''
 		if not self.i2ctarget:
 			return []
 		return [
@@ -1975,11 +1818,10 @@ class McuVhdEmitter():
 		]
 
 	def emitI2ctInstance(self):
-		'''digperiphs (I2CT): I2CT0 instance region (page-2 sub-slot 10 @0x6A00). The PLAIN
-		raw-strobe active-low en shim + the I2CTarget entity; nothing when I2CT0 is absent.
-		No en_q process (D4). SDA_IN/SCL_IN fan out from the existing sda0_in/scl0_in (pure
-		fanout); SDA_DIR/SCL_DIR drive the new i2ct0_sda_dir/i2ct0_scl_dir scalars (the
-		wired-AND DIR merge into the sda0/scl0 planes is a separate shared-RTL edit).'''
+		'''I2CT0 instance region: the raw-strobe active-low en shim and the I2CTarget entity.
+		SDA_IN/SCL_IN are pure fanout from sda0_in/scl0_in; SDA_DIR/SCL_DIR drive the new dir
+		scalars, whose wired-AND merge into the sda0/scl0 planes is a separate shared-RTL edit.
+		'''
 		if not self.i2ctarget:
 			return []
 		lines = [
@@ -2009,16 +1851,14 @@ class McuVhdEmitter():
 			'    sda0_dir_mrg <= sda0_dir or i2ct0_sda_dir;',
 			'    scl0_dir_mrg <= scl0_dir or i2ct0_scl_dir;',
 		]
-		# digperiphs (EVFAB): EV14 producer tap
+		# EV14 producer tap
 		return self.evfabInsertTaps(lines, '            irq_data    => irq_i2ct0_data,', 'i2ct0')
 
 	def emitTrngDecls(self):
-		'''digperiphs (TRNG): TRNG0 (ring-oscillator entropy source + harvest engine,
-		page-2 sub-slot 9 @0x6900) declarative region. Fabric nets for the hand-emitted
-		RAW-strobe shim + the four entropy-source fan-out scalars that wire trng0 to its
-		sibling u_ro TrngRoEnsemble instance (D6). Nothing when TRNG is absent. Like
-		RTC0/PWM0/OW0/DMA0/I2CT0 there is NO shslv_trng0_en_q register (D4). NO pad
-		signals: the RO ensemble is internal fabric, not a pin group.'''
+		'''TRNG0 (ring-oscillator entropy source, page-2 sub-slot 9, 0x6900) declarative region:
+		fabric nets for the raw-strobe shim plus the four entropy fan-out scalars wiring trng0 to
+		its sibling u_ro instance. No pad signals: the RO ensemble is internal fabric.
+		'''
 		if not self.trng:
 			return []
 		return [
@@ -2037,12 +1877,10 @@ class McuVhdEmitter():
 		]
 
 	def emitTrngInstance(self):
-		'''digperiphs (TRNG): TRNG0 instance region (page-2 sub-slot 9 @0x6900). The
-		PLAIN raw-strobe active-low en shim + the TRNG entity + the sibling u_ro
-		TrngRoEnsemble instance (D6), wired through the four ro_* fan-out scalars.
-		Nothing when TRNG is absent. No en_q process (D4), no pad ties (zero pins).
-		Both trng0 and u_ro take the SHARED NRO generic (trngRings, {4,8}) — the
-		register map is NRO-invariant.'''
+		'''TRNG0 instance region: the raw-strobe active-low en shim, the TRNG entity and the sibling
+		u_ro TrngRoEnsemble wired through the four ro_* scalars. Both take the shared NRO generic
+		(trngRings, 4 or 8); the register map is NRO-invariant.
+		'''
 		if not self.trng:
 			return []
 		nro = str(self.trngRings)
@@ -2076,17 +1914,13 @@ class McuVhdEmitter():
 			'            sclk        => trng0_ro_sclk,',
 			'            ro_raw      => trng0_ro_raw);',
 		]
-		# digperiphs (EVFAB): EV13 producer tap (the true data-ready level)
+		# EV13 producer tap, the true data-ready level
 		return self.evfabInsertTaps(lines, '            irq_trng    => irq_trng0,', 'trng0')
 
-	# ------------------------------------------------------------------
-	# digperiphs (EVFAB): the event/trigger fabric — page-2 sub-slot 11 @0x6B00 —
-	# plus the whole producer/consumer crossbar wiring. The EVSEL/TASKSEL id tables
-	# below are the FROZEN ABI of
-	# ~/work/chip_docs/castalia/digperiphs/event_fabric_spec.md §2/§3: (id, net,
-	# source block flag attribute, human note). A row whose block is absent from
-	# the configuration TIES '0' (design-doc D23) — never left open.
-	# ------------------------------------------------------------------
+	# The event and trigger fabric at page-2 sub-slot 11 (0x6B00), plus the whole producer and
+	# consumer crossbar wiring. The EVSEL and TASKSEL id tables below are a frozen ABI: rows are
+	# (id, net, source block flag attribute, human note). A row whose block is absent from the
+	# configuration ties '0' rather than being left open.
 	EVFAB_GPIO_EV = 15		# EVFAB EV_GPIO_IDX generic: the event served by the GPIO0 front end
 
 	def evfabEvRows(self):
@@ -2112,12 +1946,10 @@ class McuVhdEmitter():
 		]
 
 	def emitEvfabDecls(self):
-		'''digperiphs (EVFAB): EVFAB0 (event/trigger fabric, page-2 sub-slot 11
-		@0x6B00) declarative region. The native-slave fabric nets for the hand-emitted
-		RAW-strobe shim + the crossbar wiring vectors + one named tap net per PRESENT
-		producer. Nothing when the fabric is absent. Like RTC0/PWM0/OW0/DMA0/TRNG0/I2CT0
-		there is NO shslv_evfab0_en_q register (D4), and unlike all of them there is no
-		irq net at all (VECTORLESS v1, D20).'''
+		'''EVFAB0 (event/trigger fabric, page-2 sub-slot 11, 0x6B00) declarative region: the
+		native-slave fabric nets for the raw-strobe shim, the crossbar wiring vectors and one named
+		tap net per present producer. No en_q register and no irq net at all.
+		'''
 		if not self.eventFabric:
 			return []
 		lines = [
@@ -2135,8 +1967,8 @@ class McuVhdEmitter():
 			'        signal evfab0_task_busy : std_logic_vector(9 downto 0);',
 			'        signal evfab0_task_pulse : std_logic_vector(9 downto 0);',
 		]
-		# producer tap nets, in EVSEL order, only for present blocks (the DMA's are
-		# vectors: the block exports 4-wide evt_done/ch_busy and takes a 4-wide task_go)
+		# Producer tap nets in EVSEL order, only for present blocks. The DMA's are vectors: the
+		# block exports a 4-wide evt_done and ch_busy and takes a 4-wide task_go.
 		if self.rtc:
 			lines.append('        signal evfab0_rtc0_tick, evfab0_rtc0_alarm : std_logic;      -- EV0/EV1')
 		if self.pwm:
@@ -2159,14 +1991,10 @@ class McuVhdEmitter():
 		return lines
 
 	def emitEvfabInstance(self):
-		'''digperiphs (EVFAB): EVFAB0 instance region (page-2 sub-slot 11 @0x6B00). The
-		PLAIN raw-strobe active-low en shim, the D23 crossbar wiring ledger (ev_in /
-		gpio0_evin / task_busy in, task_pulse out, every absent source tied \'0\') and the
-		EVFAB entity. Nothing when the fabric is absent. No en_q process (D4), no pad
-		ties (zero pins), no generic map: N_CH=8 / N_EV=16 / N_TASK=10 / EV_GPIO_IDX=15 /
-		EV_MODE_TGL=X"00000370" / EV_MODE_LVL=X"00002000" / VER=1 are the ENTITY DEFAULTS
-		and this integration wires exactly that shape (the house rule: emit a generic only
-		when it differs from the RTL default).'''
+		'''EVFAB0 instance region: the raw-strobe active-low en shim, the crossbar wiring ledger with
+		every absent source tied '0', and the EVFAB entity. No generic map: N_CH, N_EV, N_TASK,
+		EV_GPIO_IDX, the two EV_MODE words and VER are the entity defaults this wires.
+		'''
 		if not self.eventFabric:
 			return []
 		lines = [
@@ -2227,11 +2055,11 @@ class McuVhdEmitter():
 		]
 		return lines
 
-	# The producer/consumer TAP port-map lines, keyed by instance. Emitted into the
-	# --@GEN:evfab-taps:<inst>@ markers (fixed template + side templates) and inline
-	# by the generated instance emitters. Every one of these formals has a VHDL
-	# default (in) or is an out port that may stay unassociated, so a cut WITHOUT the
-	# fabric simply omits the lines and stays byte-identical.
+	# The producer and consumer tap port-map lines, keyed by instance. They are emitted into the
+	# --@GEN:evfab-taps:<inst>@ markers in the fixed and side templates, and inline by the
+	# generated instance emitters. Every one of these formals has a VHDL default on an in port
+	# or is an out port that may stay unassociated, so a cut without the fabric omits the lines
+	# and stays byte-identical.
 	def emitEvfabTaps(self, instKey):
 		if not self.eventFabric:
 			return []
@@ -2264,7 +2092,7 @@ class McuVhdEmitter():
 				'            -- The fabric\'s task_busy(6) tap is NpuActive above.',
 				'            task_think      => evfab0_task_pulse(6),',
 			],
-			# instances emitted by this module (inserted through evfabInsertTaps)
+			# instances emitted by this module, inserted through evfabInsertTaps
 			'rtc0': [
 				'            -- EVFAB taps: the synchronized alarm/tick event edges (EV1/EV0), taken from the flags\' SET conditions, pre-IE.',
 				'            evt_alarm   => evfab0_rtc0_alarm,',
@@ -2308,13 +2136,10 @@ class McuVhdEmitter():
 		return taps[instKey]
 
 	def emitEvfabCompPorts(self, comp):
-		'''The matching tap PORT DECLARATIONS for the three COMPONENT declarations the
-		fixed template still uses (gpio0/uart0/timer0/timer1 are component instances,
-		not `entity work.X` ones, so their component decl must grow the same ports or
-		the association is an unknown formal). Every added line ends in ";" and is
-		inserted after an existing port that already does, so the list's LAST
-		declaration is never touched; with the fabric off nothing is added and the
-		component decls are byte-identical.'''
+		'''The matching tap port declarations for the three component declarations the fixed template
+		still uses. Every added line ends in ';' and is inserted after an existing port that already
+		does, so the list's last declaration is never touched.
+		'''
 		if not self.eventFabric:
 			return []
 		ports = {
@@ -2342,11 +2167,10 @@ class McuVhdEmitter():
 		return ports[comp]
 
 	def evfabInsertTaps(self, lines, anchor, instKey):
-		'''Insert instKey's EVFAB tap port-map lines directly after `anchor` inside a
-		port map this module emits. The anchor is a line that already ends in a comma,
-		so the insertion never has to touch the map's LAST association (and with the
-		fabric off nothing is inserted at all — byte-identical). RAISES if the anchor
-		moved: a silent miss would drop a tap.'''
+		'''Insert instKey's EVFAB tap port-map lines directly after `anchor`. The anchor already ends
+		in a comma, so the insertion never touches the map's last association. Raises if the anchor
+		moved, because a silent miss would drop a tap.
+		'''
 		if not self.eventFabric:
 			return lines
 		if anchor not in lines:
@@ -2411,9 +2235,9 @@ class McuVhdEmitter():
 		lines.append('    gpio%d: GPIO' % gi)
 		lines.append('        generic map (')
 		lines.append('            num_pins        => 8,')
-		# NUM_AFS was MemoryMap.GPIO_NUM_AFS read from inside GPIO.vhd; it is a
-		# generic now so that entity can drop the memory-map clause (report R12e).
-		# MCU.vhd `use`s the memory map anyway, so the constant is passed from here.
+		# NUM_AFS was MemoryMap.GPIO_NUM_AFS read from inside GPIO.vhd; it is a generic now so that
+		# entity can drop the memory-map clause. MCU.vhd `use`s the memory map anyway, so the
+		# constant is passed from here.
 		lines.append('            NUM_AFS         => GPIO_NUM_AFS,')
 		lines.append('            PadOUTPosLogic  => true,')
 		lines.append('            PadDIRPosLogic  => false,')
@@ -2488,10 +2312,10 @@ class McuVhdEmitter():
 			for b in range(7, -1, -1):
 				af1.append('        %d => %s%s' % (b, dirMap[b], '' if b == 0 else ','))
 			af1.append('    );')
-			# ren plane follows the register pull preference (PxREN); I3C pull-ups
-			# reach the pads this way when the pin is in AF1 mode.
+			# The ren plane follows the register pull preference PxREN; I3C pull-ups reach the pads
+			# this way when the pin is in AF1 mode.
 			af1.append('    afunc5_af1_ren <= p5_ren;')
-			# Input muxes (AFS-keyed, always-visible like the I2C relocations)
+			# Input muxes, AFS-keyed and always visible, like the I2C relocations
 			if self.qspi:
 				mux.append('    -- QSPI0 IO input muxes: read the P5.2-5 pad when that pin selects AF1')
 				for k in range(4):
@@ -2513,11 +2337,10 @@ class McuVhdEmitter():
 		return head + self.emitGpioBusInstance(5, af1, mux)
 
 	def emitGpio5Instance(self):
-		'''Mission B: GPIO5 (port 6) instance — AF1 = NFC0 digital-AFE (P6.0-5) when
-		present, Hi-Z otherwise. P6.0-2 are NFC inputs (rf_clk/rf_rx/field_detect);
-		P6.3-5 are NFC outputs (rf_txmod/rf_tx_en/afe_en); P6.6/7 are spare plain GPIO
-		(the DP-S3 PGOOD/strap DIRECT taps when fieldPower is on; OW0's DQ left P6.6
-		for the P4.7 AF2 spread slot at the Stage H re-pin).'''
+		'''GPIO5 (port 6) instance: AF1 is the NFC0 digital AFE on P6.0-5 when present, Hi-Z otherwise.
+		P6.0-2 are NFC inputs, P6.3-5 NFC outputs, P6.6/7 spare plain GPIO carrying the PGOOD and
+		strap direct taps when fieldPower is on.
+		'''
 		af1 = []
 		mux = []
 		if self.nfc:
@@ -2528,7 +2351,7 @@ class McuVhdEmitter():
 				3: 'nfc0_rf_txmod',
 				2: "'0'", 1: "'0'", 0: "'0'",
 			}
-			# P6.0-2 are inputs -> AF dir '0' (input); P6.3-5 outputs -> AF dir '1'.
+			# P6.0-2 are inputs, so AF dir is '0'; P6.3-5 are outputs, so AF dir is '1'.
 			dirMap = {7: "'0'", 6: "'0'", 5: "'1'", 4: "'1'", 3: "'1'",
 				2: "'0'", 1: "'0'", 0: "'0'"}
 			af1.append('    -- AF1 plane: NFC0 outputs on P6.3-5 (txmod/tx_en/afe_en); P6.0-2 are inputs (rf_clk/rf_rx/field_detect), so their AF1 out/dir stay 0 (input).')
@@ -2563,9 +2386,9 @@ class McuVhdEmitter():
 		return (len(self.irqVectors) + 31) // 32
 
 	def emitIrqGfDecls(self):
-		'''digperiphs #3: irq_comb / gf_out width, sized to the glitch-filter
-		count (was a fixed std_logic_vector(95 downto 0) with 3 instances). At
-		gfCount = 3 this reproduces the golden master byte-identically.'''
+		'''irq_comb and gf_out width, sized to the glitch-filter count rather than fixed at 96 bits. At
+		gfCount = 3 this reproduces the golden master byte-identically.
+		'''
 		w = str(32 * self.gfCount() - 1)
 		return [
 			'        signal irq_comb         : std_logic_vector(' + w + ' downto 0);',
@@ -2574,9 +2397,10 @@ class McuVhdEmitter():
 		]
 
 	def emitIrqGfInstances(self):
-		'''digperiphs #3: the 32-bit GlitchFilter instances (one per 32 sources)
-		+ the irq_deglitch slice. Was 3 fixed instances; now geometry-driven so
-		NFC (4 instances) elaborates. At gfCount = 3 this is byte-identical.'''
+		'''The 32-bit GlitchFilter instances, one per 32 sources, plus the irq_deglitch slice.
+		Geometry-driven rather than three fixed instances, so a four-instance chip elaborates; at
+		gfCount = 3 it is byte-identical.
+		'''
 		lines = ['    -- Glitch Filter for IRQ signals']
 		for i in range(self.gfCount()):
 			hi = str(32 * i + 31)
@@ -2593,8 +2417,8 @@ class McuVhdEmitter():
 	def emitPolarityShims(self):
 		ind = ' ' * 4
 		lines = []
-		# X-collapse fix (2026-07-20): the capture-clock strobe re-register.
-		# Emitted first so every group below can reference its _q signal.
+		# The capture-clock strobe re-register, emitted first so every group below can reference
+		# its _q signal.
 		capture = [n for (c, ns, p) in self.shimGroups for n in ns if n in CAPTURE_CLOCK]
 		if capture:
 			lines += [
@@ -2627,52 +2451,37 @@ class McuVhdEmitter():
 				lines.append('')
 		return lines
 
-	# ------------------------------------------------------------------
-	# A1 (Argus): N-hart region emitters. Every emitter reproduces the golden
-	# master BYTE-IDENTICALLY at numHarts=4 (check_mcu_vhd.py STRICT); the
-	# per-hart digits, widths, slice bounds and count prose are computed from
-	# numHarts. Alignment paddings are the golden master's columns, widened
-	# only when a longer name (h >= 10) forces it.
-	# ------------------------------------------------------------------
+	# N-hart region emitters. Every emitter reproduces the golden master byte-identically at
+	# numHarts=4, which check_mcu_vhd.py STRICT grades; the per-hart digits, widths, slice
+	# bounds and count prose are computed from numHarts. Alignment paddings are the golden
+	# master's columns, widened only when a longer name at h >= 10 forces it.
 
 	def nHarts(self):
-		'''SINGLE HART IS ALLOWED (mcu_hart, 2026-08-24).
-		The floor used to be 2 because every N-hart region emitter below indexes
-		harts 1..N-1 and an N = 1 build walked into backwards ranges and empty
-		port lists rather than into an error anyone could read.
-		Those emitters now fold their tile regions away at N = 1 (the a0 ports,
-		the power-domain vectors, the tile generate loops and the aperture
-		fabric), so the floor is 1 and the shape it emits is one hart 0, the
-		fabric it masters, and no tiles.
-		Nothing about the N >= 2 emission changed.'''
+		'''The hart count. One hart is allowed: the N-hart region emitters fold their tile regions away
+		at N = 1, emitting one hart 0, the fabric it masters and no tiles.
+		'''
 		n = self.gen.NumHarts
 		if type(n) != int or n < 1:
 			raise Exception('MCU.vhd emitter: numHarts must be an int >= 1 for the MCU_MP template, got ' + str(n))
 		return n
 
 	def nMasters(self):
-		'''digperiphs #6: arbiter MASTER count = numHarts (+ 1 for the DMA engine when
-		present). The DMA is master index numHarts (the LAST slice). Degenerates to
-		numHarts when dma is off (byte-identical default; Argus is unaffected).'''
+		'''The arbiter master count: numHarts, plus one for the DMA engine and one for the Debug Module
+		where present. The DMA takes the slice after the harts, and with both absent this degenerates
+		to numHarts, which keeps the default byte-identical.
+		'''
 		return self.nHarts() + (1 if self.dma else 0) + (1 if self.debug else 0)
 
 	def pwrHarts(self):
-		'''The hart count pwr_ctrl sees, and CPR3/R2 makes it nHarts() in BOTH
-		shapes. The CP2 special case is DELETED: back then the orchestrator was
-		the LAST hart and had no power-domain row, so pwr_ctrl saw nHarts()-1
-		and PWRCR was missing its top bit. With the orchestrator renumbered to
-		hart 0 the always-on hart is the one that never had a row anyway, and
-		every hart 1..N-1 is a gateable channel tile -- so at numHarts=5 PWRCR
-		GAINS bit 4 and PWRSR gains nibble 4. Kept as a named method rather
-		than inlined because this is where a reader following emitPwrInstance
-		needs to land.'''
+		'''The hart count pwr_ctrl sees, which is nHarts() in both shapes. The always-on hart is hart 0
+		and never had a power-domain row, and every hart 1..N-1 is a gateable channel tile.
+		'''
 		return self.nHarts()
 
 	def tileTop(self):
-		'''Exclusive upper bound of the hart_tile TILE loops (1..tileTop()-1).
-		CPR3/R2: nHarts() in both shapes -- no hart is missing from the tile
-		range any more, because the orchestrator IS hart 0 and hart 0 was never
-		in this range.'''
+		'''Exclusive upper bound of the hart_tile TILE loops, 1..tileTop()-1, which is nHarts(): the
+		orchestrator is hart 0 and hart 0 was never in this range.
+		'''
 		return self.nHarts()
 
 	def apertures(self):
@@ -2685,11 +2494,10 @@ class McuVhdEmitter():
 		return _HARTS_WORD.get(self.nHarts(), str(self.nHarts()))
 
 	def allHartsPhrase(self, spelled=True):
-		'''The subject of "... shared by <this>": "all four harts" at N >= 2,
-		"the one hart" at N = 1, where "all one harts" is what the arithmetic
-		would otherwise produce.
-		`spelled` picks the count word the call site already used, because the
-		golden master spells it in two places and prints the digit in two.'''
+		'''The subject of "... shared by <this>": "all four harts" at N >= 2, "the one hart" at N = 1.
+		`spelled` picks the count word the call site used, since the golden master spells it in two
+		places and prints the digit in two.
+		'''
 		if self.nHarts() == 1:
 			return 'the one hart'
 		return 'all ' + (self.hartsWord() if spelled else str(self.nHarts())) + ' harts'
@@ -2699,10 +2507,9 @@ class McuVhdEmitter():
 		return ' ' * 8 + 'signal ' + name.ljust(max(17, len(name) + 1)) + ': ' + rest
 
 	def clintAddrW(self):
-		'''CLINT word-address width from the description's register slots,
-		cross-checked against the A0/A1 layout formula (mtime lo at word
-		roundup16(4N)/4, mtimecmp pairs at +4; hdl/common/clint.vhd implements
-		the same formula). RAISES if generate.py's CLINT layout drifts.'''
+		'''CLINT word-address width from the description's register slots, cross-checked against the
+		layout formula clint.vhd implements. Raises if generate.py's CLINT layout drifts.
+		'''
 		n = self.nHarts()
 		mtimeSlot = ((4 * n + 15) // 16) * 4
 		slots = {}
@@ -2719,22 +2526,15 @@ class McuVhdEmitter():
 		return _clog2(maxSlot + 1)
 
 	def emitA0Ports(self):
-		'''The pass/fail observation ports: hart 0's plain `a0`, then one a0_h per
-		tile hart.
-		THE HART-0 PORT MOVED INTO THIS EMITTER (mcu_hart, 2026-08-24) and it is
-		emitted here character for character as the template carried it, so the
-		N >= 2 entity is unchanged.
-		It moved because its trailing separator is not a property of that port.
-		At N = 1 there is no a0_h after it and no tile-hart comment either, so on
-		a debug-off single-hart chip `a0` is the LAST port in the entity and must
-		not carry a semicolon; the template could not know that, and left one
-		standing in front of the closing parenthesis.'''
+		'''The pass/fail observation ports: hart 0's plain `a0`, then one a0_h per tile hart. Hart 0's
+		port is emitted here rather than from the template because its trailing separator is not a
+		property of the port: at N = 1 with debug off, `a0` is the entity's last port.
+		'''
 		n = self.nHarts()
-		# When the DMI ports follow (debug.enable), the last port emitted here is
-		# no longer the last port in the entity and needs its separator (D2).
-		# An overlay's port group is emitted after the JTAG group, i.e. LAST in
-		# the entity, so when there is one the groups before it keep their
-		# separators.
+		# When the DMI ports follow, under debug.enable, the last port emitted here is no longer
+		# the last port in the entity and needs its separator. An overlay's port group is emitted
+		# after the JTAG group, last in the entity, so when there is one the groups before it keep
+		# their separators.
 		last = ';' if (self.debug or self.overlay.call('mcuEntityTail', default=False, emitter=self)) else ''
 		lines = [' ' * 8 + '-- Testing Purposes Only',
 			' ' * 8 + 'a0  : out std_logic_vector(31 downto 0)' + (';' if n > 1 else last)]
@@ -2747,9 +2547,8 @@ class McuVhdEmitter():
 		return lines
 
 	def emitArbFabricDecls(self):
-		# digperiphs #6: bus widths follow nMasters = numHarts (+ the DMA engine at
-		# index numHarts when present). The hart-tiles comment keeps numHarts-1 (the DMA
-		# is NOT a hart tile) — byte-identical when dma is off (nMasters == numHarts).
+		# Bus widths follow nMasters = numHarts, plus the DMA engine at index numHarts when
+		# present. The hart-tiles comment keeps numHarts-1, because the DMA is not a hart tile.
 		n = self.nHarts()
 		M = self.nMasters()
 		nm1 = str(n - 1)		# hart-tiles range in the comment (unchanged by the DMA)
@@ -2761,15 +2560,13 @@ class McuVhdEmitter():
 		lines.append(self.sigDecl('arb_resvvld', 'std_logic_vector(' + Mm1 + ' downto 0);  -- Zawrs: per-master reservation-valid level'))
 		lines.append(self.sigDecl('sh_we_raw', 'std_logic_vector(3 downto 0);  -- arbiter s_we, pre resv gating'))
 		if n == 1:
-			# Single hart: there is no tile range to name, and "masters 1-0"
-			# is what naming it anyway produces.
+			# Single hart: there is no tile range to name, and naming it anyway produces "masters 1-0".
 			masterComment = (' ' * 8 + '-- arbiter master buses (master 0 = hart 0, the only hart; '
 				'no tile masters')
 		elif self.orch:
-			# CPR3/R2: master 0 is the orchestrator (an orch_tile, not a
-			# hart_tile) and every other master slice is an ordinary corner
-			# tile. The SLICE LAYOUT is unchanged -- that is the point of
-			# renumbering to 0 rather than to N-1.
+			# Master 0 is the orchestrator, an orch_tile rather than a hart_tile, and every other
+			# master slice is an ordinary corner tile. The slice layout is unchanged, which is the
+			# point of numbering the orchestrator 0 rather than N-1.
 			masterComment = (' ' * 8 + '-- arbiter master buses (master 0 = the orchestrator hart; masters 1-'
 				+ nm1 + ' = hart tiles')
 		else:
@@ -2796,42 +2593,38 @@ class McuVhdEmitter():
 			self.sigDecl('clint_mtip', 'std_logic_vector(' + nm1 + ' downto 0);')]
 
 	def emitMeipDecl(self):
-		# M19: one registered external-IRQ wire per hart (replaces the M7a
-		# NHARTS*NUM_IRQS enable fan-out) + the D2 WDT hooks into SYSTEM0
+		# One registered external-IRQ wire per hart, replacing the NHARTS*NUM_IRQS enable fan-out,
+		# plus the WDT hooks into SYSTEM0.
 		return [self.sigDecl('meip', 'std_logic_vector(' + str(self.nHarts() - 1) + ' downto 0);'),
 			self.sigDecl('wdt_irq_routed', 'std_logic;   -- irq_router: source 0 enabled in some row'),
 			self.sigDecl('wdt_irq_complete', 'std_logic;   -- irq_router: COMPLETE(0) pulse (WDT EOI)')]
 
 	def emitPdDecls(self):
-		# The power-domain vectors span the GATEABLE tiles 1..N-1. CPR3/R2: that
-		# is EVERY hart but hart 0 in both shapes now -- the orchestrator is
-		# hart 0, which has no domain, and the CP2 shortening is gone.
+		# The power-domain vectors span the gateable tiles 1..N-1, which is every hart but hart 0
+		# in both shapes: the orchestrator is hart 0 and has no domain.
 		rng = 'std_logic_vector(' + str(self.pwrHarts() - 1) + ' downto 1);'
-		# The three signals that BIND TO pwr_ctrl PORTS carry the same width
-		# floor the entity does, so the association is width-exact at N = 1.
-		# pwr_ctrl declares pd_iso_en/pd_sleep/pd_rstn over
-		# maximum(NHARTS-1,1) downto 1 because a null-range PORT is legal VHDL
-		# and simulates, but Genus rejects it (CDFG-235), so a single-hart chip
-		# would elaborate and boot and still fail to synthesize.
-		# For every pwrHarts() >= 2 this is str(pwrHarts()-1) exactly as before,
+		# The three signals that bind to pwr_ctrl ports carry the same width floor the entity does,
+		# so the association is width-exact at N = 1. pwr_ctrl declares pd_iso_en, pd_sleep and
+		# pd_rstn over maximum(NHARTS-1,1) downto 1 because a null-range port is legal VHDL and
+		# simulates but Genus rejects it (CDFG-235), so a single-hart chip would elaborate and boot
+		# and still fail to synthesize. For every pwrHarts() >= 2 this is str(pwrHarts()-1) exactly,
 		# so the emission stays byte-identical on every multi-hart chip.
-		# tile_rstn is NOT floored: it is a top-level signal rather than a
-		# pwr_ctrl port, and at N = 1 it is a null vector that nothing reads.
+		# tile_rstn is not floored: it is a top-level signal rather than a pwr_ctrl port, and at
+		# N = 1 it is a null vector that nothing reads.
 		pdrng = ('std_logic_vector(' + str(max(self.pwrHarts() - 1, 1))
 			 + ' downto 1);')
 		lines = [self.sigDecl(nm, pdrng)
 			 for nm in ('pd_iso_en', 'pd_sleep', 'pd_rstn')]
 		lines.append(self.sigDecl('tile_rstn', rng))
-		# DP-S3: the HOLD-IN-RESET boot gate (pwr0 output, reset '1' = release)
-		# and hart 0's folded reset (hart 0 never had a fold before the gate).
+		# The hold-in-reset boot gate, a pwr0 output whose reset value '1' means released, and
+		# hart 0's folded reset. Hart 0 had no fold before the gate.
 		lines.append(self.sigDecl('pgood_rstn', "std_logic := '1';"))
 		lines.append(self.sigDecl('hart0_rstn', 'std_logic;'))
 		return lines
 
 	def emitTileRawDecls(self):
-		# _raw nets exist to pass the M17 isolation clamps, so they cover the
-		# CLAMPED tiles 1..N-1 only — hart 0 (the orchestrator on an
-		# orchestrator config) drives the arbiter and the tb directly.
+		# _raw nets exist to pass the isolation clamps, so they cover the clamped tiles 1..N-1
+		# only. Hart 0 drives the arbiter and the testbench directly.
 		n = self.tileTop()
 		lines = []
 		for kind, rng in [('req', 'std_logic;'), ('we', 'std_logic_vector(3 downto 0);'),
@@ -2839,9 +2632,8 @@ class McuVhdEmitter():
 				('lrsc', 'std_logic_vector(1 downto 0);'), ('lock', 'std_logic;')]:
 			for h in range(1, n):
 				lines.append(self.sigDecl('tile' + str(h) + '_' + kind + '_raw', rng))
-		# CPR3/R3: the TCM aperture port's two OUTPUTS cross the power boundary
-		# like every other tile output and get the same clamp treatment. R4-A2
-		# is the consequence, spelled out at the clamp itself.
+		# The TCM aperture port's two outputs cross the power boundary like every other tile output
+		# and get the same clamp treatment; the consequence is spelled out at the clamp itself.
 		for h in range(1, n):
 			if self.apertures():
 				lines.append(self.sigDecl('tile' + str(h) + '_tcmrd_raw', 'std_logic_vector(31 downto 0);'))
@@ -2851,48 +2643,16 @@ class McuVhdEmitter():
 		return lines
 
 	def emitShMasterDecl(self):
-		# digperiphs #6: sh_master width follows the arbiter master width (masterW =
-		# max(2, clog2(nMasters))). 2 bits at the numHarts=4 default; 3 bits when the DMA
-		# is present (nMasters=5). Byte-identical when dma is off.
+		# sh_master width follows the arbiter master width, masterW = max(2, clog2(nMasters)):
+		# 2 bits at numHarts=4, 3 bits when the DMA is present and nMasters is 5.
 		w = self.masterW()
 		return [self.sigDecl('sh_master', 'std_logic_vector(' + str(w - 1) + ' downto 0);')]
 
 	def coreGenericLines(self, tile=False):
-		'''The 24 core ISA/priv generic associations + the D1/D2 debug pair,
-		shared by all THREE hart-instance emitters (hart 0, the tiles, and the
-		CP2 orchestrator). It is ONE list on purpose: three hand-kept copies of
-		this block is exactly how one instance silently ends up on a different
-		configuration (the F-K7-4 shape).
-
-		   tile=True emits the CORNER-TILE flavour. Until 2026-08-16 the
-		   orchestrator was ISA-identical to the tiles by construction (CP1 D5)
-		   and this list took no argument; the asymmetric-ISA decision (USER:
-		   minimal rv32iac tiles, for area and power) broke that identity ON
-		   PURPOSE. It is still ONE list, PARAMETERISED -- not a forked copy --
-		   precisely because a forked copy is the F-K7-4 shape this docstring
-		   warns about.
-
-		   WIDENED 2026-09-12 (P12). The parameterisation used to cover THREE
-		   associations, M and B, and every other ISA and privilege generic on a
-		   tile was the same CORE_ENABLE_* hart 0 takes -- so an orchestrator
-		   configured with Zfinx, Zkn or PMP put them inside the hardened macro
-		   too (P10 finding F1, measured on config/castalia_b.json). The whole
-		   of isa.* and priv.* is now per-class, and which class keeps what is
-		   decided in ONE place, ChipGenerator.py's TILE_ENABLE_* emission.
-		   Read it there; this method only chooses the constant PREFIX, so the
-		   policy cannot fork between the constant and the association.
-
-		   A and C are still never dropped on a tile (the tiles run the
-		   shared-fabric LR/SC + AMO locking, and C is decoder-only but shrinks
-		   code) and neither are the trap CSRs (ENABLE_DEBUG requires them); the
-		   TILE_ constants carry that, so the two flavours differ here by prefix
-		   alone.
-
-		   ENABLE_IF_AHEAD and ENABLE_DEBUG stay CORE_ENABLE_* on BOTH flavours:
-		   the first is microarchitecture rather than ISA, and the second is
-		   identical on both classes by construction and is the oracle
-		   tools/python/check_entity_defaults.py grades the hart_tile and
-		   orch_tile entity defaults against.'''
+		'''The core ISA and privilege generic associations plus the debug pair, shared by every
+		hart-instance emitter. tile=True only chooses the constant prefix, so the per-class policy
+		cannot fork between constant and association; ENABLE_IF_AHEAD and ENABLE_DEBUG stay CORE_*.
+		'''
 		pfx = 'TILE_' if tile else 'CORE_'
 		def _g(generic):
 			return ('            ' + ('ENABLE_' + generic).ljust(17) + ' => '
@@ -2919,13 +2679,12 @@ class McuVhdEmitter():
 		lines.append(_g('ZBKX'))
 		lines.append(_g('ZKN'))
 		lines.append(_g('ZFINX'))
-		# Fetch-ahead. Passed UNCONDITIONALLY, on every tile, on both flavours:
-		# the constant carries the value, so there is no knob branch here and no
-		# way for one instance to end up on a different fetch behaviour than its
-		# neighbours. It is also what makes the wrapper entity defaults
-		# load-bearing rather than decorative -- a bare `elaborate hart_tile`
-		# takes the entity default while this line wires the constant, and
-		# tools/python/check_entity_defaults.py holds the two equal.
+		# Fetch-ahead is passed unconditionally, on every tile and both flavours: the constant
+		# carries the value, so there is no knob branch here and no way for one instance to end up
+		# on a different fetch behaviour than its neighbours. It is also what makes the wrapper
+		# entity defaults load-bearing: a bare `elaborate hart_tile` takes the entity default while
+		# this line wires the constant, and tools/python/check_entity_defaults.py holds the two
+		# equal.
 		lines.append('            -- Microarchitecture')
 		lines.append('            ENABLE_IF_AHEAD   => CORE_ENABLE_IF_AHEAD,')
 		lines.append('            -- Privileged-architecture features')
@@ -2933,18 +2692,15 @@ class McuVhdEmitter():
 		lines.append(_g('UMODE'))
 		lines.append(_g('PMP'))
 		lines.append('            ' + 'PMP_ENTRIES'.ljust(17) + ' => ' + pfx + 'PMP_ENTRIES,')
-		# D1/D2 core-side debug mode.
-		#   knob OFF: DEBUG_ENTRY_ADDR is NOT named -- the hart_tile/vesta entity
-		#     default (0xBE00) stands, and the three dbg_* PORTS are left
-		#     unconnected, sitting at their '0' entity defaults. That is the
-		#     bit-identical pre-D1 shape and check_mcu_vhd.py STRICT pins it.
-		#   knob ON (D2): DEBUG_ENTRY_ADDR is passed EXPLICITLY as 0x00010780 --
-		#     the shared-window debug entry page (R-DD3/R-D2-1(3)), because a
-		#     tile's TCM is unreachable from the shared bus and the Debug Module
-		#     cannot place code at 0xBE00. The VHDL declaration defaults stay
-		#     0xBE00 as the FAIL-SAFE value; this is the override, and it is
-		#     emitted by ALL THREE hart emitters -- the half-done-diff trap
-		#     (which is precisely why they now share this one list).
+		# Core-side debug mode.
+		#   Knob off: DEBUG_ENTRY_ADDR is not named, so the hart_tile and vesta entity default
+		#     0xBE00 stands, and the three dbg_* ports are left unconnected at their '0' entity
+		#     defaults. check_mcu_vhd.py STRICT pins that shape.
+		#   Knob on: DEBUG_ENTRY_ADDR is passed explicitly as 0x00010780, the shared-window debug
+		#     entry page, because a tile's TCM is unreachable from the shared bus and the Debug
+		#     Module cannot place code at 0xBE00. The VHDL declaration defaults stay 0xBE00 as the
+		#     fail-safe. The override is emitted by all three hart emitters, which is why they
+		#     share this one list.
 		if self.debug:
 			lines.append('            ENABLE_DEBUG      => CORE_ENABLE_DEBUG,')
 			lines.append('            DEBUG_ENTRY_ADDR  => x"00010780"')
@@ -2953,24 +2709,18 @@ class McuVhdEmitter():
 		return lines
 
 	def emitHart0Instance(self):
-		'''Hart 0. CPR3/R2 gave this ONE emitter a second binding instead of a
-		second emitter: on an orchestrator config hart 0 is instantiated from
-		`entity work.orch_tile` rather than `entity work.hart_tile`, and every
-		other line of the region is the same. That is the renumber in one
-		sentence -- the orchestrator INHERITS hart 0's wiring bundle wholesale
-		(flash quartet, sleep => sleep_cpu, trap_flag => trap_out, tcm_pgen =>
-		pgen_mem(1), a0 => the tb gate, arbiter slice 0 direct with no clamps,
-		hart0_rstn) instead of being a separate always-on special case bolted
-		on at index N-1. The CP2 emitOrchInstance and its --@GEN:orch-instance@
-		region are RETIRED with it.'''
+		'''Hart 0, instantiated from entity work.orch_tile on an orchestrator config and from
+		entity work.hart_tile otherwise; every other line of the region is the same. The
+		orchestrator inherits hart 0's wiring bundle wholesale.
+		'''
 		nm1 = str(self.nHarts() - 1)
 		ent = 'orch_tile' if self.orch else 'hart_tile'
 		lines = []
 		if self.orch:
 			lines.append('    -- Orchestrator hart (hart 0): the boot master and management hart, the SAME tile logic as harts 1-' + nm1 + ' (see hart_tile.vhd) but soft in the centre band, so it arrives through the orch_tile wrapper; the tile netlist and the orchestrator netlist must share no module name, or the assembly strip step deletes this subtree and gate sim sees two definitions of one module. Its specials are pure wiring: sleep and the flash/XIP ports to SPI0, tcm_pgen to pgen_mem(1), trap_flag to the GPIO0 trap pin, a0 to the tb pass/fail gate, arbiter slice 0 direct with no isolation clamps.')
 		elif self.nHarts() == 1:
-			# There are no harts 1-N-1 to be the same as: hart 0 is the chip's
-			# only hart and this is the only hart_tile instance in the design.
+			# There are no harts 1..N-1 to be the same as: hart 0 is the chip's only hart and this is
+			# the only hart_tile instance in the design.
 			lines.append('    -- Hart 0 is the chip\'s ONLY hart and an ordinary hart_tile (see hart_tile.vhd). Its specials are pure wiring: sleep and the flash/XIP ports to SPI0, tcm_pgen to pgen_mem(1), trap_flag to the GPIO0 trap pin, a0 to the tb pass/fail gate, arbiter slice 0 direct with no isolation clamps.')
 		else:
 			lines.append('    -- Hart 0 is the SAME hart_tile as harts 1-' + nm1 + ' (see hart_tile.vhd). Its specials are pure wiring: sleep and the flash/XIP ports to SPI0, tcm_pgen to pgen_mem(1), trap_flag to the GPIO0 trap pin, a0 to the tb pass/fail gate, arbiter slice 0 direct with no isolation clamps.')
@@ -2991,8 +2741,8 @@ class McuVhdEmitter():
 		lines.append('            mtip_in   => clint_mtip(0),')
 		lines.append('            meip_in   => meip(0),')
 		if self.debug:
-			# D2: hart 0 is on the ALWAYS-ON domain, so its dbg_halted needs no
-			# isolation clamp and connects straight to the DM.
+			# Hart 0 is on the always-on domain, so its dbg_halted needs no isolation clamp and
+			# connects straight to the DM.
 			lines.append('            dbg_haltreq      => dbg_haltreq(0),')
 			lines.append('            dbg_resethaltreq => dbg_resethaltreq(0),')
 			lines.append('            dbg_halted       => dbg_halted(0),')
@@ -3023,34 +2773,20 @@ class McuVhdEmitter():
 		return lines
 
 	def dmMasterIndex(self):
-		'''D2: the Debug Module's arbiter master slice. The DMA keeps index
-		numHarts unconditionally (so a dma-on/debug-off build is byte-identical
-		to what it was), and the DM takes the slice after it -- numHarts when the
-		DMA is absent, numHarts+1 when it is present. Two masters cannot be
-		allocated by two independent nHarts() computations; this is the one
-		place the index is decided.'''
+		'''The Debug Module's arbiter master slice. The DMA keeps index numHarts unconditionally, so a
+		dma-on debug-off build is unchanged, and the DM takes the slice after it. This is the one
+		place the index is decided, because two masters cannot come from two computations.
+		'''
 		if not self.debug:
 			raise Exception('MCU.vhd emitter: dmMasterIndex() with debug off')
 		return self.nHarts() + (1 if self.dma else 0)
 
 
 	def emitDmiPorts(self):
-		'''D2: the eight DMI ports on the MCU entity. Emitted ONLY when
-		debug.enable -- the OFF build's MCU.vhd carries no trace of the debug
-		module at all, which is what check_mcu_vhd.py STRICT enforces.
-
-		The port shape is FROZEN at D2 and D3's JTAG DTM inherits it unchanged:
-		the DTM drives exactly these eight nets from TCK through its own toggle
-		handshake, so the port is designed once (d2_spec 2). D3 does NOT take
-		the ports away from the outside world -- see emitJtagPorts and the
-		OR-merge in emitDebugInstance.
-
-		Every INPUT carries a VHDL default. That is not tidiness: MCU.vhd's
-		entity is instantiated by riscv_tb.vhd (itself a make-chip product),
-		by every chip_top_* netlist and by the gate flows, and an unassociated
-		input takes its default while an unassociated output is simply open --
-		so adding these ports leaves all of them legal with no edits. It is the
-		same trick D1 used on the three hart_tile debug ports.'''
+		'''The eight DMI ports on the MCU entity, emitted only when debug.enable, so the OFF build's
+		MCU.vhd carries no trace of the debug module. The shape is frozen and the JTAG DTM inherits
+		it. Every input carries a VHDL default, so existing instantiations stay legal unedited.
+		'''
 		if not self.debug:
 			return []
 		return [
@@ -3069,18 +2805,10 @@ class McuVhdEmitter():
 		]
 
 	def emitJtagPorts(self):
-		'''D3: the five JTAG pins on the MCU entity. Same knob, same emission
-		rule, same defaulting trick as emitDmiPorts -- and this group is now
-		the LAST entity port group, so it carries the no-trailing-`;`
-		responsibility that emitDmiPorts used to (probe P1.1: emitA0Ports puts
-		a `;` after the last a0_N iff self.debug, and emitDmiPorts now ends in
-		one too). A missing or extra separator here is a syntax error in a
-		4000-line generated file; it is named in d3_spec 4 for that reason.
-
-		trstn defaults '0' -- TAP HELD IN RESET. That is the fail-safe
-		direction (rule 15) and it is what makes the DTM INERT in every bench
-		and netlist that does not name these pins: no TCK edges, no requests,
-		and the OR-merge below sees a permanently-zero valid.'''
+		'''The five JTAG pins on the MCU entity, same knob and same defaulting trick as emitDmiPorts.
+		This is the last entity port group, so it carries the no-trailing-';' responsibility.
+		trstn defaults '0', holding the TAP in reset, which makes the DTM inert in every bench.
+		'''
 		if not self.debug:
 			return []
 		return [
@@ -3111,9 +2839,8 @@ class McuVhdEmitter():
 			self.sigDecl('dbg_haltreq', 'std_logic_vector(' + nm1 + ' downto 0);'),
 			self.sigDecl('dbg_resethaltreq', 'std_logic_vector(' + nm1 + ' downto 0);'),
 			self.sigDecl('dbg_halted', 'std_logic_vector(' + nm1 + ' downto 0);'),
-			# Only the CLAMPED tiles need a _raw halted wire; hart 0 (which is
-			# the orchestrator on an orchestrator config) connects straight to
-			# the DM -- it is always-on in both shapes.
+			# Only the clamped tiles need a _raw halted wire; hart 0 connects straight to the DM
+			# because it is always-on in both shapes.
 			self.sigDecl('dbg_halted_raw', 'std_logic_vector(' + str(self.tileTop() - 1) + ' downto 1);'),
 			self.sigDecl('dbg_unavail', 'std_logic_vector(' + nm1 + ' downto 0);'),
 			'',
@@ -3194,19 +2921,10 @@ class McuVhdEmitter():
 		return lines
 
 	def emitJtagInstance(self):
-		'''D3: the JTAG DTM beside dm0, and the OR-merge that lets the raw
-		dmi_* ports and the TAP both reach the one Debug Module.
-
-		THE MERGE IS VALID-GATED, and the external port WINS a simultaneity
-		that cannot occur: the DTM's valid is low unless a debugger has
-		clocked a dmi Update-DR through TCK, and every bench that forces the
-		raw port leaves trstn at its default (TAP in reset). Writing it as a
-		select rather than a bitwise OR also keeps an undriven bus from
-		merging X into the DM.
-
-		IDCODE is a per-chip CONSTANT chosen by chip identity in generate.py
-		(R-DD4(1)), not a schema knob -- there is no configuration in which a
-		user should be able to make their chip claim to be another one.'''
+		'''The JTAG DTM beside dm0, and the valid-gated merge that lets the raw dmi_* ports and the TAP
+		both reach the one Debug Module. The external port wins a simultaneity that cannot occur.
+		Written as a select rather than a bitwise OR, so an undriven bus cannot merge X into the DM.
+		'''
 		if not self.debug:
 			return []
 		return [
@@ -3248,21 +2966,10 @@ class McuVhdEmitter():
 		]
 
 	def jtagIdcode(self):
-		'''D3: the JTAG IDCODE as eight hex digits, selected by CHIP IDENTITY
-		(R-DD4(1) -- USER values, deliberately NOT a schema knob).
-
-		Castalia 0x1CA57EEF / Argus 0x1A265EEF: version 1, partnum
-		0xCA57/0xA265, manufid 0x777 (the Spike-precedent deliberately invalid
-		JEP106 code -- honest for a non-commercial chip), LSB 1 as 1149.1
-		mandates.
-
-		THE DISCRIMINATOR IS DELIBERATELY BOTH: the config's own chipName OR
-		numHarts == 18. The acceptance instruments key on the hart count (it
-		is the only chip discriminator a harness has in band), and CHIP_NAME
-		is a DOCS-ONLY env override -- so a name-only rule would let a
-		documentation switch change an RTL constant, and a count-only rule
-		would be silent about what it means. Every shipped config agrees under
-		both halves.'''
+		'''The JTAG IDCODE as eight hex digits, selected by chip identity: version 1, partnum 0xCA57 or
+		0xA265, manufid 0x777, LSB 1 as 1149.1 mandates. The discriminator is deliberately both the
+		config's chipName and numHarts == 18, and every shipped config agrees under both halves.
+		'''
 		if self.isArgusFamily():
 			return '1A265EEF'
 		return '1CA57EEF'
@@ -3272,44 +2979,38 @@ class McuVhdEmitter():
 		return self.nHarts() == 18 or name.lower().startswith('argus')
 
 	def jtagIdleCycles(self):
-		'''D3: dtmcs.idle [14:12], in TCK cycles, and it is TRUTHFUL (Spike
-		advertises 0 while enforcing a hidden requirement -- the one behaviour
-		d3_cdc_spec 4 says not to copy). The derivation is written out in
-		jtag_dtm.vhd's header: 3 TCK cycles of response synchroniser plus the
-		mclk round trip (8-10 mclk for a register access, tens more for the
-		three PROXIED addresses through mp_arbiter), against the stated
-		assumption TCK <= 7.14 MHz with mclk at 24 MHz. 7 covers the worst
-		class with a cycle of margin and is the maximum the 3-bit field can
-		express, so rounding up costs nothing but debugger throughput.'''
+		'''dtmcs.idle [14:12] in TCK cycles, and it is truthful rather than advertising 0 while
+		enforcing a hidden requirement. 7 covers the worst class with a cycle of margin and is the
+		maximum the 3-bit field can express, so rounding up costs only debugger throughput.
+		'''
 		return 7
 
 	def masterW(self):
-		'''mp_arbiter s_master / mutex_bank / irq_router master width (A2: the MW
-		generic, default 2 = the Castalia shape). digperiphs #6: sized to nMasters
-		(numHarts + the DMA), so enabling the DMA (nMasters=5) grows MW 2->3 across the
-		arbiter, mutex_bank and irq_router in lockstep. Degenerates to the numHarts value
-		when dma is off (byte-identical default; Argus numHarts=18 -> MW=5 unchanged).'''
+		'''mp_arbiter s_master, mutex_bank and irq_router master width, sized to nMasters, so enabling
+		the DMA grows it across all three in lockstep. Degenerates to the numHarts value when the
+		DMA is off, which keeps the default byte-identical.
+		'''
 		return max(2, _clog2(self.nMasters()))
 
 	def emitArbGeneric(self):
-		# A2: MW (s_master width) is emitted only when it differs from the RTL default 2
-		# (N=4 byte-identity). digperiphs #6: N and MW follow nMasters — enabling the DMA
-		# takes N=>5, MW=>3 (2**MW >= N needs MW=3 at N=5).
+		# MW, the s_master width, is emitted only when it differs from the RTL default 2. N and MW
+		# follow nMasters: enabling the DMA takes N to 5 and MW to 3, since 2**MW >= N needs MW=3
+		# at N=5.
 		mw = self.masterW()
 		return [' ' * 8 + 'generic map (N => ' + str(self.nMasters()) + ', ADDR_WIDTH => SH_AW, DATA_WIDTH => 32'
 			+ ('' if mw == 2 else ', MW => ' + str(mw)) + ')']
 
 	def emitResvGeneric(self):
-		# digperiphs #6: N follows nMasters so resv_unit's one-hot gnt->cur decode reaches
-		# index numHarts (the DMA) — a DMA plain write keys cur=numHarts and kills matching
-		# reservations, keeping cross-hart LR/SC sound across a DMA write (D18).
+		# N follows nMasters so resv_unit's one-hot gnt-to-cur decode reaches index numHarts, the
+		# DMA. A DMA plain write keys cur=numHarts and kills matching reservations, which keeps
+		# cross-hart LR/SC sound across a DMA write.
 		return [' ' * 8 + 'generic map (N => ' + str(self.nMasters()) + ', ADDR_WIDTH => SH_AW)']
 
 	def emitClintInstance(self):
 		n = self.nHarts()
 		addrW = self.clintAddrW()
-		# the clint.vhd ADDR_W generic default (4) IS the Castalia shape; only
-		# non-default widths are passed explicitly (N=4 byte-identity)
+		# The clint.vhd ADDR_W generic default of 4 is the default shape; only non-default widths
+		# are passed explicitly.
 		gm = 'generic map (NHARTS => ' + str(n) + (')' if addrW == 4 else ', ADDR_W => ' + str(addrW) + ')')
 		lines = []
 		lines.append('    clint0: entity work.clint')
@@ -3330,19 +3031,19 @@ class McuVhdEmitter():
 	def emitIrqRouterInstance(self):
 		n = self.nHarts()
 		nm1 = str(n - 1)
-		# M19: ADDR_W is fixed 10 (full-page decode; CLAIM at word 512) = the
-		# RTL default, so the generic is never emitted. MW follows the
-		# arbiter's s_master width (emitted only when != the RTL default 2).
+		# ADDR_W is fixed at 10, a full-page decode with CLAIM at word 512, which is the RTL
+		# default, so the generic is never emitted. MW follows the arbiter's s_master width and is
+		# emitted only when it differs from the RTL default 2.
 		mw = self.masterW()
 		lines = []
 		lines.append('    /* PLIC-lite: THE peripheral interrupt controller, with per-hart routing rows (any hart programs any row through the arbiter; resv-gated sh_we like the CLINT) plus CLAIM/COMPLETE delivery @0x7800.')
 		lines.append('       The deglitched source vector TERMINATES here; delivery to ' + ('hart 0' if self.nHarts() == 1 else 'harts 0-' + nm1) + ' is the one registered meip wire each (IVT slot 85), and sh_master attributes claim reads (the mutex-bank idiom).')
 		lines.append('       It resets all-masked, so the block is a provable NO-OP until software routes an IRQ; the wdt_* hooks carry the watchdog contract into SYSTEM0 (source 0 routed/EOI state). */')
 		lines.append('    irtr0: entity work.irq_router')
-		# CLINT_SIP/CLINT_TIP are associated explicitly from MemoryMap: irq_router
-		# cannot see the package (it compiles standalone in run_irq_router.sh and
-		# //hdl/common/tb:irq_router_rtl), so its 83/84 declaration defaults only
-		# happen to match today's map. See irq_router.vhd:152.
+		# CLINT_SIP and CLINT_TIP are associated explicitly from MemoryMap: irq_router cannot see
+		# the package, because it compiles standalone in run_irq_router.sh and
+		# //hdl/common/tb:irq_router_rtl, so its 83 and 84 declaration defaults only happen to match
+		# today's map. See irq_router.vhd:152.
 		lines.append('        generic map (NHARTS => ' + str(n) + ', NUM_SRCS => NUM_IRQ_SRCS'
 			+ ('' if mw == 2 else ', MW => ' + str(mw))
 			+ ', CLINT_SIP => IRQB_CLINT_MSIP, CLINT_TIP => IRQB_CLINT_MTIP)')
@@ -3362,19 +3063,15 @@ class McuVhdEmitter():
 		lines.append('        );')
 		return lines
 
-	# ------------------------------------------------------------------
-	# A2 (Argus): geometry regions — SH_AW constant, memory-slave decls,
-	# bank row, and the NPU-conditional verbatim blocks. Every emitter
-	# reproduces the golden master byte-identically at the Castalia
-	# geometry (SH_AW=15, 4 banks, NPU present).
-	# ------------------------------------------------------------------
+	# Geometry regions: the SH_AW constant, the memory-slave declarations, the bank row and the
+	# NPU-conditional verbatim blocks. Every emitter reproduces the golden master
+	# byte-identically at SH_AW=15, 4 banks and the NPU present.
 
 	def spliceSideBlock(self, blocks, sourceName, name):
-		'''Verbatim side-template block, re-running any inner --@GEN:*@ marker
-		through the region emitter: the instance blocks carry their own bus
-		marker (the main template no longer does) and, since the EVFAB knob,
-		their own --@GEN:evfab-taps:<inst>@ marker. Inner markers are resolved
-		HERE, so they never enter generateMcuVhd's seen/expected accounting.'''
+		'''Verbatim side-template block, re-running any inner --@GEN:*@ marker through the region
+		emitter. Inner markers are resolved here, so they never enter generateMcuVhd's seen and
+		expected accounting.
+		'''
 		if name not in blocks:
 			raise Exception('MCU.vhd emitter: ' + sourceName + ' has no block "' + name + '"')
 		lines = []
@@ -3413,13 +3110,10 @@ class McuVhdEmitter():
 		return lines
 
 	def i2ctMergeDirRows(self, lines):
-		'''digperiphs (I2CT, D19 — Fable-owned shared-RTL edit): with I2CT0
-		present, the sda0/scl0 DIR-plane rows bind the wired-AND merge scalars
-		(sda0_dir_mrg/scl0_dir_mrg, driven next to the i2ct0 instance) so either
-		engine's drive-low wins on the shared open-drain pads. Applied to all
-		three plane locations (GPIO3 home + GPIO1/GPIO2 relocations). OUT rows
-		stay untouched (tied '0' open-drain at the source) and REN rows keep
-		I2C0's pull policy. Byte-exact golden text when the knob is off.'''
+		'''With I2CT0 present, the sda0 and scl0 DIR-plane rows bind the wired-AND merge scalars so
+		either engine's drive-low wins on the shared open-drain pads, at all three plane locations.
+		OUT rows stay tied '0' and REN rows keep I2C0's pull policy; byte-exact when the knob is off.
+		'''
 		if not self.i2ctarget:
 			return lines
 		out = []
@@ -3436,11 +3130,10 @@ class McuVhdEmitter():
 		return out
 
 	def emitGpio2Af1Planes(self):
-		'''The P3 (GPIO2) AF1 relocation-plane aggregates. Dropped I2C1/UART1
-		rows degrade to the existing "unassigned" hi-Z idiom (literal pin
-		index, since the pnum_gpio2_af1_{sda1,scl1,tx1,rx1} constants are
-		gated with their owner). The two knobs gate independently (G1b).
-		I2CT0 rebinds the sda0/scl0 DIR rows to the D19 merge (i2ctMergeDirRows).'''
+		'''The P3 (GPIO2) AF1 relocation-plane aggregates. Dropped I2C1 and UART1 rows degrade to the
+		unassigned hi-Z idiom with a literal pin index, since those pnum constants are gated with
+		their owner. The two knobs gate independently; I2CT0 rebinds the DIR rows to the merge.
+		'''
 		lines = list(GPIO2_AF1_PLANES)
 		dropRows = {}
 		if not self.i2c1:
@@ -3507,9 +3200,7 @@ class McuVhdEmitter():
 			lines = out
 		return self.i2ctMergeDirRows(lines)
 
-	# ------------------------------------------------------------------
-	# G1b emitters: UART1 / SPI1 / TIMER1 config-droppable regions
-	# ------------------------------------------------------------------
+	# UART1, SPI1 and TIMER1 config-droppable regions
 
 	def uart1Block(self, name):
 		'''Verbatim UART1-conditional block from MCU.template.uart1.vhd.'''
@@ -3567,10 +3258,10 @@ class McuVhdEmitter():
 		return list(UART1_INPUT_MUXES) if self.uart1 else []
 
 	def emitGpio1PrimaryPlanes(self):
-		'''The P2 (GPIO1) primary alt-function aggregates. Dropped UART1/SPI1
-		rows keep their pnum choice (AF0 pnum constants are transcription,
-		not gated) but drive the hi-Z '0' idiom; the CS1 manual-toggle
-		passthrough survives an SPI1 drop as a plain-GPIO passthrough.'''
+		'''The P2 (GPIO1) primary alt-function aggregates. Dropped UART1 and SPI1 rows keep their pnum
+		choice, AF0 pnum constants being transcription rather than gated, and drive the hi-Z '0'
+		idiom; the CS1 manual-toggle passthrough survives an SPI1 drop as a plain-GPIO passthrough.
+		'''
 		lines = list(GPIO1_PRIMARY_PLANES)
 		drops = {}
 		if not self.uart1:
@@ -3594,10 +3285,10 @@ class McuVhdEmitter():
 		return out
 
 	def emitGpio1Af1Planes(self):
-		'''The P2 (GPIO1) AF1 relocation-plane aggregates. TIMER1's compare
-		relocations on P2.2/3 and I2C1's v2 relocations on P2.4/5 degrade to
-		the '0' idiom (literal pin index — the pnum_gpio1_af1_t1_cmp* /
-		pnum_gpio1_af1_{sda1,scl1} constants are gated with their owner).'''
+		'''The P2 (GPIO1) AF1 relocation-plane aggregates. TIMER1's compare relocations on P2.2/3 and
+		I2C1's on P2.4/5 degrade to the '0' idiom with a literal pin index, since those pnum
+		constants are gated with their owner.
+		'''
 		lines = list(GPIO1_AF1_PLANES)
 		if not self.spi1:
 			lines[0] = lines[0].replace('(the SPI1 pins)', '(the ex-SPI1 pins)')
@@ -3657,10 +3348,9 @@ class McuVhdEmitter():
 		return out
 
 	def emitGpio2PrimaryPlanes(self):
-		'''The P3 (GPIO2) primary alt-function aggregates. Dropped TIMER1 rows
-		keep their pnum choice (AF0 transcription) and drive '0'; the
-		t1_cap0 out-plane passthrough (p3_out) survives — it references no
-		TIMER1 signal and is already the plain-GPIO idiom.'''
+		'''The P3 (GPIO2) primary alt-function aggregates. Dropped TIMER1 rows keep their pnum choice
+		and drive '0'; the t1_cap0 out-plane passthrough survives, referencing no TIMER1 signal.
+		'''
 		lines = list(GPIO2_PRIMARY_PLANES)
 		if self.timer1:
 			return lines
@@ -3697,12 +3387,10 @@ class McuVhdEmitter():
 		return out
 
 	def emitAfSpread(self, gi):
-		'''One GPIO port's AF output-spread block: the AF1..AF7 (GPIO0) /
-		AF2..AF7 (GPIO1-3) plane aggregates + the 8-plane flatten, emitted
-		from the description's FromSpread altFuncs (generate.py filters
-		_GPIO_AF_SPREAD by config, so a dropped source's slots read '0').
-		SPREAD_SIG owns the RTL signal spellings; byte-identity at defaults
-		is proven by check_mcu_vhd.py STRICT.'''
+		'''One GPIO port's AF output-spread block: the AF1..AF7 or AF2..AF7 plane aggregates and the
+		8-plane flatten, emitted from the description's FromSpread altFuncs, so a dropped source's
+		slots read '0'. SPREAD_SIG owns the RTL signal spellings.
+		'''
 		port = self.periph('GPIO' + str(gi))
 		n = gi + 1
 		byPin = {}
@@ -3788,8 +3476,8 @@ class McuVhdEmitter():
 			% (self.banksTop(), self.banks, 11 + bankBits))
 		apx = self.apertures()
 		if apx:
-			# CPR3/R3: the aperture pages sit in what used to be the round-up
-			# gap, and the REST of that gap stays unmapped.
+			# The aperture pages sit in what used to be the round-up gap; the rest of that gap stays
+			# unmapped.
 			lines.append(ind + '     ' + self.pageBits(8) + '-' + self.pageBits(8 + len(apx) - 1)
 				+ ' = READ-ONLY TCM APERTURES 0x%05X-0x%05X (one 16 KiB window per hart at 0x20000 + 0x4000*h; management hart 0 only, read-only, a gated tile completes with zeros)'
 				% (apx[0], apx[-1] + 0x3FFF))
@@ -3799,7 +3487,7 @@ class McuVhdEmitter():
 		elif 4 + self.banks < (1 << pw):
 			lines.append(ind + '     ' + self.pageBits(4 + self.banks) + '-' + self.pageBits((1 << pw) - 1)
 				+ ' = unmapped (window power-of-two round-up gap; reads zero)')
-		# The map above is ONE block comment; whichever page row came last closes it.
+		# The map above is one block comment; whichever page row came last closes it.
 		lines[-1] = lines[-1] + ' */'
 		lines.append((ind + 'constant SH_AW : natural := ' + str(self.shAw) + ';').ljust(55)
 			+ '-- shared-window word-address width')
@@ -3925,34 +3613,19 @@ class McuVhdEmitter():
 		return lines
 
 	def emitArbStall(self):
-		'''CPR3/R3: the ONE extra association on the mp_arbiter port map, and
-		it emits nothing without an aperture fabric -- which is what keeps the
-		golden master byte-identical while the port itself (default \'0\')
-		keeps every other instantiation legal.'''
+		'''The one extra association on the mp_arbiter port map, emitting nothing without an aperture
+		fabric. That keeps the golden master byte-identical, while the port's default '0' keeps every
+		other instantiation legal.
+		'''
 		if not self.apertures():
 			return []
 		return ['            s_stall => tcmw_stall,   -- TCM aperture read in flight']
 
 	def emitTcmApertures(self):
-		'''CPR3/R3: the read-only TCM aperture sequencer (the behavioural half;
-		the declarations and the whole rationale are in emitTcmApertureDecls).
-
-		SHIM CLASS, and why it is not one of the existing ones: the shared
-		banks and the registered-read peripherals are ONE-CYCLE slaves -- CEN
-		and address at the s_en cycle, Q valid the next cycle, done on the
-		third. That model has no room for a 6-mclk tile-side transaction, and
-		there is no combinational-read bridge trick available either (the I2C
-		bridge solves the opposite problem: data arriving too EARLY and
-		collapsing). So this is a THIRD class: a stalling sequencer. It keeps
-		the one-cycle enable strobe every other slave sees, and extends the
-		arbiter\'s LATCH bubble instead of the strobe.
-
-		THE ONE-SHOT REARM (CPR2 R4): tcm_ext_req is raised at launch, HELD
-		until the tile\'s done pulse, and dropped on the same edge that consumes
-		it. The tile rearms on req low, and the next aperture access cannot
-		arrive for at least three mclk (the arbiter still owes this transaction
-		a DATA cycle and a done cycle), so the >= 1 idle cycle the port demands
-		is structural, not a timing hope.'''
+		'''The read-only TCM aperture sequencer, behavioural half; the declarations are in
+		emitTcmApertureDecls. It keeps the one-cycle enable strobe every other slave sees and extends
+		the arbiter's LATCH bubble instead, so the idle cycle the tile needs to rearm is structural.
+		'''
 		apx = self.apertures()
 		if not apx:
 			return []
@@ -4048,9 +3721,8 @@ class McuVhdEmitter():
 			lines.append(ind * 3 + 'GWEN  => shmem_gwen_n,')
 			lines.append(ind * 3 + "RETN  => '1',")
 			if b < 4:
-				# DP-S3 3b: BLOCKPWR bits 6:3 gate shbank0-3 (reset ON;
-				# contents lost on gate). Banks 4+ (Argus 8-bank shape)
-				# stay hardwired ON — BLOCKPWR has no bits for them.
+				# BLOCKPWR bits 6:3 gate shbank0-3, reset on, and contents are lost on gate. Banks 4 and
+				# above stay hardwired on, because BLOCKPWR has no bits for them.
 				lines.append(ind * 3 + 'PGEN  => pgen_mem(' + str(3 + b) + ')  -- BLOCKPWR SYSSHB' + str(b) + 'OFF')
 			else:
 				lines.append(ind * 3 + "PGEN  => '0'")
@@ -4067,13 +3739,11 @@ class McuVhdEmitter():
 			raise Exception('MCU.vhd emitter: MUTEX register count ' + str(nMutex)
 				+ ' must be a power of two (exact word alias, mutex_bank AW)')
 		mw = self.masterW()
-		# The description's owner-marker field must be exactly MW+1 bits wide:
-		# mutex_bank.vhd:70-71 zeroes rdata_reg and then drives only
-		# rdata_reg(MW downto 0), so bits 31:MW+1 read 0 and a wider published
-		# field describes a register the chip does not have. generate.py sizes
-		# MTXOWNn from the same expression as masterW(); this is the guard that
-		# they cannot drift apart -- and it raises rather than emitting VHDL,
-		# so it changes no line of MCU.vhd.
+		# The description's owner-marker field must be exactly MW+1 bits wide: mutex_bank.vhd:70-71
+		# zeroes rdata_reg and then drives only rdata_reg(MW downto 0), so bits 31:MW+1 read 0 and a
+		# wider published field describes a register the chip does not have. generate.py sizes
+		# MTXOWNn from the same expression as masterW(), and this guard is what stops the two
+		# drifting. It raises rather than emitting VHDL, so it changes no line of MCU.vhd.
 		ownerMsb = None
 		for bf in self.periph('MUTEX').Registers[0].BitFields:
 			if not bf.Unused:
@@ -4108,34 +3778,23 @@ class McuVhdEmitter():
 		return lines
 
 	def emitPwrInstance(self):
-		'''pwr0 (A2): NHARTS generic emitted when != the RTL default 4. The
-		description's PWRSR word count is cross-checked against the nibble-
-		array formula ceil(N/8) (RAISES on drift, like the CLINT layout).
-
-		CP2: N here is pwrHarts, NOT numHarts. The orchestrator hart sits
-		outside the MTCMOS fabric (CP1 D2 — the centre band has no power
-		intent; a gateable-in-RTL orchestrator would be the hw_clint_en
-		silicon lie again), so pwr_ctrl keeps rows for the gateable tiles
-		only. Consequence, stated because software will meet it: at
-		numHarts=5 PWRCR has NO bit 4 and PWRSR has no nibble 4 — the
-		orchestrator reads back exactly like hart 0 (0, writes ignored), and
-		the harvested-boot PWRCR <- 0xFFFFFFFF gates tiles 1-3 and leaves the
-		orchestrator running, which is the wanted semantics.'''
+		'''pwr0: the NHARTS generic is emitted when it differs from the RTL default, and the PWRSR word
+		count is cross-checked against ceil(N/8). N is pwrHarts, not numHarts, because the
+		orchestrator sits outside the MTCMOS fabric and has no PWRCR bit or PWRSR nibble.
+		'''
 		n = self.pwrHarts()
 		nsrw = (n + 7) // 8
-		# DP-S3: the register set is PWRCR(0) + PWRSR words 1..ceil(N/8) +
-		# PWRWAKE(5)/PWRSTS(6) at FIXED slots — PWRSR must stay below 5 and
-		# the description's top slot must be PWRSTS. Cross-checked like the
-		# CLINT layout (RAISES on drift).
+		# The register set is PWRCR(0), PWRSR words 1..ceil(N/8), then PWRWAKE(5) and PWRSTS(6) at
+		# fixed slots, so PWRSR must stay below 5 and the description's top slot must be PWRSTS.
+		# Cross-checked like the CLINT layout, and raises on drift.
 		if nsrw >= 5:
 			raise Exception('MCU.vhd emitter: PWRSR nibble array (ceil(N/8) words) collides '
 				+ 'with the DP-S3 PWRWAKE/PWRSTS words 5/6 ' + EMDASH + ' N > 32 unsupported')
 		slots = sorted(r.RegisterMemorySlot for r in self.periph('PWRCTRL').Registers)
-		# Word 7 is TASKWKM, the event-fabric task-wake mask (pwr_ctrl.vhd
-		# W_TASKWKM = 7). It was decoded by the RTL and absent from the
-		# description until 2026-09-10; this cross-check now requires it, so a
-		# description that drops it again raises here rather than silently
-		# publishing a register map missing a register.
+		# Word 7 is TASKWKM, the event-fabric task-wake mask (pwr_ctrl.vhd W_TASKWKM = 7). The RTL
+		# decoded it while the description lacked it, so this cross-check requires it and a
+		# description that drops it raises here rather than publishing a register map missing a
+		# register.
 		expected = [0] + list(range(1, nsrw + 1)) + [5, 6, 7]
 		if slots != expected:
 			raise Exception('MCU.vhd emitter: PWRCTRL register layout does not match the A2 '
@@ -4177,16 +3836,15 @@ class McuVhdEmitter():
 		lines.append('            field_detect => ' + ties[2] + ',')
 		lines.append('            pgood_rstn   => pgood_rstn')
 		lines.append('        );')
-		# digperiphs (EVFAB): the T5 tile-wake task
+		# The T5 tile-wake task
 		return self.evfabInsertTaps(lines, '            pd_rstn   => pd_rstn,', 'pwr0')
 
 	def emitTileRstn(self):
-		# DP-S3: pgood_rstn (the HOLD-IN-RESET boot gate) folds into EVERY
-		# hart's outer reset — the tiles extend the M17 pd_rstn fold and hart 0
-		# gains the fold it never had. A held hart issues no sh_req (the M12
-		# outer-reset qualification), so the arbiter sees the same bus silence
-		# pd_rstn already guarantees. pgood_rstn resets '1' and is stuck there
-		# unless a strap/software arms the gate — every normal boot unperturbed.
+		# pgood_rstn, the hold-in-reset boot gate, folds into every hart's outer reset: the tiles
+		# extend the pd_rstn fold and hart 0 gains the fold it never had. A held hart issues no
+		# sh_req, under the outer-reset qualification, so the arbiter sees the same bus silence
+		# pd_rstn already guarantees. pgood_rstn resets '1' and stays there unless a strap or
+		# software arms the gate, so a normal boot is unperturbed.
 		lines = ['    tile_rstn(' + str(h) + ') <= resetn and pd_rstn(' + str(h) + ') and pgood_rstn;'
 			for h in range(1, self.tileTop())]
 		if self.orch:
@@ -4197,10 +3855,9 @@ class McuVhdEmitter():
 		return lines
 
 	def emitIsoClamps(self):
-		# Clamps exist per POWER DOMAIN, so hart 0 has no clamp row — its
-		# outputs reach the arbiter and the tb directly. CPR3/R2: on an
-		# orchestrator config hart 0 IS the orchestrator, so that sentence
-		# needs no exception any more.
+		# Clamps exist per power domain, so hart 0 has no clamp row: its outputs reach the arbiter
+		# and the testbench directly. On an orchestrator configuration hart 0 is the orchestrator,
+		# so that statement needs no exception.
 		n = self.tileTop()
 		lines = []
 		for h in range(1, n):
@@ -4216,31 +3873,27 @@ class McuVhdEmitter():
 				('arb_lock(' + hs + ')', 'tile' + hs + '_lock_raw', "'0'", False),
 				('a0_' + hs, 'a0_' + hs + '_raw', "(others => '0')", False),
 			]
-			# D2: dbg_halted is the EIGHTH clamped tile output. It must be here or
-			# a dark tile's unpowered output propagates into the always-on Debug
-			# Module. Clamping it to '0' is necessary and NOT sufficient -- '0' is
-			# indistinguishable from "running" -- which is why dbg_unavail exists
-			# and why the DM consults it BEFORE halted (d2_spec 5).
+			# dbg_halted is the eighth clamped tile output. It must be here or a dark tile's unpowered
+			# output propagates into the always-on Debug Module. Clamping it to '0' is necessary and
+			# not sufficient, because '0' is indistinguishable from running, which is why dbg_unavail
+			# exists and why the DM consults it before halted.
 			if self.debug:
 				rows.append(('dbg_halted(' + hs + ')', 'dbg_halted_raw(' + hs + ')', "'0'", False))
-			# CPR3/R3: the TCM aperture port's outputs. THE CLAMP ON
-			# tcm_ext_done IS THE WHOLE OF R4-A2: it is correct (a dark tile
-			# must not drive the always-on fabric) and it means a gated tile
-			# can never complete a transaction that was initiated from OUTSIDE
-			# it. The aperture FSM therefore synthesizes its own
-			# completion-with-zeros off the same pd_iso_en/tile_rstn state,
-			# and never waits on this wire for a tile it knows is dark.
+			# The TCM aperture port's outputs. The clamp on tcm_ext_done is correct, since a dark tile
+			# must not drive the always-on fabric, and it means a gated tile can never complete a
+			# transaction initiated from outside it. The aperture FSM therefore synthesizes its own
+			# completion-with-zeros off the same pd_iso_en and tile_rstn state, and never waits on this
+			# wire for a tile it knows is dark.
 			if self.apertures():
 				rows.append(('tcm_ext_rdata(' + str(32 * h + 31) + ' downto ' + str(32 * h) + ')',
 					'tile' + hs + '_tcmrd_raw', "(others => '0')", True))
 				rows.append(('tcm_ext_done(' + hs + ')', 'tile' + hs + '_tcmdone_raw', "'0'", False))
-			# An overlay that puts hardware inside the channel tiles adds its
-			# outbound signals' clamp rows here, so they get the same treatment
-			# every other tile output does: a dark tile drives nothing into the
-			# always-on fabric.
+			# An overlay that puts hardware inside the channel tiles adds its outbound signals' clamp
+			# rows here, so they get the same treatment every other tile output does: a dark tile
+			# drives nothing into the always-on fabric.
 			rows.extend(self.overlay.call('mcuIsoClamps', default=[], emitter=self, hart=h))
-			# golden-master columns: short lines pad the LHS to 24 and the RHS
-			# to 16; the long addr/wdata pair aligns to itself with 1 space
+			# Golden-master columns: short lines pad the left side to 24 and the right to 16; the long
+			# addr and wdata pair aligns to itself with one space.
 			lhsPad, rhsPad, longPad = 24, 16, 0
 			for lhs, rhs, els, lng in rows:
 				if lng:
@@ -4259,8 +3912,8 @@ class McuVhdEmitter():
 	def tileInstance(self, h):
 		hs = str(h)
 		lines = []
-		# An overlay may bind the channel tile to its own pure-wiring wrapper
-		# around this same hart_tile (extra macro, extra pins, same hart).
+		# An overlay may bind the channel tile to its own pure-wiring wrapper around this same
+		# hart_tile: extra macro, extra pins, same hart.
 		lines.append('    hart' + hs + ': entity work.'
 			+ self.overlay.call('mcuTileEntity', default='hart_tile', emitter=self))
 		lines.append('        generic map (')
@@ -4286,8 +3939,8 @@ class McuVhdEmitter():
 			lines.append("            -- ONE external-IRQ wire per tile, the irq_router's registered claim/complete output (routing/masking lives in the router rows; the tile hardwires its three live slots)")
 		lines.append('            meip_in   => meip(' + hs + '),')
 		if self.debug:
-			# D2: dbg_halted leaves a GATEABLE domain, so it lands on _raw and
-			# passes the M17 iso clamp with every other tile output.
+			# dbg_halted leaves a gateable domain, so it lands on _raw and passes the iso clamp with
+			# every other tile output.
 			lines.append('            dbg_haltreq      => dbg_haltreq(' + hs + '),')
 			lines.append('            dbg_resethaltreq => dbg_resethaltreq(' + hs + '),')
 			lines.append('            dbg_halted       => dbg_halted_raw(' + hs + '),')
@@ -4319,15 +3972,13 @@ class McuVhdEmitter():
 		return lines
 
 	def emitTileInstances(self):
-		# The hart_tile instances are the gateable tiles 1..N-1. CPR3/R2: that
-		# is EVERY hart but hart 0 in both shapes -- the orchestrator is hart 0
-		# and rides the hart0-instance region (bound to orch_tile there), so
-		# this loop no longer stops short of anything and the CP2
-		# --@GEN:orch-instance@ region is retired.
-		# The two-line banner moved in from the template (mcu_hart, 2026-08-24) so
-		# it goes away with the instances it introduces: at N = 1 there are no
-		# tiles and a heading over nothing describes hardware this chip has not
-		# got. Emitted character for character as the template carried it.
+		# The hart_tile instances are the gateable tiles 1..N-1, which is every hart but hart 0 in
+		# both shapes: the orchestrator is hart 0 and rides the hart0-instance region, bound to
+		# orch_tile there.
+		# The two-line banner is emitted here rather than carried by the template so it goes away
+		# with the instances it introduces: at N = 1 there are no tiles and a heading over nothing
+		# describes hardware the chip has not got. Emitted character for character as the template
+		# carried it.
 		if self.tileTop() <= 1:
 			return []
 		lines = ["    -- The tile harts: each is a full core plus its own adddec and private TCM (RAM0 at 0x8000), reset to PC 0x0 to fetch the shared boot ROM through the arbiter, where the bootrom's mhartid dispatch parks them in WFI until hart 0 loads and ignites them over CLINT msip and the boot mailboxes.",
@@ -4339,18 +3990,10 @@ class McuVhdEmitter():
 		return lines
 
 	def tcmExtPortLines(self, h):
-		'''CPR3/R3: the four tcm_ext_* associations on hart h's instance, or
-		nothing at all when the config has no aperture fabric (which keeps the
-		N=4 golden master byte-identical -- the ports carry fail-safe defaults
-		precisely so an unwired instance is unchanged, CPR2 R4).
-
-		Hart 0 (the orchestrator) drives the aperture nets DIRECTLY, exactly as
-		it drives arb_req(0) directly: it is always-on, there is no domain and
-		no clamp. Every tile drives tile<h>_tcmrd_raw / tile<h>_tcmdone_raw and
-		passes the M17 isolation clamps with its other outputs -- which is the
-		mechanism R4-A2 warns about, because a clamped tcm_ext_done means a dark
-		tile NEVER completes and the aperture FSM must synthesize the
-		completion itself.'''
+		'''The four tcm_ext_* associations on hart h's instance, or nothing without an aperture fabric.
+		Hart 0 drives the aperture nets directly, being always-on; every tile passes the isolation
+		clamps, so a clamped tcm_ext_done means the aperture FSM must synthesize the completion.
+		'''
 		if not self.apertures():
 			return []
 		hs = str(h)
@@ -4449,7 +4092,6 @@ class McuVhdEmitter():
 			lines.append(line)
 		return lines
 
-	# ------------------------------------------------------------------
 
 	def emitRegion(self, name):
 		if name == 'a0-ports':
@@ -4576,9 +4218,8 @@ class McuVhdEmitter():
 		if name == 'jtag-ports':
 			return self.emitJtagPorts()
 		if name.startswith('overlay-'):
-			# The three generic extension markers in MCU.template.vhd. Empty
-			# with no overlay, which is what keeps the template's own marker-set
-			# gate satisfied either way.
+			# The three generic extension markers in MCU.template.vhd. Empty with no overlay, which is
+			# what keeps the template's own marker-set gate satisfied either way.
 			return self.overlay.lines('mcuRegion', emitter=self, region=name)
 		if name == 'debug-decls':
 			return self.emitDebugDecls()
@@ -4644,7 +4285,7 @@ def loadSideBlocks(path, tag):
 				blocks[m.group(1)] = cur
 			elif cur is not None:
 				cur.append(line)
-	# strip one trailing blank line per block (the inter-block separator)
+	# strip one trailing blank line per block, the inter-block separator
 	for name in blocks:
 		while blocks[name] and blocks[name][-1] == '':
 			blocks[name].pop()
@@ -4687,78 +4328,74 @@ def generateMcuVhd(gen, templatePath, outPath):
 
 	expected = set(['irq-signal-decls', 'irq-comb', 'shslv-subdecode', 'shslv-rd-sel', 'rdata-bridge',
 		'sh-rdata-mux', 'polarity-shims',
-		# digperiphs #1: page-0 slot 12 (0x4C00) real estate (AFE stubs / QSPI0)
+		# page-0 slot 12 (0x4C00) real estate: AFE stubs or QSPI0
 		'slot12-decls', 'slot12-instances',
-		# digperiphs #2: I3C0 in MUTEX-page (page 2) sub-slot 1 @0x6100
+		# I3C0 in mutex-page sub-slot 1 at 0x6100
 		'i3c-decls', 'i3c-instance',
-		# digperiphs #3: NFC0 in MUTEX-page (page 2) sub-slot 2 @0x6200 +
-		# the geometry-driven glitch-filter region (NFC needs a 4th instance)
+		# NFC0 in mutex-page sub-slot 2 at 0x6200, plus the geometry-driven glitch-filter region,
+		# because NFC needs a fourth instance
 		'nfc-decls', 'nfc-instance', 'irq-gf-decls', 'irq-gf-instances',
-		# digperiphs #4: RTC0 in MUTEX-page (page 2) sub-slot 5 @0x6500
+		# RTC0 in mutex-page sub-slot 5 at 0x6500
 		'rtc-decls', 'rtc-instance',
-		# digperiphs #5: PWM0 in MUTEX-page (page 2) sub-slot 6 @0x6600
+		# PWM0 in mutex-page sub-slot 6 at 0x6600
 		'pwm-decls', 'pwm-instance',
-		# digperiphs #5: OW0 (1-Wire master) in MUTEX-page (page 2) sub-slot 7 @0x6700
+		# OW0, the 1-Wire master, in mutex-page sub-slot 7 at 0x6700
 		'ow-decls', 'ow-instance',
-		# digperiphs #6: DMA0 in MUTEX-page (page 2) sub-slot 8 @0x6800 (+ the arbiter
-		# fabric widening emitted through arb-fabric-decls / arb-generic / resv-generic /
-		# mutex-instance / irq-router-instance / sh-master-decl)
+		# DMA0 in mutex-page sub-slot 8 at 0x6800, plus the arbiter fabric widening emitted through
+		# arb-fabric-decls, arb-generic, resv-generic, mutex-instance, irq-router-instance and
+		# sh-master-decl
 		'dma-decls', 'dma-instance',
-		# D2: the Debug Module -- entity ports, decls, instance. All three
-		# emit NOTHING when debug.enable is off. D3 adds the JTAG port group
-		# (which becomes the LAST entity port group and so carries the
-		# no-trailing-`;` responsibility); the DTM instance and the OR-merge
-		# ride the debug-instance marker beside dm0, on the same knob.
+		# The Debug Module: entity ports, declarations and instance. All three emit nothing when
+		# debug.enable is off. The same knob adds the JTAG port group, which becomes the last entity
+		# port group and so carries the no-trailing-semicolon responsibility, with the DTM instance
+		# and the OR-merge riding the debug-instance marker beside dm0.
 		'dmi-ports', 'jtag-ports', 'debug-decls', 'debug-instance',
-		# OVERLAY (2026-09-12): three generic extension markers -- an entity port
-		# group (LAST in the entity, after jtag-ports), architecture declarations
-		# and architecture body. All three emit nothing with no overlay.
+		# Overlay: three generic extension markers, being an entity port group (last in the entity,
+		# after jtag-ports), architecture declarations and architecture body. All three emit nothing
+		# with no overlay.
 		'overlay-ports', 'overlay-decls', 'overlay-instance',
-		# digperiphs (I2CT): I2CT0 in MUTEX-page (page 2) sub-slot 10 @0x6A00
+		# I2CT0 in mutex-page sub-slot 10 at 0x6A00
 		'i2ct-decls', 'i2ct-instance',
-		# digperiphs (TRNG): TRNG0 in MUTEX-page (page 2) sub-slot 9 @0x6900
+		# TRNG0 in mutex-page sub-slot 9 at 0x6900
 		'trng-decls', 'trng-instance',
-		# digperiphs (EVFAB): EVFAB0 in MUTEX-page (page 2) sub-slot 11 @0x6B00 + the
-		# producer/consumer tap port-map lines on the FIXED-template instances (the
-		# timer1/npu0 tap markers live inside their side templates, so they are spliced
-		# by spliceSideBlock and never appear in the main template's seen set)
+		# EVFAB0 in mutex-page sub-slot 11 at 0x6B00, plus the producer and consumer tap port-map
+		# lines on the fixed-template instances. The timer1 and npu0 tap markers live inside their
+		# side templates, so they are spliced by spliceSideBlock and never appear in the main
+		# template's seen set.
 		'evfab-decls', 'evfab-instance',
 		'evfab-taps:gpio0', 'evfab-taps:uart0', 'evfab-taps:timer0',
-		# ... and the matching port declarations in the GPIO/UART/TIMER COMPONENT
-		# declarations those four instances bind through
+		# ... and the matching port declarations in the GPIO, UART and TIMER component declarations
+		# those four instances bind through
 		'evfab-comp:gpio', 'evfab-comp:uart', 'evfab-comp:timer',
-		# Mission B: GPIO4/GPIO5 in MUTEX-page (page 2) sub-slots 3/4 @0x6300/0x6400
+		# GPIO4 and GPIO5 in mutex-page sub-slots 3 and 4 at 0x6300 and 0x6400
 		'gpio4-decls', 'gpio5-decls', 'gpio4-instance', 'gpio5-instance',
-		# A1 N-hart regions
+		# N-hart regions
 		'a0-ports', 'arb-fabric-decls', 'clint-irq-decls', 'meip-decl', 'pd-decls',
 		'tile-raw-decls', 'sh-master-decl', 'hart0-instance', 'arb-generic', 'resv-generic',
 		'clint-instance', 'irq-router-instance', 'mutex-instance', 'pwr-instance',
 		'tile-rstn', 'iso-clamps', 'tile-instances',
-		# CPR3/R3: the read-only TCM aperture fabric -- the arbiter's s_stall
-		# association and the sequencer. Both emit NOTHING without an
-		# orchestrator, so the N=4 golden master is untouched. (The CP2
-		# 'orch-instance' region is RETIRED: the orchestrator is hart 0 now and
-		# rides the hart0-instance region.)
+		# The read-only TCM aperture fabric: the arbiter's s_stall association and the sequencer.
+		# Both emit nothing without an orchestrator, so a non-orchestrator chip is untouched.
 		'arb-stall', 'tcm-apertures',
-		# A2 geometry / NPU-conditional regions
+		# Geometry and NPU-conditional regions
 		'sh-window-const', 'memslv-decls', 'pgen-decls', 'shslv-banner', 'shared-ram-banks',
 		'npu-component', 'npu-fabric-decls', 'npu-mux-decls', 'npu-sleep-comment',
 		'npu-instance', 'npuram-instance',
-		# G1a I2C1-conditional regions (i2c1-pad-decls/instance are side-template
-		# verbatim; the other four are transcribed emitters that degrade the
-		# I2C1 rows to the hi-Z idiom when the config drops the instance)
+		# I2C1-conditional regions. i2c1-pad-decls and i2c1-instance are side-template verbatim;
+		# the other four are transcribed emitters that degrade the I2C1 rows to the hi-Z idiom when
+		# the configuration drops the instance.
 		'i2c1-pad-decls', 'i2c1-instance', 'i2c-fabric-decls', 'gpio2-af1-planes',
 		'i2c-input-muxes', 'gpio3-primary-planes',
-		# G1b UART1/SPI1/TIMER1-conditional regions (pad-decls/instances are
-		# side-template verbatim; the rest are transcribed emitters, except
-		# the four *-af-spread blocks which emit from the FromSpread altFuncs)
+		# UART1, SPI1 and TIMER1 conditional regions. The pad declarations and instances are
+		# side-template verbatim; the rest are transcribed emitters, except the four *-af-spread
+		# blocks, which emit from the FromSpread altFuncs.
 		'uart1-pad-decls', 'uart1-instance', 'spi1-pad-decls', 'spi1-instance',
 		'timer1-pad-decls', 'timer1-instance', 'mover-fabric-decls',
 		'spi1-input-taps', 'uart1-input-muxes', 'gpio1-primary-planes',
 		'gpio1-af1-planes', 'gpio2-timer-muxes', 'gpio2-primary-planes',
 		'gpio3-af1-planes', 'gpio0-af-spread', 'gpio1-af-spread',
 		'gpio2-af-spread', 'gpio3-af-spread', 'analog-tie-offs']
-		# bus:npu0/i2c1/uart1/spi1/timer1 live INSIDE their instance side blocks
+		# bus:npu0, i2c1, uart1, spi1 and timer1 live inside their instance side blocks
 		+ ['bus:' + k for k in emitter.busSpecs if k not in ('npu0', 'i2c1', 'uart1', 'spi1', 'timer1')])
 	if seen != expected:
 		raise Exception('MCU.vhd emitter: template regions ' + str(sorted(seen))

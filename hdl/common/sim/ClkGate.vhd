@@ -1,3 +1,5 @@
+-- VestaRV: behavioural clock gate
+-- Qualifies ClkIn with En without emitting a runt pulse. Simulation and FPGA only: synthesis binds the technology gating cell.
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;
@@ -12,8 +14,6 @@ entity ClkGate is
 	);
 end ClkGate;
 
--- Behavioral clock gate: qualifies ClkIn with En without emitting a runt pulse.
--- For simulation and FPGA design ONLY, synthesis infers the technology gating cell.
 
 architecture behavioral of ClkGate is
 

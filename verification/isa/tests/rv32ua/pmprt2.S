@@ -1,57 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# pmprt2.S   (P3 RED TEAM — `iret` carries a PHANTOM PMP DATA CHECK at
-#             ALU_Result = 0x00000000)
-#-----------------------------------------------------------------------------
-# ON-ONLY DIRECTED TEST (needs a trapCsr+umode+pmp build).
-#
-# THE HYPOTHESIS (kickoff red-team item 3, confirmed by RTL reading).
-#   maindec.vhd:1073-1082
-#       read_data_flag <= '1' when op = I_LOAD_OPCODE else
-#                         '1' when (op = CUSTOM_OPCODE and funct3 = "000"
-#                                   and funct7 = "0000000") else ...
-#       mem_access_instr <= read_data_flag or write_data_flag;
-#   i.e. `iret` (CUSTOM_OPCODE f3=000 f7=0000000) is a MEMORY READ to the
-#   decoder.  vesta's EXECUTE dispatch therefore takes the generic memory arm
-#   (vesta.vhd:2201-2205, ABOVE the `isr_ret` arm at 2247) and issues a real
-#   bus read at `ALU_Result`.  For the canonical encoding
-#   (`.insn r 0x0b,0,0,x0,x0,x0`, riscv_test.h:21-23) alu_control is ADD and
-#   ALU_src is '0' (maindec.vhd:1101 / 1008), so ALU_Result = x0 + x0 = 0 —
-#   the read lands on address 0x00000000, THE SHARED BOOT ROM.
-#
-#   P3 then hangs its data-side check on exactly that decode
-#   (vesta.vhd:1789-1793: `mem_access_controller='1' and wen_controller="1111"`
-#   => pmp_d_rd), so a PMP map that denies address 0 makes a LEGAL M-mode
-#   `iret` take a spurious LOAD ACCESS FAULT (cause 5, mtval 0).
-#
-# CLASSIFICATION IF IT BITES: DoS on M-mode (a legal, privileged instruction
-# is denied), NOT an escape.  It also mis-attributes: mtval reports 0, an
-# address the instruction never names.
-#
-# TWO INDEPENDENT ARMS, both non-fatal so BOTH are always observed:
-#   ARM A  MPRV=1 / MPP=U with an unlocked NA4 fence on address 0.  The
-#          effective DATA privilege is U, the fetch stays M.
-#   ARM B  a LOCKED NA4 fence on address 0, executed in plain M with MPRV=0
-#          (locked entries enforce on M — p0_specs.md §4).  This is the pure
-#          M-mode denial-of-service, with no MPRV involved at all.
-# ARM B is LAST because a lock releases only at reset.
-#
-# The verdict is a composite: t4 = 100 + s0 where s0 bit0 = ARM A faulted,
-# bit1 = ARM B faulted.  t4 = 100 (s0 = 0) is the spec-correct outcome and
-# the test PASSes; 101 / 102 / 103 name which arm(s) bit.
-#
-# POSITIVE CONTROL (CHECK 6): the same `iret` with an EMPTY map must retire
-# through IRQ_REST and resume at mem[sp].  Without it a "no fault" result
-# would be indistinguishable from a broken vehicle.
-#
-# BOUNDEDNESS: no loop anywhere.  Every `iret` either resumes at the word
-# planted at mem[sp] or lands in the handler, which resumes at s7.
-#
-# REGISTER CONTRACT:
-#   s0 verdict accumulator   s3 trap counter   s4/s5/s6 cause/mepc/mtval
-#   s7 handler resume PC     s11 trap count snapshot        t4 CHECK ID
-#*****************************************************************************
+# VestaRV: red team, `iret` carries a phantom PMP data check at address 0
+# ON-ONLY, needing a trapCsr, umode and pmp build. THE HYPOTHESIS: maindec sets read_data_flag for the custom opcode with funct3 = 000 and funct7 = 0000000, and mem_access_instr is read_data_flag or write_data_flag, so `iret` IS A MEMORY READ TO THE DECODER. vesta's EXECUTE dispatch therefore takes the generic memory arm, which sits above the isr_ret arm, and issues a real bus read at ALU_Result. For the canonical encoding `.insn r 0x0b,0,0,x0,x0,x0` the ALU control is ADD with ALU_src low, so ALU_Result is x0 + x0 = 0 and the read lands on address 0x00000000, THE SHARED BOOT ROM. The data-side PMP check hangs on exactly that decode, so a map that denies address 0 makes a legal M-mode `iret` take a spurious LOAD ACCESS FAULT with cause 5 and mtval 0.
+# CLASSIFICATION IF IT BITES: denial of service on M-mode, a legal privileged instruction being denied, NOT an escape. It also mis-attributes, reporting an mtval of 0, an address the instruction never names.
+# TWO INDEPENDENT ARMS, both non-fatal so both are always observed. ARM A uses MPRV = 1 with MPP = U and an unlocked NA4 fence on address 0, so the effective data privilege is U while the fetch stays M. ARM B uses a LOCKED NA4 fence on address 0 executed in plain M with MPRV = 0, since locked entries enforce on M, which is the pure M-mode denial of service with no MPRV involved. ARM B RUNS LAST, because a lock releases only at reset.
+# The verdict is composite: t4 = 100 + s0, where s0 bit 0 means arm A faulted and bit 1 means arm B faulted, so t4 = 100 is the spec-correct outcome and the test passes, while 101, 102 and 103 name which arms bit.
+# POSITIVE CONTROL: the same `iret` with an EMPTY map must retire through IRQ_REST and resume at mem[sp]. Without it a "no fault" result would be indistinguishable from a broken vehicle. Boundedness: no loop anywhere, and every iret either resumes at the word planted at mem[sp] or lands in the handler, which resumes at s7.
+# REGISTER CONTRACT: s0 the verdict accumulator, s3 the trap counter, s4, s5 and s6 cause, mepc and mtval, s7 the handler resume PC, s11 the trap-count snapshot, t4 the CHECK ID.
 
 #include "riscv_test.h"
 #include "test_macros.h"

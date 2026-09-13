@@ -1,3 +1,6 @@
+// VestaRV: commune runtime startup and interrupt wrapper
+// Sets the stack, clears BSS, copies .data, then calls main. The IRQ wrapper saves only the RISC-V ABI caller-saved registers (x3, x4, x8, x9 and x18-x27 are left to the handler); ENABLE_FASTIRQ swaps it for the banked-register path.
+
 //; Only save registers in IRQ wrapper that are to be saved by the caller in
 //; the RISC-V ABI, with the excepetion of the stack pointer. The IRQ handler
 //; will save the rest if necessary. I.e. skip x3, x4, x8, x9, and x18-x27.

@@ -1,23 +1,10 @@
 #!/usr/bin/env python3
-"""Prepend the SPI-flash load/execute header to an RCF image, out of place.
+"""VestaRV: prepend the SPI-flash load and execute header to an RCF image, out of place.
 
-Python port of verification/isa/flash_prepend.sh's transform, byte-compatible
-with its output, but pure input -> output (no in-place rename, no glob):
-  * emit the command header for the interrupt vector area at 0x8000
-    (0x10adbeef, start 0x8000, end 0x8200, 128 zero words),
-  * split the program into load regions: only a run of >= GAP_MIN zero words
-    separates regions, and every region carries REGION_PAD trailing zero
-    words (the M19c straddled-IRET fix; both rules only ever ADD words),
-  * each region becomes 0x10adbeef, start, end (exclusive), data words,
-  * final word 0xcafebabe (execute).
-
-Refuses an input that already starts with the command word (K5 guard).
-
-Usage: rcf_flash.py INPUT.rcf OUTPUT.rcf [--basename-len N]
-
---basename-len asserts OUTPUT's basename is exactly N characters (the VHDL
-TEST_FILE : string(1 to 29) contract is "../rcf/" + a 22-char x-padded name);
-the caller chooses the padded name, this only enforces the contract.
+Byte-compatible with flash_prepend.sh but pure input to output. Emits the 0x8000 vector-area
+header, then one load region per program run, splitting only on a gap of at least GAP_MIN zero
+words and padding each region with REGION_PAD trailing zeros, then 0xcafebabe. Refuses an input
+that already starts with the command word. --basename-len asserts the 22-char padded name.
 """
 
 import argparse

@@ -7,7 +7,7 @@
 # //platform/common:chip_artifacts_castalia_b. The two labels are spliced into
 # the shared analysis order at the two positions defs.bzl names, and nothing in
 # the source tree holds a second copy of the RTL. This is the //opensource_sim/
-# mcu_hart pattern, applied to the other end of the knob space.
+# asic_default pattern, applied to the other end of the knob space.
 #
 # WHAT IT ADDS OVER :mcu_elaborate. CastaliaB turns on every selectable isa.*
 # extension plus U-mode and PMP, so the generate arms this design binds are not
@@ -23,10 +23,10 @@
 # zero and therefore need a simulation. The ROM is empty; the run reads no
 # memory contents.
 #
-# NO BOOT TEST HERE. //opensource_sim/mcu_hart:mcu_hart_boot grades a banner out
-# of a hand-written single-hart bench (mcu_hart_boot_tb.vhd); the five-hart
-# equivalent does not exist, and the tracked five-hart boot path is graded by the
-# cosim tier instead. The bar this package sets is the same one
+# NO BOOT TEST HERE. //opensource_sim/asic_default:asic_default_boot grades a
+# banner out of a hand-written single-hart bench (asic_default_boot_tb.vhd);
+# the five-hart equivalent does not exist, and the tracked five-hart boot path
+# is graded by the cosim tier instead. The bar this package sets is the same one
 # //platform/common:castalia_b_generation_test sets one layer down, carried
 # further: the all-on RTL binds a hierarchy and its size contracts hold.
 

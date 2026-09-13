@@ -1,68 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shirq.S  (M7a; M12 single-ROM boot rework)
-#-----------------------------------------------------------------------------
-# HART-GENERIC tile-IRQ-fan-out test — the M7a signature test.
-#
-# M12: tiles are NO LONGER preloaded. Hart 0 stages this TCM image once and
-# launches all three tiles into tile_entry through the bootrom loader
-# (mp_boot.h); each tile then parks on TURN just as before. The launch's msip
-# is the ROM loader's; the routed UART IRQ that later wakes each tile is taken
-# by the tile's OWN slot-15 ISR (copied into its TCM). TURN, the router
-# protocol, and the sleep/wake dance are all unchanged.
-#
-# Before M7a, peripheral IRQs terminated ONLY in hart 0's SYSTEM; tiles had
-# just the hardwired CLINT slots 83/84. M7a fans the deglitched peripheral
-# levels out to every tile, gated per hart by the shared-window IRQ ROUTER at
-# 0x7000 (page-0x6000 slot 9): per hart h, HhENL/HhENM/HhENU at
-# 0x7000 + 0x10*h + 0/4/8 = irq_en[31:0]/[63:32]/[84:64], contiguous packing
-# both directions (deliberately NOT SYSTEM0's ENU write quirk). Reset = all
-# masked.
-#
-# THIS TEST (M19 claim/complete rework — the delivery path changed, the
-# protocol did not): harts 1-3 IN TURN route the shared UART0's TX-complete
-# IRQ (source IRQB_UART0_TC = 15 -> HhENL bit 15) to THEMSELVES through the
-# arbiter, then SLEEP (extinguish, clk_cpu off). Hart 0 transmits a byte on
-# the shared UART0; the UTCIF level raises the routed hart's meip (IVT slot
-# 85), which wakes it into the env MEIP_DISPATCHER: CLAIM returns 15, the
-# dispatcher jalr's through IVT slot 15 into the .isr_uart0_tc HANDLER
-# (plain-ret ABI) which clears the UART level THROUGH THE ARBITER, un-routes
-# itself, ignites, and rets; the dispatcher COMPLETEs source 15 and irets;
-# the woken mainline reports DONE. Hart 0 then verifies UTCIF==0 and the
-# router row ==0 (the handler really ran on the other hart), and moves to
-# the next hart. So each round proves: router row write by tile hart ->
-# meip delivery -> wake from sleep -> claim -> IVT-table dispatch ->
-# handler shared-window accesses -> complete -> route teardown.
-#
-# Shared words (>= 0x10190, clear of all earlier tests' words):
-#     TURN     = 0x10190                  which hart's round it is (zero-init)
-#     READY[h] = 0x101A0 + 4*h            0x4EAD0000+h before hart h sleeps
-#     DONE[h]  = 0x101A0 + 4*NHARTS + 4*h 0xD01E0000+h after hart h wakes
-# Argus A3: DONE base = READY_BASE + 4*NHARTS (placed after the NHARTS-sized
-# READY array so it can't overrun at N=18). N=4: DONE base 0x101B0 (unchanged);
-# N=18: READY 0x101A4..0x101E4, DONE 0x101EC..0x1022C, all < 0x10500.
-# (next free shared word: 0x101C0 at N=4)
-#
-# RACE NOTES:
-#  * router-write-before-transmit: hart h writes its ENL BEFORE READY[h]; the
-#    arbiter serializes, so hart 0 observing READY[h] implies the route is up.
-#  * sleep-before-IRQ: as in shwfi — hart 0 needs >= 2 more shared txns
-#    (DONE==0 check, TX write) after observing READY, while hart h
-#    extinguishes on its very next private instruction.
-#  * one-route-at-a-time: each ISR clears ITS OWN row before the next round,
-#    so a later transmit's UTCIF can never IRQ an earlier (awake) hart.
-#
-# Hart 0 never takes UART IRQs itself: its router row (row 0 — LIVE since
-# M19) resets all-masked and this test never writes it (CR.TCIE is set,
-# which feeds the level into irq_comb — masked at hart 0, ROUTED at the
-# tiles). Claim also guarantees exactly-once: even a multi-hart route could
-# not double-deliver.
-#
-# SMCLK RULE (M6 war story): the ROM bootrom parks SMCLK on LFXT mid-boot;
-# hart 0 writes SYS_CLK_CR=0 (HFXT) before any UART use. BR=1 -> ~13.3us
-# frames; all polls bounded 20000 (trip inside the 100ms tb watchdog).
-#*****************************************************************************
+# VestaRV: tile IRQ fan-out through the shared IRQ router
+# Deglitched peripheral levels reach every tile, gated per hart by the IRQ ROUTER at 0x7000 in the shared window: per hart h, HhENL/HhENM/HhENU at 0x7000 + 0x10*h + 0/4/8 are irq_en[31:0], [63:32] and [84:64], contiguously packed in both directions (deliberately NOT SYSTEM0's ENU write quirk). Reset is all-masked.
+# Harts 1..N-1 in turn route the shared UART0's TX-complete source (IRQB_UART0_TC = 15, HhENL bit 15) to themselves through the arbiter, then sleep on extinguish with clk_cpu off. Hart 0 transmits a byte; the UTCIF level raises the routed hart's meip (IVT slot 85), waking it into the env MEIP_DISPATCHER, which claims 15 and jalrs through IVT slot 15 into the plain-ret .isr_uart0_tc handler; that handler clears the UART level through the arbiter, un-routes itself, ignites and rets, the dispatcher completes source 15 and irets, and the woken mainline reports DONE. Hart 0 then requires UTCIF == 0 and the router row == 0 before the next hart's round.
+# Shared words: TURN = 0x10190 (zero-init), READY[h] = 0x101A0 + 4*h (0x4EAD0000 + h, written before hart h sleeps), DONE[h] = 0x101A0 + 4*NHARTS + 4*h (0xD01E0000 + h). DONE is placed after the NHARTS-sized READY array so it cannot overrun at N=18, where it tops at 0x1022C, below the loader rows at 0x10500.
+# RACES, and each is closed by construction: hart h writes its ENL BEFORE READY[h], and the arbiter serialises, so hart 0 seeing READY[h] implies the route is up; hart 0 needs at least two more shared transactions after seeing READY while hart h extinguishes on its very next private instruction; and each ISR clears its own row before the next round, so a later transmit cannot interrupt an earlier, awake hart. Hart 0's own router row resets all-masked and is never written here, so hart 0 never takes the UART IRQ, and claim guarantees exactly-once delivery in any case.
+# SMCLK RULE: the ROM boot parks SMCLK on LFXT mid-boot, so hart 0 writes SYS_CLK_CR = 0 for HFXT before any UART use. BR = 1 gives about 13.3 us frames, and every poll is bounded at 20000 iterations, inside the 100 ms tb watchdog.
 
 #include "riscv_test.h"
 #include "test_macros.h"

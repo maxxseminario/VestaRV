@@ -1,37 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# wpwm.S  (wound-config firmware smoke — digperiphs Stage E)
-#-----------------------------------------------------------------------------
-# PWM0 @0x6600 mclk-engine smoke: config, shadow-buffered update behavior,
-# period-event IRQ (vector 116) and SW fault-trip IRQ (vector 115) through the
-# meip dispatcher, and the fault-at-LOWER-id claim priority when BOTH pend.
-# Single-hart directed (hart 0; tiles parked).
-#
-# PWM register map (pwm_spec.md / PWM.vhd AS-BUILT; MemoryMap RegSlotPWMx*):
-#   CR 0x6600  PER 0x6604  DTY0 0x6608  DTY1 0x660C  POL 0x6618  SR 0x6620
-#   CR : PWMEN[0] CH0EN[1] CH1EN[2] PEVIE[7] FLTIE[8] FLTEN[12]
-#        FLTTRIG[14](write-1, self-clearing, reads 0) PSC[19:16]
-#   SR : FLTF[0](W1C) PEVF[1](W1C) UPDF[2](ro, shadow-pending)
-#   irq_fault (115) = FLTF & FLTIE ;  irq_evt (116) = PEVF & PEVIE
-#   Shadow-buffered: PER/DTY0/DTY1 (readback = STAGING; commit at period wrap,
-#   observable via UPDF).  POL is immediate.  Period = (PER+1) mclk at PSC=0.
-#
-# Router row 0: HhENX @0x700C, sources 115->bit19, 116->bit20.
-# IVT: per-test .ivt tail (supersedes IVT_ARM_MEIP) — .org 0x14C arms 83/84/85,
-# then slots 115/116 -> plain-ret handlers.
-#
-# PRIORITY PROOF: with the router route OFF, set both flags (PEVF from the
-# first period boundary, FLTF from a SW fault-trip). Neither delivers (route
-# off). Then enable BOTH routes in one write: the router CLAIM returns the
-# lowest pending id first = 115 (fault) before 116 (evt). Handlers stamp a
-# monotonic order counter; fault MUST be order 1, evt order 2.
-#
-# PWM0 is mclk-domain (register file on ClkMem, engine on free-running mclk) —
-# NO SYS_CLK_CR write is needed (that rule is only for smclk peripherals).
-# A large PER (0xFFFF) makes the period ~2.7ms so exactly ONE PEVF asserts in
-# the test window (the immediate first boundary at reset per_active=0).
-#*****************************************************************************
+# VestaRV: PWM0 smoke, shadow buffering and interrupt claim priority
+# Hart 0 only, tiles parked. PWM0 sits at 0x6600 and this covers configuration, shadow-buffered update behaviour, the period-event interrupt on vector 116 and the software fault-trip interrupt on vector 115 through the meip dispatcher, and the fault-at-lower-id claim priority when both pend.
+# Register map: CR 0x6600 = PWMEN[0] CH0EN[1] CH1EN[2] PEVIE[7] FLTIE[8] FLTEN[12] FLTTRIG[14], which is write-1, self-clearing and reads 0, and PSC[19:16]; PER 0x6604; DTY0 0x6608; DTY1 0x660C; POL 0x6618; SR 0x6620 = FLTF[0] and PEVF[1], both write-1-to-clear, and UPDF[2], read-only, meaning a shadow commit is pending. PER, DTY0 and DTY1 are SHADOW-BUFFERED, so a readback returns the STAGING value and the commit happens at the period wrap, observable through UPDF, while POL is immediate. The period is (PER + 1) mclk at prescaler 0.
+# Router row 0 uses HhENX at 0x700C with sources 115 and 116 at bits 19 and 20. The IVT is a per-test tail that supersedes the env's meip arming, placing plain-ret handlers at slots 115 and 116.
+# THE PRIORITY PROOF: with the route OFF, both flags are set, the period event from the first boundary and the fault from a software trip, and neither delivers. Then BOTH routes are enabled in one write, and the router's claim must return the LOWEST pending id first, the fault before the event. The handlers stamp a monotonic order counter, and the fault MUST be first.
+# PWM0 is mclk-domain, so no SYS_CLK_CR write is needed. A large period value makes the period about 2.7 ms, so EXACTLY ONE period event asserts in the test window.
 
 #include "riscv_test.h"
 #include "test_macros.h"

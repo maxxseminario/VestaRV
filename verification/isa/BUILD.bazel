@@ -1,25 +1,9 @@
-# Per-test bazel targets for the verification/isa images.
+# VestaRV: per-test bazel targets for the verification/isa images.
 #
-# This package re-expresses the CI job "Bootrom + ISA image builds", which runs
-# `./build_mp_images.sh 4 rcf_ci`, as one target per test.  build_mp_images.sh
-# builds the eight groups below and stages them, flashed and x-padded, into its
-# destination directory.
-#
-# THE POLARITY IS IN THE ACTION KEY.  The Makefile keys each ELF on its .S
-# alone, so the -march of the suite and the -DNHARTS / -DCORE_ENABLE_* defines
-# can change under a build directory that is never invalidated; that is why
-# build_mp_images.sh must `rm -rf build/` and stamp build/.imgset.  Here every
-# one of those flags is an argument of the compile action, so a polarity change
-# rebuilds precisely the images it affects.
-#
-# Only the p-mode (`-p-`) variants exist: compile_template instantiates
-# $(1)_p_tests, never $(1)_v_tests or $(1)_ps_tests.
-#
-# The test lists below are the <suite>_sc_tests lists of tests/<suite>/Makefrag,
-# which is the authority on what is live.  A .S sitting in a suite directory
-# without a Makefrag entry is NOT built here either: tests/rv32ui/ma_data.S,
-# wntag.S, wntagx.S, tests/rv32ua/d5sess.S, extprobe_template.S and the
-# dbg*mp.S one-offs that tools/build_one_rcf.sh stages by hand.
+# The Makefile keys each ELF on its .S alone, so a suite's -march and define polarity can change
+# under a build directory that is never invalidated; here every flag is an argument of the
+# compile action. Only p-mode variants exist. The lists below are tests/<suite>/Makefrag's
+# <suite>_sc_tests, the authority on what is live; a .S with no Makefrag entry is not built.
 
 load(":defs.bzl", "CI_DEFINES", "SHARED_LD", "riscv_isa_image", "riscv_isa_suite")
 load("@rules_python//python:defs.bzl", "py_test")
@@ -388,7 +372,6 @@ riscv_isa_suite(
     hdrs = _COMMON_HDRS,
 )
 
-# --------------------------------------------------------------------------
 # OPEN-SOURCE-SIM (GHDL bare-core) POLARITY
 #
 # The //opensource_sim GHDL harness enables every single-bare-core-verifiable
@@ -398,7 +381,6 @@ riscv_isa_suite(
 # opensource_sim/isa/run_isa.sh, one for one (that script's make path and
 # these targets must produce interchangeable images). No -DNHARTS: the bare
 # harness is one hart, matching run_isa.sh's own build line.
-# --------------------------------------------------------------------------
 OS_CORE_ENABLE_DEFINES = [
     "-DCORE_ENABLE_COMPRESSED",
     "-DCORE_ENABLE_ZICOND",
@@ -431,7 +413,6 @@ OS_CORE_ENABLE_DEFINES = [
     for suite, march, tests in _CI_SUITES + [("rv32uzf", "rv32imc_zfinx", _RV32UZF_TESTS)]
 ]
 
-# --------------------------------------------------------------------------
 # PRIVILEGED (trapCsr + U-mode + PMP) POLARITY
 #
 # The fifteen rv32ua tests below dispatch their real checking arm on
@@ -505,7 +486,6 @@ filegroup(
     srcs = [":ci_images", ":ci_rcfs", ":rv32uzf_flashed", ":rv32uzf_rcfs"],
 )
 
-# --------------------------------------------------------------------------
 # N=5 CROSS-CHECK IMAGES
 #
 # verification/isa/rcf/ holds the canonical Castalia set, and since CPR8/R7 it
@@ -568,7 +548,6 @@ filegroup(
     ],
 )
 
-# --------------------------------------------------------------------------
 # CONTRACT TEST
 #
 # tools/cosim/gate/bootrom_mp_rom.rcf is the ONLY tracked .rcf in the tree

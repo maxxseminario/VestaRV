@@ -1,45 +1,10 @@
 #!/usr/bin/env python3
-"""check_image_polarity.py -- the F-K7-3 TRIPWIRE (K7, 2026-08-04; R-K7-1(2)).
+"""VestaRV: tripwire on the shipped image's trap-delivery polarity.
 
-WHAT IT GUARDS, AND WHY THAT STOPPED BEING OBVIOUS AT K7.
-
-Until R-DK3 the shipped default configuration had no `-DCORE_ENABLE_*` flags at
-all, so `rcf_mapping()` aimed it at the canonical `verification/isa/rcf/`
-(`.imgset = "NHARTS=4 DEFINES=(none)"`) -- the very directory the three standing
-gates read through `../rcf/`. Gate images and shipped images were the same
-files, and nothing had to say so.
-
-R-DK3 turned `priv.trapCsr` on by default. `image_defines()` therefore emits
-`-DCORE_ENABLE_TRAPCSR`, and `rcf_mapping()` sends the shipped default to
-`k17`/`rcf_k17` -- NEVER to `rcf/`, which is by definition the no-defines set.
-So the standing gates now read an image set that no shipped configuration
-selects. That is survivable ONLY as long as every image they actually consume is
-byte-identical across the two polarities, which was measured true at K7:
-136/136 suite, 107/107 single-hart cosim, 17/17 multi-hart, 115/115 Argus.
-
-The day someone adds a test with a live `#if defined(CORE_ENABLE_TRAPCSR)` arm
-to a standing list, that stops being true SILENTLY: the gate compiles the OFF
-arm and compares it against RTL that ships the ON one. No existing check sees
-it. The suite runner has no polarity interlock at all (only the cosim runner
-does, and it refuses on the `.imgset` STAMP, which cannot see a per-image
-divergence inside an otherwise-matching set).
-
-This script is that missing check. For each standing gate list it compares every
-image byte-for-byte between the canonical set and the SHIPPED default's set, and
-FAILS naming any test whose two builds differ.
-
-METHOD NOTE (method_rules rule 4). A comparison validated only against equality
-has not been validated, so this script REQUIRES its own known-nonzero control:
-it asserts that `rocsrw` and `shapeq` -- the two ON-polarity-only tests, whose
-`#else` arm is a deliberate FAIL and whose images therefore MUST differ between
-the two sets -- do in fact differ. If they do not, the comparison is not
-working, and the script FATALs rather than reporting a clean sweep.
-
-Usage:
-    /usr/bin/python3.6 tools/cosim/check_image_polarity.py          # rc 0 / 1 / 2
-    /usr/bin/python3.6 tools/cosim/check_image_polarity.py --list   # per-list detail
-
-Python 3.6 compatible. Reads only; changes nothing.
+The standing gates read verification/isa/rcf/, the no-defines image set, while the shipped
+default now emits -DCORE_ENABLE_TRAPCSR and selects rcf_k17. That is survivable only while
+every image both sets share is byte-identical, so this compares them and names any that
+differ. Its control requires rocsrw and shapeq, the two ON-only tests, to differ.
 """
 
 import hashlib
@@ -73,7 +38,7 @@ def shipped_dirs():
     """(castalia_dir, argus_dir) -- the image dirs the SHIPPED configs select."""
     sys.path.insert(0, PC_PY)
     import json
-    import verify_stage as V  # import-safe: main() is guarded (R-K2-4)
+    import verify_stage as V  # import-safe: main() is guarded
     out = []
     for cfgfile, nharts in (('ChipConfig.resolved.json', None), ('argus.json', 18)):
         path = os.path.join(ROOT, 'platform', 'common', 'config', cfgfile)
@@ -94,8 +59,9 @@ def shipped_dirs():
 
 
 def _schema_default(key):
-    """Read one schema default straight out of generate.py's source (that file
-    is IMPORT-UNSAFE -- importing it runs a generation, R-K1-3)."""
+    """Read one schema default straight out of generate.py's source; that file is import-unsafe,
+    because importing it runs a generation.
+    """
     src = open(os.path.join(PC_PY, 'generate.py')).read()
     m = re.search(r"^\t'%s':\s*\{[^}]*'default':\s*([^,}]+)" % re.escape(key),
                   src, re.M)
@@ -171,7 +137,7 @@ def main(argv):
         print('  they are the SAME directory -- nothing to compare, tripwire vacuous.')
         return 0
 
-    # --- the known-nonzero control, BEFORE any verdict is believed ----------
+    # the known-nonzero control, BEFORE any verdict is believed
     for name, why in CONTROLS:
         x, y = md5(os.path.join(canon_c, name)), md5(os.path.join(cast, name))
         if x is None or y is None or x == y:

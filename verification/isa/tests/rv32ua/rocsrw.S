@@ -1,124 +1,14 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# rocsrw.S   (F-series fix pass, wave W5 -- the ARCHITECTURAL DETECTOR for F10)
-#-----------------------------------------------------------------------------
-# F10: a WRITE FORM aimed at a READ-ONLY CSR is accepted and silently dropped.
-#
-# THE RULE (RISC-V unprivileged spec, CSR address map):
-#     csr_addr[11:10] == "11"  =>  the CSR is READ-ONLY.  Any instruction that
-#     ATTEMPTS to write it raises an illegal-instruction exception, regardless
-#     of whether the CSR exists or of what the write value would be.
-# Everything BELOW that quadrant is writable; a WARL implementation that
-# ignores the written bits there is LEGAL and must NOT trap.
-#
-# WHERE THE RTL LOSES IT (re-grepped at 703d42a; every doc line number is stale)
-#     maindec.vhd:381-419  csr_addr_valid -- a pure ADDRESS-KNOWN map.  It
-#                          admits CSR_MHARTID (0xF14), CSR_CYCLE/TIME/INSTRET
-#                          (0xC00/01/02) and the whole hpmcounter user range
-#                          (0xC03-0xC1F, 0xC83-0xC9F) -- all of them read-only
-#                          quadrant -- with NO reference to csr_op or to the
-#                          rs1/uimm field.
-#     maindec.vhd:790-795  the SYSTEM/is_csr_instr arm reads, in full:
-#                          "if u_csr_denied = '1' then valid_funct <= '0';" and
-#                          otherwise "valid_funct <= csr_addr_valid;".
-#                          So for a KNOWN read-only address valid_funct is '1'
-#                          and trap stays '0' -- the write form never trips it.
-#     maindec.vhd:501      csr_valid <= is_csr_instr and csr_addr_valid and
-#                                       (not u_csr_denied)      -- also blind
-#                                       to the write form.
-#     csr_unit.vhd:456     csr_write_en <= csr_valid when
-#                              (csr_op(1 downto 0) = "01" or csr_rs1_zero = '0')
-#                          THE WRITE FORM IS ALREADY DECODED HERE, EXACTLY per
-#                          spec -- and it is used only as a store strobe.
-#     csr_unit.vhd:381-408 csr_addr_stores() -- 0xF14/0xC00/0xC01/... are not
-#                          in it, so csr_commit_we (:1195) stays low.
-#     NET EFFECT: write form + read-only address = a silent NOP.
-#
-# THE POLARITY TRAP THIS FILE IS BUILT AROUND
-#     Pre-fix the illegal write is a NOP, so a test runs straight past it.
-#     Post-fix it TRAPS -- and on a DEFAULT build a trap lands in the TERMINAL
-#     TRAP_STATE (self-loop, no handler, no exit), so the hart wedges, never
-#     writes a0, and the run dies on the tb watchdog.  A naive detector is
-#     therefore GREEN pre-fix and HUNG post-fix: backwards and useless.
-#     THIS file dodges that by running on a KNOBS-ON build where the trap is
-#     RECOVERABLE, so both polarities report a0 and the real architectural
-#     claim (mcause/mepc/mtval) can be asserted.  Its sibling rocsrwmp.S
-#     covers the DEFAULT build with an observer hart.
-#
-# ON-ONLY.  Requires a trapCsr staged build (CORE_ENABLE_TRAPCSR true in the
-#     flow's MemoryMap copy -- xcelium/riscv_test/behavioral_mp_umode) AND
-#     -DCORE_ENABLE_TRAPCSR on RISCV_GCC_OPTS.  The other arm FAILs loudly.
-#     NOT in the standing TEST_FILES array; do not add it.
-#
-# ---------------------------------------------------------------------------
-# STRUCTURE.  Every leg is a raw .word so gas cannot rewrite it; each encoding
-# was cross-checked against riscv-none-elf-as (all 14 matched hand assembly).
-# The handler is RESUMING (mepc+4, mret), so a leg that traps and a leg that
-# retires both continue at the very next instruction and are told apart ONLY
-# by the trap COUNTER -- no witness register can be fooled by the resume.
-#
-#   C0  POSITIVE CONTROL, both polarities: .word 0x0000007F, an opcode absent
-#       from maindec's valid_opcode list on every build.  It proves the mtvec
-#       handler, the counter, the mepc+4 resume AND the mcause/mepc/mtval
-#       plumbing are live BEFORE any F10 claim is made.  A pre-fix run that
-#       reaches the negatives has therefore validated its own instrument.
-#
-#   N1-N9  THE NEGATIVE HALF -- nine encodings that must NOT trap, ever.
-#       N1  f14022f3  csrr t0, mhartid        read of a READ-ONLY CSR
-#       N2  c0006373  csrrsi t1, cycle, 0     uimm FIELD 0 => not a write
-#       N3  f14073f3  csrrci t2, mhartid, 0   uimm FIELD 0 => not a write
-#       N4  32329073  csrw mhpmevent3, t0     0x323, WRITABLE quadrant
-#       N5  34429073  csrw mip, t0            0x344, WRITABLE quadrant, and its
-#                                             csr_unit write arm is `null`, so
-#                                             it drops exactly like a read-only
-#                                             CSR does.  THE OVER-REACH GATE.
-#       N6  32029073  csrw mcountinhibit, t0  0x320, WARL-ignore (ZIHPM off)
-#       N7  b0301073  csrw mhpmcounter3, x0   0xB03, WRITABLE quadrant
-#       N8  b0501073  csrw mhpmcounter5, x0   0xB05, dropped in BOTH ZIHPM
-#                                             polarities -- still not F10
-#       N9  30129073  csrw misa, t0           0x301, WARL-ignore
-#       N4/N7/N8 are VERBATIM three of the nine writes rv32ua-p-extzihpm
-#       executes on its default path.  Their passing IS the proof that the
-#       correctly-scoped F10 cannot move the 136/136 suite floor.
-#
-#   L1-L5  THE POSITIVE HALF -- five write forms at read-only addresses.
-#       L1  f1429073  csrw mhartid, t0        CSRRW, rs1 = t0
-#       L2  c002a373  csrrs t1, cycle, t0     CSRRS with rs1 FIELD nonzero
-#       L3  c0105073  csrwi time, 0           CSRRWI with uimm = 0: CSRRW*
-#                                             ALWAYS writes.  A fix that keys
-#                                             only on "rs1 field nonzero"
-#                                             MISSES THIS ONE.
-#       L4  c000f073  csrci cycle, 1          CSRRCI, uimm field nonzero
-#       L5  c0001073  `unimp` itself = csrrw x0, cycle, x0.  CLAUDE.md has
-#                                             always claimed unimp traps; today
-#                                             it is a silent NOP.  This leg is
-#                                             that claim, made testable.
-#
-#   L6  NO SIDE EFFECT: mhartid re-read after L1 must still be 0.
-#   TOTAL TRAP COUNT must be exactly 6 (C0 + L1-L5).  An over-reaching fix
-#   cannot satisfy that even if it somehow passed every negative leg.
-#
-# ---------------------------------------------------------------------------
-# VERDICT CODES.  a0 = 0xCAFEBABE  =>  F10 is FIXED and correctly scoped.
-# ---------------------------------------------------------------------------
-#   a1 = 0xF10F0n00   leg Ln did NOT trap  <-- THE FINDING, pre-fix value
-#   a1 = 0xF10F0n01   leg Ln trapped with mcause /= 2
-#   a1 = 0xF10F0n02   leg Ln trapped with mepc /= the faulting pc
-#   a1 = 0xF10F0n03   leg Ln trapped with mtval /= the faulting instruction
-#   a1 = 0xF10F0600   L1 COMMITTED: mhartid changed -- a trap left a side effect
-#   a1 = 0x0BAD0n01   negative leg Nn TRAPPED -- THE FIX OVER-REACHES
-#   a1 = 0x0BAD0n02   negative leg Nn returned the wrong value
-#   a1 = 0x5E100001   C0 positive control did not trap: the harness is dead,
-#                     nothing else in this file means anything
-#   a1 = 0x5E100002   wrong total trap count
-#   a1 = 0x5E100003   an mtvec / mtrapctl precondition failed
-#   a1 = 0x5E10BAD0   built on the wrong polarity
-#
-# Registers live at the verdict: s3 trap count, s4/s5/s7 last mcause/mepc/mtval.
-#
-# SHARED WORDS CLAIMED: NONE.  Single hart, TCM and CSRs only.
-#*****************************************************************************
+# VestaRV: a write form aimed at a read-only CSR must trap
+# THE RULE: csr_addr[11:10] == "11" means the CSR is READ-ONLY, and any instruction that ATTEMPTS to write it raises illegal-instruction, regardless of whether the CSR exists or of what the value would be. Everything below that quadrant is writable, and a WARL implementation that ignores the written bits there is legal and must NOT trap.
+# WHERE THE RTL LOSES IT: maindec's csr_addr_valid is a pure ADDRESS-KNOWN map with no reference to csr_op or the rs1/uimm field, and it admits mhartid, cycle, time, instret and the whole user hpmcounter range, all read-only quadrant; the SYSTEM arm then sets valid_funct from csr_addr_valid, so the write form never trips it, and csr_valid is equally blind. csr_unit ALREADY DECODES THE WRITE FORM EXACTLY PER SPEC and uses it only as a store strobe, and the read-only addresses are absent from csr_addr_stores, so the net effect is a silent nop.
+# THE POLARITY TRAP THIS FILE IS BUILT AROUND: with the defect the illegal write is a nop and a test runs straight past it, while with it fixed the write TRAPS, and on a default build a trap lands in the TERMINAL TRAP_STATE, so the hart wedges, never writes a0, and the run dies on the watchdog. A naive detector is therefore green before and hung after: backwards and useless. THIS FILE RUNS ON A KNOBS-ON BUILD WHERE THE TRAP IS RECOVERABLE, so both polarities report a0 and the architectural claim can be asserted; the sibling rocsrwmp.S covers the default build with an observer hart.
+# ON-ONLY: it needs a staged trapCsr build AND -DCORE_ENABLE_TRAPCSR on the compile options; the other arm fails loudly. NOT IN THE STANDING RUNNER ARRAY; do not add it.
+# STRUCTURE: every leg is a raw .word so gas cannot rewrite it, and each encoding was cross-checked against the assembler. The handler RESUMES at mepc+4, so a leg that traps and a leg that retires both continue at the very next instruction and are told apart ONLY by the trap counter, which no witness register can fool. C0 is the positive control in both polarities, `.word 0x0000007F`, an opcode absent from valid_opcode on every build, which proves the handler, the counter, the resume and the mcause, mepc and mtval plumbing are live before any claim is made.
+# THE NEGATIVE HALF is nine encodings that must NOT trap, ever: a read of mhartid; csrrsi on cycle with uimm field 0 and csrrci on mhartid with uimm field 0, neither of which is a write; csrw to mhpmevent3, mcountinhibit, mhpmcounter3, mhpmcounter5 and misa, all in the writable quadrant or WARL-ignore; and csrw to mip, whose csr_unit write arm is `null` so it drops exactly as a read-only CSR does, WHICH IS THE OVER-REACH GATE. Three of them are verbatim from the writes the Zihpm probe executes on its default path, so their passing is the proof that a correctly scoped fix cannot move the suite floor.
+# THE POSITIVE HALF is five write forms at read-only addresses: `csrw mhartid, t0`; `csrrs t1, cycle, t0` with a nonzero rs1 field; `csrwi time, 0`, WHICH A FIX KEYED ONLY ON "rs1 FIELD NONZERO" MISSES, because CSRRW and CSRRWI always write; `csrci cycle, 1` with a nonzero uimm field; and `unimp` itself, which is csrrw x0, cycle, x0 and has always been claimed to trap while today it is a silent nop. A sixth leg re-reads mhartid after the first and requires it unchanged, and THE TOTAL TRAP COUNT MUST BE EXACTLY SIX, which an over-reaching fix cannot satisfy even if it passed every negative leg.
+# Verdicts: a0 = 0xCAFEBABE means the behaviour is correct and correctly scoped. a1 = 0xF10F0n00 leg Ln did not trap, the finding; 0xF10F0n01 it trapped with the wrong mcause; 0xF10F0n02 with the wrong mepc; 0xF10F0n03 with the wrong mtval; 0xF10F0600 the first write COMMITTED, so a trap left a side effect; 0x0BAD0n01 negative leg Nn trapped, so the fix over-reaches; 0x0BAD0n02 negative leg Nn returned the wrong value; 0x5E100001 the positive control did not trap, so the harness is dead and nothing else in this file means anything; 0x5E100002 the wrong total trap count; 0x5E100003 an mtvec or mtrapctl precondition failed; 0x5E10BAD0 built on the wrong polarity. Registers live at the verdict: s3 the trap count and s4, s5 and s7 the last mcause, mepc and mtval. No shared words are claimed: single hart, TCM and CSRs only.
 
 #include "riscv_test.h"
 #include "test_macros.h"

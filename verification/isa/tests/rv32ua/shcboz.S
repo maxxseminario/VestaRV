@@ -1,49 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shcboz.S  (X3 Zicboz — cbo.zero directed functional test)
-#-----------------------------------------------------------------------------
-# Build-time dispatch on CORE_ENABLE_ZICBOZ (extprobe_template.S convention: the
-# macro is supplied EXPLICITLY via -DCORE_ENABLE_ZICBOZ when staging the ON
-# polarity, NEVER auto-derived from a make-chip header). This is the functional
-# proof that runs in BOTH polarities of the behavioral_mp regression:
-#
-#   OFF (#else): base-ISA sanity + RVTEST_PASS. cbo.zero is illegal here (it
-#       would trap terminally), so the default build must NOT execute it — the
-#       stub keeps the default suite green and the image bit-identical to a base
-#       build (no cbo.zero encoding is emitted).
-#
-#   ON  (#ifdef CORE_ENABLE_ZICBOZ): the full functional matrix on hart 0 (tiles
-#       stay parked — a single-hart test). For each of a PRIVATE TCM block and a
-#       SHARED-RAM block (exercising both the private and the arbiter store
-#       paths of the sequencer):
-#         * poison all 16 words of a naturally-aligned 64-byte block to 0xAA and
-#           set a sentinel GUARD word immediately BEFORE and immediately AFTER it;
-#         * cbo.zero the block; assert all 16 words == 0 AND both guards UNTOUCHED
-#           (the boundary guard — a wrong ~63 base mask clobbers a guard; a short
-#           15-word burst leaves the tail word non-zero);
-#         * repeat with a MISALIGNED base (block_base+20): cbo.zero must round the
-#           address DOWN to the same 64-byte block and zero exactly that block,
-#           leaving the guards untouched.
-#
-# CORRECTED 2026-08-03 (K2b amendment 2), MEASURED. This header used to claim
-# "gas 13.2 has no `zicboz' -march and no cbo.zero mnemonic". That is FALSE on
-# this toolchain: gas 2.41 accepts both `-march=rv32imac_zicsr_zicboz' and
-# `.option arch, +zicboz', assembles `cbo.zero (a1)' to 0x0045a00f, and refuses
-# the mnemonic without the extension. The explicit `.insn' below is KEPT, and
-# deliberately: it is march-INDEPENDENT, so ONE source serves both polarities
-# and no per-polarity -march is needed. objdump on this file's ON build shows
-# `0045a00f' at all FOUR CBO_ZERO sites -- the same word the mnemonic produces.
-#     cbo.zero rs1  ==  .insn i 0x0f, 0x2, x0, rs1, 0x4
-#
-# Shared-window map (N=4; isolation — benign overlap at other N). The block sits
-# in the free gap above the shlock JOURNAL (0x11000-0x110FF at N=4) and below
-# COUNTS (0x11800); write-before-read (the test poisons it), so initial contents
-# do not matter:
-#     SH_GUARD_LO = 0x113FC   (guard word before the shared block)
-#     SH_BLOCK    = 0x11400   (64-byte aligned block to zero)
-#     SH_GUARD_HI = 0x11440   (guard word after the shared block)
-#*****************************************************************************
+# VestaRV: cbo.zero directed functional test
+# BUILD-TIME DISPATCH on CORE_ENABLE_ZICBOZ, supplied EXPLICITLY and never auto-derived. Without it the file does base-ISA sanity and passes, emitting NO cbo.zero encoding at all, so the image stays bit-identical to a base build and the default suite stays green; with it, the full matrix runs on hart 0 while the tiles park.
+# For each of a PRIVATE TCM block and a SHARED-RAM block, exercising both the private and the arbiter store paths of the sequencer: poison all 16 words of a naturally aligned 64-byte block and set a sentinel GUARD word immediately before and immediately after it; run cbo.zero and require all 16 words to be zero AND both guards UNTOUCHED, which is the boundary guard, since a wrong base mask clobbers a guard and a short 15-word burst leaves the tail word nonzero; then repeat with a MISALIGNED base at block_base + 20, which must round DOWN to the same 64-byte block and zero exactly that block.
+# gas 2.41 DOES accept `-march=..._zicboz` and `.option arch, +zicboz` and assembles `cbo.zero (a1)` to 0x0045a00f. THE EXPLICIT `.insn` IS KEPT DELIBERATELY, because it is march-independent, so one source serves both polarities with no per-polarity -march; objdump on the ON build shows the same word at all four sites. cbo.zero rs1 is `.insn i 0x0f, 0x2, x0, rs1, 0x4`.
+# Shared words, in the free gap above one test's journal band and below another's counts, and written before read so the initial contents do not matter: SH_GUARD_LO = 0x113FC, SH_BLOCK = 0x11400, the 64-byte-aligned block, and SH_GUARD_HI = 0x11440.
 
 #include "riscv_test.h"
 #include "test_macros.h"

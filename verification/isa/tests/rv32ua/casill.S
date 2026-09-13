@@ -1,17 +1,8 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# casill.S   (X2 Zacas — amocas.d is ALWAYS illegal on RV32)
-#-----------------------------------------------------------------------------
-# amocas.d (funct3=011, funct5=00101) requires an XLEN-pair register file and is
-# UNSUPPORTED on RV32 (gate decision D5). Its width case is illegal on EVERY
-# build — Zacas ON or OFF — so this is a pure POISON: the encoding MUST take the
-# illegal-instruction trap. Run through the trap_watch harness (the a0-watch
-# runner would hang on the terminal TRAP_STATE); executing PAST it -> FAIL.
-#
-# This is the "amocas.d traps EVEN when Zacas is ON" probe: it is built and run
-# against a Zacas-ON MCU as well as the stripped build.
-#*****************************************************************************
+# VestaRV: amocas.d is always illegal on RV32
+# amocas.d, funct3 = 011 with funct5 = 00101, requires an XLEN-pair register file and is UNSUPPORTED on RV32, so its width case is illegal on EVERY build whether Zacas is on or off. This is a pure POISON: the encoding MUST take the illegal-instruction trap, and executing past it is a FAIL.
+# It is run through the trap_watch harness, because the a0-watch runner would hang on the terminal TRAP_STATE, and it is BUILT AND RUN AGAINST A Zacas-ON MCU as well as the stripped build, which is the whole point of the probe.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,60 +1,9 @@
-# The CPI measurement harness: one bazel test per image, each asserting the
-# cycle and instruction counts recorded in expected.json.
+# VestaRV: the CPI measurement harness, one bazel test per image against expected.json.
 #
-# These are the numbers TRM Section 12 ("Core Performance and Instruction
-# Timing", label s:cpi) publishes. Before this package existed the TRM quoted
-# measurements that no checked-in gate reproduced; the point of every target
-# here is that a core change which moves CPI cannot land unnoticed.
-#
-# ---------------------------------------------------------------------------
-# WHAT IS MEASURED
-# ---------------------------------------------------------------------------
-# vesta_cpi_tb.vhd is opensource_sim/isa/vesta_isa_tb.vhd's bus contract
-# (flat RAM at 0x8000, mem_ready = '1', one cycle of read latency, wen active
-# LOW) with two counters added on the FREE-RUNNING clk, so a cycle spent with
-# the core's clock gated is still charged to CPI. Instructions are counted
-# from dut.inst_retired through a VHDL-2008 external name, which is the same
-# predicate csr_unit increments minstret on, so the instruction count is
-# architectural rather than a simulation estimate and the RTL needs no new
-# port. A store to 0x00004000 is decoded as the kernel window marker, which is
-# how the benchmarks' OWN setStats(1)/setStats(0) calls delimit the measured
-# region with no edit to any benchmark source.
-#
-# ---------------------------------------------------------------------------
-# DEFAULT COVERAGE versus OPT-IN COVERAGE
-# ---------------------------------------------------------------------------
-# DEFAULT (`bazel test //verification/cpi/...`, and therefore `bazel test
-# //...`):
-#   * ALL 40 micro-kernels. They are short, deterministic and cheap, and they
-#     are what Table t:cpi-timing is made of, so nothing about the per-class
-#     table is opt-in.
-#   * The three SHORT benchmarks median, towers and vvadd, each in both the
-#     RV32IMAC and the RV32IMA build, so both the CPI table and the
-#     straddling-fetch claim have a default-gated instance.
-#
-# OPT-IN (`tags = ["manual"]`, size "enormous"; run them with
-# `bazel test //verification/cpi:cpi_full`):
-#   * The six long benchmarks dhrystone, memcpy, multiply, qsort, rsort and
-#     spmv, plus the five long RV32IMA counterparts. spmv alone is about 2.3M
-#     simulated cycles and GHDL's mcode backend runs at roughly 40k cycles a
-#     second, so the full suite is minutes of wall clock. That is the whole
-#     reason for the split: `bazel test //...` stays fast.
-#
-# This is a runtime split, NOT a coverage drop. Every image in expected.json
-# has a target, and :cpi_full runs all of them. The derived tables the TRM
-# prints are checked by :derived_tables_test, which is DEFAULT and reads the
-# recorded counts for every image including the manual ones, so a hand edit of
-# expected.json that no longer adds up is caught without simulating anything.
-#
-# ---------------------------------------------------------------------------
-# RE-RECORDING
-# ---------------------------------------------------------------------------
-# expected.json is a tracked recorded-value gate, the same idiom as
-# tools/randgen/campaign/campaign.json. A DELIBERATE core change re-records it
-# IN THE SAME COMMIT as the RTL change, together with the affected tables of
-# TRM Section 12, so the numbers, the RTL and the document move as one and
-# drift is never silent. A failing target here is therefore either a
-# regression or an un-recorded intentional change; it is never noise.
+# vesta_cpi_tb.vhd is the ISA bench's bus contract with two counters on the free-running clk,
+# so a gated-clock cycle is still charged; instructions come from dut.inst_retired, the same
+# predicate minstret increments on, and a store to 0x00004000 marks the setStats() window.
+# The 40 micro-kernels and three short benchmarks are default, the long ones manual (:cpi_full).
 
 load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 load("//opensource_sim/isa:defs.bzl", "VESTA_ISA_RTL")
@@ -99,9 +48,7 @@ ghdl_library(
     ],
 )
 
-# ---------------------------------------------------------------------------
 # Micro-kernels
-# ---------------------------------------------------------------------------
 # One pair per instruction class: NOPS=64 against NOPS=0, subtracted to remove
 # the loop's own overhead. gen_micro.py explains why every body carries
 # `.p2align 2` and why that is not cosmetic.
@@ -165,9 +112,7 @@ genrule(
     for k in _MICRO_KERNELS
 ]
 
-# ---------------------------------------------------------------------------
 # Benchmarks
-# ---------------------------------------------------------------------------
 # The nine riscv-tests benchmarks that run on a bare single hart. mm is
 # deliberately absent and that is not a silent drop: it has no main(), it is a
 # multicore thread_entry benchmark, so it has nothing to measure here.
@@ -218,7 +163,7 @@ _NOC_BENCHMARKS = [
 #
 # Consumed by //tools/build:verification_image_map_test. link_bmark.ld pins
 # .text at 0x8200 in the TCM window and bases the working set at 0x10000, the
-# shared-RAM window; before 2026-09-12 it let the working set run on from .text,
+# shared-RAM window; it used to let the working set run on from .text,
 # so a benchmark whose arrays outgrew the private TCM overran it silently (the
 # link succeeds, the .rcf has the right word count, and only the runtime is
 # wrong) and nine of them did.
@@ -229,9 +174,7 @@ filegroup(
            ["%s_noc.elf" % b for b in _NOC_BENCHMARKS],
 )
 
-# ---------------------------------------------------------------------------
 # Tests
-# ---------------------------------------------------------------------------
 [
     cpi_test(
         name = k,

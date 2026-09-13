@@ -1,15 +1,6 @@
-// ===========================================================================
-// i3c.rdl: the register map of hdl/common/periph/I3C.vhd.
-//
-// THE VHDL IS THE AUTHORITY, and I3CxCR does NOT reset to zero:
-// `I3CxCR <= (2 => '1', others => '0')` makes I3CSDAPP the one bit set out
-// of reset (push-pull SDA default). The generator models it as 0.
-//
-// A lane-0 write to I3CxCMD is the sole launch trigger, guarded by
-// I3CEN = 1 and BUSY = 0; the DAT window (slots 5-7) is a four-entry table
-// indexed by the persisted I3CIDX, and its storage lives in the
-// free-running clk domain, not in reg_write.
-// ===========================================================================
+// VestaRV: the register map of hdl/common/periph/I3C.vhd
+// The VHDL is the authority, and I3CxCR does NOT reset to zero: `I3CxCR <= (2 => '1', others => '0')` makes I3CSDAPP the one bit set out of reset (push-pull SDA default). The generator models it as 0.
+// A lane-0 write to I3CxCMD is the sole launch trigger, guarded by I3CEN = 1 and BUSY = 0; the DAT window (slots 5-7) is a four-entry table indexed by the persisted I3CIDX, and its storage lives in the free-running clk domain, not in reg_write.
 
 `include "vesta_udp.rdl"
 

@@ -1,14 +1,7 @@
-/* Privileged-polarity ISA testbench for the `vesta` core: one PMP test image per run, given by the TEST_FILE generic.
-   It is opensource_sim/isa/vesta_isa_tb.vhd's bus contract with three more generics turned on, so the core under test here differs from the one that harness proves ONLY in ENABLE_TRAPCSR, ENABLE_UMODE and ENABLE_PMP.
-   The bus contract is therefore identical: RAM base 0x8000, mem_ready = '1', byte-lane writes on wen active-LOW, and EXACTLY one cycle of read latency because the multicycle FSM has no fetch-wait state.
-   The pass and fail sentinels are the same riscv-tests values RVTEST_PASS and RVTEST_FAIL write to x10 (a0): 0xCAFEBABE passes, 0xDEADBEEF fails, and the watchdog reports a timeout.
-
-   The IF_AHEAD generic drives the core's ENABLE_IF_AHEAD, so the same image runs against both polarities of the fetch-ahead path.
-   Fetch-ahead moves a straddling instruction's upper-half fetch one cycle earlier, which is exactly the motion the PMP instruction-fetch check point is sensitive to: pmp_f_deny_r and pmp_f_addr_r must still describe the fetch the immediately preceding core cycle issued.
-   A PMP regression on that path is visible only at IF_AHEAD = true, so a run at one polarity is not a gate.
-
-   A failing run prints the privileged state the core trapped with, taken through VHDL-2008 external names into csr_unit.
-   Those are read-only taps on signals that already exist, so no RTL port is added and no netlist changes. */
+-- VestaRV: privileged-polarity ISA testbench, one PMP test image per run
+-- It is opensource_sim/isa/vesta_isa_tb.vhd's bus contract with three more generics on, so the core under test differs from the one that harness proves ONLY in ENABLE_TRAPCSR, ENABLE_UMODE and ENABLE_PMP: RAM base 0x8000, mem_ready = '1', byte-lane writes on wen active-LOW, exactly one cycle of read latency, and the same 0xCAFEBABE / 0xDEADBEEF sentinels in a0 plus a watchdog timeout.
+-- The IF_AHEAD generic drives the core's ENABLE_IF_AHEAD, so the same image runs against both polarities of the fetch-ahead path. Fetch-ahead moves a straddling instruction's upper-half fetch one cycle earlier, which is the motion the PMP instruction-fetch check point is sensitive to: pmp_f_deny_r and pmp_f_addr_r must still describe the fetch the immediately preceding core cycle issued. A regression on that path is visible only at IF_AHEAD = true, so a run at one polarity is not a gate.
+-- A failing run prints the privileged state the core trapped with, taken through VHDL-2008 external names into csr_unit. Those are read-only taps on signals that already exist, so no RTL port is added and no netlist changes.
 
 library ieee;
 use ieee.std_logic_1164.all;

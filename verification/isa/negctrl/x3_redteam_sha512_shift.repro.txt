@@ -1,5 +1,4 @@
-X3 Stage-D red-team (A) — SHA-512 detector sensitivity proof
-============================================================
+VestaRV: X3 Stage-D red-team (A), SHA-512 detector sensitivity proof
 DELIVERABLE A: prove the Zknh SHA-512 KAT/per-op checks are SENSITIVE (before
 this, only sha256 had a committed seed — x3_sha256_rotate_seed.patch; the
 sha512 ops were exercised by extzknh.S + rv32uzknh/sha512.S but NO seed proved

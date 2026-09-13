@@ -1,11 +1,7 @@
 # See LICENSE for license details.
-#*****************************************************************************
-# rv32uzknh sha512.S — directed per-op tests for the Zknh SHA-512 sigma/sum
-# half ops (ON-polarity suite; run only against a Zkn-ON MCU). Goldens from
-# the ratified per-instruction shift formulas AND cross-checked to compose to
-# the independent 64-bit ror64 SHA-512 sigma/sum definitions (see the X3
-# self-report cross-check).
-#*****************************************************************************
+
+# VestaRV: Zknh SHA-512 sigma and sum half-operation tests
+# ON-POLARITY ONLY, to be run against a Zkn-on MCU. The goldens come from the ratified per-instruction shift formulas and are cross-checked to compose to the independent 64-bit ror64 SHA-512 sigma and sum definitions, so a wrong shift constant fails the test.
 #include "riscv_test.h"
 #include "test_macros.h"
 

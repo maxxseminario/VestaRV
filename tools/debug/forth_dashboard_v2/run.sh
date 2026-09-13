@@ -1,25 +1,15 @@
 #!/usr/bin/env bash
-#
-# Forth Dashboard v2 launcher.
-#
-# Usage:
-#   ./run.sh [--sim] [--port /dev/ttyAMA0] [--baud 115200] \
-#            [--listen 0.0.0.0:8060] [--reset-pin N]
-#
-# All arguments are passed through verbatim to server/main.py.  Sim mode needs
-# no hardware:
-#   ./run.sh --sim
-# then open http://<host>:8060 .  On the Raspberry Pi (real UART):
-#   ./run.sh --port /dev/ttyAMA0 --reset-pin 17
-#
-# The script cd's to its own directory first, so it works from anywhere.
+# VestaRV: Forth dashboard v2 launcher.
+# Usage: ./run.sh [--sim] [--port /dev/ttyAMA0] [--baud 115200]
+#                 [--listen 0.0.0.0:8060] [--reset-pin N]
+# Arguments pass through verbatim to server/main.py. --sim needs no hardware;
+# on the Raspberry Pi use --port /dev/ttyAMA0 --reset-pin 17. The dashboard
+# serves on http://<host>:8060. Runs from anywhere: it cd's to its own directory.
 set -euo pipefail
 
-# --- locate ourselves and cd there -----------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 cd "$SCRIPT_DIR"
 
-# --- pick an interpreter ----------------------------------------------------
 PYTHON="${PYTHON:-python3}"
 if ! command -v "$PYTHON" >/dev/null 2>&1; then
     echo "ERROR: '$PYTHON' not found on PATH." >&2
@@ -27,9 +17,8 @@ if ! command -v "$PYTHON" >/dev/null 2>&1; then
     exit 1
 fi
 
-# --- require Python >= 3.6 --------------------------------------------------
-# Read stdin (never 'python3 -c \"...\"': this host's Calibre python3 wrapper
-# strips quotes from -c arguments).
+# The probe reads stdin rather than taking -c: this host's Calibre python3
+# wrapper strips the quotes from a -c argument.
 if ! "$PYTHON" - <<'PY'
 import sys
 sys.exit(0 if sys.version_info[:2] >= (3, 6) else 1)
@@ -40,7 +29,6 @@ then
     exit 1
 fi
 
-# --- require fastapi (names requirements.txt on failure) --------------------
 if ! "$PYTHON" - <<'PY' 2>/dev/null
 import importlib
 importlib.import_module("fastapi")
@@ -53,5 +41,4 @@ then
     exit 1
 fi
 
-# --- launch (all args pass through to the backend) --------------------------
 exec "$PYTHON" server/main.py "$@"

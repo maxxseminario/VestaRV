@@ -1,23 +1,7 @@
-/* Synthesis top for afe_stub, whose own entity GHDL refuses as a top level.
-
-   afe_stub.vhd:32 declares `master : in std_logic_vector` UNCONSTRAINED, so
-   that one entity serves any arbiter master-index width; the width arrives
-   from the instantiation.  `ghdl --synth afe_stub` therefore fails with
-   "entity \"afe_stub\" cannot be at the top of a design (port \"master\" is
-   unconstrained and has no default value)", and GHDL's -g reaches generics
-   only, never a port width.
-
-   This wrapper adds nothing but the constraint.  MW = 3 is the shipped master
-   width (MCU.vhd:827, `signal sh_master : std_logic_vector(2 downto 0)`), and
-   OWNER_HART = 1 is afe0's, MCU.vhd:3111.  The census row that matters is
-   still afe_stub's: the wrapper contributes no flop, no latch and no cell of
-   its own, so `afe_stub_top` and the `afe_stub_Bbehav_*` module inside it
-   carry the same counts.
-
-   This file is outside //hdl:vhdl_sources for the reason
-   hdl/common/synth/macro_blackbox.vhd documents: hdl/common/synth is a bazel
-   package and that glob does not descend into one, so no simulation source
-   list can pick a synthesis-only wrapper up by accident. */
+-- VestaRV: synthesis top for afe_stub
+-- afe_stub.vhd declares master : in std_logic_vector UNCONSTRAINED so one entity serves any arbiter master-index width, and ghdl --synth refuses an unconstrained port on a top level (-g reaches generics only, never a port width). This wrapper adds nothing but the constraint.
+-- MW = 3 is the shipped master width and OWNER_HART = 1 is afe0's. The wrapper contributes no flop, latch or cell, so afe_stub_top and the afe_stub instance inside it carry the same census counts.
+-- It sits outside //hdl:vhdl_sources for the reason macro_blackbox.vhd gives: hdl/common/synth is a bazel package that glob does not descend into, so no simulation source list can pick a synthesis-only wrapper up by accident.
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

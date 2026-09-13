@@ -1,15 +1,9 @@
-"""End-to-end test: boot the REAL server as a subprocess in sim mode and drive
-a realistic bench session over plain HTTP.
+"""VestaRV: boot the real server as a subprocess in sim mode and drive a session over HTTP.
 
-Unlike test_api.py (which uses FastAPI's in-process TestClient), this launches
-``server/main.py --sim`` as its own OS process on a random localhost port and
-talks to it only through urllib -- the exact path a browser / curl takes.  It
-proves run.sh's target (``python3 server/main.py --sim``) actually serves the
-whole stack.
-
-Stdlib only (urllib + subprocess); this host's python3 is 3.6, and we do not
-want a `requests` dependency for the deploy smoke test.  Skips cleanly if
-fastapi/uvicorn are not importable.
+Unlike the in-process TestClient tests, this launches server/main.py --sim as its own OS
+process on a random localhost port and talks to it only through urllib, the path a browser
+takes. Stdlib only, so the deploy smoke test needs no requests dependency; it skips cleanly
+when fastapi or uvicorn are not importable.
 """
 
 import base64
@@ -32,9 +26,7 @@ MAIN_PY = os.path.join(REPO_DIR, "server", "main.py")
 MACROS_JSON = os.path.join(REPO_DIR, "data", "macros.json")
 
 
-# ---------------------------------------------------------------------------
 # tiny stdlib HTTP helpers
-# ---------------------------------------------------------------------------
 
 def _pick_free_port():
     # High random port; avoid 8061 (may be occupied by another session's server).
@@ -71,9 +63,7 @@ def _delete(base, path, timeout=10.0):
     return _request(base, "DELETE", path, timeout=timeout)
 
 
-# ---------------------------------------------------------------------------
 # server subprocess fixture
-# ---------------------------------------------------------------------------
 
 @pytest.fixture
 def server(tmp_path):
@@ -125,9 +115,7 @@ def _wait_ready(proc, base, timeout=25.0):
     raise AssertionError("server never became ready on %s" % base)
 
 
-# ---------------------------------------------------------------------------
 # the bench session
-# ---------------------------------------------------------------------------
 
 def test_bench_session(server):
     base = server

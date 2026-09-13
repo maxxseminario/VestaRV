@@ -1,31 +1,10 @@
 #!/usr/bin/python3.6
-"""rng.py -- the K3 generator's deterministic pseudo-random source.
+"""VestaRV: the random generator's deterministic pseudo-random source.
 
-WHY NOT `random`
-----------------
-R-DK5 requires that identical inputs give a BYTE-IDENTICAL `.S`, forever.
-Python's `random` module is Mersenne Twister and `random.Random(seed)` is stable
-for `getrandbits`, but the DERIVED methods are not contractual: `shuffle` and
-`sample` have changed algorithm across CPython releases, and `random.choice`
-went through `_randbelow` variants.  A generator whose output depends on the
-interpreter build cannot honour "a finding without its reproduction line is not
-a finding" -- the reproduction line would name a seed that no longer reproduces.
-
-So the source is SplitMix64, written out in explicit 64-bit integer ops.  It is
-a published, fully specified algorithm with no library dependency and no
-interpreter-version surface.  Every draw in the generator goes through this
-class; nothing in the emission path may call `random`, `hash()`, `time`,
-`os.environ`, or iterate an unordered set/dict.
-
-`hash()` deserves its own sentence because the tree already carries the scar:
-`verify_stage.imgset_tag`'s docstring records that "Python's str hash is
-randomised per process, so hash() would give a DIFFERENT directory on every
-run".  The same hazard applies to any set iteration that reaches an emitted
-byte, which is why `weighted_choice` below takes an ORDERED sequence of pairs
-and never a dict.
-
-Python 3.6 compatible.  Run with /usr/bin/python3.6, never bare `python3`
-(that is Calibre's aoj_cal wrapper, which strips quotes).
+SplitMix64 in explicit 64-bit ops, not `random`: shuffle, sample and choice have changed
+algorithm across CPython releases, so a seed in a reproduction line would stop reproducing.
+Nothing in the emission path may call random, hash(), time or os.environ, or iterate an
+unordered set or dict, which is why weighted_choice takes an ordered sequence of pairs.
 """
 
 _M64 = (1 << 64) - 1
@@ -54,12 +33,9 @@ class Rng(object):
         return self.next_u64() >> 32
 
     def below(self, n):
-        """Uniform integer in [0, n), WITHOUT modulo bias.
-
-        Rejection sampling on the top bits.  `n` must be positive.  The
-        rejection loop is what makes this unbiased; a bare `% n` would skew the
-        low residues and, more to the point here, would make the class weights
-        subtly wrong in a way no test would catch.
+        """Uniform integer in [0, n) with no modulo bias, by rejection sampling on the top bits; `n` must
+        be positive. A bare `% n` would skew the low residues and make the class weights subtly wrong
+        in a way no test would catch.
         """
         if n <= 0:
             raise ValueError('Rng.below(%r): n must be positive' % (n,))
@@ -89,11 +65,9 @@ class Rng(object):
         return seq[self.below(len(seq))]
 
     def weighted_choice(self, pairs):
-        """Pick from an ordered sequence of `(item, weight)` pairs.
-
-        Weights are non-negative ints; zero-weight items are never picked.  The
-        argument is a SEQUENCE of pairs, never a dict, for the reason in the
-        module docstring.
+        """Pick from an ordered sequence of (item, weight) pairs. Weights are non-negative ints and a
+        zero-weight item is never picked. The argument is a sequence of pairs, never a dict, because
+        dict iteration order must not reach an emitted byte.
         """
         if isinstance(pairs, dict):
             raise TypeError('Rng.weighted_choice needs an ordered sequence of '

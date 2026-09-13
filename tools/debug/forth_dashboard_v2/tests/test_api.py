@@ -1,4 +1,4 @@
-"""FastAPI TestClient end-to-end tests in sim mode.
+"""VestaRV: FastAPI TestClient end-to-end tests in sim mode.
 
 Exercises every REST endpoint plus a WS terminal round-trip against SimChip.
 Skipped cleanly if fastapi/starlette cannot be imported on this host.
@@ -40,7 +40,7 @@ def _wait_connected(client, timeout=4.0):
     raise AssertionError("sim chip never connected: %s" % st)
 
 
-# --- status / ports / connect ----------------------------------------------
+# status / ports / connect
 
 def test_status(client):
     st = client.get("/api/status").json()
@@ -60,7 +60,7 @@ def test_reset_sim_reconnects(client):
     assert body["method"] == "sim-reconnect"
 
 
-# --- raw command ------------------------------------------------------------
+# raw command
 
 def test_command_arithmetic(client):
     body = client.post("/api/command", json={"cmd": "5 3 + ."}).json()
@@ -69,7 +69,7 @@ def test_command_arithmetic(client):
     assert body["ms"] >= 0
 
 
-# --- registers --------------------------------------------------------------
+# registers
 
 def test_registers_dump(client):
     body = client.get("/api/registers").json()
@@ -104,7 +104,7 @@ def test_register_unknown_404(client):
     assert r.status_code == 404
 
 
-# --- memory (ruling 1: always base64) --------------------------------------
+# memory (ruling 1: always base64)
 
 def test_memory_write_read_ascii(client):
     words = [0x11223344, 0xAABBCCDD]
@@ -135,7 +135,7 @@ def test_memory_erase(client):
     assert base64.b64decode(r["data"]) == b"\x00\x00\x00\x00"
 
 
-# --- flash ------------------------------------------------------------------
+# flash
 
 def test_flash_info(client):
     body = client.get("/api/flash/info").json()
@@ -145,7 +145,7 @@ def test_flash_info(client):
 
 
 def test_flash_erase_write_read(client):
-    # page is a page INDEX (Fable ruling): index 0x200 -> byte addr 0x20000.
+    # page is a page INDEX: index 0x200 -> byte addr 0x20000.
     page = 0x200
     assert client.post("/api/flash/erase", json={"page": page}).json()["ok"]
     payload = bytes((i * 3) & 0xFF for i in range(256))
@@ -175,7 +175,7 @@ def test_flash_page_out_of_range_is_400(client):
     assert r.status_code == 400
 
 
-# --- exec / clk (ruling 5) --------------------------------------------------
+# exec / clk (ruling 5)
 
 def test_exec_value_tx_ms(client):
     body = client.post("/api/exec", json={"addr": 0x8200, "args": [1, 2]}).json()
@@ -188,7 +188,7 @@ def test_clk(client):
     assert body["freq"] == 32768
 
 
-# --- macros (ruling 6) ------------------------------------------------------
+# macros (ruling 6)
 
 def test_macros_crud(client):
     empty = client.get("/api/macros").json()
@@ -210,7 +210,7 @@ def test_macros_crud(client):
     assert all(m["name"] != "blink" for m in client.get("/api/macros").json())
 
 
-# --- WebSocket terminal round-trip -----------------------------------------
+# WebSocket terminal round-trip
 
 def test_ws_terminal_round_trip(client):
     with client.websocket_connect("/ws") as ws:

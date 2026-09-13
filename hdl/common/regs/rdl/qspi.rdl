@@ -1,15 +1,6 @@
-// ===========================================================================
-// qspi.rdl: the register map of hdl/common/periph/QSPI.vhd.
-//
-// THE VHDL IS THE AUTHORITY: the slot numbers are the block's own SLOT_*
-// constants (CR 0, CMD 1, ADR 2, TX 3, RX 4, SR 5 -- note SR is LAST, not
-// second), the widths are the signal declarations (QSPIxCR 28:0, QSPIxCMD
-// 10:0, QSPIxSR 3:0) and the reset branch zeroes CR, CMD, ADR and TX.
-//
-// A lane-0 write to QSPIxCMD is the SOLE transaction trigger; the content is
-// always captured and only the launch pulse is suppressed while QSPIEN = 0
-// or BUSY = 1.
-// ===========================================================================
+// VestaRV: the register map of hdl/common/periph/QSPI.vhd
+// The VHDL is the authority: the slot numbers are the block's own SLOT_* constants (CR 0, CMD 1, ADR 2, TX 3, RX 4, SR 5, so SR is LAST, not second), the widths are the signal declarations (QSPIxCR 28:0, QSPIxCMD 10:0, QSPIxSR 3:0) and the reset branch zeroes CR, CMD, ADR and TX.
+// A lane-0 write to QSPIxCMD is the SOLE transaction trigger; the content is always captured and only the launch pulse is suppressed while QSPIEN = 0 or BUSY = 1.
 
 `include "vesta_udp.rdl"
 

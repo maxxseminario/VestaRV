@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# VestaRV: convert a linked ELF to the binary and RCF images the ROM and flash take.
 import os
 import sys
 from elftools.elf.elffile import ELFFile

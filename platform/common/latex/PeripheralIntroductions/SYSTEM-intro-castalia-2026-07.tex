@@ -1,7 +1,7 @@
-% SYSTEM chapter. Section order is the per-peripheral template enforced by
-% python/check_intro_names.py. The clock tree figure and source description
-% live in CLOCKTREE-castalia.tex (the consolidated reset/clocks/power
-% chapter); this chapter keeps the register-level clock control.
+% VestaRV: SYSTEM chapter of the TRM.
+% Section order is the per-peripheral template enforced by python/check_intro_names.py.
+% The clock-tree figure and source description live in CLOCKTREE-castalia.tex; this
+% chapter keeps the register-level clock control.
 \section{Overview}
 
 The \peripheral{SYSTEM} peripheral groups the chip-level control blocks: the clock tree roots and dividers, the memory block power gates, a CRC16 accumulator and the watchdog timer. Its effects are global (MCLK clocks all harts and SMCLK clocks the peripherals), so by convention only hart 0 reconfigures the clocks, after quiescing the other harts.

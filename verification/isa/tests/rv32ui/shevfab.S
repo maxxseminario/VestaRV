@@ -1,89 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shevfab.S  (digperiphs EVFAB Stage 5 -- THE FLAGSHIP EVENT-FABRIC SMOKE)
-#-----------------------------------------------------------------------------
-# The whole point of EVFAB0 in one test: a peripheral chain that runs to
-# completion WITH THE CPU ASLEEP.
-#
-#     TIMER0 compare0  --EV4-->  EVFAB0 CH0  --T0-->  DMA0 CH0 GO
-#         --> DMA0 masters one word 0x104E0 -> UART0 TX through the arbiter
-#         --> DMA0 CH0 DONE --(vector 118)--> irq_router --> meip
-#         --> MEIP_DISPATCHER --> IVT slot 118 --> plain-ret handler
-#         --> WAKE=1 + ignite --> hart 0 resumes.
-#
-# Between "TIMER0 enable" and "hart 0 wakes" the CPU executes NOTHING: it sits
-# in `extinguish` (clk_cpu gated OFF). No polling of the DMA, no polling of the
-# fabric -- the ONLY thing that can restart the core is the DMA-done interrupt
-# at the end of the chain. Every link is therefore load-bearing: kill the
-# channel enable, the EVSEL, the task, the DMA arm or the route and hart 0
-# never comes back (or a bounded pre-sleep readback trips first).
-#
-# Hart 0 only; harts 1-3 stay parked in the bootrom (no MP_STAGE / MP_LAUNCH,
-# like shdma.S / wdma.S -- the tb reports "tile hart(s) silent/parked",
-# expected). Gated by the `eventFabric` + `dma` tags in verify_stage.py, so it
-# joins ONLY configurations that instantiate BOTH blocks
-# (config/castalia_evfab.json today); TIMER0 and UART0 are unconditional.
-#
-# ---- EVFAB0 register file (event_fabric_spec.md sec.4; base 0x6B00, slot n
-# ---- @ +4n; EVFAB.vhd SLOT_* constants) ------------------------------------
-#   0 EVFCR      rw  EN[0] global kill (reset 0)
-#   1 EVFSR      ro  FIREDIF[0] = OR(FIRED), OVRIF[1] = OR(OVR)
-#   2 EVFIE      reserved, reads 0 (vectorless v1, D20)
-#   3 EVFCAP     ro  N_CH[7:0] N_EV[15:8] N_TASK[23:16] VER[31:24]
-#                    = 8 / 16 / 10 / 1 -> 0x010A1008
-#   4 EVFCHEN    rw  channel enables (reset 0)   5 CHENSET w1s   6 CHENCLR w1c
-#   8 EVFFIRED   W1C sticky "channel n fired"    9 EVFOVR   W1C sticky overrun
-#  10 EVFEVSTAT  W1C sticky RAW-event record, UNGATED by EN/CHEN
-#  16+n EVFCHnCFG rw EVSEL[4:0] TASKSEL[11:8] ENR[31] (RO mirror of CHEN(n))
-# EVSEL 4 = TIMER0 compare0 (T-mode toggle export, timer_clock domain -- the
-# fabric owns the 2-FF + XOR CDC). TASKSEL 0 = DMA0 CH0 GO (one-mclk pulse
-# consumed at the SAME arm site as the register GO, DMAEN re-applied at the
-# tap). EVSEL/TASKSEL are written only while CHEN(0)=0 (spec sec.4).
-# The fabric rides FREE-RUNNING mclk in the always-on domain -- that is why the
-# chain keeps firing with the core's clock gated off.
-#
-# ---- DMA0 (dma_spec.md / DMA.vhd; base 0x6800) -----------------------------
-#   CR 0x6800 : DMAEN[0] CHnGO[4:1] DONEIE[12] ERRIE[13]
-#   SR 0x6804 : BUSY[0] CHnDONE[4:1] CHnERR[8:5]   (DONE/ERR W1C)
-#   C0SRC +08  C0DST +0C  C0LEN +10  C0CFG +14 (SINC[0] DINC[1] TRIG[5:2])
-# CH0 is armed with DMAEN|DONEIE and CH0GO left CLEAR: the ONLY launch is the
-# fabric task pulse. CFG = 0 -> mem2mem, no SINC (re-read the same word), no
-# DINC (fixed peripheral destination), no CRC. LEN = 1 word, deliberately: a
-# single-word burst has no UART TX pacing hazard (the DMA would happily
-# overrun a 320-mclk frame with a longer LEN -- pacing is a v2 TRIG feature).
-#
-# ---- vector 118 route (irq_router row layout, M19) -------------------------
-# Source 118 -> enable word 118/32 = 3 (ENX) bit 118 mod 32 = 22. Hart-0 row:
-# H0ENX @ 0x7000 + 0xC = 0x700C, value 1<<22 = 0x00400000 (wdma/shdma
-# precedent). IVT slot 118 @ .ivt + 4*118 = 0x1D8.
-#
-# ---- SMCLK gotcha ----------------------------------------------------------
-# UART0's serial core is smclk-domain and the ROM bootrom parks SMCLK on LFXT
-# (32.768 kHz -> ~10 ms/frame). SYS_CLK_CR = 0 (SMCLK <- HFXT) is the FIRST
-# thing this test does (shuart.S / periph UART.S precedent). It also releases
-# TIMER0's ClockMuxGlitchFree, which defaults to the smclk slice and needs 3
-# smclk edges to hand over -- hence the poll-until-counting after TIMER0 enable
-# (shtimer.S rule: never sample VAL back-to-back right after enable).
-#
-# ---- LEDGER (CLAUDE.md shared-window rule; free at N=4 AND N=18) -----------
-#     SRC   = 0x104E0   the word the DMA moves (payload byte in bits 7:0)
-#     WAKE  = 0x104E4   set to 1 by the vector-118 handler; the ONLY wake proof
-# Below: shafe's band tops at TURN = 0x10484 + 4*NHARTS + 4 (N=4: 0x10498;
-# N=18: 0x104D0) -- both < 0x104E0. Above: the bootrom loader rows start at
-# 0x10500. Both words are < 0x10500 and inside the bootrom zero range
-# (< 0x10800), so the write-before-read contract holds (the test writes both
-# before reading either anyway).
-#
-# ---- Budgets ---------------------------------------------------------------
-# Every poll is bounded at 20000 iterations (~275 ms at 65536, so 20000 trips
-# well inside the 100 ms tb watchdog -- shirq/shperiph/shdma precedent). The
-# compare fires at 0x300 = 768 mclk ticks (32 us at 24 MHz) after TIMER0 is
-# enabled, so the whole chain completes microseconds into the sleep.
-#
-# NOTE: RVTEST_CODE_END is `unimp` (traps) in this env -- every path ends in a
-# spin; the test never falls through.
-#*****************************************************************************
+# VestaRV: event-fabric end-to-end smoke
+# A peripheral chain that runs to completion WITH THE CPU ASLEEP: TIMER0 compare0 raises EV4, EVFAB0 CH0 turns it into task T0, which is DMA0 CH0 GO; the DMA masters one word from 0x104E0 to UART0 TX through the arbiter; CH0 DONE raises vector 118, which reaches irq_router, meip, the MEIP_DISPATCHER and IVT slot 118, whose plain-ret handler sets WAKE and ignites. Between TIMER0 enable and the wake the CPU executes nothing, so every link is load-bearing: remove the channel enable, the EVSEL, the task, the DMA arm or the route and hart 0 never comes back. Hart 0 only, tiles parked; gated by the `eventFabric` and `dma` tags, so it joins only configurations with both blocks.
+# EVFAB0 at 0x6B00, slot n at +4n: 0 EVFCR rw EN[0]; 1 EVFSR ro FIREDIF[0] = OR(FIRED), OVRIF[1] = OR(OVR); 2 EVFIE reserved, reads 0; 3 EVFCAP ro N_CH[7:0] N_EV[15:8] N_TASK[23:16] VER[31:24] = 0x010A1008; 4 EVFCHEN rw, 5 CHENSET w1s, 6 CHENCLR w1c; 8 EVFFIRED and 9 EVFOVR sticky W1C; 10 EVFEVSTAT sticky W1C and UNGATED by EN or CHEN; 16+n EVFCHnCFG rw EVSEL[4:0] TASKSEL[11:8] ENR[31], the last a read-only mirror of CHEN(n). EVSEL 4 is TIMER0 compare0 in the timer_clock domain, whose 2-FF and XOR CDC the fabric owns; TASKSEL 0 is DMA0 CH0 GO, a one-mclk pulse consumed at the same arm site as the register GO. EVSEL AND TASKSEL MAY ONLY BE WRITTEN WHILE CHEN(0) = 0. The fabric rides free-running mclk in the always-on domain, which is why the chain keeps firing with the core's clock gated off.
+# DMA0 at 0x6800: CR = DMAEN[0] CHnGO[4:1] DONEIE[12] ERRIE[13]; SR = BUSY[0] CHnDONE[4:1] CHnERR[8:5], DONE and ERR W1C; C0SRC +08, C0DST +0C, C0LEN +10, C0CFG +14 with SINC[0] DINC[1] TRIG[5:2]. CH0 is armed with DMAEN and DONEIE and CH0GO LEFT CLEAR, so the only launch is the fabric task pulse. CFG = 0 means mem2mem with no SINC, so the same word is re-read, no DINC, so the destination is fixed, and no CRC. LEN IS ONE WORD DELIBERATELY: a longer burst would overrun the 320-mclk UART frame, since pacing is not a v1 feature.
+# Route for source 118: enable word 118/32 = 3 (ENX) bit 118 mod 32 = 22, so H0ENX at 0x700C takes 0x00400000, and IVT slot 118 sits at .ivt + 0x1D8.
+# SMCLK RULE: UART0's serial core is smclk-domain and the boot ROM parks SMCLK on LFXT at 32.768 kHz, about 10 ms per frame, so SYS_CLK_CR = 0 is the FIRST thing this test does. That also releases TIMER0's glitch-free clock mux, which defaults to the smclk slice and needs three smclk edges to hand over, hence the poll-until-counting after TIMER0 enable rather than an immediate VAL sample.
+# Shared words, both below 0x10500 and inside the bootrom zero range: SRC = 0x104E0, the word the DMA moves with the payload byte in bits 7:0, and WAKE = 0x104E4, set by the vector-118 handler and the only proof of the wake. Every poll is bounded at 20000, inside the 100 ms tb watchdog, and the compare fires 768 mclk ticks after TIMER0 is enabled, about 32 us at 24 MHz, so the chain completes microseconds into the sleep. RVTEST_CODE_END is `unimp` here, so every path ends in a spin.
 
 #include "riscv_test.h"
 #include "test_macros.h"

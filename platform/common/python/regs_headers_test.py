@@ -1,27 +1,10 @@
 #!/usr/bin/env python3
-"""regs_headers_test.py -- the tracked firmware register headers are current, and
-they describe the same addresses MemoryMap.h does.
+"""VestaRV: the tracked register headers are current and agree with MemoryMap.h on addresses.
 
-Two gates in one file, because they grade the same artifact from two directions:
-
-  identity      software/include/regs/*.h is byte-identical to a fresh emission
-                of platform/common/python/rdl_cheader_regs.py. Tracked generated
-                files need this or they rot; it is the role
-                check_memorymap_vhd_test plays for the memory-map package.
-
-  consistency   every peripheral base and every register address the headers
-                imply equals the one MemoryMap.h publishes. The two headers are
-                emitted by different code from different sources -- MemoryMap.h
-                from generate.py's PeripheralTemplate, these from the .rdl
-                descriptions -- so agreement is evidence, not tautology. This is
-                also the gate that catches a base address moving under firmware
-                that has adopted the new headers while the rest still uses the
-                old ones.
-
-    regs_headers_test.py --memorymap-h <MemoryMap.h> [--regs <dir>]
-
-The MemoryMap.h handed in is the tape-out configuration's (config/castalia.json), the
-one that instantiates every peripheral these headers describe.
+Identity: software/include/regs/*.h is byte-identical to a fresh rdl_cheader_regs.py emission,
+which is what keeps a tracked generated file from rotting. Consistency: every base and register
+address equals MemoryMap.h's, and since the two are emitted by different code from different
+sources that agreement is evidence rather than tautology. Graded on the tape-out config.
 """
 
 import os
@@ -120,7 +103,7 @@ class TestHeadersAgreeWithMemoryMapH(unittest.TestCase):
         self.assertEqual(bad, [], '\n'.join(bad))
         # A FLOOR, not a count: it tracks the instance list and moves DOWN only
         # alongside a deliberate removal. 34 before the four AFE sites left the
-        # public tree on 2026-09-11.
+        # public tree.
         self.assertGreaterEqual(n, 30, 'only %d instances graded' % n)
         sys.stderr.write('  bases graded: %d\n' % n)
 
@@ -143,15 +126,15 @@ class TestHeadersAgreeWithMemoryMapH(unittest.TestCase):
         self.assertEqual(bad, [], '%d of %d register addresses differ:\n%s'
                                   % (len(bad), n + len(bad), '\n'.join(bad[:40])))
         # Same floor discipline: 350 before the four AFE sites' 9 registers each
-        # left the public tree on 2026-09-11.
+        # left the public tree.
         self.assertGreaterEqual(n, 323, 'only %d register addresses graded' % n)
         sys.stderr.write('  register addresses graded: %d\n' % n)
 
     def test_overlay_blocks_match(self):
-        """An overlay block is not in the top addrmap (SystemRDL cannot overlay one
-           addrmap on another), so its registers are graded against the host's base
-           here. No block in the public tree is an overlay today, which makes this a
-           vacuous pass rather than a removed check."""
+        """An overlay block is not in the top addrmap, SystemRDL being unable to overlay one addrmap on
+        another, so its registers are graded against the host's base here. No block in the public tree
+        is an overlay today, which makes this a vacuous pass rather than a removed check.
+        """
         bad = []
         for (entry, flag, block) in rdl_cheader_regs.overlays(rdl_emit.DEFAULT_CONFIG):
             base = self.mm[entry['host'] + '_BASE']

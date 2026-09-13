@@ -1,38 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shzacas.S  (X2 Zacas — cross-hart CAS spinlock torture; M12 single-ROM boot)
-#-----------------------------------------------------------------------------
-# CROSS-HART amocas.w: all NHARTS harts run this image. hart 0 stages the TCM
-# image once, launches the tiles into tile_entry through the bootrom loader
-# (mp_boot.h), then falls through and runs the same payload.
-#
-# Each hart performs ITERS critical sections. The lock is a CAS SPINLOCK on one
-# shared word (LOCK): acquire = amocas.w LOCK from 0(free) -> myid+1; release =
-# amocas.w LOCK from myid+1 -> 0 (verifying WE held it — a release that did not
-# see our ownership is a lost-mutual-exclusion FAIL). Inside the section the
-# hart does a NON-atomic read-modify-write of CTR (only the CAS lock protects
-# it) and re-reads LOCK to confirm exclusive ownership. Interleaved with the CAS
-# traffic, every iteration also does an LR/SC atomic increment of a SEPARATE
-# counter (LRSC_CTR) on a DIFFERENT address — the M7c advisory-lock interplay,
-# proving CAS grant-locking and LR/SC reservations coexist on the shared bus.
-#
-# Deterministic assertions (hart 0): CTR == NHARTS*ITERS EXACTLY (a lost CAS
-# update undercounts; a broken release/double-entry overcounts) and
-# LRSC_CTR == NHARTS*ITERS. Every acquire/SC retry is BOUNDED with hartid-scaled
-# backoff (identical harts on the fair arbiter otherwise LIVELOCK); a blown
-# budget FAILs inside the 100ms tb watchdog — never a hang.
-#
-# ON-BUILD ONLY: amocas.w traps illegal without Zacas, so this test runs against
-# a Zacas-ON MCU (like shzabha for Zabha).
-#
-# Shared-window map (isolation: bands may overlap other tests' at N=18 — benign;
-# all < 0x10500 and inside the bootrom zero range):
-#     DONE[h]  = 0x10400 + 4*h              (h = 1..NHARTS-1)
-#     LOCK     = 0x10400 + 4*NHARTS         (CAS spinlock word)
-#     CTR      = 0x10400 + 4*NHARTS + 4     (CAS-lock-protected; == NHARTS*ITERS)
-#     LRSC_CTR = 0x10400 + 4*NHARTS + 8     (LR/SC atomic increment; == NHARTS*ITERS)
-#*****************************************************************************
+# VestaRV: cross-hart amocas spinlock torture
+# All harts run this image: hart 0 stages the TCM image once, launches the tiles through the boot ROM loader, then falls through and runs the same payload. Each hart performs ITERS critical sections behind a CAS SPINLOCK on one shared word: acquire is an amocas.w from 0 to hartid + 1, and release is an amocas.w from hartid + 1 back to 0, WHICH VERIFIES THAT WE HELD IT, since a release that does not see our ownership is a lost-mutual-exclusion failure. Inside the section the hart does a NON-atomic read-modify-write of the counter, protected only by the CAS lock, and re-reads the lock word to confirm exclusive ownership.
+# Interleaved with the CAS traffic, every iteration also does an LR/SC atomic increment of a SEPARATE counter at a DIFFERENT address, which proves CAS grant-locking and LR/SC reservations coexist on the shared bus.
+# Hart 0's assertions are exact: the CAS-protected counter must equal NHARTS*ITERS, since a lost update undercounts and a broken release or double entry overcounts, and the LR/SC counter must equal the same. Every acquire and store-conditional retry is BOUNDED with hartid-scaled backoff, because identical harts on the fair arbiter otherwise livelock, and a blown budget fails inside the 100 ms tb watchdog rather than hanging.
+# ON-BUILD ONLY, since amocas.w traps illegal without Zacas. Shared words, all below 0x10500 and inside the bootrom zero range, with the control words after the NHARTS-sized array: DONE[h] = 0x10400 + 4*h for h = 1..NHARTS-1, LOCK = 0x10400 + 4*NHARTS, CTR = LOCK + 4 and LRSC_CTR = LOCK + 8.
 
 #include "riscv_test.h"
 #include "test_macros.h"

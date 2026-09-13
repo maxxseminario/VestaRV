@@ -1,8 +1,8 @@
-/* Self-driving ISA-regression testbench for the `vesta` core (RV32IMAC+Zb*, multicycle, single unified bus): one test image per run, given by the TEST_FILE generic.
-   It terminates itself: a0 = 0xCAFEBABE reports TEST PASSED and exits 0, a0 = 0xDEADBEEF reports TEST FAILED, and the watchdog reports TEST TIMED OUT, both failures exiting nonzero.
-   Those sentinels are the riscv-tests values RVTEST_PASS and RVTEST_FAIL write to x10 (a0), the only pass/fail convention this core exports (no tohost).
-   Memory map: rcf word 0 is memory[0x8000], so RAM base is 0x8000 and PC_RST_VAL is 0x8200 (_start); this bare-core harness has no boot ROM.
-   Bus timing: mask = data_addr(1:0), mem_ready = '1', byte-lane writes on wen (ACTIVE-LOW per lane), and EXACTLY one cycle of read latency because the multicycle FSM has no fetch-wait state. */
+-- VestaRV: ISA-regression testbench for the vesta core
+-- Self-driving, one test image per run given by the TEST_FILE generic (RV32IMAC+Zb*, multicycle, single unified bus).
+-- It terminates itself: a0 = 0xCAFEBABE reports TEST PASSED and exits 0, a0 = 0xDEADBEEF reports TEST FAILED, and the watchdog reports TEST TIMED OUT, both failures exiting nonzero. Those sentinels are the riscv-tests values RVTEST_PASS and RVTEST_FAIL write to x10 (a0), the only pass/fail convention this core exports (no tohost).
+-- Memory map: rcf word 0 is memory[0x8000], so RAM base is 0x8000 and PC_RST_VAL is 0x8200 (_start); this bare-core harness has no boot ROM.
+-- Bus timing: mask = data_addr(1:0), mem_ready = '1', byte-lane writes on wen (ACTIVE-LOW per lane), and EXACTLY one cycle of read latency because the multicycle FSM has no fetch-wait state.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -21,10 +21,10 @@ entity vesta_isa_tb is
         -- Watchdog in clock cycles: 300,000 is about 8x the longest passing test here, and short enough to fire inside the runner's per-test wall timeout.
         -- A hung test then ends as a reported sim timeout with a nonzero exit rather than as a wall kill.
         WATCHDOG_CYCLES : natural := 300_000;
-        -- The selectable ISA set, hoisted to the bench boundary so the CORNER-TILE polarity can be run on this harness (P10, 2026-09-12; widened by P12 the same day).
+        -- The selectable ISA set, hoisted to the bench boundary so the CORNER-TILE polarity can be run on this harness.
         -- EVERY DEFAULT BELOW IS THE VALUE THIS BENCH PREVIOUSLY HARD-CODED ON THE `vesta` INSTANCE, so every pre-existing target elaborates exactly what it did before and overriding them is opt-in.
         -- That includes the two that are FALSE (Zihpm, Zawrs) and are false for harness reasons, not chip reasons; the comments at the instance say why.
-        -- The set is wider than M and B because isa.minimalTiles is: from 2026-09-12 the generator emits a TILE_ENABLE_<X> for every isa.* and priv.* knob, and a minimal tile drops all of them (A and C excepted, which are the 'a' and 'c' of rv32iac and are not hoisted here at all -- a tile never drops them).
+        -- The set is wider than M and B because isa.minimalTiles is: the generator emits a TILE_ENABLE_<X> for every isa.* and priv.* knob, and a minimal tile drops all of them (A and C excepted, which are the 'a' and 'c' of rv32iac and are not hoisted here at all -- a tile never drops them).
         ENABLE_MUL      : boolean := true;
         ENABLE_DIV      : boolean := true;
         ENABLE_BITMANIP : boolean := true;

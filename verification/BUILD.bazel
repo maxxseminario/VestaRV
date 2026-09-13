@@ -1,4 +1,4 @@
-# Shared verification sources.
+# VestaRV: shared verification sources.
 # The p-mode test environment (headers plus linker scripts) that every ISA test
 # image compiles and links against.
 # The ISA image rules live in //verification/isa; this package only publishes
@@ -34,7 +34,6 @@ exports_files([
     "env/p/link_fem.ld",
 ])
 
-# ---------------------------------------------------------------------------
 # Benchmark sources for //verification/cpi.
 #
 # benchmarks/ has no BUILD file of its own, so its files belong to this
@@ -46,7 +45,6 @@ exports_files([
 #
 # mm is absent on purpose: it has no main(), it is a multicore thread_entry
 # benchmark, and the CPI harness runs one bare hart.
-# ---------------------------------------------------------------------------
 _CPI_BENCHMARKS = [
     "dhrystone",
     "median",

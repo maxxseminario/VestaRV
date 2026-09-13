@@ -1,48 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# privirq.S   (P1 standard M-mode trap DELIVERY — INTERRUPTS through mtvec)
-#-----------------------------------------------------------------------------
-# ON-ONLY DIRECTED TEST, the interrupt half of the P1 delivery proof (privecall
-# is the exception half). Frozen contract,
-# ~/work/chip_docs/castalia/priv_arch/p0_specs.md 2.2/2.3:
-#
-#   take iff  mstatus.MIE and (mip and mie) /= 0     (priority MEI > MSI > MTI)
-#   machine software irq (CLINT msip level) -> mcause 0x80000003, mtval 0,
-#                                              mepc = the RESUME pc
-#   mip is a READ-ONLY live mirror of the msip/mtip/meip level wires — it is
-#   enable-agnostic, so a MASKED source still shows up in mip while provably
-#   NOT being delivered.
-#
-# Sequence: arm mtvec, enable mstatus.MIE + mie.MSIE, opt into standard delivery
-# (mtrapctl.LEGACY=0), then write CLINT msip[hart 0] at 0x5000 to interrupt
-# OURSELVES. The handler reads mcause/mepc/mstatus/mip, clears the level at the
-# CLINT (a level-sensitive source that is not cleared re-fires forever) and
-# MRETs — WITHOUT adjusting mepc, because an interrupt's mepc already IS the
-# resume pc, not a faulting pc.
-#
-# Then the negative half: mie.MSIE=0, raise msip again, prove mip SEES it and
-# that NO trap is delivered inside a bounded window.
-#
-# EVERY wait in this file is a bounded down-counter that FAILs (compare and
-# branch into RVTEST_FAIL) rather than spinning — kickoff rule: a bounded-retry
-# budget must trip well inside the 100 ms tb watchdog. 4096/2048-iteration
-# loops at mclk = 24 MHz are ~1 ms class (shspin uses 4096/20000).
-#
-# REGISTER CONTRACT (standard mode pushes NOTHING — no sp is touched):
-#   s0  CLINT msip[0] address
-#   s3  trap counter (handler increments)
-#   s4  mcause captured in the handler
-#   s5  mepc   captured in the handler (the RESUME pc)
-#   s6  mstatus captured INSIDE the trap
-#   s7  mtval  captured in the handler
-#   s8  mip    captured in the handler BEFORE the source is cleared
-#   s2  handler address
-#   t5/t6 handler scratch
-#   t4  CHECK ID at every comparison
-#
-# BUILD-TIME DISPATCH: ON iff -DCORE_ENABLE_TRAPCSR (privcsr / extjvt idiom).
-#*****************************************************************************
+# VestaRV: standard M-mode trap delivery, interrupts through mtvec
+# ON-ONLY, the interrupt half of the delivery proof; privecall is the exception half. Frozen contract: a trap is taken iff mstatus.MIE and (mip and mie) is nonzero, with priority MEI over MSI over MTI; the machine software interrupt, the CLINT msip level, gives mcause 0x80000003, mtval 0 and mepc = the RESUME PC. mip IS A READ-ONLY LIVE MIRROR of the msip, mtip and meip level wires and is enable-agnostic, so a masked source still shows in mip while provably not being delivered.
+# Sequence: arm mtvec, enable mstatus.MIE and mie.MSIE, clear mtrapctl.LEGACY, then write CLINT msip[hart 0] at 0x5000 to interrupt this hart. The handler reads mcause, mepc, mstatus and mip, CLEARS THE LEVEL AT THE CLINT, since a level-sensitive source that is not cleared re-fires forever, and MRETs WITHOUT ADJUSTING mepc, because an interrupt's mepc already is the resume PC rather than a faulting PC. The negative half then clears mie.MSIE, raises msip again, and proves mip sees it while no trap is delivered inside a bounded window.
+# EVERY WAIT IS A BOUNDED DOWN-COUNTER that fails into RVTEST_FAIL rather than spinning, and the 4096 and 2048 iteration budgets are about 1 ms at 24 MHz mclk, well inside the 100 ms tb watchdog.
+# REGISTER CONTRACT, with standard mode pushing nothing and no sp touched: s0 is the CLINT msip[0] address, s2 the handler address, s3 the trap counter, s4 mcause, s5 mepc as the resume PC, s6 the mstatus captured inside the trap, s7 mtval, s8 the mip captured in the handler BEFORE the source is cleared, t5 and t6 handler scratch, and t4 the CHECK ID at every comparison.
+# BUILD-TIME DISPATCH: assembled only with -DCORE_ENABLE_TRAPCSR on a staged trapCsr build.
 
 #include "riscv_test.h"
 #include "test_macros.h"

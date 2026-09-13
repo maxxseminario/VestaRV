@@ -1,8 +1,7 @@
-/* Tracked behavioural stand-ins for the compiled memory macros the MCU instantiates.
-   The vendor-named models are hdl/common/sim/ARM_IP_ROM.vhd and hdl/common/sim/ARM_IP_RAM.vhd, which the .gitignore `*ARM*` pattern hides, so a fresh clone does not have them and no hermetic test can name them.
-   This file declares the same three macro entities with the same port lists, backed by a plain synchronous array, so the open-source tier can elaborate and run hdl/common/MCU.vhd.
-   The boot ROM here is NOT empty: rom2k_hvt_pg loads the image whose path work.rom_image_pkg carries, which is how a hermetic test reaches the real mask-ROM contents without an absolute path.
-   The RAM macros hold no image and refuse an INIT_FILE rather than run silently empty, because nothing in the open-source tier needs a preloaded RAM yet. */
+-- VestaRV: tracked behavioural stand-ins for the compiled memory macros the MCU instantiates
+-- The vendor-named models hdl/common/sim/ARM_IP_ROM.vhd and ARM_IP_RAM.vhd are hidden by the .gitignore *ARM* pattern, so a fresh clone does not have them and no hermetic test can name them. This file declares the same three macro entities with the same port lists, backed by a plain synchronous array, so the open-source tier can elaborate and run hdl/common/MCU.vhd.
+-- The boot ROM here is NOT empty: rom2k_hvt_pg loads the image whose path work.rom_image_pkg carries, which is how a hermetic test reaches the real mask-ROM contents without an absolute path.
+-- The RAM macros hold no image and refuse an INIT_FILE rather than run silently empty, because nothing in the open-source tier needs a preloaded RAM yet.
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

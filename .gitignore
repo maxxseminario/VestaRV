@@ -1,20 +1,14 @@
-# -----------------------------------------------------------------------------
-# EDA tool working directories (Cadence) -- IGNORED WHOLESALE
-# -----------------------------------------------------------------------------
-# genus = synthesis, innovus = place & route, signoff_mp = Pegasus DRC/LVS,
-# cpf = Common Power Format, xcelium = simulation, .cadence = session state.
+# VestaRV: what git must not track. Ordered rule blocks; the last matching
+# pattern wins, so the blanket rules at the bottom override the whitelists above
+# them. Inline comments are not supported here: every '#' must start its own line.
 #
-# 2026-08-27 (owner decision).  These trees are ignored WHOLESALE again and
-# untracked from git.  They hold roughly 450 GB of generated output plus the
-# hand-written flow scripts; the 2026-08-25 default-deny allow-list that
-# re-included the scripts (93da38c) is reverted here at the owner's request.
-# The scripts stay on disk -- this is a publication decision, not a deletion.
-#
-# Consequence to know: git is no longer the backup for genus/, innovus/,
-# signoff_mp/ and cpf/ sources.  A fresh clone cannot rebuild any flow.
-#
-# .bazelignore still names all four trees and MUST keep doing so: tracking a
-# file in git and hiding it from bazel are independent concerns.
+# The Cadence working directories, ignored wholesale: genus is synthesis, innovus
+# place and route, signoff_mp Pegasus DRC and LVS, cpf the Common Power Format,
+# xcelium simulation, .cadence session state. They hold roughly 450 GB of
+# generated output plus the hand-written flow scripts. Consequence to know: git is
+# not the backup for those sources, and a fresh clone cannot rebuild any flow.
+# .bazelignore still names all four trees and must keep doing so; tracking a file
+# in git and hiding it from bazel are independent concerns.
 genus/
 innovus/
 signoff_mp/
@@ -22,46 +16,35 @@ cpf/
 
 
 .cadence/
-# std_cells/ (PDK-derived .lef under foundry NDA), hardware/ (VHDL sources --
-# superseded by hdl/), .claude/skills/ (local skill defs) -- untracked from git
-# 2026-07-18, stay on disk only.
+# On disk only: std_cells/ is PDK-derived .lef under foundry NDA, hardware/ is
+# VHDL superseded by hdl/, .claude/skills/ holds local skill definitions.
 std_cells/
 hardware/
 .claude/skills/
 
-# Teaching material and its chip configuration (2026-08-27, owner decision).
-# Untracked, still on disk. Nothing tracked is wired to either one: the bazel
-# macro and the image list that used to name them were removed in the same
-# commit, and platform/common:config_srcs reaches the config only through
-# glob(["config/*.json"]), which still satisfies its allow_empty=False.
-# The labs tree is also named in .bazelignore, so the local `bazel test //...`
-# skips it rather than failing on a package it can no longer build.
+# Teaching material and its chip configuration, untracked but still on disk.
+# Nothing tracked is wired to either: platform/common:config_srcs reaches the
+# config only through glob(["config/*.json"]), which still satisfies its
+# allow_empty=False. The tree is also in .bazelignore, so a local
+# `bazel test //...` skips it rather than failing on a package it cannot build.
 software/course/
 platform/common/config/argus_course.json
 
-# Bench and programmer host tools (2026-08-27, owner decision): the PyEmanate
-# GUI (64 files, PyInstaller .spec + .bat launchers + saved 2022 bench config),
-# the Forth flash programmer (9) and the UART chip programmer (8). 81 files.
-# Untracked, still on disk. None of the three is wired into anything: no
-# BUILD.bazel, no bazel dependency, no workflow, and no markdown link pointed
-# into them -- the only mention was one prose sentence in tools/build/README.md
-# about `pip install intelhex`, corrected in the same commit. Last touched
-# 2026-04/05. NOTE this does NOT include tools/debug, which is active.
+# Bench and programmer host tools, untracked but still on disk: the PyEmanate GUI,
+# the Forth flash programmer and the UART chip programmer. None is wired into
+# anything: no BUILD.bazel, no bazel dependency, no workflow, no markdown link.
+# This does not extend to tools/debug, which is active.
 tools/PyEmanate/
 tools/flash_programmer/
 tools/chip_programmer/
-# Pegasus/Calibre DRC-LVS run logs:
+# Pegasus and Calibre DRC-LVS run logs.
 ic_bad/
-# logo/ contained *.gds:
+# logo/ held *.gds.
 logo/
-# NOTE: xcelium/ is intentionally NOT blanket-ignored. It is handled by the
-#       "XCELIUM SIMULATION SOURCES" whitelist at the bottom of this file, which
-#       tracks run scripts / test lists / testbenches and drops all sim artifacts.
 
-# ─────────────────────────────────────────────────────────────────────────────
-# FOUNDRY / PDK IP — NEVER commit. TSMC (and any foundry) PDK data is under NDA.
-# Layout, timing, netlist, and tech files embed foundry-proprietary information.
-# ─────────────────────────────────────────────────────────────────────────────
+# Foundry and PDK IP. Never commit it: TSMC and every other foundry's PDK data is
+# under NDA, and layout, timing, netlist and tech files embed foundry-proprietary
+# information.
 *.gds
 *.gds2
 *.oas
@@ -77,19 +60,17 @@ logo/
 # any file whose name carries the foundry/PDK name:
 *tsmc*
 
-# Generic EDA/simulation intermediates (in case tools run elsewhere)
+# Generic EDA and simulation intermediates, in case a tool runs outside its tree.
 *.rcf
-# K2 EXCEPTION (2026-08-03), one file: the CANONICAL copy of the boot ROM image
-# under tools/cosim/gate/. It is the exact byte stream both sides of the
-# COSIM_BOOT lockstep execute (the reference from pc=0, the behavioural ROM
-# model by hardcoded path), so a silent change to it is a silent change to the
-# four pinned gate numbers. Its live copy, software/bootrom_mp/bin/rom.rcf, is
-# excluded by the `software/*/bin/` DIRECTORY rule below and STAYS excluded —
-# this negation covers only the record under tools/cosim/gate/.
-# NOTE why a negation is legal HERE and is not for the gate files under
-# xcelium/: git cannot re-include a file whose PARENT DIRECTORY is excluded, and
-# `xcelium/` is a directory rule. `*.rcf` is a file-name rule and tools/cosim/
-# is not excluded, so the negation takes effect normally.
+# One exception: the canonical copy of the boot ROM image under tools/cosim/gate/.
+# It is the exact byte stream both sides of the COSIM_BOOT lockstep execute, the
+# reference from pc=0 and the behavioural ROM model by hardcoded path, so a silent
+# change to it is a silent change to the four pinned gate numbers. The live copy
+# at software/bootrom_mp/bin/rom.rcf stays excluded by the software/*/bin/ rule
+# below; this negation covers only the record here. The negation works because
+# *.rcf is a file-name rule and tools/cosim/ is not excluded. It would not work
+# under xcelium/, where a directory rule excludes the parent and git cannot
+# re-include a file beneath it.
 !tools/cosim/gate/*.rcf
 *.trn
 *.dsn
@@ -104,66 +85,56 @@ xrun.log
 xrun.history
 xrun.key
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Generated source / build artifacts
-# ─────────────────────────────────────────────────────────────────────────────
-# Platform generator outputs (auto-generated)
+# Generated source and build artifacts. Platform generator outputs first.
 platform/*/latex/TRM/
 platform/*/config/MemoryMap.json
 
 # Build artifacts
 verification/isa/build/
-# D1 (2026-08-05): the one-off ELF/rcf scratch tree of
-# verification/isa/tools/build_one_rcf.sh. It exists precisely so that
-# building a single test does NOT touch verification/isa/build/, whose
-# .imgset identity change wipes the whole shared build tree -- so it is a
-# build artifact by the same argument as the line above it.
+# The one-off ELF and rcf scratch tree of verification/isa/tools/build_one_rcf.sh.
+# It exists so that building a single test does not touch verification/isa/build/,
+# whose .imgset identity change wipes the whole shared build tree.
 verification/isa/build_oneoff/
 verification/isa/rcf/
-# per-NHARTS image sets built by platform/common `make verify` / A3
-# (rcf_argus etc. -- *.rcf contents are already ignored globally; this also
-#  drops the .nharts stamp files)
+# The per-NHARTS image sets `make verify` builds. Their *.rcf contents are already
+# ignored globally; this rule also drops the .nharts stamp files.
 verification/isa/rcf_*/
 verification/benchmarks/build/
 software/*/obj/
 software/*/bin/
 # tools/build/linker-scripts/{memory.x,periph.x,*_START.txt,*_SIZE.txt} are
-# TRACKED since the CI bring-up (2026-07-18): they are frozen build INPUTS of
-# software/bootrom_mp (the Castalia generator never writes to tools/, golden
-# rule), and the hosted CI bootrom build needs them from a bare checkout.
-# They are the link environment the taped-out rom2k_hvt_pg plate was compiled
-# from, NOT a copy of the current generator output, and the boot ROM does not
-# link against the current output at all (rv4th .noinit overflows the 8 KiB
-# TCM).  //tools/build:rom_plate_link_env_test pins how far the two may drift.
+# deliberately tracked: they are frozen build inputs of software/bootrom_mp, the
+# chip generator never writes into tools/, and the hosted CI bootrom build needs
+# them from a bare checkout. They are the link environment the taped-out
+# rom2k_hvt_pg plate was compiled from, not a copy of the current generator
+# output, and the boot ROM does not link against the current output at all.
+# //tools/build:rom_plate_link_env_test pins how far the two may drift.
 
-# Software headers (auto-generated)
+# Generated firmware headers.
 software/commune/include/MemoryMap.h
 software/commune/include/periph.S
 
-# Hardware VHDL (auto-generated)
+# Generated VHDL.
 hardware/Myshkin.vhd
 
-# HDL peripheral blocks (custom IP)
+# Peripheral blocks kept out of the public tree.
 hardware/MCU/peripherals/NPU.vhd
 hardware/MCU/periph/SARADC.vhd
 hardware/MCU/periph/AFE.vhd
 hardware/MCU/periph/AFE_FSM.vhd
 
-# ARM IP
+# ARM IP.
 *ARM*
-# NARROW EXCEPTION, hdl/fpga/ ONLY (2026-08-27). ARM_IP_RAM.vhd and
-# ARM_IP_ROM.vhd there are hand-written SYNTHESIZABLE STAND-INS for the
-# compiled macros -- project VHDL that carries no vendor code, named to mirror
-# the files they replace, which is the only reason *ARM* catches them. Without
-# this the FPGA substitution set ships two of its four cells and hdl/fpga's own
-# table lists two files a clone does not have.
-# This does NOT extend to hdl/common/: the twelve behavioural models the
-# pattern hides there stay hidden, and un-hiding them is a separate repo-policy
-# call (see the note in opensource_sim/mcu/BUILD.bazel).
+# A narrow exception for hdl/fpga/ only. ARM_IP_RAM.vhd and ARM_IP_ROM.vhd there
+# are hand-written synthesisable stand-ins for the compiled macros: project VHDL
+# carrying no vendor code, named to mirror the files they replace, which is the
+# only reason *ARM* catches them. Without this the FPGA substitution set ships two
+# of its four cells. It does not extend to hdl/common/, where the twelve
+# behavioural models the pattern hides stay hidden.
 !hdl/fpga/ARM_IP_RAM.vhd
 !hdl/fpga/ARM_IP_ROM.vhd
 
-# Compiled binaries
+# Compiled binaries.
 *.o
 *.elf
 *.bin
@@ -171,16 +142,14 @@ hardware/MCU/periph/AFE_FSM.vhd
 *.dump
 *.map
 
-# Python cache
+# Python cache.
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
 
-# ─────────────────────────────────────────────────────────────────────────────
-# LaTeX — keep only sources (.tex) and final output (.pdf); ignore everything else
-# ─────────────────────────────────────────────────────────────────────────────
+# LaTeX: keep the .tex sources and the final .pdf, drop every intermediate.
 *.aux
 *.log
 *.out
@@ -196,18 +165,14 @@ __pycache__/
 *.fls
 *.synctex.gz
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Logs & acquisition data
-# ─────────────────────────────────────────────────────────────────────────────
+# Logs and acquisition data.
 tools/debug/forth_dashboard/saradc_logs/
 tools/debug/fast_saradc/logs/
 **/saradc_logs/*.txt
 **/fast_saradc_data_*.txt
 myshkin_commands.log
 
-# ─────────────────────────────────────────────────────────────────────────────
-# AI assistant instructions (local only, never committed)
-# ─────────────────────────────────────────────────────────────────────────────
+# AI assistant instructions: local only, never committed.
 CLAUDE.md
 **/CLAUDE.md
 .claude/
@@ -215,42 +180,31 @@ CLAUDE.md
 *.claude.md
 **/AGENTS.md
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Editor / IDE
-# ─────────────────────────────────────────────────────────────────────────────
+# Editor and IDE state.
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# ─────────────────────────────────────────────────────────────────────────────
-# OS files
-# ─────────────────────────────────────────────────────────────────────────────
+# OS files.
 .DS_Store
 Thumbs.db
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Syncthing
-# ─────────────────────────────────────────────────────────────────────────────
+# Syncthing.
 .stfolder/
 *.sync-conflict-*
 
-# ─────────────────────────────────────────────────────────────────────────────
-# XCELIUM SIMULATION SOURCES  (default-deny whitelist — keep setup, drop artifacts)
-# ─────────────────────────────────────────────────────────────────────────────
-# Goal: version only the human-authored simulation setup (run scripts, test/cell
-# lists, testbench sources) — NEVER the multi-GB generated artifacts (compiled
-# libs, waveforms, logs, snapshots). Kept at the bottom so it is evaluated last.
+# Xcelium simulation sources: a default-deny whitelist that versions only the
+# hand-authored setup, the run and control scripts, the test and cell lists and
+# the testbench sources, and never the multi-GB compiled libraries, waveforms,
+# logs and snapshots. It sits near the bottom so it is evaluated late.
 #
-# NOTE: .gitignore has NO inline comments — every '#' must start its own line.
-#
-# 1) Ignore everything under xcelium/ by default:
+# Ignore everything under xcelium/ by default.
 xcelium/**
-# 2) but descend into every subdirectory so files below can be re-included:
+# Descend into every subdirectory, so the files below can be re-included.
 !xcelium/**/
-# 3) re-include only these source / setup file types
-#    (run scripts, control scripts, testbenches, file/test/cell lists):
+# Re-include only these source and setup file types.
 !xcelium/**/*.sh
 !xcelium/**/*.tcl
 !xcelium/**/*.do
@@ -264,9 +218,9 @@ xcelium/**
 !xcelium/**/*.md
 !xcelium/**/README*
 !xcelium/**/Makefile
-# 4) …but ALWAYS drop these, even if they matched a rule above (last word wins).
-#    Artifact dirs: compiled libs/snapshots, waveforms, SimVision state,
-#    symbol caches, logs, local AI settings, generated RAM images.
+# Always drop these, even where a rule above matched: the compiled libraries and
+# snapshots, waveforms, SimVision state, symbol caches, logs, local AI settings
+# and generated RAM images.
 xcelium/**/xcelium.d/
 xcelium/**/waves.shm/
 xcelium/**/.simvision/
@@ -278,69 +232,64 @@ xcelium/**/*.svcf
 xcelium/**/xrun.key
 xcelium/**/xrun.log
 xcelium/**/xrun.history
-# make verify staging flows (generated by platform/common/verify.sh --
-# fully regenerable, incl. their .sh/.txt/.vhd, so exempt from the whitelist):
+# The `make verify` staging flows. platform/common/verify.sh regenerates them in
+# full, .sh, .txt and .vhd included, so they are exempt from the whitelist.
 xcelium/riscv_test/verify_*/
-# Generated data dumps that happen to be .txt (edit if you actually want them):
+# Generated data dumps that happen to be .txt.
 xcelium/**/sig_approx_fp.txt
 xcelium/**/output_results.txt
 xcelium/**/*_actual_*.txt
 
-# Local engineering changelog (not for the repo)
+# Local engineering changelog.
 .devlog/
 
-# Publications / conference materials copied in for local reference (not for the repo)
+# Publications and conference material, copied in for local reference.
 docs/publications/
 
-# AFE rev2 engineering notes (2026-08-27, owner decision): 14 pages of internal
-# analog design work -- corner audit, Monte Carlo, pixel/physical verify, EIS,
-# debug mux, firmware contract, channel build, CV electrode, sim plan, strategy,
-# lit survey.  GitHub Pages served them publicly while docs/index.html linked
-# them from nowhere; they only cross-link each other, so nothing else in the
-# site loses a link target.  Kept on disk: 24 .tex files under
-# implementations/asic/castalia/analog/ cite them by local path in comments as
-# the provenance for their numbers.
+# The AFE rev-2 engineering notes: internal analog design work that GitHub Pages
+# served publicly while nothing on the site linked it. The pages only cross-link
+# each other, so no link target is lost. They stay on disk: the .tex files under
+# implementations/asic/castalia/analog/ cite them by local path as the provenance
+# for their numbers.
 docs/afe_rev2_*.html
 
 
-# The interactive roadmap + block-diagram pages (docs/vestarv_roadmap.html,
+# The interactive roadmap and block-diagram pages (docs/vestarv_roadmap.html,
 # docs/castalia_soc.html, docs/vestarv_core.html, docs/castalia_full.html) are
-# PUBLISHED since the 2026-07-16 showcase program (GitHub Pages, D1).
+# published on GitHub Pages and therefore deliberately absent from this file.
 
-# Generated power dashboard (rebuild with tools/python/gen_power_dashboard.py)
+# The generated power dashboard; tools/python/gen_power_dashboard.py rebuilds it.
 power_dashboard.html
 
-# Myshkin AFE bidirectional-current design note (local, not for the repo for now)
+# The Myshkin AFE bidirectional-current design note, local for now.
 implementations/asic/myshkin-2025-11/docs/afe-bidirectional-current-upgrade.html
 
-# ─────────────────────────────────────────────────────────────────────────────
-# S4b showcase hygiene (2026-07-16) — additive untracked-noise suppression.
-# Kept at the very bottom so the xcelium-scoped rules below WIN over the
-# XCELIUM SIMULATION SOURCES whitelist above (last matching pattern wins).
-# ─────────────────────────────────────────────────────────────────────────────
-# Syncthing conflict copies (broader than the *.sync-conflict-* rule above —
-# also catches variants without the trailing dash / leading dot):
+# Untracked-noise suppression, kept at the very bottom so the xcelium-scoped rules
+# here win over the whitelist above.
+#
+# Syncthing conflict copies. Broader than the *.sync-conflict-* rule above: this
+# also catches variants without the trailing dash or the leading dot.
 *sync-conflict*
 
-# Root Innovus / Pegasus session logs dropped in the repo root:
+# Innovus and Pegasus session logs dropped in the repo root.
 /innovus.cmd
 /innovus.log*
 /pegasus_ui_gui.log
 
-# signoff_mp: generated foundry OA cell libs, tool stdout dumps, dated backups:
+# signoff_mp: generated foundry OA cell libraries, tool stdout dumps, backups.
 signoff_mp/chip_top_signoff/
 signoff_mp/chip_argus_signoff/
 signoff_mp/pvs/*.stdout
 *.jul*.bak
 
-# M19c one-shot debug tooling — stays on disk (user decision) but stops showing
-# as untracked noise. These live inside xcelium/, where *.tcl/*.sh are
-# whitelisted above, so they must be re-ignored here (after the whitelist):
+# One-shot debug tooling that stays on disk. It lives inside xcelium/, where *.tcl
+# and *.sh are whitelisted above, so it must be re-ignored here, after that
+# whitelist.
 xcelium/riscv_test/behavioral_mp/m19c_probe*.tcl
 xcelium/riscv_test/innovus_mp/diag_*.sh
 
-# Connected-chip gate-sim scratch dirs (C0 innovus_chip / CQ5 innovus_chip_quad):
-# drop the multi-MB gate-sim artifacts, keep the hand-authored script/setup set.
+# The connected-chip gate-sim scratch directories: drop the multi-MB artifacts,
+# keep the hand-authored script and setup set.
 xcelium/riscv_test/innovus_chip/xcelium.d/
 xcelium/riscv_test/innovus_chip/log/
 xcelium/riscv_test/innovus_chip/*.sdf*
@@ -367,9 +316,9 @@ xcelium/riscv_test/innovus_chip_quad/xrun.history
 xcelium/riscv_test/innovus_chip_quad/xrun.log
 xcelium/riscv_test/innovus_chip_quad/gate_smoke_results.txt
 xcelium/riscv_test/innovus_chip_quad/smoke_run.log
-# Keepers: re-include human-authored setup the global rules had dropped
-# (*.sh/*.v/*.vhd/*.txt already survive the xcelium whitelist above; these four
-# do not, so re-include them explicitly — they win over *.sdf* / *.rcf globals):
+# Re-include the hand-authored setup the global rules dropped. *.sh, *.v, *.vhd
+# and *.txt already survive the xcelium whitelist above; these four do not, and
+# the explicit re-includes win over the *.sdf* and *.rcf globals.
 !xcelium/riscv_test/innovus_chip/*.py
 !xcelium/riscv_test/innovus_chip/*.rcf
 !xcelium/riscv_test/innovus_chip/*.sdfcmd
@@ -379,19 +328,14 @@ xcelium/riscv_test/innovus_chip_quad/smoke_run.log
 !xcelium/riscv_test/innovus_chip_quad/*.sdfcmd
 !xcelium/riscv_test/innovus_chip_quad/cds.lib
 
-# ─────────────────────────────────────────────────────────────────────────────
-# 2026-07-18: xcelium/ untracked from git entirely (was previously whitelisted
-# above for its hand-authored setup/scripts). This blanket rule wins over every
-# !xcelium/** re-include above (last matching pattern wins) -- the whole tree
-# stays on disk, tracked by nothing.
-# ─────────────────────────────────────────────────────────────────────────────
+# xcelium/ is untracked entirely. This blanket rule wins over every !xcelium/**
+# re-include above, so the whole tree stays on disk and nothing tracks it.
 xcelium/
 innovus.cmd*
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Bazel: convenience symlinks into the output base and per-user rc overrides.
-# MODULE.bazel.lock is intentionally NOT ignored (commit it for reproducibility).
-# ─────────────────────────────────────────────────────────────────────────────
+# Bazel: the convenience symlinks into the output base, and per-user rc overrides.
+# MODULE.bazel.lock is deliberately not ignored; it is committed for
+# reproducibility.
 bazel-bin
 bazel-out
 bazel-testlogs
@@ -400,18 +344,17 @@ bazel-vestarv
 # The bazelisk binary itself is fetched by tools/get_bazel.sh, not committed.
 tools/bin/bazel
 
-# ─────────────────────────────────────────────────────────────────────────────
-# sky130 open-source physical flow (sky130/): generated bridge netlist,
-# LibreLane run dirs, cocotb smoke-test outputs. All rebuilt by physical.yml.
-# ─────────────────────────────────────────────────────────────────────────────
+# The sky130 open-source physical flow: the generated bridge netlist, the
+# LibreLane run directories and the cocotb smoke-test outputs. All are rebuilt by
+# the physical workflow.
 sky130/src/vesta.v
 sky130/runs/
 sky130/sim/sim_build/
 sky130/sim/results.xml
 sky130/sim/*.vcd
 
-# VestaRV: the analog interfacing overlay, kept outside the public tree.
-# private/analog/ mirrors the original paths of the AFE2/BIASG RTL, register
-# descriptions, configurations, benches and tools removed on 2026-09-11; the
-# local Genus and Xcelium flows read it from there. See private/analog/README.md.
+# The analog interfacing overlay, kept outside the public tree. private/analog/
+# mirrors the original paths of the AFE2 and BIASG RTL, the register descriptions,
+# configurations, benches and tools; the local Genus and Xcelium flows read it
+# from there. See private/analog/README.md.
 private/

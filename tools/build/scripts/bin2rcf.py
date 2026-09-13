@@ -1,17 +1,10 @@
 #!/usr/bin/env python3
-"""Convert a padded binary image to the RCF text format the VHDL ROMs read.
+"""VestaRV: convert a padded binary image to the RCF text format the VHDL ROMs read.
 
-RCF format: one line per 32-bit word, 32 ASCII '0'/'1' characters, MSB first.
-Word N comes from bytes [4N, 4N+4) of the input, little-endian.
-
-This is the single canonical replacement for the od+awk nibble-table pipeline
-that historically existed in five divergent copies across the makefiles.
-Stdlib only, so it runs under the hermetic bazel interpreter with no pip deps.
-
-Usage: bin2rcf.py INPUT.bin OUTPUT.rcf [--expect-words N]
-
---expect-words asserts the exact output line count (the makefiles' `wc -l`
-guard, e.g. 4096 for the 16KB boot ROM).
+One line per 32-bit word, 32 ASCII '0'/'1' characters, MSB first; word N is bytes [4N, 4N+4)
+of the input, little-endian. Stdlib only, so it runs under the hermetic bazel interpreter.
+Usage: bin2rcf.py INPUT.bin OUTPUT.rcf [--expect-words N], where --expect-words asserts the
+exact output line count, the makefiles' `wc -l` guard.
 """
 
 import argparse

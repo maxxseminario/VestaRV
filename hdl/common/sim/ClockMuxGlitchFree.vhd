@@ -1,4 +1,5 @@
--- Behavioural stand-ins for the three ARM tsmc65_hvt_sc_adv10 cells the glitch-free clock mux instantiates by name.
+-- VestaRV: glitch-free clock mux, behavioural cell models
+-- Behavioural stand-ins for the three ARM tsmc65_hvt_sc_adv10 cells the mux instantiates by name.
 -- Simulation only; synthesis binds the real library cells.
 
 library ieee;

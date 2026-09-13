@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assert two text files are byte identical, printing the first difference.
+"""VestaRV: assert two text files are byte identical, printing the first difference.
 
 Plain runner, no test framework: exit 0 passes, non zero fails. That is the
 repository convention for python tests here.

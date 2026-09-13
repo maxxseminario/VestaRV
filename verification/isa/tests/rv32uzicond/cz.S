@@ -1,22 +1,8 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# czero.S   (X1 Zicond directed test — czero.eqz / czero.nez)
-#-----------------------------------------------------------------------------
-# Directed riscv-tests-style coverage for the Zicond conditional-zero ops.
-# No upstream rv32uzicond source exists in this tree, so this suite is authored
-# here. It is compiled with -march=rv32imac_zicond (the installed gas/gcc 13.2
-# accept the czero.eqz/czero.nez mnemonics), so it uses the mnemonics directly.
-#
-#   czero.eqz rd,rs1,rs2 : rd = (rs2==0) ? 0 : rs1
-#   czero.nez rd,rs1,rs2 : rd = (rs2!=0) ? 0 : rs1
-#
-# POLARITY: this suite executes real czero encodings, so it is ONLY meaningful
-# against a zicond-ON RTL build (isa.zicond=true). On a zicond-OFF build every
-# czero traps illegal-instruction and the trapless vesta core hangs -> do NOT
-# add rv32uzicond to the default (off) behavioral_mp suite runner. Both-polarity
-# / trap coverage is owned by the adaptive ext-probe rv32ua/extzicond.S.
-#*****************************************************************************
+# VestaRV: Zicond conditional-zero directed test
+# Directed riscv-tests-style coverage for czero.eqz and czero.nez, authored here because no upstream source for this suite exists. It is compiled with a -march that includes zicond, which the installed toolchain accepts, so it uses the mnemonics directly. `czero.eqz rd,rs1,rs2` gives rd = (rs2 == 0) ? 0 : rs1, and `czero.nez` gives rd = (rs2 != 0) ? 0 : rs1.
+# POLARITY: this suite executes real czero encodings, so it is meaningful ONLY against a Zicond-on RTL build. On a Zicond-off build every czero traps illegal-instruction and this trapless core hangs, SO DO NOT ADD THIS SUITE TO THE DEFAULT RUNNER. Both-polarity and trap coverage belongs to the adaptive probe rv32ua/extzicond.S.
 
 #include "riscv_test.h"
 #include "test_macros.h"

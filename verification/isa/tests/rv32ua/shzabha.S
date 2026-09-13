@@ -1,33 +1,9 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shzabha.S   (X2 Zabha cross-hart adjacent-lane test, 2026-07-17)
-#-----------------------------------------------------------------------------
-# THE Zabha byte/halfword-strobe signature test. The hazard class is
-# ADJACENT-LANE CLOBBER: a sub-word AMO write MUST drive ONLY its own byte
-# lane(s). If the write drives all four byte strobes (the X2 negative-control
-# seed), concurrent harts hammering adjacent lanes of ONE shared word destroy
-# each other's lanes AND overwrite the untouched guard lanes.
-#
-# ON body (all harts, released together by a GO barrier for real contention):
-#   * BYTE word WB @0x104C0 : harts 0,1,2 each hammer lane==hartid with 64
-#       amoadd.b(+1); lane 3 is an UNTOUCHED GUARD (0x5A). Correct byte strobes
-#       => lane0=lane1=lane2=64, lane3=0x5A. A full-word strobe cross-clobbers
-#       the lanes and destroys the guard.
-#   * HALF word WH @0x104C4 : ALL harts hammer half0 with 64 amoadd.h(+1) — a
-#       contended sub-word RMW (arbiter grant-lock atomicity) — while half1 is
-#       an UNTOUCHED GUARD (0xC3C3). Correct => half0 = NHARTS*64, half1=0xC3C3.
-#   * SWAP word WSW @0x104C8 : hart 0 runs a deterministic amoswap.b chain on
-#       lane 1; lanes 0/2/3 are guards (0x99). Proves amoswap.b returns the
-#       sign-extended old sub-word and writes ONLY lane 1.
-#
-# Pass = 0xCAFEBABE in a0 (hart 0 gate; tiles PASS inline and keep verifying).
-#
-# BOTH-POLARITY (shwrs.S convention): OFF = the DEFAULT build (macro undefined)
-# degrades to a trivially-passing single-hart variant so the 124-suite stays
-# green; ON = built by EXPLICITLY appending -DCORE_ENABLE_ZABHA (see
-# extzabha.S). Zabha ops are `.insn` (gas 13.2 lacks the mnemonics/-march).
-#*****************************************************************************
+# VestaRV: Zabha cross-hart adjacent-lane byte and halfword strobe test
+# THE HAZARD IS ADJACENT-LANE CLOBBER: a sub-word AMO write MUST drive ONLY its own byte lanes. If it drives all four strobes, concurrent harts hammering adjacent lanes of one shared word destroy each other's lanes and overwrite the untouched guard lanes.
+# The ON body releases all harts together through a GO barrier for real contention. On the BYTE word at 0x104C0, harts 0, 1 and 2 each hammer the lane equal to their hartid with 64 amoadd.b increments while lane 3 is an UNTOUCHED GUARD holding 0x5A, so correct strobes leave lanes 0 to 2 at 64 and the guard intact. On the HALF word at 0x104C4, every hart hammers half 0 with 64 amoadd.h increments, a contended sub-word read-modify-write relying on arbiter grant-lock atomicity, while half 1 is an untouched guard holding 0xC3C3, so half 0 must end at NHARTS*64. On the SWAP word at 0x104C8, hart 0 runs a deterministic amoswap.b chain on lane 1 with lanes 0, 2 and 3 as guards holding 0x99, which proves amoswap.b returns the sign-extended old sub-word and writes only lane 1.
+# Pass is 0xCAFEBABE in a0 on hart 0, with the tiles passing inline and continuing to verify. BOTH POLARITIES: the default build leaves CORE_ENABLE_ZABHA undefined and degrades to a trivially passing single-hart variant so the suite stays green, and the ON arm is built by explicitly appending the define. Zabha operations use `.insn`, since gas 13.2 has neither the mnemonics nor the -march token.
 
 #include "riscv_test.h"
 #include "test_macros.h"

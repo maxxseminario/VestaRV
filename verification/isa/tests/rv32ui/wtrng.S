@@ -1,75 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# wtrng.S  (wound-config firmware smoke — digperiphs DP-SG)
-#-----------------------------------------------------------------------------
-# TRNG0 @0x6900 ring-oscillator entropy harvest engine smoke: register resets,
-# the DR read-CONSUME contract (D9 same-cycle DRDY blind window, no spurious
-# pop on an empty read), two successive entropy words proving the LFSR stub
-# actually MOVES, and the combined data-ready/health-alarm interrupt (vector
-# 121) delivered through the REAL meip path (irq_router H0ENX bit25 -> meip ->
-# env MEIP_DISPATCHER -> IVT slot 121 -> plain-ret handler -> CLAIM/COMPLETE),
-# same idiom as wrtc.S (114) / wdma.S (119) / shnpu.S's IRQ leg (120). Single-
-# hart directed (hart 0; tiles stay parked — no MP_LAUNCH, no mp_boot.h).
-#
-# STAGE-E RIDER PROOF (irq_router RO words for sources 96-127), mirrored from
-# wrtc/wdma:
-#   * PENDX  @0x781C bit25 (source 121) — read with the ROUTE STILL OFF once
-#     DRDY&DRDYIE has gone high: PEND reflects the RAW source level, not the
-#     enable, so this is deterministic (no delivery yet). Then enable the route.
-#   * INSVCX @0x782C bit25 — read INSIDE the handler (claimed, before W1C) and
-#     require the claimed source's in_service bit is set.
-#
-# EXACTLY-ONCE MECHANISM (task-directed choice): the entropy engine keeps
-# assembling words continuously while EN=1, so a fresh DRDY WILL reassert
-# ~32 mclk after the handler's drain and re-pend the level if DRDYIE is left
-# set. The handler therefore clears CR.DRDYIE (bit1) itself, right after it
-# has drained the word that woke it, BEFORE returning — the dispatcher's
-# COMPLETE(121) then finds the level already low for good. (The alternative,
-# disabling EN, was rejected: it would also stop RUN, muddying the RUN=1
-# assertion this test makes during the polling leg.)
-#
-# TRNG register map (trng_spec.md; slot n @ 0x6900 + 4n):
-#   CR 0x6900  SR 0x6904  DR 0x6908  HT 0x690C
-#   CR : EN[0] DRDYIE[1] ALMIE[2] ROSEL[7:4] DECIM[11:8]   (rest rsvd)
-#   SR : DRDY[0](ro) ALMF[1](W1C) RUN[2](ro)               (rest rsvd)
-#   DR : read-CONSUMES — a qualified read (DRDY=1) returns the word AND
-#        clears DRDY the SAME cycle; a read while DRDY=0 returns 0 and does
-#        NOT consume (no spurious pop).
-#   HT : RCTC[7:0] RUNLEN[21:16](ro)                       (rest rsvd)
-#   irq_trng (121) = (DRDY & DRDYIE) | (ALMF & ALMIE)
-#
-# DECIM=8 (one raw sample every 2^8=256 mclk, 32 samples/word => ~8192 mclk
-# ~=341us at 24MHz) is DELIBERATELY not the fastest setting (D9/D10 bisect
-# finding, see below) — every poll still finishes well inside POLL_BUD.
-# TRNG0 machinery rides free-running MCLK (D4-clean) — NO SYS_CLK_CR write
-# needed (that rule is only for the smclk peripherals).
-#
-# DECIM CHOICE IS LOAD-BEARING (bisected 2026-07-22): at DECIM=0 (32 mclk/
-# word) the L2 IRQ-dispatch overhead (PENDX read, H0ENX write+readback, the
-# meip trap, MEIP_DISPATCHER's CLAIM read + jalr, the handler's own INSVCX/
-# SR reads) comfortably EXCEEDS one word period, so by the time the handler
-# drains the word that woke it (D9's consume), the D10 stall logic has
-# ALREADY assembled and parked a FOLLOW-ON word — which promotes into
-# dr_word within ~2 clk of the consume (the instant word_valid frees up),
-# so an SR read moments after the drain legitimately observes DRDY=1 again
-# (a real, distinct word — not a D9 violation: D9 only guarantees the SAME
-# CYCLE right at the qualifying read stays masked, not that DRDY stays low
-# afterward once a backlog exists). DECIM=8 gives the whole L2 dispatch path
-# (a handful of shared-bus round trips, each ~5-10 mclk) a period more than
-# an order of magnitude shorter than one word (~8192 mclk), so no follow-on
-# word is ever stalled-and-ready by the time SR_POST is sampled.
-#
-# The entropy source is a DETERMINISTIC LFSR stub in behavioral sim — word
-# VALUES are never hardcoded; only structural properties are checked
-# (nonzero, word-over-word movement, the DRDY/consume timing contract).
-#
-# Scratch: private TCM 0xA000-0xA010 (single-hart directed test — the
-# majority w* precedent: wrtc/wow/wi2ct/wqspi/wgpio/wi3c all use 0xA000+
-# private-TCM mailboxes, never the shared 0x10xxx ledger, because there is
-# no second hart to rendezvous with; wdma is the lone outlier and says so in
-# its own header). No shared-window word claimed by this test.
-#*****************************************************************************
+# VestaRV: TRNG0 entropy engine smoke
+# Hart 0 only, tiles parked. TRNG0 sits at 0x6900 and the test covers the register resets, the DR read-CONSUME contract, two successive entropy words proving the source actually moves, and the combined data-ready and health-alarm interrupt on vector 121, delivered through the real meip path: irq_router H0ENX bit 25, meip, the MEIP_DISPATCHER, IVT slot 121 and a plain-ret handler that claims and completes. It also reads PENDX at 0x781C bit 25 WITH THE ROUTE STILL OFF, which is deterministic because PEND reflects the raw source level rather than the enable, and reads INSVCX at 0x782C bit 25 inside the handler before the W1C.
+# Register map, slot n at 0x6900 + 4n: CR = EN[0] DRDYIE[1] ALMIE[2] ROSEL[7:4] DECIM[11:8]; SR = DRDY[0] ro, ALMF[1] W1C, RUN[2] ro; DR READ-CONSUMES, so a qualified read with DRDY set returns the word and clears DRDY the same cycle while a read with DRDY clear returns 0 and does not pop; HT = RCTC[7:0] RUNLEN[21:16] ro. irq_trng is (DRDY and DRDYIE) or (ALMF and ALMIE). TRNG0 rides free-running mclk, so no SYS_CLK_CR write is needed.
+# EXACTLY-ONCE IS THE HANDLER'S JOB HERE: the engine keeps assembling words while EN is set, so a fresh DRDY reasserts about 32 mclk after the drain and would re-pend the level. The handler therefore clears CR.DRDYIE itself, right after draining the word that woke it and before returning, so the dispatcher's COMPLETE finds the level already low. Disabling EN instead would also stop RUN and muddy the RUN assertion the polling leg makes.
+# DECIM = 8 IS LOAD-BEARING, not a default. At DECIM = 0 one word takes 32 mclk, which is shorter than the interrupt dispatch path, so by the time the handler drains its word the stall logic has already parked a follow-on word that promotes within a couple of clocks, and an SR read just after the drain legitimately sees DRDY set again. That is a real second word, not a contract violation, but it breaks the check. At DECIM = 8 a word takes about 8192 mclk, more than an order of magnitude longer than the dispatch path, so no follow-on word is ever ready when SR_POST is sampled.
+# The entropy source is a DETERMINISTIC stub in behavioural simulation, so word VALUES are never hardcoded; only structural properties are checked, namely nonzero, word-over-word movement and the DRDY and consume timing.
+# Scratch lives in private TCM at 0xA000-0xA010, since there is no second hart to rendezvous with, and this test claims no shared-window word.
 
 #include "riscv_test.h"
 #include "test_macros.h"

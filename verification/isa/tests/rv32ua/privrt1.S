@@ -1,83 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# privrt1.S   (P2 RED TEAM — the TRAP-ENTRY SIDE-EFFECT class)
-#-----------------------------------------------------------------------------
-# ON-ONLY DIRECTED TEST (needs a trapCsr+umode build).
-#
-# THE BUG CLASS THIS FILE OWNS: "a decode output that bypasses valid_funct and
-# commits a side effect for an instruction that TRAPPED".  Two members of the
-# class were real, working U-mode escapes found while building P2 (see
-# verification/isa/negctrl/p2_umode_seeds.repro.txt (d)), and BOTH needed two
-# fixes, because `read_data` doubles as the instruction during decode: the
-# faulting encoding is STILL presented to maindec through MTRAP_SV/MTRAP_JUMP,
-# by which time `priv` has already flipped to M and maindec's u_gate has
-# dropped.  The closing block is vesta.vhd's `trap_entry_seq`, which gates
-# csr_valid, isr_ret and the free-running `sleep_cpu` flop across both entry
-# cycles.
-#
-# privucsr already proves that all four privileged encodings TRAP, and proves
-# the csr_valid half of the fix at ONE CSR (mscratch).  This file adds the
-# three witnesses privucsr does NOT carry:
-#
-#   1. THE sleep_cpu WITNESS.  A U-mode `extinguish` traps -- but did it leave
-#      `sleep_cpu` alone?  sleep_cpu has EXACTLY ONE architectural observation
-#      point in the whole core: the legacy IRQ_REST arm
-#      (vesta.vhd IRQ_REST: `elsif sleep_cpu = '1' then next_state <= SLEEPING`).
-#      So the witness is an `iret` executed in STANDARD mode -- P1 accepted
-#      deviation (b), "unspecified-but-bounded": isr_ret still routes
-#      EXECUTE -> IRQ_REST, which pops a return PC from mem[sp] and resumes.
-#      If sleep_cpu were set the hart would enter SLEEPING instead.
-#
-#      BOUNDEDNESS BY CONSTRUCTION.  Before every `iret` the test arms
-#      mtimecmp[0] = mtime + 0x8000 with mie.MTIE and mstatus.MIE=1, so mtip is
-#      NOT yet pending when the iret issues (std_irq_take is '0' at the
-#      IRQ_REST check point) but WILL pend ~1.4 ms later.  The correct path
-#      resumes at mem[sp] and disarms the timer within a handful of
-#      instructions; the buggy path parks in SLEEPING and is dragged out by
-#      that timer into the handler, which FAILs at CHECK 90 on the phase
-#      marker s10.  Neither path can hang, and both are far inside the 100 ms
-#      tb watchdog.
-#
-#      PHASE 1 runs the SAME vehicle once BEFORE any U-mode work, while
-#      sleep_cpu is provably '0' (reset value; no extinguish has executed).
-#      That is the control: if the vehicle itself were broken, PHASE 1 fails
-#      at CHECK 10 and the PHASE 3 result means nothing.
-#
-#   2. csr_valid AT TWO MORE CSRs.  privucsr's sentinel is mscratch (pure
-#      storage).  Here the U-mode poisons are `csrs mie, 0x888` and
-#      `csrw mcounteren, -1` -- both are LIVE control state (mie gates
-#      delivery; mcounteren gates U's own counter access), and both read back
-#      in M.  Deliberately NOT mtvec/mepc/mtrapctl: a committed write to any
-#      of those would derail the trap path itself into an unbounded hang
-#      instead of a bounded miscompare.
-#
-#   3. THE DOCUMENTED-GAP WITNESS (CHECK 25/33).  p0_specs.md 3: "U-mode
-#      memory access is UNRESTRICTED until P3".  P2 is a PRIVILEGE boundary,
-#      not a MEMORY boundary: mtvec and every M-mode handler live in the
-#      private TCM, which U-mode can store to.  CHECK 33 PINS that documented
-#      behaviour (a U-mode `sw` into the ISR bank at 0xB704 lands) so P3's PMP
-#      cannot change it silently -- when PMP arrives this check MUST be
-#      revisited, not deleted.
-#
-# REGISTER CONTRACT (standard mode pushes NOTHING; M and U share the regfile):
-#   s0   the poison's own address -- published by the U code, checked as mepc
-#   s3   poison-trap counter (handler increments)
-#   s6   CLINT mtimecmp[0] lo;  s7  CLINT mtime lo — BOTH DERIVED FROM NHARTS
-#        (0x5020/0x5010 at N=4, 0x5030/0x5020 at N=5; see the defines below)
-#   s9   M-mode continuation address (handler `jr s9` on a U ECALL)
-#   s10  IRET-VEHICLE PHASE MARKER: 0 = iret in flight, expect a resume;
-#        1 = resumed.  The timer handler FAILs iff it fires with s10 = 0.
-#   s11  the U code's EXPECTED trap count
-#   ra   subroutine link (pv1_arm_timer / pv1_disarm) -- never touched by the
-#        handler, so a trap cannot corrupt it
-#   t4   CHECK ID at every comparison
-#
-# BUILD-TIME DISPATCH: ON iff BOTH -DCORE_ENABLE_TRAPCSR and -DCORE_ENABLE_UMODE
-# are appended to RISCV_GCC_OPTS on a staged trapCsr+umode build.  privrt1 is
-# deliberately NOT in the default behavioral_mp runner array, so the #else arm
-# must never execute.
-#*****************************************************************************
+# VestaRV: red team, the trap-entry side-effect class
+# ON-ONLY, needing a trapCsr and umode build. THE BUG CLASS: a decode output that bypasses valid_funct and commits a side effect for an instruction that TRAPPED. Two members of the class were real, working U-mode escapes, and both needed two fixes, because read_data doubles as the instruction during decode: the faulting encoding is still presented to maindec through MTRAP_SV and MTRAP_JUMP, by which time priv has already flipped to M and maindec's u_gate has dropped. The closing block is vesta.vhd's trap_entry_seq, which gates csr_valid, isr_ret and the free-running sleep_cpu flop across both entry cycles.
+# privucsr already proves all four privileged encodings trap and proves the csr_valid half at one CSR. This file adds the three witnesses it does not carry. First THE sleep_cpu WITNESS: sleep_cpu has exactly one architectural observation point in the whole core, the legacy IRQ_REST arm, so the witness is an `iret` executed in standard mode, which still routes EXECUTE to IRQ_REST, pops a return PC from mem[sp] and resumes; if sleep_cpu were set the hart would enter SLEEPING instead. BOUNDEDNESS IS BY CONSTRUCTION: before every iret the test arms mtimecmp[0] = mtime + 0x8000 with mie.MTIE and mstatus.MIE set, so mtip is not yet pending when the iret issues but pends about 1.4 ms later; the correct path resumes and disarms the timer within a handful of instructions, while the buggy path parks in SLEEPING and is dragged out by that timer into the handler, which fails on the phase marker s10. Neither path can hang. PHASE 1 RUNS THE SAME VEHICLE BEFORE ANY U-MODE WORK, while sleep_cpu is provably at its reset value, and is the control: if the vehicle itself were broken, phase 1 fails and the phase 3 result means nothing.
+# Second, csr_valid at two more CSRs. The U-mode poisons are `csrs mie, 0x888` and `csrw mcounteren, -1`, both LIVE control state, mie gating delivery and mcounteren gating U's own counter access, and both are read back in M. mtvec, mepc and mtrapctl are deliberately avoided: a committed write to any of those would derail the trap path itself into an unbounded hang instead of a bounded miscompare.
+# Third, THE DOCUMENTED-GAP WITNESS. U-mode memory access is unrestricted until PMP arrives, because this is a PRIVILEGE boundary and not a MEMORY boundary: mtvec and every M-mode handler live in the private TCM, which U-mode can store to. Check 33 PINS that documented behaviour, a U-mode store into the ISR bank at 0xB704 landing, so PMP cannot change it silently. WHEN PMP ARRIVES THIS CHECK MUST BE REVISITED, NOT DELETED.
+# REGISTER CONTRACT, standard mode pushing nothing and M and U sharing the register file: s0 the poison's own address, published by the U code and checked as mepc; s3 the poison-trap counter; s6 and s7 the CLINT mtimecmp[0] and mtime low words, BOTH DERIVED FROM NHARTS, so 0x5020 and 0x5010 at N=4 and 0x5030 and 0x5020 at N=5; s9 the M-mode continuation the handler jumps to on a U ECALL; s10 the iret-vehicle phase marker, 0 meaning an iret is in flight and a resume is expected and 1 meaning resumed, with the timer handler failing iff it fires at 0; s11 the U code's expected trap count; ra the subroutine link, never touched by the handler so a trap cannot corrupt it; t4 the CHECK ID at every comparison.
+# BUILD-TIME DISPATCH: assembled only with both -DCORE_ENABLE_TRAPCSR and -DCORE_ENABLE_UMODE on a staged build; this file is deliberately not in the default runner array, so the #else arm must never execute.
 
 #include "riscv_test.h"
 #include "test_macros.h"

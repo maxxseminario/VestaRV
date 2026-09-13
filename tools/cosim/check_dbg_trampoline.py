@@ -1,48 +1,10 @@
 #!/usr/bin/python3.6
-# VestaRV: THE D4 DUAL-TRUTH GATE (d4_spec section 2).
+# VestaRV: the dual-truth gate on the 40-word debug entry trampoline.
 #
-#   /usr/bin/python3.6 tools/cosim/check_dbg_trampoline.py
-#   /usr/bin/python3.6 tools/cosim/check_dbg_trampoline.py --vhdl X --words Y
-#
-#   rc 0  the two sources agree, word for word
-#   rc 1  they DISAGREE -- the word index and BOTH values are quoted
-#   rc 2  an input is missing or unparseable.  NEVER a silent skip.
-#
-# WHAT IT COMPARES, AND WHY THE COMPARISON HAS TO EXIST AT ALL
-#   Since D4 the Debug Module plants the 40-word entry trampoline itself, out of
-#   a constant table `TRAMP` in hdl/common/debug_module.vhd.  That table is a
-#   COPY of a compiled artifact: software/dbg_trampoline/dbg_trampoline.S is
-#   assembled and linked by a separate toolchain into bin/dbg_trampoline.words,
-#   and the VHDL carries the same 40 words a second time.  Two sources of truth
-#   for one instruction stream is a defect waiting for a maintainer, and the
-#   failure is silent in the worst way: a stale table plants CODE THAT ALMOST
-#   WORKS, and the symptom surfaces as a debugger that hangs on one command in
-#   twenty.  R-DD5 made mechanising this a condition of choosing option B, so
-#   this file is not a convenience -- it is the other half of the decision.
-#
-#   The coupling is tighter than "same bytes", too: the trampoline's dispatch
-#   ends in `jal x0, _start + 4*40`, so its LENGTH is wired to the DM's
-#   W_ABST = W_ENTRY + TRAMP_WORDS.  A table of 39 or 41 words jumps into the
-#   wrong place.  So the count is checked as its own condition, before content.
-#
-# WHY rc 2 AND NOT A SKIP WHEN THE BUILD IS ABSENT
-#   software/*/bin/ is gitignored, so the .words file is a build product that a
-#   fresh clone does not have -- exactly like the images check_image_polarity.py
-#   needs.  A checker that returns 0 when it cannot find its input is worse than
-#   no checker, because rc 0 gets quoted as evidence.  Missing input is rc 2 and
-#   says which file and how to build it.
-#
-# THE .words FORMAT is the one dbg_bfm.tcl's planter has always read: one line
-# per word of the 64-word entry page, ascending from DEBUG_ENTRY_ADDR; a line of
-# exactly 32 '0'/'1' characters is a planted word, and ANY other line (the 24
-# `-   word NN: DM-written, MUST stay writable` lines) means "not part of the
-# trampoline".  This file reads it the same way, on purpose: a third reading of
-# the same format would be a third thing to keep in step.
-#
-# INPUT RESOLUTION, in order: explicit --vhdl/--words; else $VESTA_ROOT; else
-# the repository root derived from this file's own location (the
-# check_mcu_vhd.py idiom), so a copy of this checker dropped into a mirror tree
-# checks THAT tree.
+# debug_module.vhd's TRAMP table is a second copy of the assembled dbg_trampoline.words, and a
+# stale table plants code that almost works. The word COUNT is checked before the content: the
+# dispatch ends in `jal x0, _start + 4*40` and is wired to W_ABST = W_ENTRY + TRAMP_WORDS. A
+# missing input is rc 2, never a skip, because .words is a gitignored build product.
 from __future__ import print_function
 import os
 import re
@@ -90,12 +52,9 @@ def resolve():
 
 
 def strip_comment(line):
-    """Drop a VHDL end-of-line comment.
-
-    The table carries a disassembly comment per word, and several of those name
-    hex values, so comment text MUST NOT be scanned for word literals.  There is
-    no string literal on these lines that could contain '--', so the naive cut
-    is exact here; it is deliberately not a general VHDL lexer.
+    """Drop a VHDL end-of-line comment. The table carries a disassembly comment per word and several
+    name hex values, so comment text must not be scanned for word literals. No string literal on
+    these lines can contain '--', so the naive cut is exact; it is not a general VHDL lexer.
     """
     return re.sub(r'--.*$', '', line)
 

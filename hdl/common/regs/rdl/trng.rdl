@@ -1,15 +1,6 @@
-// ===========================================================================
-// trng.rdl: the register map of hdl/common/periph/TRNG.vhd.
-//
-// THE VHDL IS THE AUTHORITY: four slots from the block's SLOT_* constants,
-// all resets zero, every write lane-0 qualified.
-//
-// TRNGxDR is the one register in this library with a READ SIDE EFFECT, and
-// the decode is explicit about it: the write case's SLOT_DR arm fires on
-// `if WEn = "1111"` -- a READ -- and consumes the word when one is valid and
-// not already being retired. A read with no word ready returns 0 and
-// consumes nothing.
-// ===========================================================================
+// VestaRV: the register map of hdl/common/periph/TRNG.vhd
+// The VHDL is the authority: four slots from the block's SLOT_* constants, all resets zero, every write lane-0 qualified.
+// TRNGxDR is the one register in this library with a READ SIDE EFFECT, and the decode is explicit about it: the write case's SLOT_DR arm fires on `if WEn = "1111"`, a READ, and consumes the word when one is valid and not already being retired. A read with no word ready returns 0 and consumes nothing.
 
 `include "vesta_udp.rdl"
 

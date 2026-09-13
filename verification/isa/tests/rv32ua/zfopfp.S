@@ -1,18 +1,8 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# zfopfp.S   (X4 Zfinx OFF-polarity poison)
-#-----------------------------------------------------------------------------
-# Unconditionally executes fadd.s a0,a1,a2 (OP-FP major opcode 0x53), which MUST take the illegal-instruction trap
-# when ENABLE_ZFINX is off. Zfinx sets NO misa bit and every FP encoding is
-# illegal on the base core today, so this is a negative control for the X4
-# gating: the encoding is emitted as a raw .word so it is PRESENT regardless of
-# -march, and run ONLY under the trap-watching harness (behavioral_mp_stripped/
-# run_extoff.sh + trap_watch.tcl, where trap_flag => TRAP_OK) -- NOT in the main
-# behavioral_mp suite (it deliberately dead-ends in this core's TRAP_STATE).
-# Covers the whole OP-FP arithmetic/compare/convert/sign/class class.
-# Surviving PAST the encoding => decode/gating disagree => explicit FAIL.
-#*****************************************************************************
+# VestaRV: Zfinx off-polarity poison, fadd.s
+# It unconditionally executes fadd.s a0,a1,a2 (OP-FP major opcode 0x53), which MUST take the illegal-instruction trap when ENABLE_ZFINX is off. Zfinx sets no misa bit and every FP encoding is illegal on the base core, so this is the negative control for that gating. Covers the whole OP-FP arithmetic/compare/convert/sign/class class.
+# The encoding is emitted as a raw .word so it is PRESENT regardless of -march, and the file is run ONLY under the trap-watching harness (behavioral_mp_stripped/run_extoff.sh with trap_watch.tcl), never in the main suite, because it deliberately dead-ends in this core's TRAP_STATE. Surviving past the encoding means decode and gating disagree and is an explicit FAIL.
 
 #include "riscv_test.h"
 #include "test_macros.h"

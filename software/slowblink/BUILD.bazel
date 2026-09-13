@@ -1,4 +1,4 @@
-# slowblink: one of the six sibling applications generated from the same makefile
+# VestaRV: slowblink, one of the sibling applications from the shared makefile template.
 # template. See the myshkin_app docstring for how the platform-vs-tools
 # linker directory fallback in that template was resolved.
 
@@ -9,8 +9,8 @@ package(default_visibility = ["//visibility:public"])
 myshkin_app(name = "slowblink")
 
 # The linked image is byte identical to the bench copy in bin/slowblink.bin.
-# The bench rcf/ image is NOT reproduced, and cannot be: it dates from
-# 2026-04-25, before flash_prepend.sh moved the program load base from 0x8200
+# The bench rcf/ image is NOT reproduced, and cannot be: it predates
+# flash_prepend.sh moving the program load base from 0x8200
 # to 0x8000 and gained the M19c GAP_MIN/REGION_PAD region rules. The golden
 # below is the current recipe's output, so the gate is reproducibility going
 # forward rather than agreement with a superseded artifact.

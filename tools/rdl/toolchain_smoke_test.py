@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The SystemRDL toolchain is importable at the pinned versions.
+"""VestaRV: the SystemRDL toolchain is importable at the pinned versions.
 
 Run this first when anything under tools/rdl or platform/common/python/rdl_*.py
 misbehaves: it separates "the hermetic wheels are not there" from "our code is

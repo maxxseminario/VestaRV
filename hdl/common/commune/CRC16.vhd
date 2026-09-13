@@ -1,3 +1,5 @@
+-- VestaRV: CRC16 generator
+-- Combinational one-byte CRC step: the running value enters on CrcOld and leaves on CrcOut, so the caller supplies the initial value and iterates over the message itself.
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;

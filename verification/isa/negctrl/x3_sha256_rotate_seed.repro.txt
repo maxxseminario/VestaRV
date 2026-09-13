@@ -1,5 +1,4 @@
-X3 Zknh negative control — "sha256sig0 first rotate amount is wrong (ror 7 -> ror 8)"
-=====================================================================================
+VestaRV: X3 Zknh negative control, "sha256sig0 first rotate amount is wrong (ror 7 -> ror 8)"
 
 SEED: x3_sha256_rotate_seed.patch changes the first rotate term of the
 sha256sig0 ALU arm (hdl/common/vesta/alu.vhd, alu_control "1000000") from the

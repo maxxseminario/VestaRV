@@ -1,29 +1,10 @@
 #!/usr/bin/env python3
-"""check_regs_headers.py -- the generated firmware register headers compile, and
-every macro in them is usable.
+"""VestaRV: the generated register headers compile and every macro in them is usable.
 
-`#include`-ability is not enough: a header can parse and still carry a macro
-that will not expand in an expression (a stray token, a shift wider than the
-type, a duplicated definition with a different value). So this writes a
-translation unit that INCLUDES castalia_regs.h and then USES every object-like
-macro every header defines, and compiles it freestanding at -Wall -Werror.
-
-A function-like macro is skipped -- it has no value of its own -- and so is a
-macro whose body is not a C expression; both cases are counted and printed, so
-"touched N of M" is a number a reader can check rather than a claim.
-
-A SECOND translation unit includes MemoryMap.h AND castalia_regs.h together and
-compiles the same way. That is the case firmware migrating one call site at a
-time is in, and it is not free: the two headers are emitted by different code
-and a name defined by both with different values would break every such file.
-Measured today: 0 collisions either way.
-
-Usage:
-    python3 check_regs_headers.py [<regs directory>] [--memorymap-h <MemoryMap.h>]
-
-Compiler: $RISCV_CC, default riscv-none-elf-gcc (the repo's documented prefix).
-Kept Python-3.6 compatible and never invoked as `python3 -c` -- see
-check_memorymap_h.py for why.
+Writes a translation unit that includes castalia_regs.h and uses every object-like macro, then
+compiles it freestanding at -Wall -Werror; function-like macros and non-expression bodies are
+counted and printed rather than passed over. A second unit includes MemoryMap.h alongside, the
+case firmware migrating one call site at a time is in. Compiler $RISCV_CC.
 """
 
 import os

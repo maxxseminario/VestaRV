@@ -1,13 +1,11 @@
 // See LICENSE for license details.
 
+// VestaRV: scalar test macros, the upstream riscv-tests set plus this chip's additions
+// The additions are the chip register map through myshkin_s.h and the peripheral helper macros; everything else is upstream and unchanged, and test_macros_orig.h is the untouched original kept for diffing.
+// A comment line whose first token after the hash is a preprocessor keyword IS a directive here, since this header is preprocessed as assembler-with-cpp.
+
 #ifndef __TEST_MACROS_SCALAR_H
 #define __TEST_MACROS_SCALAR_H
-
-
-#-----------------------------------------------------------------------
-# GPIO Testing Data 
-# Added by Maxx Seminario, 07/14/2025
-#-----------------------------------------------------------------------
 
 #include "myshkin_s.h"
 

@@ -1,17 +1,7 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extzb.S  (core-features work, 2026-07-08)
-#-----------------------------------------------------------------------------
-# Bit-manipulation adaptive probe — see extprobe.S for the group contract.
-# Dispatches on misa.B (bit 1 <- ENABLE_BITMANIP; the ratified B letter =
-# Zba+Zbb+Zbs, all carried by the one ENABLE_BITMANIP switch). The rv32ua
-# march has no Zb*, so SH1ADD is hand-encoded:
-#   .word 0x2062A3B3 = sh1add t2, t0, t1   (funct7 0010000, funct3 010)
-#   * B advertised  -> SH1ADD must compute (t0<<1)+t1 -> PASS
-#   * B absent      -> the encoding must take the illegal-instruction trap
-#                      (strict R-type funct7 whitelist when Zb* is off).
-#*****************************************************************************
+# VestaRV: bit-manipulation adaptive probe
+# Dispatches on misa.B, bit 1, which follows ENABLE_BITMANIP; the ratified B letter is Zba, Zbb and Zbs, all carried by that one switch. The rv32ua -march has no Zb*, so SH1ADD is hand-encoded as `.word 0x2062A3B3`, which is `sh1add t2, t0, t1` with funct7 0010000 and funct3 010. With B advertised it must compute (t0 << 1) + t1; with B absent the encoding must take the illegal-instruction trap, since the R-type funct7 whitelist is strict when Zb* is off. See extprobe.S for the group contract.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,74 +1,10 @@
 #!/usr/bin/env python3
-"""
-rv4th_terminal.py
-=================
-Interactive Forth terminal for the **myshkin** chip over UART.
-Designed for Raspberry Pi 4 Model B.
+"""VestaRV: interactive Forth terminal for the myshkin chip over UART, for a Raspberry Pi 4.
 
-The script opens the RPi's UART, switches the host terminal to raw
-(character-at-a-time) mode, and provides a transparent pipe between
-the user's keyboard and the chip.  The chip handles its own line echo,
-so every character the user types is forwarded to the chip and the
-chip's reply (including the echoed command, result, and the next ">"
-prompt) is streamed directly to the screen.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Hardware wiring
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Chip pad            RPi 4 header pin
-  ─────────           ────────────────
-  P2.4  (TX0)    ──►  Pin 10  (GPIO15 / RXD)
-  P2.5  (RX0)    ◄──  Pin  8  (GPIO14 / TXD)
-  GND            ────  Pin  6  (GND)
-  BOOT input [PCB]◄──  Pin 12  (GPIO18)  — see --boot-pin  (default: 18)
-  resetn  [opt]  ◄──  Pin 11  (GPIO17)  — see --reset-pin
-
-  PCB inversion: GPIO18 HIGH  →  chip BOOT pin LOW  →  Forth mode
-                 GPIO18 LOW   →  chip BOOT pin HIGH →  SPI flash boot
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-One-time RPi UART setup  (add to /boot/config.txt, then reboot)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  enable_uart=1
-  dtoverlay=disable-bt          # moves PL011 from Bluetooth → GPIO14/15
-
-After rebooting /dev/ttyAMA0 will be on GPIO14/15 at full PL011 quality.
-You may also need:  sudo usermod -aG dialout $USER  (then log out/in)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Entering Forth mode
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  By default the script drives GPIO18 HIGH, which pulls the chip's
-  BOOT pin LOW via the PCB, selecting Forth mode.  The pin is held
-  HIGH for the entire session so the chip re-enters Forth mode if
-  reset again.  On exit it is released LOW.
-
-  The chip will print:
-        myshkin rv4th-rom!
-
-        >
-  and wait for Forth commands.  Use --reset-pin to let the script
-  also drive the chip's resetn pad automatically.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Example Forth commands (from the simulation test-suite)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  123 0x04C00 !        write the value 123 to address 0x04C00
-  0x04C00 @ .          fetch from 0x04C00 and print  → 123
-  124 0x04B00 !        write 124 to address 0x04B00
-  0x04B00 @ .          fetch from 0x04B00 and print  → 124
-  -500 75689 * .       multiply and print             → -37844500
-  3 1 clk .            measure / print MCU clock frequency
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Usage
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  python3 rv4th_terminal.py
-  python3 rv4th_terminal.py --port /dev/ttyAMA0 --baud 115200
-  python3 rv4th_terminal.py --reset-pin 17 --log session.log
-  python3 rv4th_terminal.py --boot-pin 18 --reset-pin 17
-
-  Exit: Ctrl-C
+Opens the RPi UART and pipes the raw-mode host terminal to the chip, which echoes its own
+line. Wiring: chip P2.4/TX0 to header pin 10, P2.5/RX0 to pin 8, GND to pin 6, BOOT to pin
+12 (--boot-pin), resetn to pin 11 (--reset-pin). The PCB inverts BOOT, so GPIO18 high
+selects Forth mode. /boot/config.txt needs enable_uart=1 and dtoverlay=disable-bt.
 """
 
 import argparse
@@ -108,14 +44,9 @@ BANNER = """\
 # ─── Raw-terminal context manager ────────────────────────────────────────────
 
 class RawTerminal:
-    """
-    Context manager that switches stdin to raw (single-character) mode and
-    restores the original settings on exit, even if an exception is raised.
-
-    In raw mode:
-      - Characters are not buffered until Enter is pressed.
-      - The terminal does NOT echo characters locally.
-      - Ctrl-C does NOT generate SIGINT; instead it is read as '\\x03'.
+    """Context manager switching stdin to raw single-character mode and restoring the original
+    settings on exit, even on an exception. In raw mode characters are not buffered until Enter,
+    the terminal does not echo locally, and Ctrl-C is read as '\x03' rather than raising SIGINT.
     """
 
     def __init__(self):
@@ -138,14 +69,9 @@ class RawTerminal:
 def uart_reader(ser: serial.Serial,
                 stop: threading.Event,
                 log_fh=None) -> None:
-    """
-    Background thread: continuously reads bytes arriving from the chip and
-    writes them straight to stdout (and optionally to a log file).
-
-    The chip echoes each received character and, after processing a line,
-    outputs the result followed by the next '>' prompt.  Because we do not
-    locally echo keystrokes, everything the user sees on screen comes
-    through here.
+    """Background thread reading bytes from the chip straight to stdout, and to a log file when one
+    is given. The chip echoes each character it receives and prints the result and next prompt,
+    so with no local echo everything on screen comes through here.
     """
     while not stop.is_set():
         try:
@@ -174,13 +100,9 @@ def uart_reader(ser: serial.Serial,
 # ─── Optional GPIO-controlled chip reset ─────────────────────────────────────
 
 def gpio_reset(pin: int) -> bool:
-    """
-    Assert the chip's active-low resetn for ≥ 1 ms via a GPIO output, then
-    release it.  Returns True on success, False if gpiozero is unavailable.
-
-    The GPIO pin must be connected to the chip's resetn pad.  No level
-    shifter or series resistor is required if both chips share the same 3.3 V
-    rail; otherwise add a 1 kΩ series resistor for safety.
+    """Assert the chip's active-low resetn for at least 1 ms via a GPIO output, then release it;
+    False if gpiozero is unavailable. The pin must reach the resetn pad, and needs a 1 kOhm series
+    resistor unless both chips share the same 3.3 V rail.
     """
     try:
         from gpiozero import OutputDevice  # type: ignore
@@ -205,15 +127,9 @@ def gpio_reset(pin: int) -> bool:
 # ─── GPIO boot-mode control ───────────────────────────────────────────────────
 
 def forth_boot_pin_enable(pin: int):
-    """
-    Drive the boot-mode GPIO pin HIGH and hold it for the session.
-
-    On the PCB, this pin is inverted before reaching the chip's BOOT pad:
-        RPi GPIO HIGH  →  chip BOOT pin LOW  →  Forth (rv4th-ROM) mode
-        RPi GPIO LOW   →  chip BOOT pin HIGH →  SPI flash boot
-
-    Returns the live OutputDevice on success so the caller can close it
-    on exit, or None if gpiozero is unavailable.
+    """Drive the boot-mode GPIO pin high and hold it for the session. The PCB inverts it, so GPIO
+    high means BOOT low and Forth mode, and GPIO low means SPI flash boot. Returns the live
+    OutputDevice so the caller can close it, or None if gpiozero is unavailable.
     """
     try:
         from gpiozero import OutputDevice  # type: ignore

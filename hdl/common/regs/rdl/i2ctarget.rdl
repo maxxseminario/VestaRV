@@ -1,14 +1,6 @@
-// ===========================================================================
-// i2ctarget.rdl: the register map of hdl/common/periph/I2CTarget.vhd.
-//
-// THE VHDL IS THE AUTHORITY: five slots from the block's SLOT_* constants,
-// every write lane-0 qualified, all resets zero.
-//
-// An I2CTxTX write both loads the buffer and LAUNCHES (payload before flag:
-// the byte is captured, then tx_load_tgl flips), and the SR read masks TXE
-// with tx_load_pending so a poll immediately after that write never sees a
-// stale empty.
-// ===========================================================================
+// VestaRV: the register map of hdl/common/periph/I2CTarget.vhd
+// The VHDL is the authority: five slots from the block's SLOT_* constants, every write lane-0 qualified, all resets zero.
+// An I2CTxTX write both loads the buffer and LAUNCHES (payload before flag: the byte is captured, then tx_load_tgl flips), and the SR read masks TXE with tx_load_pending so a poll immediately after that write never sees a stale empty.
 
 `include "vesta_udp.rdl"
 

@@ -1,68 +1,9 @@
-# The PSL property sets, wired into the open-source simulation tier.
+# VestaRV: the PSL property sets, wired into the open-source simulation tier.
 #
-# ---------------------------------------------------------------------------
-# WHY THERE IS A GENERATOR IN THE MIDDLE
-# ---------------------------------------------------------------------------
-# These .psl files were written for `xrun -assert_vhdl -propfile_vhdl`, which
-# binds a vunit to an entity/architecture externally. GHDL 6.0.0 (mcode) does
-# NOT do that, and the failure mode is silent:
-#
-#   * `ghdl -a foo.psl` accepts the file and registers the vunit in the work
-#     library ("vunit pmp_grant_props at 30(1509)" in work-obj08.cf).
-#   * The vunit is then never elaborated. `ghdl --elab-order` does not list it,
-#     and a vunit holding a deliberately FALSE property over the bench's own
-#     signals produces ZERO fires -- in a separate -a/-r pair and in a single
-#     `ghdl -c ... -r` process alike.
-#   * The identical property written as a `-- psl` comment inside the
-#     architecture fires ten times over the same stimulus.
-#
-# A target that analyzed the .psl and ran the bench would therefore be green
-# and hollow. psl_inline.py moves the directives, mechanically and from the
-# tracked .psl file, into the one form GHDL's simulator evaluates. The .psl
-# files stay the single source; nothing is transcribed by hand.
-#
-# ---------------------------------------------------------------------------
-# HOW EACH TARGET IS GRADED
-# ---------------------------------------------------------------------------
-# props   `--assert-level=error` makes the FIRST psl assertion abort the run
-#         with rc 1 (measured; without it GHDL prints the violation and still
-#         exits 0). pass_pattern is the bench's own end-of-stimulus banner, so
-#         a run that died early is red too. Each directive carries
-#         `report "PSL ASSERT <name>"`, which is the only way to tell which
-#         property fired -- GHDL's message names a file and line, not a label.
-#
-# witness Every witness is `assert never {trigger}` and MUST fire; a silent one
-#         means the shadowed property passed vacuously. ghdl_test decides on
-#         one fixed string, and "all N fired" is not a string GHDL prints, so
-#         psl_inline --tally also emits a plain VHDL process sampling the same
-#         booleans on the same clock, which reports ALL N WITNESSES HIT the
-#         first time every one has been seen. The PSL directives are emitted
-#         as well and evaluated independently; their fires are in the run log
-#         that ghdl_test copies into test.outputs/.
-#
-# The witness targets are also what keeps the props targets honest: both go
-# through the same generator, the same -fpsl flag and the same generated file
-# shape, so a pipeline that stopped inlining anything turns the witness
-# targets red rather than turning the props targets quietly vacuous. On top of
-# that psl_inline refuses to write a bench with zero directives.
-#
-# ---------------------------------------------------------------------------
-# MEASURED RESULT, 2026-09-12 (report P3)
-# ---------------------------------------------------------------------------
-#   pmp_grant       16 properties, 0 fires   16/16 witnesses hit
-#   fabric_formal    6 properties, 0 fires    8/8   witnesses hit
-#   fabric           12 properties, 0 fires  13/13  witnesses hit  (N_DELAY 0/1/2)
-#   core_pmp         2 properties, 0 fires    3/3   witnesses hit  (both IF_AHEAD)
-#
-# SEEN TO FAIL, so the green is not taken on trust. `return priv_m` ->
-# `return '1'` in pmp_unit.vhd's no-match arm (pmp_unit.vhd:137), the U-mode
-# privilege escape, turns :pmp_grant_props red with rc 1 at 3700 ps naming
-# P_DUT8_UPPER_DEAD_DATA.  That is the whole chain exercised end to end: the
-# generator, -fpsl, --assert-level=error and the report string.
-#
-# The .sh runners beside this file are the Cadence path and are untouched.
-# They remain the only way to run these sets under xrun, which is a different
-# PSL engine with a different report format.
+# GHDL 6.0.0 accepts a standalone .psl vunit and never elaborates it, so a target that analyzed
+# one and ran the bench would be green and hollow; psl_inline.py moves the directives into the
+# `-- psl` form GHDL evaluates, leaving the .psl files the single source. props targets need
+# --assert-level=error; every witness is `assert never` and a silent one means a vacuous pass.
 
 load("@rules_python//python:defs.bzl", "py_binary")
 load("//opensource_sim/pmp:defs.bzl", "VESTA_PMP_RTL")
@@ -75,14 +16,12 @@ py_binary(
     srcs = ["psl_inline.py"],
 )
 
-# ---------------------------------------------------------------------------
 # Source handles.
 #
 # The benches that live in OTHER packages are picked out of //hdl:vhdl_sources
 # with vhdl_source_set, which yields exactly one file and so can be named with
 # $(location). That avoids adding exports_files entries to packages this one
 # does not own.
-# ---------------------------------------------------------------------------
 vhdl_source_set(
     name = "arb_lat_tb_src",
     paths = ["hdl/common/tb/arb_lat_tb.vhd"],
@@ -132,9 +71,7 @@ vhdl_source_set(
     pool = ["//hdl:vhdl_sources"],
 )
 
-# ---------------------------------------------------------------------------
 # Generated benches.
-# ---------------------------------------------------------------------------
 genrule(
     name = "gen_pmp_grant_props_tb",
     srcs = [
@@ -236,10 +173,8 @@ _PSL_FLAGS = [
     "-fpsl",
 ]
 
-# ---------------------------------------------------------------------------
 # pmp_unit grant function -- pmp_formal_tb(tb), unclocked properties sampled on
 # the bench's own `sample` strobe.
-# ---------------------------------------------------------------------------
 ghdl_test(
     name = "pmp_grant_props",
     size = "small",
@@ -269,9 +204,7 @@ ghdl_test(
     tags = ["ghdl"],
 )
 
-# ---------------------------------------------------------------------------
 # mutex_bank / resv_unit / mp_arbiter directed shapes -- fabric_formal_tb(tb).
-# ---------------------------------------------------------------------------
 ghdl_test(
     name = "fabric_formal_props",
     size = "small",
@@ -301,7 +234,6 @@ ghdl_test(
     tags = ["ghdl"],
 )
 
-# ---------------------------------------------------------------------------
 # The shared-fabric set over arb_lat_tb's contended stimulus.
 #
 # N_MASTERS is 4, not the 6 //hdl/common/tb:arb_lat_tb runs: the properties
@@ -309,7 +241,6 @@ ghdl_test(
 # property set. N_DELAY sweeps the registered tile boundary 0/1/2 exactly as
 # run_fabric_props.sh does, because a latency-insensitivity property that only
 # ran at one depth would not be one.
-# ---------------------------------------------------------------------------
 [
     ghdl_test(
         name = "fabric_props_d%d" % d,
@@ -358,7 +289,6 @@ ghdl_test(
     tags = ["ghdl"],
 )
 
-# ---------------------------------------------------------------------------
 # The core-level D5 suppression set -- vesta(struct).
 #
 # run_core_pmp_props.sh needs a staged `make verify` configuration under
@@ -371,7 +301,6 @@ ghdl_test(
 # pmp_f_deny_r describes the fetch the immediately preceding cycle issued, so
 # a PMP property run only with fetch-ahead off cannot see a fetch-ahead
 # regression.
-# ---------------------------------------------------------------------------
 [
     ghdl_test(
         name = "core_pmp_props_ifahead_%s" % suffix,

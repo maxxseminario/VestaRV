@@ -1,7 +1,5 @@
-/* =====================================================================
-   Directed bench for three fabric contracts: mutex_bank claim atomicity,
-   resv_unit foreign-write reservation break, arbiter locked RMW window.
-   ===================================================================== */
+-- VestaRV: directed bench for three fabric contracts
+-- Covers mutex_bank claim atomicity, resv_unit foreign-write reservation break, and the arbiter's locked RMW window.
 library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
 
 entity fabric_formal_tb is end entity;
@@ -111,7 +109,7 @@ begin
     begin
         resetn <= '0'; tick; tick; resetn <= '1'; tick;
 
-        -- ============ mutex_bank: claim atomicity + steal-proof ============
+        -- mutex_bank: claim atomicity, steal-proof.
         -- 1. master 1 claims a FREE mutex 0: rdata must be the OLD value (free = 0).
         mx_addr <= "0000"; mx_master <= "01"; mx_we <= "0000"; mx_en <= '1';
         mx_exp <= (others => '0'); mx_exp_valid <= '1'; mx_claim_held <= '0';
@@ -135,7 +133,7 @@ begin
         mx_exp <= (others => '0'); mx_exp_valid <= '1';
         tick; mx_en <= '0'; tick; mx_exp_valid <= '0'; tick;
 
-        -- ============ resv_unit: the foreign-write rule ============
+        -- resv_unit: the foreign-write rule.
         -- master 0 takes a reservation at address 0x20.
         rv_addr <= x"20"; rv_gnt <= "0001"; rv_lrsc <= "00000001";  -- m0 = LR
         rv_sen <= '1'; rv_we <= "0000"; tick;
@@ -153,7 +151,7 @@ begin
         rv_sen <= '0'; rv_we <= "0000"; rv_gnt <= "0000"; rv_lrsc <= (others=>'0');
         tick; tick;
 
-        /* ============ mp_arbiter: grant-locked RMW window ============
+        /* mp_arbiter: grant-locked RMW window.
            Masters 1..3 request throughout via the BFMs below, so the window is genuinely contended; this process drives master 0 only.
            The full handshake is mandatory: a master's req must be observed low before the wait-for-release mask honors it again, the write out of LOCKED included. */
         for k in 0 to 9 loop tick; end loop;

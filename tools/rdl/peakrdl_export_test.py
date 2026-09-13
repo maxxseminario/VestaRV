@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
-"""peakrdl_export_test.py -- the tracked .rdl descriptions are valid SystemRDL
-that STOCK tools consume, not just input to this repo's own emitters.
+"""VestaRV: the tracked .rdl descriptions are valid SystemRDL that stock tools consume.
 
-That is the whole argument for using SystemRDL rather than another table format,
-so it is asserted rather than assumed: each description is exported by
-peakrdl-markdown and by peakrdl-cheader, and the output must be non-empty and
-must name the block's registers. If a description ever compiles only under
-rdl_model.py, this test is what says so.
+That is the whole argument for SystemRDL over another table format, so it is asserted rather
+than assumed: each description is exported by peakrdl-markdown and peakrdl-cheader, and the
+output must be non-empty and must name the block's registers.
 """
 
 import os

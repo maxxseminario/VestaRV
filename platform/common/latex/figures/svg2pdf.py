@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
-"""Convert a diagram SVG to a cropped PDF without inkscape.
+"""VestaRV: convert a diagram SVG to a cropped PDF without inkscape.
 
-The source SVGs contain literal LaTeX macros in their text labels (they were
-authored for inkscape's LaTeX-export flow). This script resolves those macros
-to plain text (\textoverline -> Unicode combining overlines), converts via
-LibreOffice headless, and crops to content with ghostscript.
-
-Usage: python3 svg2pdf.py <figure-name-without-extension> [...]
-Run from this directory. Requires: soffice, gs.
+The source SVGs carry literal LaTeX macros in their text labels, from inkscape's LaTeX-export
+flow; those are resolved to plain text (overline macros become Unicode combining overlines),
+converted through LibreOffice headless and cropped to content with ghostscript. Run from this
+directory. Usage: python3 svg2pdf.py <figure-name-without-extension> [...]. Needs soffice, gs.
 """
 import re, os, sys, subprocess, tempfile
 

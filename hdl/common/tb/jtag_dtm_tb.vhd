@@ -382,7 +382,7 @@ begin
         variable qv     : std_logic;
 
     begin
-        -- === A. TRSTn reset and the IDCODE default ==========================
+        -- A. TRSTn reset and the IDCODE default
         resetn <= '0';
         trstn  <= '0';
         wait for 4 * MCLK_PERIOD;
@@ -416,7 +416,7 @@ begin
         check(cap5 = "00001", "A7: Capture-IR value is not 0x01");
         check(req_rises = 0, "A8: an IDCODE or IR scan issued a DMI request");
 
-        -- === B. IR decode and the BYPASS default ============================
+        -- B. IR decode and the BYPASS default
         scan_ir(IR_BYPASS, cap5);
         scan_dr("0", w1);
         check(w1(0) = '0', "B1: BYPASS did not capture 0");
@@ -440,7 +440,7 @@ begin
         scan_dr(x"00000000", w32);
         check(w32 = IDCODE_VAL, "B5: Test-Logic-Reset did not restore IR = IDCODE");
 
-        -- === C. dtmcs ======================================================
+        -- C. dtmcs
         scan_ir(IR_DTMCS, cap5);
         check(cap5 = "00001", "C1: Capture-IR value changed with the loaded IR");
         scan_dr(x"00000000", w32);
@@ -452,7 +452,7 @@ begin
         -- dmireset/dmihardreset are write-only strobes and read back as zero.
         check(w32(17 downto 16) = "00", "C7: the dmireset strobes read back nonzero");
 
-        -- === D. a DMI write ================================================
+        -- D. a DMI write
         scan_ir(IR_DMI, cap5);
         slv_rdy_lat <= 0;
         slv_rsp_lat <= 2;
@@ -477,7 +477,7 @@ begin
               "D10: the request crossed in " & time'image(req_rise_at - upd_at) &
               ", short of the three mclk edges a 2-flop chain plus edge detect costs");
 
-        -- === E. a DMI read, and the address preserved through the capture ===
+        -- E. a DMI read, and the address preserved through the capture
         slv_rdata <= x"0BADF00D";
         a0 := slv_accepts;
         dmi_scan(OP_READ, "1010101", x"00000000", rop, raddr, rdata);
@@ -504,7 +504,7 @@ begin
         check(slv_accepts = a0, "E11: a NOP DMI scan reached the slave");
         check(rdata = x"0BADF00D", "E12: the NOP capture did not re-read the shadow");
 
-        -- === F. sticky BUSY ================================================
+        -- F. sticky BUSY
         -- Park a transaction in flight for far longer than one DR scan, then
         -- scan again: the capture must be the literal 3 and dmistat must stick.
         slv_rsp_lat <= 400;
@@ -550,7 +550,7 @@ begin
         check(rdata = x"C0FFEE11", "F11: the post-dmireset read returned the wrong data");
         idle(12);
 
-        -- === G. sticky FAILED ==============================================
+        -- G. sticky FAILED
         slv_fail  <= '1';
         slv_rdata <= x"FEEDFACE";
         dmi_scan(OP_READ, "0110011", x"00000000", rop, raddr, rdata);
@@ -607,7 +607,7 @@ begin
         check(rdata = x"A5A5F0F0", "G12: the post-dmihardreset read returned the wrong data");
         idle(12);
 
-        -- === H. TRSTn while the mclk side is idle ===========================
+        -- H. TRSTn while the mclk side is idle
         -- req_tgl is reset by trstn but NOT by resetn, so clearing it presents
         -- the mclk edge detect a real toggle whose hold register has already
         -- been zeroed. Only trstn_guard stops that being replayed as an
@@ -673,7 +673,7 @@ begin
             idle(12);
         end loop;
 
-        -- === I. TRSTn asynchronously, mid-transaction =======================
+        -- I. TRSTn asynchronously, mid-transaction
         -- Arm a transaction the slave will hold for a long time, start the next
         -- DR scan, and pull TRSTn in the middle of the shift at a phase that is
         -- deliberately not aligned to either clock.
@@ -742,7 +742,7 @@ begin
         check(raddr = "1110000", "I14: the post-trstn read lost its address");
         idle(12);
 
-        -- === J. a slower mclk-side accept ===================================
+        -- J. a slower mclk-side accept
         -- Widen the accept and response latencies so the four-phase handshake
         -- runs at a different phase of both synchroniser chains.
         slv_rdy_lat <= 7;
@@ -764,7 +764,7 @@ begin
         slv_rdy_lat <= 0;
         slv_rsp_lat <= 2;
 
-        -- === K. the ENABLE_DEBUG = false fold ===============================
+        -- K. the ENABLE_DEBUG = false fold
         check(off_active = 0, "K1: the ENABLE_DEBUG=false instance was not inert");
         check(tdo_off = '0', "K2: the folded instance drives tdo");
         check(req_valid_off = '0', "K3: the folded instance drives dmi_req_valid");
@@ -772,7 +772,7 @@ begin
         check(req_addr_off = "0000000", "K5: the folded instance drives dmi_req_addr");
         check(req_data_off = x"00000000", "K6: the folded instance drives dmi_req_data");
 
-        -- === verdict ========================================================
+        -- verdict
         idle(4);
         report "jtag_dtm_tb: " & integer'image(checks) & " checks, " &
                integer'image(fails) & " failed" severity note;

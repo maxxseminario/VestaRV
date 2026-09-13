@@ -1,6 +1,5 @@
-/*
- * slowblink - Startup Assembly (identical to gpiotoggle / looptest)
- */
+# VestaRV: slowblink startup code
+# Jumps straight to main; identical to the gpiotoggle and looptest startup.
 
 .section .program_start, "ax"
 .global __start_RAM_program__

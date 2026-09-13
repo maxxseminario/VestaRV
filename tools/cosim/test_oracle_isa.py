@@ -1,16 +1,10 @@
 #!/usr/bin/python3.6
-# test_oracle_isa.py -- unit tests for the K2 oracle derivation.
-#
+# VestaRV: unit tests for the oracle command-line derivation.
 #   /usr/bin/python3.6 tools/cosim/test_oracle_isa.py
-#
-# THE LOAD-BEARING TEST is test_default_reproduces_todays_spike_isa: the K2 spec
-# requires that the default config derive TODAY'S hardcoded SPIKE_ISA plus
-# `_zicntr` AND NOTHING ELSE.  That is what makes acceptance B interpretable --
-# if the derivation moved anything besides the one correction, a changed pin
-# could not be attributed.
-#
-# Python 3.6 compatible.  Same style as tools/cosim/test_compare.py (plain
-# asserts, one process, no framework).
+# The load-bearing case is test_default_reproduces_todays_spike_isa: the default
+# configuration must derive the hardcoded SPIKE_ISA plus _zicntr and nothing else, so that
+# a changed pin elsewhere can be attributed.
+# Python 3.6 compatible, plain asserts in one process like tools/cosim/test_compare.py.
 
 import os
 import sys
@@ -24,7 +18,7 @@ import oracle_isa as O                                          # noqa: E402
 # The string xrun_cosim.sh has hardcoded since V0. Quoted here so the test fails
 # loudly if either side moves.
 TODAYS_SPIKE_ISA = 'rv32imac_zicsr_zba_zbb_zbs_zbc'
-# CPR8/R7 RE-PIN (2026-08-15): the shipped default became the five-hart
+# CPR8/R7 RE-PIN: the shipped default became the five-hart
 # orchestrator chip, which carries memory map v2 -- SH_AW 15 -> 16, so the
 # shared space is [0, 2**18) and extended flash starts at 0x40000. Both windows
 # are DERIVED (BOOT_MEM = 0:2**(SH_AW+2), SPIKE_MEM = RamStartAddress:top-base),
@@ -61,9 +55,7 @@ def cfg(isa=None, priv=None):
     return {'isa': base, 'priv': p, 'numHarts': 4}
 
 
-# ---------------------------------------------------------------------------
 # THE ACCEPTANCE-B PRECONDITION
-# ---------------------------------------------------------------------------
 def test_default_reproduces_todays_spike_isa():
     got = O.derive_isa_string(cfg())
     check('default derives exactly today\'s SPIKE_ISA + _zicntr',
@@ -86,9 +78,7 @@ def test_zicntr_is_unconditional():
     check('isa.counters does not change the oracle string at all', off == on)
 
 
-# ---------------------------------------------------------------------------
 # THE MUL/DIV LEVER
-# ---------------------------------------------------------------------------
 def test_mul_only_uses_zmmul_not_m():
     s = O.derive_isa_string(cfg({'mul': True, 'div': False}))
     check('mul-only emits _zmmul', '_zmmul' in s, '(got %s)' % s)
@@ -117,9 +107,7 @@ def test_div_without_mul_is_refused():
               or 'NO Spike lever' in str(e))
 
 
-# ---------------------------------------------------------------------------
 # PRIV AND PMP
-# ---------------------------------------------------------------------------
 def test_priv_is_m_or_mu_never_msu():
     check('default -> --priv m', O.derive_priv(cfg()) == 'm')
     check('umode   -> --priv mu',
@@ -142,9 +130,7 @@ def test_pmpregions():
         cfg(priv={'trapCsr': True, 'umode': True, 'pmp': True, 'pmpEntries': 8})) == 8)
 
 
-# ---------------------------------------------------------------------------
 # CROSS-KNOB REFUSALS
-# ---------------------------------------------------------------------------
 def test_zawrs_requires_atomics():
     try:
         O.derive_isa_string(cfg({'zawrs': True, 'atomics': False}))
@@ -155,9 +141,7 @@ def test_zawrs_requires_atomics():
     check('zawrs with atomics emits _zawrs', '_zawrs' in ok)
 
 
-# ---------------------------------------------------------------------------
 # THE X KNOBS -- every one must reach the string, and none may leak
-# ---------------------------------------------------------------------------
 def test_every_x_knob_changes_the_string():
     base = O.derive_isa_string(cfg())
     knobs = ('zicond', 'zcb', 'zimop', 'zihint', 'zihpm', 'zawrs', 'zabha',
@@ -192,9 +176,7 @@ def test_composites():
               cfg({'zcb': True, 'compressed': False})))
 
 
-# ---------------------------------------------------------------------------
 # THE MEMORY WINDOWS -- derived, and they must reproduce today's literals
-# ---------------------------------------------------------------------------
 def test_memory_windows_reproduce_todays_literals():
     hdl = os.path.join(ROOT, 'hdl', 'common')
     if not os.path.isfile(os.path.join(hdl, 'MemoryMap.vhd')):
@@ -208,12 +190,9 @@ def test_memory_windows_reproduce_todays_literals():
 
 
 def test_against_the_real_resolved_config():
-    """A LIVE control on the config SHAPE.
-
-    Every test above builds its config from this file's own `cfg()` helper, so
-    all of them would still pass if the real ChipConfig.resolved.json used a
-    different key layout entirely -- they would be testing the helper, not the
-    generator's output. This one reads the file `make generate` actually writes.
+    """A live control on the config shape. Every other test builds its config from this file's own
+    helper, so all of them would still pass if the real ChipConfig.resolved.json used a different
+    key layout; this one reads the file `make generate` actually writes.
     """
     import json
     p = os.path.join(ROOT, 'platform', 'common', 'config', 'ChipConfig.resolved.json')
@@ -237,12 +216,9 @@ def test_against_the_real_resolved_config():
 
 
 def test_sparse_config_is_refused():
-    """THE DEFECT THIS GUARD EXISTS FOR, both polarities.
-
-    A `CONFIG=` file is SPARSE. Before the guard, feeding one derived
-    `rv32i_zicsr_zicntr_zicboz` from castalia_zicboz.json -- silently trading M,
-    A, C and all of Zb for one knob. A divergence from THAT would have looked
-    like an RTL bug.
+    """The defect this guard exists for, in both polarities. A CONFIG= file is sparse, and reading
+    missing keys as False derives rv32i_zicsr_zicntr_zicboz from a chip that has M, A, C and all
+    of Zb, a divergence from which would have looked like an RTL bug.
     """
     sparse = {'chipName': 'CastaliaZicboz', 'isa': {'zicboz': True}}
     try:
@@ -271,10 +247,8 @@ def test_sparse_config_is_refused():
 
 
 def test_amendments_are_config_gated():
-    """K2b: the comparator amendment set is DERIVED, and the default is EMPTY.
-
-    The default-empty check is the one that matters: it is what keeps the four
-    standing gate pins unmoved while the amendments exist in the tree.
+    """The comparator amendment set is derived, and the default is empty. The default-empty check is
+    the one that matters: it keeps the four standing gate pins unmoved while the amendments exist.
     """
     import amend
     check('default config derives NO amendment',

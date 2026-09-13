@@ -1,79 +1,14 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# uiretph.S   (F-series fix pass, wave W4 -- the VERIFY-FIRST PROBE for F12)
-#-----------------------------------------------------------------------------
-# F12 AS FILED: `isr_ret` carries the U-mode qualifier (maindec.vhd:921,
-# `and u_gate = '0'`) but `read_data_flag`'s iret arm (maindec.vhd:1080) does
-# NOT.  R1 established that read_data_flag -- not isr_ret -- is what drives the
-# EXECUTE trajectory.  So the filed hypothesis is that a U-mode `iret` becomes
-# a PHANTOM LOAD THAT RETIRES INSTEAD OF TRAPPING.  Whether `trap` also rises
-# was never established.  THIS FILE ESTABLISHES IT.  A refutation is a fine
-# outcome and is what this probe is expected to produce.
-#
-# ON-ONLY.  Requires a trapCsr+umode staged build (both MemoryMap constants
-# true) AND -DCORE_ENABLE_TRAPCSR -DCORE_ENABLE_UMODE on RISCV_GCC_OPTS.  The
-# #else arm FAILs loudly; this test is NOT in the standing TEST_FILES array.
-#
-# ---------------------------------------------------------------------------
-# WHAT IS MEASURED, AND HOW
-# ---------------------------------------------------------------------------
-# LEG 1 -- the CANONICAL U-mode iret (`.insn r 0x0b,0,0,x0,x0,x0`, the
-#   riscv_test.h:21-23 macro word).  The instruction after it sets a witness
-#   and then ECALLs, so BOTH outcomes come back to M with exactly one trap and
-#   are distinguishable:
-#       trap fires   -> mcause 2 (illegal instruction), mepc = the iret's OWN
-#                       pc, witness still 0.                    F12 REFUTED
-#       no trap      -> mcause 8 (ECALL from U), mepc = the ecall's pc,
-#                       witness = 0x0BAD0001 -- the iret RETIRED.  F12 REAL
-#
-# LEG 2 -- the SAME instruction with the rs2/rs1 fields set so the phantom's
-#   address is a HW MUTEX (mutex_bank.vhd:99-110: a read is an atomic
-#   return-old-and-claim attributed to the arbiter's granted master).  This is
-#   the direct bus watch -- it answers "what does the bus present?" without a
-#   waveform:
-#       mutex reads 0 -> NO transaction was issued at ALU_Result in U-mode
-#       mutex reads 1 -> owner = hart 0 + 1: the U-mode phantom read FIRED
-#   ALU_Result = reg[rs1] + reg[rs2] for CUSTOM_OPCODE (maindec.vhd:997-1009
-#   ALU_src '0', :1107 alu_control ADD), and the custom-opcode decode never
-#   inspects rs1/rs2 -- so this is the same instruction with a steered address,
-#   exactly as iretphan.S (the F9 detector) uses it in M-mode.
-#
-# THE POSITIVE CONTROL IS A SEPARATE RUN, DELIBERATELY: `xrv32ua-p-iretphan`
-#   is run on THIS SAME knobs-on build.  It must still report
-#   a1 = 0xF9F90001 / a2 = 1, i.e. the M-mode phantom still claims its mutex on
-#   this configuration.  Without that, "the U-mode mutex stayed free" would be
-#   indistinguishable from "this build issues no phantoms at all".
-#
-# The mutex bank's own liveness is ALSO proven inside this file (mutex 2 is
-# claim-read twice: 0 then 1), so a leg-2 zero can never be a dead-bank zero.
-#
-# ---------------------------------------------------------------------------
-# Verdict / a1 codes.  a0 = 0xCAFEBABE means F12 is REFUTED.
-# ---------------------------------------------------------------------------
-#   a0=0xDEADBEEF, a1=0xF12F0001   LEG 1: the U-mode iret did NOT trap
-#                                  (mcause was not 2)
-#   a0=0xDEADBEEF, a1=0xF12F0002   LEG 1: mepc was not the iret's own pc
-#   a0=0xDEADBEEF, a1=0xF12F0003   LEG 1: the witness after the iret executed
-#                                  -- the instruction RETIRED
-#   a0=0xDEADBEEF, a1=0xF12F0004   LEG 2: the steered U-mode iret did not trap
-#   a0=0xDEADBEEF, a1=0xF12F0005   LEG 2: THE PHANTOM FIRED IN U-MODE -- the
-#                                  mutex was claimed.  F12 IS REAL.
-#   a0=0xDEADBEEF, a1=0x5E120001   mutex positive control broke (bank not live)
-#   a0=0xDEADBEEF, a1=0x5E120002   wrong number of traps delivered
-#   a0=0xDEADBEEF, a1=0x5E120003   a U-mode entry/CSR precondition failed
-#   a0=0xDEADBEEF, a1=0x5E12BAD0   built on the wrong polarity (#else arm)
-#
-# Registers live at the verdict:
-#   a3 leg1 mcause   a4 leg1 mepc    a5 leg1 mtval   s8  leg1 witness
-#   a6 leg2 mcause   a7 leg2 mepc    s10 leg2 mtval  s11 leg2 witness
-#   a2 mutex-4 pre-existing owner (leg 2's bus watch)
-#   s3 trap count    s0 expected mepc for the leg under test
-#
-# SHARED WORDS CLAIMED: NONE.  HW MUTEX 2 @0x6008 (liveness control) and
-#   MUTEX 4 @0x6010 (leg 2) only; both hardware, both released on exit except
-#   the deliberate F12-REAL path.  Nothing in 0x10000-0x107FF is touched.
-#*****************************************************************************
+# VestaRV: verify-first probe for a U-mode `iret` phantom load
+# THE HYPOTHESIS AS FILED: isr_ret carries the U-mode qualifier but read_data_flag's iret arm does not, and read_data_flag rather than isr_ret is what drives the EXECUTE trajectory, so a U-mode `iret` becomes a phantom load that RETIRES instead of trapping. Whether `trap` also rises was never established, and this file establishes it. A REFUTATION IS A FINE OUTCOME and is what this probe is expected to produce.
+# ON-ONLY: it needs a staged trapCsr and umode build with both MemoryMap constants true AND -DCORE_ENABLE_TRAPCSR -DCORE_ENABLE_UMODE on the compile options. The #else arm fails loudly and this test is not in the standing runner array.
+# LEG 1 uses the CANONICAL U-mode iret. The instruction after it sets a witness and then ECALLs, so both outcomes return to M with exactly one trap and are distinguishable: a trap gives mcause 2 with mepc at the iret's own PC and the witness still 0, refuting the hypothesis; no trap gives mcause 8 with mepc at the ecall and the witness set, meaning the iret retired.
+# LEG 2 uses the SAME instruction with the register fields set so the phantom's address is a HW MUTEX, where a read is an atomic return-old-and-claim attributed to the granted master. That is the direct bus watch and answers what the bus presents without a waveform: the mutex reading 0 means no transaction was issued at ALU_Result in U-mode, and reading hart 0 + 1 means the phantom fired. ALU_Result is reg[rs1] + reg[rs2] for the custom opcode and the decode never inspects those fields, so this is the same instruction with a steered address.
+# THE POSITIVE CONTROL IS A SEPARATE RUN, DELIBERATELY: the M-mode sibling probe is run on this same knobs-on build and must still report its phantom claiming the mutex. Without that, "the U-mode mutex stayed free" would be indistinguishable from "this build issues no phantoms at all". The bank's own liveness is also proven inside this file, by claim-reading another mutex twice and requiring 0 then hart 0 + 1, so a leg-2 zero can never be a dead-bank zero.
+# Verdicts: a0 = 0xCAFEBABE means the hypothesis is refuted. a0 = 0xDEADBEEF with a1 = 0xF12F0001 leg 1 did not trap; 0xF12F0002 leg 1's mepc was not the iret's own PC; 0xF12F0003 the witness after the iret executed, so the instruction retired; 0xF12F0004 leg 2's steered iret did not trap; 0xF12F0005 THE PHANTOM FIRED IN U-MODE and the mutex was claimed; 0x5E120001 the mutex positive control broke, so the bank is not live; 0x5E120002 the wrong number of traps was delivered; 0x5E120003 a U-mode entry or CSR precondition failed; 0x5E12BAD0 built on the wrong polarity.
+# Registers live at the verdict: a3, a4 and a5 leg 1's mcause, mepc and mtval with s8 its witness; a6, a7 and s10 leg 2's mcause, mepc and mtval with s11 its witness; a2 the pre-existing owner of leg 2's mutex; s3 the trap count and s0 the expected mepc for the leg under test.
+# NO SHARED WORDS ARE CLAIMED: only HW mutex 2 as the liveness control and mutex 4 for leg 2, both hardware and both released on exit except on the deliberate fired path. Nothing in 0x10000-0x107FF is touched.
 
 #include "riscv_test.h"
 #include "test_macros.h"

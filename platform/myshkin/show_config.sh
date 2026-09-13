@@ -1,16 +1,16 @@
 #!/bin/bash
-# Show current VestaRV MCU configuration summary
+# VestaRV: print a summary of the Myshkin MCU configuration.
+# Reads config/MemoryMap.json, which ./regenerate.sh writes, so the summary is
+# only as current as the last generator run.
 
 echo "=========================================="
 echo "VestaRV MCU Configuration Summary"
 echo "=========================================="
 echo ""
 
-# Navigate to script directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
-# Extract info from MemoryMap.json if it exists
 if [ -f "config/MemoryMap.json" ]; then
     CHIP_NAME=$(grep -m1 '"ChipName"' config/MemoryMap.json | sed 's/.*"ChipName": "\(.*\)".*/\1/')
     echo "Current Implementation: $CHIP_NAME"

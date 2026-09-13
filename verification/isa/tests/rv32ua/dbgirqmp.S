@@ -1,123 +1,13 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# dbgirqmp.S   (D-series, D2 -- F-D2-1: A HART IN DEBUG MODE TAKES NO
-#               INTERRUPT, IN BOTH DELIVERY POLARITIES)
-#-----------------------------------------------------------------------------
-# BLIND-AUTHORED 2026-08-06 against the F-D2-1 contract statement only, by an
-# agent that has not seen and will never see the implementer's fix (R-D2-3(5)
-# bars the author from d2_implementation_report.md).  Committed polarity:
-# CORRECT RTL = PASS (R-K5-8).
-#
-# NEEDS A HARNESS:  ./xrun_dbg.sh rv32ua-p-dbgirqmp dbg_irq.tcl
-# No Debug Module is required: the harness forces the tile's `dbg_haltreq`
-# port, the D1 mechanism.
-#
-# ---------------------------------------------------------------------------
-# THE TRAP THIS FILE EXISTS TO AVOID, AND HOW IT AVOIDS IT
-#   "No interrupt was taken" is the easiest claim in verification to make
-#   vacuously true.  A test that never made one pending, or made one pending
-#   on a hart that could not have taken it anyway -- wrong polarity, mie
-#   clear, mstatus.MIE clear, IVT slot parked -- reports a clean zero and
-#   proves nothing (method rule 4: validate the method against a KNOWN
-#   NONZERO before its answer is load-bearing).  So each victim proves the
-#   interrupt is takeable THREE times, twice around the measurement:
-#
-#     1. THE PRE-DEBUG CONTROL.  Before it is ever halted, hart 0 sends the
-#        victim an msip.  The victim's ISR fires, clears the level, and
-#        counts.  ISR_CNT[h] must be exactly 1 and CTRL[h] must be set, or
-#        the whole arm is declared not-proven with its own verdict code
-#        (0x0D27h004) instead of passing.  THIS is the known-nonzero.
-#     2. THE MEASUREMENT.  The victim is halted; while it is in debug mode
-#        hart 0 sends a SECOND msip.  Nothing may happen: ISR_CNT must not
-#        move, DBGISR must stay zero, and the msip level must stay ASSERTED
-#        (hart 0 reads it back from the CLINT -- an ISR would have cleared
-#        it, so a cleared msip is itself the finding).
-#     3. THE POST-RESUME CONFIRMATION, and this is the one that closes the
-#        loop.  After the `dret`, that SAME still-pending msip must be taken
-#        AT ONCE: ISR_CNT becomes 2 and the level clears.  So the interrupt
-#        was genuinely pending and genuinely deliverable throughout -- it was
-#        DEFERRED, not absent.  Without this leg, "not taken in debug mode"
-#        and "not takeable at all" are indistinguishable.
-#
-#   Every one of those is an ORDERING on counters and levels the harts
-#   themselves publish (method rule 17), not a duration.  The one bounded
-#   wait -- hart 0 watching the msip level stay high -- is diagnostic only:
-#   the FAILURE is detected as an EVENT (the level clearing, or ISR_CNT
-#   moving), never as the expiry of a timer.
-#
-# BOTH DELIVERY POLARITIES, on two victims, because they are two different
-# pieces of RTL and d1_spec's frozen clause covers both:
-#     hart 1  LEGACY delivery (mtrapctl.LEGACY = 1, the reset configuration).
-#             CLINT msip is IVT slot 83, hardware-vectored, `iret`-returning.
-#             The slot is armed in this image's own .ivt section, so the
-#             bootrom's loader-ISR arming is overwritten by the staged copy.
-#     hart 2  STANDARD delivery (`csrw 0x7C0, x0`), mtvec + mstatus.MIE +
-#             mie.MSIE, `mret`-returning.  Its handler decodes mcause.
-#   A build that added the debug-mode qualifier to ONE path passes half of
-#   this file and fails the other half, which is the point of running both.
-#
-# hart 3 is a BYSTANDER that only counts: if halting one hart or leaving an
-#   interrupt pending on it disturbs the chip, its counter stops.
-#
-# ---------------------------------------------------------------------------
-# VERDICT.  a0 = 0xCAFEBABE => on BOTH polarities the victim took the control
-# interrupt, took NOTHING while in debug mode, and took the still-pending
-# interrupt immediately after resuming.  a0 = 0xDEADBEEF with:
-#   a1 = 0x0D270001   a shared word did not read back
-#   a1 = 0x0D270002   base-ISA sanity failed
-#   a1 = 0x0D270003   a victim never published READY (a2 = the hart index)
-#   a1 = 0x0D27h004   THE KNOWN-NONZERO CONTROL FAILED on hart h (a2 =
-#                     ISR_CNT[h], a3 = CTRL[h]): the interrupt was never
-#                     taken even OUTSIDE debug mode, so nothing this file
-#                     could report about debug mode would mean anything.
-#                     This is a test/config finding, not an RTL one.
-#   a1 = 0x0D27h005   the victim never entered debug mode (a2 = ENTRIES[h]):
-#                     the harness's halt never landed
-#   a1 = 0x0D27h006   AN ISR RAN WHILE THE HART WAS IN DEBUG MODE (a2 =
-#                     DBGISR[h], a3 = ISR_CNT[h]).  THE FINDING, positively.
-#   a1 = 0x0D27h007   ISR_CNT MOVED across the debug window (a2 = ISR_CNT at
-#                     window end, a3 = 1 expected).  The same finding read
-#                     from the counter instead of from the flag -- kept
-#                     separate because a build could clear the level without
-#                     running the handler.
-#   a1 = 0x0D27h008   the msip LEVEL was cleared during the debug window
-#                     (a2 = the readback): something consumed the interrupt
-#   a1 = 0x0D27h009   after the resume the pending interrupt was NOT taken
-#                     (a2 = ISR_CNT[h], 2 expected).  This is the leg that
-#                     makes the whole measurement meaningful; without it a
-#                     PASS could mean "never deliverable".
-#   a1 = 0x0D27h00A   the victim never resumed after its `dret` (a2 = POST)
-#   a1 = 0x0D27000B   the BYSTANDER stopped counting (a2 = CNT[3])
-# NO a0 AT ALL (tb watchdog): hart 0 wedged in its own preamble.
-#
-# NEGATIVE CONTROL -- how the non-debug half was SEEN TO WORK:
-#   -DDBGIRQ_NC_NODEBUG.  The victims never park for a halt and never enter
-#   debug mode; hart 0 skips the debug window and asserts only the control
-#   legs -- both polarities' ISRs fire, both counters reach 1, and the whole
-#   IVT/mtvec/mie/mstatus setup, both handlers, every publish and the verdict
-#   path run for real on a tree with no debug mode at all.  A PASS proves the
-#   interrupt plumbing is LIVE, which is exactly the premise the real arm's
-#   measurement rests on (method rule 5).  It is a CONTROL: it makes no claim
-#   about debug mode and must never be quoted as a D2 result.
-#
-# STUB PLANTED AT BOTH ADDRESSES, for the reason dbgexcmp.S's header gives:
-#   DEBUG_ENTRY_ADDR is 0xBE00 on the tree as it stands and shared 0x10780
-#   after the generator's debug-ON emission lands, and this detector must
-#   work on both.
-#
-# N-AGNOSTIC.  Three tiles at any NHARTS; no shared word indexed past hart 3.
-#
-# SHARED WORDS CLAIMED -- the D2 CORE-DETECTOR BAND 0x10880-0x1093F (48
-#   words), three
-#   16-word per-hart blocks at 0x10840 + 0x40*h for h = 1, 2, 3 (0x10880 /
-#   0x108C0 / 0x10900), REUSED with this file's meanings (one image per sim;
-#   dbgexcmp.S and this file never coexist -- the shdma/wdma precedent).
-#     +0x00 ENTRIES    +0x04 ISR_CNT   +0x08 CTRL      +0x0C WINDOW
-#     +0x10 DBGISR     +0x14 IN_DEBUG  +0x18 GO        +0x1C WIN_SNAP
-#     +0x20 CNT        +0x24 READY     +0x28 POST      +0x2C MSIP_SEEN
-#     +0x30 REL        +0x34 (spare)   +0x38 (spare)   +0x3C (spare)
-#*****************************************************************************
+# VestaRV: a hart in debug mode takes no interrupt, both delivery polarities
+# NEEDS A HARNESS: ./xrun_dbg.sh rv32ua-p-dbgirqmp dbg_irq.tcl. No Debug Module is required; the harness forces the tile's dbg_haltreq port.
+# "NO INTERRUPT WAS TAKEN" IS THE EASIEST CLAIM TO MAKE VACUOUSLY TRUE. A test that never made one pending, or made one pending on a hart that could not have taken it anyway through wrong polarity, a clear mie, a clear mstatus.MIE or a parked IVT slot, reports a clean zero and proves nothing. So each victim proves the interrupt is takeable THREE times, twice around the measurement. First the PRE-DEBUG CONTROL: before it is ever halted, hart 0 sends the victim an msip, its ISR fires, clears the level and counts, and ISR_CNT[h] must be exactly 1 with CTRL[h] set, or the arm is declared not-proven under its own code rather than passing. That is the known-nonzero. Second the MEASUREMENT: the victim is halted and hart 0 sends a second msip, and nothing may happen, so ISR_CNT must not move, DBGISR must stay zero, and the msip level must stay ASSERTED, which hart 0 reads back from the CLINT, since an ISR would have cleared it and a cleared msip is itself the finding. Third the POST-RESUME CONFIRMATION, which closes the loop: after the dret that same still-pending msip must be taken at once, ISR_CNT becomes 2 and the level clears, proving the interrupt was DEFERRED rather than absent. Without that leg, "not taken in debug mode" and "not takeable at all" are indistinguishable.
+# Every one of those is an ORDERING on counters and levels the harts publish, not a duration. The one bounded wait, hart 0 watching the msip level stay high, is diagnostic only: the failure is detected as an EVENT, the level clearing or ISR_CNT moving, never as the expiry of a timer.
+# BOTH DELIVERY POLARITIES, on two victims, because they are two different pieces of RTL. Hart 1 runs LEGACY delivery, the reset configuration, where CLINT msip is IVT slot 83, hardware-vectored and iret-returning, with the slot armed in this image's own .ivt section so the boot ROM's arming is overwritten by the staged copy. Hart 2 runs STANDARD delivery after `csrw 0x7C0, x0`, with mtvec, mstatus.MIE and mie.MSIE, returning by mret, and its handler decodes mcause. A build that added the debug-mode qualifier to one path passes half this file and fails the other. Hart 3 is a bystander that only counts, so a disturbance to the chip shows as its counter stopping.
+# Verdicts: a0 = 0xCAFEBABE means on both polarities the victim took the control interrupt, took nothing while in debug mode, and took the still-pending interrupt immediately after resuming. a1 = 0x0D270001 a shared word did not read back; 0x0D270002 base-ISA sanity failed; 0x0D270003 a victim never published READY; 0x0D27h004 THE KNOWN-NONZERO CONTROL FAILED on hart h, so the interrupt was never taken even outside debug mode and nothing this file reports about debug mode would mean anything, which is a test or configuration finding rather than an RTL one; 0x0D27h005 the victim never entered debug mode; 0x0D27h006 AN ISR RAN WHILE THE HART WAS IN DEBUG MODE, the finding read positively; 0x0D27h007 ISR_CNT moved across the debug window, the same finding read from the counter rather than the flag and kept separate because a build could clear the level without running the handler; 0x0D27h008 the msip level was cleared during the window, so something consumed the interrupt; 0x0D27h009 after the resume the pending interrupt was not taken, which is the leg that makes the measurement meaningful; 0x0D27h00A the victim never resumed after its dret; 0x0D27000B the bystander stopped counting. No a0 at all means hart 0 wedged in its own preamble.
+# NEGATIVE CONTROL -DDBGIRQ_NC_NODEBUG: the victims never park and never enter debug mode, and hart 0 skips the debug window and asserts only the control legs, so both polarities' ISRs fire, both counters reach 1, and the whole IVT, mtvec, mie and mstatus setup, both handlers, every publish and the verdict path run for real on a tree with no debug mode at all. A pass proves the interrupt plumbing is LIVE, which is the premise the real arm rests on. It is a control and must never be quoted as a result.
+# The stub is planted at BOTH addresses, 0xBE00 and shared 0x10780, because DEBUG_ENTRY_ADDR differs between a tree with and without the debug-ON emission and this detector must work on both. N-agnostic: three tiles at any NHARTS and no shared word indexed past hart 3. Shared words: the D2 core-detector band 0x10880-0x1093F, three 16-word per-hart blocks at 0x10840 + 0x40*h for h = 1, 2, 3, reused with this file's meanings under the one-image-per-sim rule. Block layout: +0x00 ENTRIES, +0x04 ISR_CNT, +0x08 CTRL, +0x0C WINDOW, +0x10 DBGISR, +0x14 IN_DEBUG, +0x18 GO, +0x1C WIN_SNAP, +0x20 CNT, +0x24 READY, +0x28 POST, +0x2C MSIP_SEEN, +0x30 REL.
 
 #include "riscv_test.h"
 #include "test_macros.h"

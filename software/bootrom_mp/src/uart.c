@@ -1,4 +1,6 @@
-/** Includes **/
+// VestaRV: boot ROM polled UART driver
+// Every call blocks until the UART has taken or produced the byte. double_to_str falls back to the exponential form outside the range the fixed-point path can hold.
+
 // #include <MemoryMap.h>
 #include <myshkin.h>
 #include <uart.h>

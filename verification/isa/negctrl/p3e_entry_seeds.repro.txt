@@ -1,5 +1,4 @@
-P3-ENTRY negative controls — seeded-bug repro (Fable-direct, 2026-07-29)
-========================================================================
+VestaRV: P3-ENTRY negative controls, seeded-bug repro
 
 The four p3_kickoff.md §3 entry fixes (shared RTL, done by the architect
 BEFORE any P3 agent spawned), each with a committed seed. TWO of the four
@@ -15,9 +14,7 @@ rule that a control's behavior must be observed, not assumed.
   p3e_addrvalid_seed.patch     privcsr        35    NO — see (3); re-armed at P3
   p3e_mretugate_seed.patch     (privucsr)      —    NO — see (4); structural
 
-----------------------------------------------------------------------------
 (1) p3e_mprvmret_seed.patch — hdl/common/vesta/csr_unit.vhd
-----------------------------------------------------------------------------
 Drops the `mst_mprv <= '0'` in the MRET arm — i.e. an MRET that returns
 BELOW M no longer clears mstatus.MPRV (priv-spec: "An MRET or SRET
 instruction that changes the privilege mode to a mode less privileged than
@@ -29,9 +26,7 @@ privumode ROUND TRIP 3 (CHECK 22..25) sets MPRV=1 + MPP=00, MRETs into U,
 ECALLs back, and CHECK 25 requires mstatus.MPRV == 0. Seeded it reads 1
 and the bounded bne fires (t4 = 25).
 
-----------------------------------------------------------------------------
 (2) p3e_csrform_seed.patch — hdl/common/vesta/csr_unit.vhd
-----------------------------------------------------------------------------
 Reverts csr_write_en to the old guard (`csr_op(1)='1' or csr_op(0)='1' or
 write_data /= 0`) — satisfied by ALL SIX CSR funct3 values, so a plain
 `csrr` (CSRRS rd, csr, x0) asserts the write enable again, spec-wrong.
@@ -43,9 +38,7 @@ B = csrr). The write-precedence rule makes a (wrongly) writing read FREEZE
 mcycle, so seeded deltaB == deltaA exactly and `bgeu deltaA, deltaB` fires
 (t4 = 34); fixed, window B keeps counting and deltaB > deltaA.
 
-----------------------------------------------------------------------------
 (3) p3e_addrvalid_seed.patch — hdl/common/vesta/maindec.vhd  [CANNOT BITE TODAY]
-----------------------------------------------------------------------------
 Reverts `csr_valid <= is_csr_instr and csr_addr_valid and (not
 u_csr_denied)` to the P2 form without the csr_addr_valid term, so an
 UNKNOWN-CSR instruction (which traps via valid_funct) strobes
@@ -81,9 +74,7 @@ trapCsr+umode+pmp build:
 The addrvalid gate is therefore PROVEN load-bearing against the wide-arm
 slip class, which is precisely what "defense-in-depth" claimed.
 
-----------------------------------------------------------------------------
 (4) p3e_mretugate_seed.patch — hdl/common/vesta/maindec.vhd  [STRUCTURAL]
-----------------------------------------------------------------------------
 Reverts the `u_gate = '0'` qualifier on mret_op (P2 red-team A17: the one
 privileged decode output not carrying the U-gate). DEMONSTRATED
 2026-07-29: seeded, privucsr (whose POISON set includes a U-mode MRET)
@@ -93,9 +84,7 @@ illegal path first. The qualifier is structural consistency (wfi_op
 carries its own), protecting FUTURE consumers of mret_op that might not
 repeat the trap-first discipline.
 
-----------------------------------------------------------------------------
 Proven results (ON build, CORE_ENABLE_TRAPCSR = CORE_ENABLE_UMODE = true)
-----------------------------------------------------------------------------
   clean RTL                    -> privcsr / privumode / privucsr /
                                   privecall / privirq / privwfi  6/6 PASS
   + p3e_csrform_seed.patch     -> privcsr  TEST FAILED (t4=34, a0=DEADBEEF)
@@ -107,9 +96,7 @@ Proven results (ON build, CORE_ENABLE_TRAPCSR = CORE_ENABLE_UMODE = true)
   + p3e_mretugate_seed.patch   -> privucsr TEST PASSED  [expected — see (4)]
   reverted                     -> (tree diff-verified seed-free)
 
-----------------------------------------------------------------------------
 Exact repro
-----------------------------------------------------------------------------
 Identical staging to p2_umode_seeds.repro.txt (same ON_OPTS, same
 generate.py staging, same xrun_batch runs, same probe tcl for t4/a0) —
 follow that file's recipe with these seeds/tests. The mcycle A/B check

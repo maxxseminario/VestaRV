@@ -1,36 +1,10 @@
 #!/usr/bin/env python3
-"""check_configurator_sync.py -- guard against docs/chip_configurator.html
-drifting from the generator (G3, 2026-07-11; reworked for the web-export
-consumption model, WP S7, 2026-07-16).
+"""VestaRV: guard docs/chip_configurator.html against drifting from the generator.
 
-Since S2/S7 the configurator no longer TRANSCRIBES the generator's data: it
-CONSUMES `out/web/chip_data.js` (the `const VESTA_DATA = {...}` bundle) spliced
-into the page between
-
-    /*VESTA_DATA_BEGIN*/ ... /*VESTA_DATA_END*/
-
-by `python/splice_web_data.py`. So the old DEFAULTS-value and PADS-table
-transcription checks are gone (those hand tables no longer exist in the HTML).
-What this script now verifies:
-
-  (a) configObject() export keys  ==  _CONFIG_SCHEMA keys (both directions).
-      The page still hand-assembles the export object, so its dotted keys must
-      still match the schema. This catches a new/renamed knob that the export
-      forgot.
-  (b) The spliced VESTA_DATA region is PRESENT and NON-STALE vs
-      out/web/chip_data.js (splice_web_data.py --check semantics). On any drift
-      it parses both sides and NAMES the differing VESTA_DATA paths -- so a
-      changed generate.py default surfaces by name. (Default builds only: a
-      CONFIG= build legitimately emits different data.)
-  (c) derived() formula fragments + the Castalia/Argus geometry spot values +
-      the current resolved build's derived block -- the JS still keeps its own
-      derived() math (cross-checked in-page against VESTA_DATA.derivedPresets),
-      so this catches a silent edit to those formulas.
-
-Modes:
-  default   WARN -- print any DRIFT lines but exit 0 (never blocks a build).
-  --strict  GATE -- exit 1 on any drift (for CI / a deliberate sync gate).
-Python 3.6 compatible.
+The page consumes the spliced VESTA_DATA bundle rather than transcribing it, so what is
+checked is: configObject()'s export keys equal _CONFIG_SCHEMA's in both directions; the
+spliced region is present and matches out/web/chip_data.js, naming the differing paths; and
+the page's own derived() math still agrees. Default WARN and exit 0, --strict gates.
 """
 
 import json
@@ -43,7 +17,12 @@ PC_ROOT = os.path.dirname(HERE)
 REPO = os.path.dirname(os.path.dirname(PC_ROOT))
 HTML = os.path.join(REPO, 'docs', 'chip_configurator.html')
 GENERATE = os.path.join(HERE, 'generate.py')
-RESOLVED = os.path.join(PC_ROOT, 'config', 'ChipConfig.resolved.json')
+# The record of the build that just ran. generate.py always writes out/config/ and
+# refreshes the tracked config/ copy only for the default configuration, so out/config/
+# is the one to read; config/ is the fallback for a tree generated before that split.
+RESOLVED = os.path.join(PC_ROOT, 'out', 'config', 'ChipConfig.resolved.json')
+if not os.path.isfile(RESOLVED):
+    RESOLVED = os.path.join(PC_ROOT, 'config', 'ChipConfig.resolved.json')
 WEBDATA = os.path.join(PC_ROOT, 'out', 'web', 'chip_data.js')
 
 BEGIN = '/*VESTA_DATA_BEGIN*/'
@@ -67,9 +46,7 @@ def js_block(html, start_marker, end_marker):
     return html[i:j]
 
 
-# --------------------------------------------------------------------------
 # (a) schema keys  <->  configObject() export keys
-# --------------------------------------------------------------------------
 def schema_keys_from_generate():
     src = open(GENERATE).read()
     block = js_block(src, '_CONFIG_SCHEMA = {', '\n}')
@@ -107,9 +84,7 @@ def export_keys_from_html(html):
     return keys
 
 
-# --------------------------------------------------------------------------
 # (b) spliced VESTA_DATA region: present + non-stale (names the drift)
-# --------------------------------------------------------------------------
 def _region(html):
     i = html.find(BEGIN)
     if i < 0:
@@ -189,17 +164,12 @@ def check_vesta_region(html):
         problem('...and %d more VESTA_DATA field(s) differ' % (len(diffs) - 15))
 
 
-# --------------------------------------------------------------------------
 # (c) derived() geometry
-# --------------------------------------------------------------------------
 def geometry(num_harts, shared_ram_size, orchestrator=False):
-    """The A2/A0 formulas, transcribed once more FOR THE CHECK (generate.py is
-    the authority; the JS mirrors it; this catches either side moving alone).
-
-    CPR3/R3: `orchestrator` is shAw's SECOND input -- the read-only TCM
-    apertures at 0x20000 + 0x4000*h need pages 1000..1100, so the shared window
-    is forced to 16 bits of word address (0x0-0x3FFFF) and extended flash moves
-    to the strict complement 0x40000."""
+    """The derived geometry formulas, transcribed once more for the check: generate.py is the
+    authority and the JS mirrors it, so this catches either side moving alone. `orchestrator` is
+    shAw's second input, since the read-only TCM apertures force a 16-bit shared window.
+    """
     sh_aw = 0
     while (1 << sh_aw) < (0x10000 + shared_ram_size):
         sh_aw += 1
@@ -241,7 +211,7 @@ DERIVED_FRAGMENTS = [
     'mtime + 0x10',
     'loaderBase: 0x10500',
     'spInit: 0xC000',
-    # DP-SG (2026-07-22): derived() now mirrors _LIBRARY_TAIL_SPEC (the A5
+    # DP-SG: derived() now mirrors _LIBRARY_TAIL_SPEC (the A5
     # GLOBAL VECTOR RULE) instead of a hardcoded 114 — pin the tail rows AND
     # the high-water computation so a silent edit still trips this gate.
     '[cfg.rtc, 1]',
@@ -284,7 +254,6 @@ def check_derived(html, resolved):
                     % (k, theirs, mine))
 
 
-# --------------------------------------------------------------------------
 def main(strict=False):
     for path in (HTML, GENERATE, RESOLVED, WEBDATA):
         if not os.path.isfile(path):

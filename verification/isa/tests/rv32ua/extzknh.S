@@ -1,28 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extzknh.S   (ISA extension program, X3 Stage B — Zknh SHA-256/512)
-#-----------------------------------------------------------------------------
-# Ext-probe + KAT for the RV32 Zknh scalar-crypto instructions (ENABLE_ZKN):
-#   sha256sig0/sig1/sum0/sum1  (OP-IMM unary)
-#   sha512sig0l/h sig1l/h sum0r sum1r  (OP binary, RV32 64-bit halves)
-#
-# Build-time polarity dispatch on CORE_ENABLE_ZKN (extprobe_template idiom):
-#   ON  (#ifdef, built with -DCORE_ENABLE_ZKN): execute every op, CHECK the
-#        architectural result against goldens, run the SHA-256("abc") full-block
-#        KAT + the SHA-512 64-bit-sigma/sum KAT, then PASS.
-#   OFF (#else, default build): fall INTO a sha256 encoding — it MUST take the
-#        illegal-instruction trap (the behavioral_mp_stripped/run_extoff.sh
-#        harness reports TRAP_OK; surviving past it -> FAIL).
-#
-# Goldens are computed from INDEPENDENT references (standard SHA-256 ror/shr
-# defs; independent 64-bit ror64 SHA-512 sigma/sum defs; the FIPS "abc" digest),
-# so a wrong rotate/shift constant fails the test. See verification/isa/negctrl/
-# x3_sha256_rotate_seed.patch (seed a wrong sig0 rotate -> the KAT FAILs).
-#
-# Encodings via .insn so the file assembles under the base -march (Zknh is not
-# in gas 13.2's -march). norvc/norelax keeps fixed-width base + explicit encodings.
-#*****************************************************************************
+# VestaRV: Zknh SHA-256 and SHA-512 probe and known-answer test
+# Covers the RV32 Zknh scalar-crypto instructions: sha256sig0, sha256sig1, sha256sum0 and sha256sum1 as OP-IMM unary forms, and sha512sig0l, sha512sig0h, sha512sig1l, sha512sig1h, sha512sum0r and sha512sum1r as OP binary forms on 64-bit halves.
+# BUILD-TIME POLARITY DISPATCH on CORE_ENABLE_ZKN. With it defined every operation executes, its result is checked against goldens, and the SHA-256 "abc" full-block and SHA-512 sigma and sum known-answer tests run. Without it the file falls into a sha256 encoding, which MUST take the illegal-instruction trap; the stripped harness reports TRAP_OK and surviving past it is a FAIL.
+# GOLDENS COME FROM INDEPENDENT REFERENCES, the standard SHA-256 rotate and shift definitions, independent 64-bit ror64 SHA-512 sigma and sum definitions, and the FIPS "abc" digest, so a wrong rotate or shift constant fails the test.
+# Encodings use `.insn` so the file assembles under the base -march, which has no Zknh, and norvc with norelax keeps the image fixed-width base plus explicit encodings.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,17 +1,8 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extzawrsx.S   (X1 Zawrs OFF-polarity poison)
-#-----------------------------------------------------------------------------
-# The Zawrs OFF control. Unconditionally executes the wrs encoding, which MUST
-# take the illegal-instruction trap when ENABLE_ZAWRS is off (these funct12
-# values are illegal SYSTEM encodings today). Used ONLY by the negative-control
-# / stripped harness (behavioral_mp_stripped/run_extoff.sh + trap_watch.tcl,
-# where trap_flag => TRAP_OK) and by a targeted trap-watch run on the default
-# build — NOT in the main behavioral_mp suite (it deliberately traps into this
-# core's terminal TRAP_STATE). Surviving PAST the encoding => decode/gating
-# disagree => explicit FAIL.
-#*****************************************************************************
+# VestaRV: Zawrs off-polarity poison
+# It unconditionally executes the wrs encoding, which MUST take the illegal-instruction trap when ENABLE_ZAWRS is off, since those funct12 values are illegal SYSTEM encodings without it. Surviving past the encoding means decode and gating disagree and is an explicit FAIL.
+# It is used ONLY by the stripped negative-control harness (behavioral_mp_stripped/run_extoff.sh with trap_watch.tcl) and by a targeted trap-watch run on the default build, never in the main suite, because it deliberately traps into this core's terminal TRAP_STATE.
 
 #include "riscv_test.h"
 #include "test_macros.h"

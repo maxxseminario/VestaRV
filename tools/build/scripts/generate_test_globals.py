@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# VestaRV: emit the .data test-globals stub naming each test in the build.
 import sys
 
 # Get test names from command line

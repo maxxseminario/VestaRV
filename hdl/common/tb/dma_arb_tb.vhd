@@ -369,7 +369,7 @@ begin
     end process;
     s_rdata <= mtx_rdata when rd_mtx = '1' else ram_rdata;
 
-    -- ===== the REAL DMA engine, index 4, DEPTH 0 =====================
+    -- the REAL DMA engine, index 4, DEPTH 0
     -- clk and ClkMem are the SAME mclk net and the triggers are tied '0' (mem-to-mem, TRIG=0).
     dma0: DMA
         generic map (NCH => 4, AW => AWD)
@@ -384,7 +384,7 @@ begin
             irq_done => dma_irq_done, irq_err => dma_irq_err
         );
 
-    -- ===== DMA slave-port register-bus stimulus =======================
+    -- DMA slave-port register-bus stimulus
     -- Launches channel-0 mem-to-mem copies for the whole run, verifying each destination and W1C-ing CHnDONE, and repeatedly writes a sentinel onto LRSC_ADDR to interfere with the BFMs' LR/SC pass.
     dma_stim: process
         -- slot numbers (word slot in the 0x6800 window = MABPart)
@@ -607,7 +607,7 @@ begin
         end if;
     end process;
 
-    -- ===== inherited checkers (over all 5 masters) ====================
+    -- inherited checkers (over all 5 masters)
     -- grant mutual exclusion: at most one arb_gnt may be high in any cycle
     mutex_chk: process(clk)
         variable cnt : natural;
@@ -664,7 +664,7 @@ begin
         end if;
     end process;
 
-    -- ===== scoreboard / banner ========================================
+    -- scoreboard / banner
     report_proc: process
         variable v : natural;
     begin

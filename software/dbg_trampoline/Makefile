@@ -1,29 +1,20 @@
-# =============================================================================
-# software/dbg_trampoline/Makefile  (D2)
-# Builds the debug entry trampoline into the plantable word list the D2
-# acceptance harnesses read (d2_instruments_for_implementer.md 3.1).
-#
-#   make            -> bin/dbg_trampoline.words (+ .elf, .bin, .dump)
+# VestaRV: build the debug entry trampoline into the plantable word list the D2
+# acceptance harnesses read.
+#   make            -> bin/dbg_trampoline.words (plus .elf, .bin, .dump)
 #   make clean
-#
-# The word list is 64 lines, one per word of the entry page 0x10780-0x1087F:
-#   * words  0..39  the trampoline, emitted as 32 binary characters -> PLANTED
-#   * words 40..63  a single '-' -> LEFT WRITABLE.  The Debug Module writes the
-#     abstract body (40..47) and the epilogue (48..56) there, and a forced word
-#     is read-only, so planting them would break the DM outright.
-# TRAMP_WORDS grew 24 -> 40 on 2026-08-06 when the trampoline gained the
-# session-mirror repair for the F-D2-0 exception re-entry (see the .S header);
-# debug_module.vhd's W_ABST/W_EPILOG moved in the same change and the two must
-# agree -- the trampoline's `jal x0, _start + 4*W_ABST_INDEX` is the coupling.
-# =============================================================================
+# The word list is 64 lines, one per word of the entry page 0x10780-0x1087F.
+# Words 0 to TRAMP_WORDS-1 are the trampoline, emitted as 32 binary characters and
+# planted; the rest are a single '-' and left writable, because the Debug Module
+# writes the abstract body and the epilogue there and a forced word is read-only.
+# TRAMP_WORDS is coupled to debug_module.vhd's W_ABST and W_EPILOG through the
+# trampoline's `jal x0, _start + 4*W_ABST_INDEX`; the two move together.
 PREFIX  ?= riscv-none-elf-
-# rv32iac, not rv32imac: the Debug Module plants this page for WHICHEVER hart
-# it halts, and harts 1..N-1 are the hardened hart_tile macro at
-# derived.hartClasses[tile].isaString = rv32iac (no M, no Zb). A wider -march
-# here only lets gas accept an instruction a tile traps as illegal. The page is
-# hand-written assembly, so the string changes nothing that is emitted today;
-# it closes the door. Graded on the linked ELF by
-# //software/testtools:tile_isa_test.
+# rv32iac, not rv32imac: the Debug Module plants this page for whichever hart it
+# halts, and harts 1..N-1 are the hardened hart_tile macro at
+# derived.hartClasses[tile].isaString = rv32iac, with no M and no Zb. A wider
+# -march would only let gas accept an instruction a tile traps as illegal. The
+# page is hand-written assembly, so the string changes nothing emitted today.
+# //software/testtools:tile_isa_test grades the linked ELF.
 ARCH    ?= -march=rv32iac -mabi=ilp32
 TRAMP_WORDS ?= 40
 

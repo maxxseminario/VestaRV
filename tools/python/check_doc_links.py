@@ -1,34 +1,11 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-check_doc_links.py -- relative-link checker for VestaRV documentation.
+# coding: utf-8
+"""VestaRV: relative-link checker for the repository documentation.
 
-Scans every tracked Markdown file (git ls-files '*.md') plus docs/*.html for
-relative links (Markdown `](target)`, and HTML href=/src=/iframe src= targets),
-and verifies that each target path exists on disk.
-
-- Missing relative targets -> reported and cause a non-zero exit.
-- http(s):// (and protocol-relative //) targets -> reported as INFO only; no
-  network access is performed and they never fail the run.
-- In-page anchors (#...), mailto:/tel:/javascript:/data: URIs, and empty targets
-  are skipped.
-- Files under .claude/worktrees/ are skipped.
-
-Two ways to name the files to scan:
-
-    check_doc_links.py                       git ls-files '*.md' + docs/*.html
-    check_doc_links.py --files-from LIST     one repo-relative path per line
-
---files-from exists for callers that already know the file set and must not
-shell out to git (the bazel sandbox has no .git).  --root overrides the repo
-root the paths are resolved against; it defaults to three levels above this
-file, which is what it always was.
-
-NEITHER MODE MAY FAIL OPEN.  An unreadable file list, an unreadable listed
-file, or a git that will not run is exit 2, never an empty scan reported as
-"OK: no missing relative targets".
-
-Python 3.6 compatible (no f-strings with '=', no walrus operator).
+Scans tracked Markdown plus docs/*.html for relative link targets and requires each to exist.
+http(s) and protocol-relative targets are INFO only and no network access is made; anchors,
+mailto/tel/javascript/data URIs and .claude/worktrees are skipped. --files-from names the set
+for callers with no .git. Neither mode may fail open: an unreadable input is exit 2.
 """
 
 from __future__ import print_function
@@ -82,10 +59,8 @@ def strip_fragment(target):
 
 
 def files_from_list(list_path, root):
-    """Read a newline-separated list of repo-relative paths.
-
-    A read failure here is FATAL, not an empty list: an empty scan exits 0 and
-    would be quoted as evidence that the links are fine.
+    """Read a newline-separated list of repo-relative paths. A read failure is fatal, not an empty
+    list: an empty scan exits 0 and would be quoted as evidence that the links are fine.
     """
     try:
         with open(list_path, "r") as fh:

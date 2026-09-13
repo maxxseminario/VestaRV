@@ -1,99 +1,10 @@
 #!/usr/bin/python3.6
-"""VestaRV: grade an OpenOCD `-d3` DMI trace against the D5 clauses
-that only the debugger's own wire can answer.
+"""VestaRV: grade an OpenOCD -d3 DMI trace against the clauses only the debugger's wire answers.
 
-D5 acceptance instrument, blind-authored 2026-08-10 against d5_spec.md 5.4
-(FROZEN).  /usr/bin/python3.6 only -- deliberately NOT the debugger venv's
-python, so it can be run from tree tooling with no environment coupling.
-
-WHAT IT GRADES, and each one is a d5_spec 5.4 disposition turned into a
-measurement rather than an argument:
-
-  W1  EAGER-PLANT WIRE ORDER (5.4-2).  The F-D4-1 word-0 wedge is defended by
-      the DM's plant on the dmactive RISE, and the defence only works if the
-      debugger sets dmactive BEFORE it ever asserts haltreq.  OpenOCD does by
-      spec and the toolchain probe verified it on Spike's wire; this grades it
-      on VESTARV's wire, which is the one that matters.  It is an ORDERING
-      over scan INDICES -- no timestamps, no durations.
-
-  W2  EXAMINE ADDRESS CENSUS (5.4-0).  The set of DMI addresses this session
-      touched, diffed against the twelve VestaRV implements plus sbcs.  Any
-      address outside that set provokes op=FAILED and latches the DTM's
-      sticky, and the tree probe ranks that as landmine zero.  Reported as a
-      census AND graded against the expected gap set.
-
-  W3  dmireset RECOVERY (5.4-0).  Every FAILED status must be followed by a
-      dtmcs write with bit 16 set, and the NEXT dmi scan must succeed.  This
-      is an ordering over three consecutive events and it is the only thing
-      that distinguishes "the sticky gate is survivable" from "OpenOCD got
-      lucky".
-
-  W4  hartinfo/dataaddr NON-CONSUMPTION (5.4-4).  After the section-1 edit
-      OpenOCD must read hartinfo and then never touch the dataaddr region.
-      Graded as: hartinfo (0x12) WAS read (so the claim is about a debugger
-      that looked), and no scratch_reserve line appears in the trace.
-
-  W5  havereset / ackhavereset ACROSS A HART RESET EVENT (spec 1.7(viii)).
-      OPT-IN, `--w5`, ADDED BY THE D5 VALIDATION WAVE (2026-08-13, R-D5-2(3)
-      assigns this clause to validation rather than to the author).  W1-W4 are
-      untouched and their output is byte-identical when `--w5` is absent --
-      including W3, whose pipelined-scan defect is the AUTHOR's queue item and
-      is deliberately NOT fixed here.  W5 does its OWN response re-alignment,
-      locally, so implementing it correctly changes nothing about W3.
-
-      THE RE-ALIGNMENT, and it is the whole reason this clause needs code
-      rather than an eyeball: the DMI scan chain is PIPELINED.  The response
-      printed on a scan line is the result of the PREVIOUS transaction, not of
-      the one on that line.  A naive reader of
-
-          scan(): 41b r 00000000 @11 -> + 00000000 @11
-          scan(): 41b n 00000000 @00 -> + 004c03a3 @11
-
-      reads dmstatus as 0x00000000 and concludes havereset = 0 when the wire
-      says 1.  W5 therefore takes the response for request k from scan k+1, and
-      CHECKS the alignment it assumes: the response's own address field should
-      echo the previous request's address, and the agreement rate is printed.
-
-      GRADED: with hartsel pointing at the victim, dmstatus.havereset
-      (anyhavereset bit 18 / allhavereset bit 19 -- both confirmed against
-      debug_module.vhd's `rsp(19)/rsp(18) := havereset_r(sel_idx)`) reads 1 in
-      the last dmstatus read before the ackhavereset write and 0 in the first
-      one after it.
-
-      FAIL-CLOSED IN THREE DIRECTIONS, each of which is a way this clause could
-      otherwise report a comfortable answer about nothing:
-        * no ackhavereset write anywhere -> CANNOT-EVALUATE, never a pass;
-        * no victim-attributed dmstatus read on either side -> CANNOT-EVALUATE;
-        * THE HARTSEL ATTRIBUTION IS NOT TAKEN ON TRUST.  §12.4 measured a
-          `dmi_write 0x10` whose hartsel did not survive to the next command
-          (readback 17, not 1) because OpenOCD's poll loop owns dmcontrol -- so
-          every dmstatus read in that session described a hart that was never
-          power-cycled.  W5 requires a dmcontrol READ, between the hartsel
-          write and the dmstatus read, whose re-aligned readback CONFIRMS the
-          hartsel.  Uncorroborated or refuted -> CANNOT-EVALUATE, with the
-          observed hartsel named.
-
-EXIT CODES -- never a silent skip:
-    0  every requested clause PASSED
-    1  at least one clause FAILED (each names its evidence)
-    2  the trace cannot be graded (missing/unparseable/no scans found), or a
-       REQUESTED clause could not be evaluated (W5's CANNOT-EVALUATE)
-
-METHOD VALIDATION (rule 4).  The parser is validated on EVERY run against a
-known-nonzero built into this file: a five-line synthetic trace whose correct
-answers are known, re-parsed in memory before the real trace is read.  If the
-self-check does not reproduce them the script exits 2 and grades nothing --
-the D4 `d4_entity_invariance.py` pattern.  A parser checked only against the
-trace it is grading has not been checked.
-
-TRACE SHAPE (measured, toolchain probe claim 19): riscv-013.c:390 scan() emits
-    Debug: <n> riscv-013.c:390 scan(): 41b w 00000001 @10 -> + 00000000 @10
-and dtmcontrol_scan() emits
-    Debug: <n> riscv-013.c:444 dtmcontrol_scan(): DTMCS: 0x10000 -> 0x71
-The status field is printed as '+' (success), 'f' (failed) or 'b' (busy) in
-some builds and as a numeric `status=N` in others; both are accepted, and an
-unrecognised status is counted and REPORTED rather than silently treated as
-success.
+Clauses W1 eager-plant ordering, W2 examine address census, W3 dmireset recovery, W4
+hartinfo/dataaddr non-consumption, W5 havereset/ackhavereset (opt-in, --w5). The DMI scan
+chain is pipelined: the response on a scan line belongs to the previous request, so W5
+re-aligns by one and checks the alignment. Exit 0 pass, 1 fail, 2 ungradable. python3.6 only.
 """
 
 import os
@@ -257,12 +168,10 @@ def _w5_synth(post_ack_dmstatus=W5_DMSTATUS_H0, include_ack=True,
 
 
 def selfcheck_w5():
-    """Known-answer validation for W5, in all FOUR directions (rule 4 and the
-    fail-closed requirement): the correct trace must PASS, a trace whose
-    post-ack read still shows havereset must FAIL, a trace with no
-    ackhavereset must be CANNOT-EVALUATE, and a trace whose hartsel readback
-    contradicts the write must be CANNOT-EVALUATE.  A self-check that only
-    ever confirms a pass has not been checked."""
+    """Known-answer validation for W5 in all four directions: the correct trace must pass, one whose
+    post-ack read still shows havereset must fail, and one with no ackhavereset or a contradicted
+    hartsel readback must be CANNOT-EVALUATE. A self-check that only confirms a pass is no check.
+    """
     ok = True
     reasons = []
 
@@ -307,30 +216,10 @@ def selfcheck_w5():
 
 
 def grade_w5(t, quiet=False):
-    """Returns (verdict, note) with verdict in PASS / FAIL / CANNOT.
-
-    HOW THE HARTSEL IS KNOWN, and the first version of this function got it
-    wrong in a way worth recording.  I began by REQUIRING that every dmcontrol
-    readback in the trace report the victim, on the theory that §12.4's
-    hart-17 disaster was an un-corroborated attribution.  Run against a real
-    session that rule is unsatisfiable and, worse, meaningless: OpenOCD's poll
-    loop walks all N harts, so a trace legitimately contains a readback for
-    every hart there is.
-
-    The right statement is stronger and simpler.  `hartsel_r` changes on ONE
-    event -- a dmcontrol write (debug_module.vhd: `hartsel_r <= d(25 downto
-    16)`) -- and every such write is ON THE WIRE, including the poll loop's.
-    So the hartsel in effect at any scan is EXACTLY the field of the most
-    recent dmcontrol write before it, and a wire-level tracker is immune to the
-    §12.4 confound by construction: the intervening poll writes that stole
-    hartsel are visible and are counted.  What §12.4 lacked was not
-    corroboration, it was the wire.
-
-    The readbacks are then used for what they are actually good for: a
-    CROSS-CHECK of the tracker against the DM's own answer.  Their agreement
-    rate is measured and printed, and a low rate means the tracker (or the
-    re-alignment it rests on) is wrong -- which is CANNOT-EVALUATE, not a
-    verdict."""
+    """Returns (verdict, note) with verdict PASS, FAIL or CANNOT. hartsel_r changes only on a
+    dmcontrol write and every such write is on the wire, so the hartsel at any scan is the field
+    of the most recent one before it; the readbacks cross-check that tracker against the DM.
+    """
     def say(msg):
         if not quiet:
             print(msg)
@@ -339,7 +228,7 @@ def grade_w5(t, quiet=False):
     if not s:
         return ("CANNOT", "no scans")
 
-    # ---- the local re-alignment, and a measurement of whether it holds ----
+    # the local re-alignment, and a measurement of whether it holds
     # The response for request k is printed on scan k+1; its address field
     # should echo request k's address.  This is checked, not assumed.
     def resp(k):
@@ -366,7 +255,7 @@ def grade_w5(t, quiet=False):
             "quote is suspect.  Grading nothing rather than guessing.")
         return ("CANNOT", "alignment unconfirmed")
 
-    # ---- hartsel tracked from every dmcontrol write ----------------------
+    # hartsel tracked from every dmcontrol write
     hartsel_at = []          # hartsel in effect BEFORE scan k executes
     cur = None
     for e in s:
@@ -375,7 +264,7 @@ def grade_w5(t, quiet=False):
             cur = (e[4] >> HARTSEL_SHIFT) & HARTSEL_MASK
     nwrites = sum(1 for e in s if e[2] == "w" and e[3] == DM_DMCONTROL)
 
-    # ---- the ackhavereset write ------------------------------------------
+    # the ackhavereset write
     acks = [k for k, e in enumerate(s)
             if e[2] == "w" and e[3] == DM_DMCONTROL and (e[4] & ACKHAVERESET_BIT)]
     if not acks:
@@ -400,7 +289,7 @@ def grade_w5(t, quiet=False):
         "are OpenOCD's own examine-time boilerplate; grading the first would grade the "
         "debugger, not the session.)" % (ack_k, victim))
 
-    # ---- cross-check the tracker against the DM's own readbacks ----------
+    # cross-check the tracker against the DM's own readbacks
     seen = miss = 0
     misses = []
     for k, e in enumerate(s):
@@ -436,7 +325,7 @@ def grade_w5(t, quiet=False):
             "changes only on a dmcontrol write and every write is on this wire), but the "
             "independent confirmation is absent and is reported as absent.")
 
-    # ---- the dmstatus reads, re-aligned and attributed -------------------
+    # the dmstatus reads, re-aligned and attributed
     reads = []
     for k, e in enumerate(s):
         if e[2] == "r" and e[3] == DM_DMSTATUS:
@@ -542,7 +431,7 @@ def grade(path, expect_sbcs_ok=False, do_w5=False):
         print("D5WIRE   NOTE: %d scan line(s) carried a status this parser does not "
               "recognise; they are counted, never assumed successful." % t.unknown_status)
 
-    # ---- W1: dmactive before haltreq -------------------------------------
+    # W1: dmactive before haltreq
     first_act = next((e[1] for e in s if e[2] == "w" and e[3] == DM_DMCONTROL and (e[4] & 1)), None)
     first_halt = next((e[1] for e in s if e[2] == "w" and e[3] == DM_DMCONTROL and (e[4] & (1 << 31))), None)
     if first_act is None:
@@ -571,7 +460,7 @@ def grade(path, expect_sbcs_ok=False, do_w5=False):
               "exactly the F-D4-1 word-0 wedge condition." % (first_halt, first_act))
         fails += 1
 
-    # ---- W2: address census ----------------------------------------------
+    # W2: address census
     allowed = set(VESTA_IMPLEMENTED)
     if expect_sbcs_ok:
         allowed.add(DM_SBCS)
@@ -588,7 +477,7 @@ def grade(path, expect_sbcs_ok=False, do_w5=False):
         print("D5WIRE   which VestaRV drives 0 -- so seeing them is itself a finding.")
         fails += 1
 
-    # ---- W3: dmireset recovery -------------------------------------------
+    # W3: dmireset recovery
     nfail = 0
     unrecovered = []
     for k, e in enumerate(t.events):
@@ -621,7 +510,7 @@ def grade(path, expect_sbcs_ok=False, do_w5=False):
             print("D5WIRE   line %d addr %s -- %s" % u)
         fails += 1
 
-    # ---- W4: hartinfo read, dataaddr never consumed ----------------------
+    # W4: hartinfo read, dataaddr never consumed
     read_hi = any(e[2] == "r" and e[3] == DM_HARTINFO for e in s)
     with open(path, "r", errors="replace") as f:
         body = f.read()
@@ -639,7 +528,7 @@ def grade(path, expect_sbcs_ok=False, do_w5=False):
               "scratch_reserve / dataaddr consumption -- dataaccess=0 steered OpenOCD to "
               "progbuf/work-area scratch, which closes R-D2-8 R6 by emission")
 
-    # ---- W5: havereset / ackhavereset (opt-in) ---------------------------
+    # W5: havereset / ackhavereset (opt-in)
     w5 = None
     if do_w5:
         w5 = grade_w5(t)[0]

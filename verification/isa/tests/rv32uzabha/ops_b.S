@@ -1,20 +1,7 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# ops_b.S      (X2 Zabha directed suite — all nine byte AMOs)
-#-----------------------------------------------------------------------------
-# Directed functional check of every Zabha byte AMO (funct3=000): rd receives
-# the SIGN-EXTENDED old byte, memory's byte lane gets the truncated result, and
-# the three adjacent lanes stay intact. Exercises all four lane positions.
-#
-# ON-POLARITY ONLY (rv32uzicond precedent): the encodings are illegal on a
-# zabha-OFF build (they take the terminal illegal-instruction trap), so this
-# suite is simulated against a zabha-ON MCU, never the default 124-suite.
-#
-# gas 13.2 lacks the amoadd.b mnemonics / `zabha` -march, so every Zabha op is
-# an explicit `.insn r 0x2f, funct3, funct7, rd, rs1_base, rs2_val`
-# (funct7 = funct5<<2, aq=rl=0).
-#*****************************************************************************
+# VestaRV: Zabha byte AMO directed suite
+# Directed functional check of every Zabha byte AMO, funct3 000: rd receives the SIGN-EXTENDED old byte, memory's byte lane gets the truncated result, and the three adjacent lanes stay intact. All four lane positions are exercised. ON-POLARITY ONLY, with the encodings written as `.insn`.
 
 #include "riscv_test.h"
 #include "test_macros.h"

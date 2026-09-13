@@ -1,4 +1,5 @@
--- Vector wrapper around the two-flop Synchronizer: one independent synchronizer per bit.
+-- VestaRV: vector clock-domain-crossing synchronizer
+-- One independent two-flop Synchronizer per bit.
 -- Per-bit synchronization gives no guarantee that the bits arrive in the same clock cycle, so use this only for signals whose bits are independent, never for a multi-bit value that must stay coherent.
 library ieee;
 use ieee.std_logic_1164.all;

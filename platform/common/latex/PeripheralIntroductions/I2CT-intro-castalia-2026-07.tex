@@ -1,7 +1,7 @@
-% I2C target chapter. Section order is the per-peripheral template enforced by
+% VestaRV: I2C target chapter of the TRM.
+% Section order is the per-peripheral template enforced by
 % python/check_intro_names.py (Overview / Functional description / Interrupts
-% and events / Programming / Usage notes). Restructured 2026-09-05; the prose
-% is unchanged apart from the headings it now sits under.
+% and events / Programming / Usage notes).
 \section{Overview}
 
 The hardware-autonomous I2C target (\peripheral{I2CTx}) is an I2C slave engine that handles the wire protocol entirely in hardware: it matches its 7-bit address (with a per-bit wildcard mask and an optional general-call response), receives and transmits one byte at a time with ready/empty status, stretches the clock for lossless flow control, and flags every framing event (START, STOP, repeated-START, NACK) and a stuck-bus condition. It complements the software-serviced slave-mode registers of \peripheral{I2C0}/\peripheral{I2C1}: where those cores expose the slave state to firmware for per-byte servicing, \peripheral{I2CT0} needs no bit-banging: it answers its address, ACKs, buffers a byte, and raises an interrupt, all in hardware. The whole engine runs on the free-running fabric clock (MCLK); the SDA and SCL pins are each sampled through an independent two-flop synchronizer, so no flip-flop is ever clocked by a bus pin (the deliberate contrast with the pad-clocked slave path of \peripheral{I2C0}). The main features are listed below:

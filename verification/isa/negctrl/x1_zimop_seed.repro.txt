@@ -1,5 +1,4 @@
-X1 Zimop negative control — seeded-bug repro
-=============================================
+VestaRV: X1 Zimop negative control, seeded-bug repro
 
 Seed: x1_zimop_seed.patch changes the datapath writeback mux so a Zimop
 mop.r.N / mop.rr.N writes rd <- rs1 (passthrough) instead of the architected

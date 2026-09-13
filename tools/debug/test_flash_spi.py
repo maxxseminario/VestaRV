@@ -1,21 +1,9 @@
 #!/usr/bin/env python3
-"""
-AT45DB021E DataFlash SPI Test Script
-=====================================
-Tests SPI0 communication with AT45DB021E DataFlash chip connected to VestaRV.
+"""VestaRV: SPI0 test script for the AT45DB021E DataFlash.
 
-This script:
-1. Initializes SPI0 peripheral
-2. Reads manufacturer ID from flash
-3. Writes test data (0xDEADBEEF) to flash Buffer 1
-4. Programs Buffer 1 to Page 0 with erase
-5. Reads back the data from Page 0
-6. Verifies data integrity
-
-Hardware:
-- VestaRV RISC-V chip with SPI0 at base address 0x4200
-- AT45DB021E DataFlash (2-Mbit, 264-byte pages)
-- UART connection to Raspberry Pi
+Initialises SPI0, reads the manufacturer ID, writes 0xDEADBEEF to Buffer 1, programs Buffer 1
+to Page 0 with erase, reads Page 0 back and verifies it. Hardware: SPI0 at base 0x4200, an
+AT45DB021E DataFlash (2 Mbit, 264-byte pages) and a UART connection to a Raspberry Pi.
 """
 
 import time
@@ -53,15 +41,7 @@ class FlashTester:
     TEST_BYTES = [0xEF, 0xBE, 0xAD, 0xDE]  # Little-endian byte order
     
     def __init__(self, port='/dev/ttyAMA0', baudrate=115200, verbose=False, cs_pin=None):
-        """
-        Initialize UART connection
-        
-        Args:
-            port: Serial port device (default: /dev/ttyAMA0 for RPi 4)
-            baudrate: UART baudrate (default: 115200)
-            verbose: Enable verbose debugging output
-            cs_pin: GPIO pin number for chip select (None = no CS control, e.g., 0-7 for GPIO0 pins)
-        """
+        """Open the UART. cs_pin is a GPIO pin number for chip select, or None for no CS control."""
         self.uart = None
         self.verbose = verbose
         self.cs_pin = cs_pin
@@ -90,16 +70,7 @@ class FlashTester:
         return f"${address:X}"
     
     def send_forth(self, command, expect_output=False):
-        """
-        Send a Forth command and return response
-        
-        Args:
-            command: Forth command string
-            expect_output: If True, wait for and parse numeric output
-            
-        Returns:
-            Response string or parsed integer if expect_output=True
-        """
+        """Send a Forth command and return the response, parsed as an integer when expect_output."""
         try:
             # Clear input buffer
             if self.uart.in_waiting > 0:
@@ -210,15 +181,7 @@ class FlashTester:
             time.sleep(0.001)  # Small delay after CS deassertion
     
     def spi_transfer_byte(self, byte_val):
-        """
-        Send one byte via SPI and return received byte
-        
-        Args:
-            byte_val: Byte to transmit (0-255)
-            
-        Returns:
-            Received byte value
-        """
+        """Send one byte (0-255) via SPI and return the received byte."""
         if self.verbose:
             print(f"  [SPI] TX: 0x{byte_val:02X}")
         
@@ -323,14 +286,7 @@ class FlashTester:
             return False
     
     def wait_flash_ready(self, timeout_ms=100):
-        """
-        Poll flash status register until ready (bit 7 = 1)
-        
-        Args:
-            timeout_ms: Maximum wait time in milliseconds
-            
-        Returns:
-            True if ready, False if timeout
+        """Poll the flash status register until bit 7 reads ready; True on ready, False on timeout.
         """
         start_time = time.time()
         
@@ -349,12 +305,7 @@ class FlashTester:
         return False
     
     def write_buffer1(self, data_bytes):
-        """
-        Write data to Buffer 1 starting at offset 0
-        
-        Args:
-            data_bytes: List of bytes to write
-        """
+        """Write a list of bytes to Buffer 1 starting at offset 0."""
         print(f"\n--- Writing {len(data_bytes)} bytes to Buffer 1 ---")
         
         # Assert CS
@@ -379,12 +330,7 @@ class FlashTester:
         print("✓ Data written to Buffer 1")
     
     def program_buffer_to_page(self, page_num):
-        """
-        Program Buffer 1 to a page in main memory with built-in erase
-        
-        Args:
-            page_num: Page number (0-1023)
-        """
+        """Program Buffer 1 to a main-memory page (0-1023) with the built-in erase."""
         print(f"\n--- Programming Buffer 1 to Page {page_num} ---")
         
         # Assert CS
@@ -424,17 +370,7 @@ class FlashTester:
             return False
     
     def read_page(self, page_num, offset, num_bytes):
-        """
-        Read data from main memory page
-        
-        Args:
-            page_num: Page number (0-1023)
-            offset: Byte offset within page (0-263)
-            num_bytes: Number of bytes to read
-            
-        Returns:
-            List of bytes read
-        """
+        """Read num_bytes from a main-memory page (0-1023) at a byte offset within it (0-263)."""
         print(f"\n--- Reading {num_bytes} bytes from Page {page_num} offset {offset} ---")
         
         # Assert CS

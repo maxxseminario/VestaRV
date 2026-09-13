@@ -1,7 +1,5 @@
-/*
- * gpiotoggle - Startup Assembly
- * Minimal: jump straight to main.
- */
+# VestaRV: gpiotoggle startup code
+# Jumps straight to main; no BSS clear.
 
 .section .program_start, "ax"
 .global __start_RAM_program__

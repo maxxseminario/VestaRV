@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 
-# Rearranges the ports on a verilog module to be alphabetical.  This allows the
-# port order to match what is expected by the Cadence CDL netlister (run with
-# si executable).  Normally environemnt variables would tell the netlister to
-# respect/use the auCdl portOrder property, but it doesn't seem to actually
-# work.
+# VestaRV: sort a Verilog module's ports alphabetically.
+# This makes the port order match what the Cadence CDL netlister (si) expects. The
+# environment variables that should make the netlister respect the auCdl portOrder property
+# do not work.
 
 import sys
 

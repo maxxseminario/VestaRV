@@ -1,50 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# privwfi.S   (WFI: P0 OFF-polarity poison  +  P2 ON-polarity positive arm)
-#-----------------------------------------------------------------------------
-# WFI -- SYSTEM imm12=0x105, funct3=000 -- wait for interrupt (0x10500073).
-#
-# This file carries BOTH polarities, in the extjvt.S #ifdef shape the P1-NOTE
-# in the original poison asked for:
-#
-#   #ifdef CORE_ENABLE_TRAPCSR   (P2, 2026-07-28)
-#       WFI is a LEGAL instruction. p0_specs.md 3: "WFI decodes from P2 iff
-#       ENABLE_TRAPCSR" -- it is TRAPCSR-scope, not UMODE-scope, so this arm
-#       runs on a trapCsr-only build too. The arm proves the STANDARD WAKE RULE
-#       (p0_specs.md 3):
-#           wake when (mip and mie) /= 0, REGARDLESS of mstatus.MIE;
-#           when the interrupt is takeable, vector -- else RESUME at pc+4.
-#       (NOTE the wording: a comment line whose first token after '#' is a
-#        preprocessor keyword IS a directive to cpp -- "# if ..." here cost a
-#        build.)
-#       The test arms mie.MSIE and raises CLINT msip[0] BEFORE the WFI, so the
-#       source is ALREADY pending: the WFI must fall straight through (the
-#       spec's "may resume immediately"). mstatus.MIE stays 0, so nothing may be
-#       DELIVERED -- which makes "resumed at WFI+4 with no trap" the exact
-#       observable, and makes the whole arm BOUNDED: no wait can ever hang.
-#       Standard delivery (mtrapctl.LEGACY=0) is selected first, which pins the
-#       legacy irq_handler in IDLE -- otherwise the msip we raise would vector
-#       through the legacy IVT slot 83, which a plain rv32ua image does not
-#       populate.
-#
-#   #else                        (P0 poison, unchanged)
-#       Encoding 0x10500073 is an ILLEGAL INSTRUCTION: with ENABLE_TRAPCSR off
-#       the SYSTEM PRIV arm does not exist, so every funct3=000 SYSTEM encoding
-#       falls to valid_funct <= '0'. Run ONLY under the trap-watching harness
-#       (behavioral_mp_stripped/run_extoff.sh + trap_watch.tcl, where trap_flag
-#       => TRAP_OK) -- never in the default behavioral_mp array, which would
-#       hang on the terminal TRAP_STATE. Surviving PAST the encoding => the
-#       gating is broken => explicit FAIL.
-#
-# The WFI encoding is emitted as a raw .word in BOTH arms so no assembler march
-# question can change WHICH bits the core sees.
-#
-# WFI in U-mode with mstatus.TW=1 (the P2 trap-on-wait rule) is proven
-# SEPARATELY, by privucsr's U-mode poison sweep.
-#
-# t4 carries the CHECK ID at every comparison in the positive arm.
-#*****************************************************************************
+# VestaRV: WFI, off-polarity poison and on-polarity positive arm
+# WFI is SYSTEM imm12 = 0x105, funct3 = 000, encoding 0x10500073, and this file carries both polarities in the extjvt.S ifdef shape. The encoding is emitted as a raw .word in BOTH arms, so no assembler -march question can change which bits the core sees. t4 carries the CHECK ID at every comparison in the positive arm.
+# With CORE_ENABLE_TRAPCSR defined, WFI is LEGAL. It is TRAPCSR-scope rather than UMODE-scope, so this arm runs on a trapCsr-only build too, and it proves the standard wake rule: wake when (mip and mie) is nonzero REGARDLESS of mstatus.MIE, and when the interrupt is takeable vector, else resume at pc+4. The test arms mie.MSIE and raises CLINT msip[0] BEFORE the WFI, so the source is already pending and the WFI must fall straight through, while mstatus.MIE stays 0 so nothing may be delivered, which makes "resumed at WFI+4 with no trap" the exact observable and the whole arm bounded. Standard delivery is selected first, which pins the legacy irq_handler in IDLE; otherwise the msip raised here would vector through the legacy IVT slot 83, which a plain rv32ua image does not populate.
+# Without it, the encoding is an ILLEGAL INSTRUCTION, since with ENABLE_TRAPCSR off the SYSTEM PRIV arm does not exist and every funct3 = 000 SYSTEM encoding falls to valid_funct = '0'. RUN THAT ARM ONLY UNDER THE TRAP-WATCHING HARNESS (behavioral_mp_stripped/run_extoff.sh with trap_watch.tcl), never in the default runner array, which would hang on the terminal TRAP_STATE. Surviving past the encoding means the gating is broken and is an explicit FAIL.
+# BEWARE: a comment line whose first token after the hash is a preprocessor keyword IS a directive to cpp, and writing one here has cost a build before.
+# WFI in U-mode with mstatus.TW set is proven separately, by privucsr's U-mode poison sweep.
 
 #include "riscv_test.h"
 #include "test_macros.h"

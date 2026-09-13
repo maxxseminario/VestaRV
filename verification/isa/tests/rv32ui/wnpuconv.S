@@ -1,77 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# wnpuconv.S  (wound-config firmware smoke -- digperiphs P4.1 Stage S6)
-#-----------------------------------------------------------------------------
-# NPU CONV1D (MODE=1) firmware smoke, hart 0 only (single-hart directed; tiles
-# stay parked -- no MP_STAGE_IMAGE, no mp_boot.h; the majority w* precedent,
-# same shape as wtrng.S/wdma.S). Companion to shnpu.S (the shared-NPU MLP +
-# vector-120 IRQ-leg precedent) and the S1-S5 npu_conv_design.md work: proves
-# the CONV1D sequencer (D1/D2/D5) end-to-end through firmware, at the SAME
-# MCU/silicon generics as the RTL bench (X_M=0, W_M=7, Y_M=7, N=24, RHO=2 --
-# G7's Q0.24-in/Q7.24-weight-acc-out format), taking the SAME vector-120
-# think-done IRQ shnpu.S's IRQ leg exercises (mirrored EXACTLY: PENDX rider
-# with the route OFF first -- deterministic, no delivery race -- then enable
-# ENX, INSVCX-in-handler rider, exactly-once, negctrl-lite settle, un-route).
-#
-# Case (npu_conv_design.md D6 smoke-sized; tiny, ~1 min of NpuClk):
-#   K=4 Cin=2 Cout=2 Lout=4 S=1 D=1 BEN=1 AEN=0 MODE=1(conv)
-#   L = (Lout-1)*S + (K-1)*D + 1 = 7
-#   T = 1 + Cout*Lout*(5*Cin*K + 3*BEN + 1) + 2 = 355 NpuClk cycles (D6)
-#
-# Register interface (npu_conv_design.md D3/D7 -- MabMmrA widened 3->4 bits):
-#   NPUCR   0x4A00 (+0)   ACTF[25:23] MODE[22:20] TDIE[19] BEN[18] AEN[17]
-#                          THINK[16] NI[15:8]=K-1 NN[7:0]=Cout-1
-#   IVSAR   0x4A04 (+4)   WVSAR 0x4A08 (+8)   OVSAR 0x4A0C (+C)  (12-bit
-#                          staging-RAM WORD indices)
-#   NPUSR   0x4A10 (+10)  bit0 THINKDONE, sticky W1C (M-series NPU IRQ leg)
-#   NPUCFG1 0x4A14 (+14)  S[3:0] D[7:4] L[23:8] (Cin-1)[31:24]
-#   NPUCFG2 0x4A18 (+18)  Lout[15:0]
-#   NPUCFG3 0x4A1C (+1C)  AS-BUILT: no storage, reads 0 (design doc D3 note)
-#   +0x20 (offset 8)      out of the 8-word decode ("when others"), reads 0
-# This test's L2 readback doubles as the 4-bit MabMmrA decode smoke: reading
-# BOTH the no-storage CFG3 register and the out-of-range offset 8 word proves
-# the widened address decode landed cleanly on both known-zero corners.
-#
-# Staging-RAM layout (word index = (addr-0xC000)/4), clear of shnpu's
-# 0xC100-0xC110 band and the bootrom's residual top-of-RAM stack words:
-#   X_ADDR   = 0xC400 (word 0x100, IV_WORD): Cin*L = 14 words, channel-major
-#              (in[c][t] at c*L+t)
-#   W_ADDR   = 0xC500 (word 0x140, WV_WORD): Cout*(Cin*K+BEN) = 18 words,
-#              filter-major, bias FIRST per filter (D2/D5 pinned order)
-#   OUT_ADDR = 0xC600 (word 0x180, OV_WORD): Cout*Lout = 8 words, flat
-#              f*Lout+j order
-#
-# Golden values: computed by ~/vestarv/verification/npu/gen_wnpuconv_golden.py
-# (a throwaway script built entirely on the VALIDATED npu_fixed.py arithmetic
-# core -- mac_step()'s exact fixed_pkg_c round-half-to-even + saturate
-# replica -- reusing the same bias-first/c-outer/k-inner pinned order the D9
-# bench's think_layer()/compute_conv() already implement). Input/weight
-# magnitudes were deliberately chosen ~1e5-1e6 raw (real value ~0.006-0.06 in
-# Q0.24/Q7.24 terms) so per-step rounding is NOT trivial: the golden script's
-# trace shows all 72 MAC steps across the 8 outputs have a nonzero discarded
-# remainder, and 38 of them actually round UP (resize_sfixed adds +1 -- e.g.
-# the very first step, f=0/j=0's bias tap: floor=449999, remainder=16327216 >
-# half=8388608 -> rounds up to 450000). A case that round-tripped exactly
-# would prove nothing about the per-step round-to-nearest path; this one does.
-#
-# Scratch: private TCM 0xA000/0xA004 (single-hart directed -- the wrtc/wow/
-# wi2ct/wqspi/wgpio/wi3c/wtrng precedent; no shared-window word needed, there
-# is no second hart to rendezvous with).
-#   TD_FLAG = 0xA000   (ISR exactly-once counter)
-#   TD_ISVC = 0xA004   (handler's masked INSVCX readback)
-#
-# NPU is mclk-domain (like DMA0/TRNG0) -- NO SYS_CLK_CR write needed (that
-# rule is only for the smclk peripherals: UART/I2C/...).
-#
-# IVT gotcha (shnpu.S precedent, unchanged for this test): this test's .ivt
-# extension also stops at slot 120 (same vector, NPU0_TD) -- WITHOUT parking
-# slots 121-127 the trailing zero-run to the fixed .text.init link address
-# (0x8200) is only 7 zero words, one short of flash_prepend.sh's GAP_MIN(8)
-# region-split threshold, and gets silently MERGED into one oversized segment
-# (proven to corrupt the boot copy in simulation -- see shnpu.S's header for
-# the full forensics). Slots 121-127 are parked here for the same reason.
-#*****************************************************************************
+# VestaRV: NPU CONV1D firmware smoke
+# Hart 0 only, tiles parked; MODE = 1 at the silicon generics X_M = 0, W_M = 7, Y_M = 7, N = 24, RHO = 2. Case: K = 4, Cin = 2, Cout = 2, Lout = 4, S = 1, D = 1, BEN = 1, AEN = 0, so L = 7 and T = 355 NpuClk cycles. It takes the vector-120 think-done IRQ leg in the family's exact order: the PENDX rider runs with the route OFF first, which is deterministic and has no delivery race, then ENX is enabled, the handler reads INSVCX, exactly-once is checked, a negctrl-lite settle follows, and the route is torn down.
+# Register bank: NPUCR 0x4A00 = ACTF[25:23] MODE[22:20] TDIE[19] BEN[18] AEN[17] THINK[16] NI[15:8] = K-1 NN[7:0] = Cout-1; IVSAR 0x4A04, WVSAR 0x4A08, OVSAR 0x4A0C are 12-bit staging-RAM WORD indices; NPUSR 0x4A10 bit 0 THINKDONE is sticky W1C and sets on NpuDone regardless of TDIE, which only gates delivery; NPUCFG1 0x4A14 = S[3:0] D[7:4] L[23:8] (Cin-1)[31:24]; NPUCFG2 0x4A18 = Lout[15:0]; NPUCFG3 0x4A1C has no storage and reads 0; offset +0x20 is outside the 8-word decode and reads 0. The L2 readback of those two known-zero corners is the 4-bit MabMmrA decode smoke.
+# Staging RAM, word index = (addr - 0xC000)/4, clear of shnpu's 0xC100-0xC110 band and the bootrom's residual top-of-RAM stack words: X_ADDR 0xC400 holds Cin*L = 14 words channel-major (in[c][t] at c*L + t), W_ADDR 0xC500 holds Cout*(Cin*K + BEN) = 18 words filter-major with THE BIAS FIRST PER FILTER, and OUT_ADDR 0xC600 holds Cout*Lout = 8 words in flat f*Lout + j order.
+# Golden values come from verification/npu/gen_wnpuconv_golden.py, built on the validated npu_fixed.py arithmetic core so the round-half-to-even and saturate path is never reimplemented. The input and weight magnitudes are chosen around 1e5 to 1e6 raw so that every one of the 72 MAC steps has a nonzero discarded remainder and 38 of them round up; a case that round-tripped exactly would prove nothing about the per-step rounding path.
+# Scratch lives in private TCM, TD_FLAG = 0xA000 (ISR exactly-once counter) and TD_ISVC = 0xA004 (the handler's masked INSVCX readback), because there is no second hart to rendezvous with. The NPU is mclk-domain, so no SYS_CLK_CR write is needed.
+# IVT GOTCHA: this file's .ivt extension stops at slot 120, and slots 121-127 MUST stay parked. Without them the trailing zero run to the fixed .text.init link address 0x8200 is only 7 zero words, one short of flash_prepend.sh's GAP_MIN of 8, so the regions are silently merged into one oversized segment that corrupts the boot copy.
 
 #include "riscv_test.h"
 #include "test_macros.h"

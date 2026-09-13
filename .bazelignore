@@ -1,6 +1,8 @@
-# Directories bazel must never crawl for packages.
-# The EDA working trees below total ~450GB of generated output; without these
-# entries every "bazel build //..." walks all of it looking for BUILD files.
+# VestaRV: directories bazel must never crawl for packages.
+# The EDA working trees below hold roughly 450 GB of generated output, so without
+# these entries every "bazel build //..." walks all of it looking for BUILD files.
+# tools/ci/check_bazelignore.py holds the required subset in a constant and fails
+# if a line here goes missing, so dropping one means editing that file too.
 signoff_mp
 xcelium
 xcelium.d
@@ -13,8 +15,8 @@ ic_bad
 logo
 .cadence
 .devlog
-# Agent worktrees. Each one is a FULL second checkout of this repo, so without
-# this entry bazel finds every BUILD file twice and "//..." silently doubles.
+# Agent worktrees. Each is a full second checkout of this repo, so without this
+# entry bazel finds every BUILD file twice and "//..." silently doubles.
 .claude
 
 # Generated / gitignored trees inside otherwise-bazelified areas:
@@ -55,7 +57,7 @@ verification/isa/rcf_kf0
 verification/isa/rcf_kf8
 opensource_sim/.venv
 
-# Analog interfacing collateral kept outside the public tree (2026-09-11). Its
-# BUILD files name chip artifacts the public tree no longer defines, so it is
-# not part of the bazel graph; the Genus and Xcelium flows read it directly.
+# Analog interfacing collateral kept outside the public tree. Its BUILD files name
+# chip artifacts the public tree no longer defines, so it is not part of the bazel
+# graph; the Genus and Xcelium flows read it directly.
 private

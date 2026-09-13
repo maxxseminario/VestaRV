@@ -1,61 +1,13 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# privpmpcs.S   (P3 PMP CSR bank — WARL / readback / LOCK sweep)
-#-----------------------------------------------------------------------------
-# ON-ONLY DIRECTED TEST. Proves the twenty P3 CSRs implemented in csr_unit.vhd
-# behave EXACTLY as frozen in
-# ~/work/chip_docs/castalia/priv_arch/p0_specs.md 4 / 4.1:
-#
-#   0x3A0-0x3A3 pmpcfg0-3    four packed entry cfg BYTES each
-#                            (entry 4n+j = bits 8j+7 downto 8j)
-#                            R(0) W(1) X(2) A(4:3) L(7); bits 6:5 WARL 0;
-#                            W PINNED 0 when R=0; A in {OFF,TOR,NA4,NAPOT}
-#   0x3B0-0x3BF pmpaddr0-15  bits 29:0 stored (= physical address 31:2);
-#                            bits 31:30 WARL 0
-#
-#   LOCK (L=1): that entry's cfg byte AND its pmpaddr are write-ignored until
-#   RESET. An entry i locked with A=TOR ALSO write-locks pmpaddr[i-1] (that is
-#   its region BASE). Lock filtering is PER BYTE inside a pmpcfg word write, so
-#   an unlocked byte of the same word still takes the write.
-#
-# This is the KICKOFF 3b CLASS-4 test (readback completeness) for the PMP bank:
-# every reserved bit must read its spec value, and every lock must actually
-# hold — a bank that stores more than the spec allows, or that lets a locked
-# entry be reprogrammed, is exactly the bug class this file exists to catch.
-#
-# NAME (flagged decision, 2026-07-29): the runner contract makes the rcf
-# basename EXACTLY 22 characters ("../rcf/" + 22 = the fixed 29-char
-# riscv_tb TEST_FILE generic), so an rv32ua test name may be at most 9
-# characters. "privpmpcsr" would produce a 23-char rcf that xrun.sh rejects
-# outright; this file is therefore privpmpcs (-> rv32ua-p-privpmpcs.rcf, 22).
-#
-# SCOPE (2026-07-29): the PMP CHECK INTEGRATION (pre-issue fetch/load/store
-# suppression, access-fault causes 1/5/7) is the vesta half of P3 and is NOT
-# present on the build this file gates. Every check here is therefore a CSR
-# write/readback — this test deliberately performs NO fenced load, store or
-# fetch. Enforcement coverage belongs to privpmp / privpmpmtx.
-#
-# ENTRY BUDGET (documented so a later privpmp can coexist in one sim): PMP
-# locks are released ONLY by hardware reset, so a locked entry stays locked for
-# the rest of the simulation. This file therefore confines EVERY lock check to
-# the HIGH entries 12-15 (pmpcfg3), and leaves entries 0-11 unlocked with
-# pmpcfg0/1/2 written back to zero at the end. A later PMP test sharing the
-# same image may use entries 0-11 freely; it must NOT expect 12-15 to be
-# reprogrammable.
-#
-# BUILD-TIME DISPATCH (privcsr / privucsr idiom):
-#   ON  (-DCORE_ENABLE_TRAPCSR -DCORE_ENABLE_UMODE -DCORE_ENABLE_PMP appended
-#        to RISCV_GCC_OPTS when the pmp config is staged): run the sweep.
-#   OFF (default build, macros unset): the twenty addresses are UNKNOWN CSRs and
-#        this core DEAD-ENDS an illegal instruction in the terminal TRAP_STATE,
-#        so the sweep must not be assembled at all. The #else arm FAILs
-#        immediately and loudly — privpmpcs is deliberately NOT in the default
-#        behavioral_mp runner array, so this arm should never execute.
-#
-# t4 carries the CHECK ID at every comparison, so a FAIL is localisable from a
-# waveform / a0 post-mortem without re-running.
-#*****************************************************************************
+# VestaRV: PMP CSR bank, WARL, readback and lock sweep
+# ON-ONLY. Every reserved bit must read its specified value and every lock must actually hold: a bank that stores more than the spec allows, or that lets a locked entry be reprogrammed, is the bug class this file exists to catch. t4 carries the CHECK ID at every comparison, so a failure is localisable from a0 and t4 without re-running.
+# The twenty registers: 0x3A0-0x3A3 pmpcfg0-3, four packed entry cfg BYTES each with entry 4n+j at bits 8j+7 downto 8j, carrying R(0), W(1), X(2), A(4:3) and L(7), with bits 6:5 WARL 0, W PINNED 0 when R = 0, and A in {OFF, TOR, NA4, NAPOT}; and 0x3B0-0x3BF pmpaddr0-15, storing bits 29:0 as physical address 31:2 with bits 31:30 WARL 0.
+# LOCK SEMANTICS: with L = 1 that entry's cfg byte AND its pmpaddr are write-ignored until RESET, an entry locked with A = TOR ALSO write-locks pmpaddr[i-1], since that is its region base, and lock filtering is PER BYTE inside a pmpcfg word write, so an unlocked byte of the same word still takes the write.
+# ENTRY BUDGET, documented so a later PMP test can coexist in one simulation: PMP LOCKS ARE RELEASED ONLY BY HARDWARE RESET, so this file confines every lock check to the HIGH entries 12-15 in pmpcfg3 and leaves entries 0-11 unlocked with pmpcfg0, 1 and 2 written back to zero at the end. A later test sharing the image may use entries 0-11 freely and must not expect 12-15 to be reprogrammable.
+# SCOPE: every check here is a CSR write and readback, and this test deliberately performs no fenced load, store or fetch; the pre-issue suppression and the access-fault causes belong to privpmp and privpmpmx.
+# THE NAME IS CONSTRAINED BY THE RUNNER: the rcf basename must be exactly 22 characters, so an rv32ua test name may be at most 9. "privpmpcsr" would produce a 23-character rcf that xrun.sh rejects outright.
+# BUILD-TIME DISPATCH: assembled only with all three of -DCORE_ENABLE_TRAPCSR, -DCORE_ENABLE_UMODE and -DCORE_ENABLE_PMP on a staged pmp build; without them the twenty addresses are unknown CSRs and this core dead-ends an illegal instruction in the terminal TRAP_STATE, so the #else arm fails immediately and loudly and this file is deliberately not in the default runner array.
 
 #include "riscv_test.h"
 #include "test_macros.h"

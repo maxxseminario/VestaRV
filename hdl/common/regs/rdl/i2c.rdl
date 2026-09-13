@@ -1,17 +1,6 @@
-// ===========================================================================
-// i2c.rdl: the register map of hdl/common/periph/I2C.vhd.
-//
-// THE VHDL IS THE AUTHORITY, and the one non-zero reset in this block is
-// PER INSTANCE: `I2CxAR <= default_SAD`, the generic MCU.vhd binds to
-// i2c0_default_SAD = 0x79 and i2c1_default_SAD = 0x23 (constants.vhd). The
-// generator models both as resetting to 0. The per-instance values are
-// applied at the instances in castalia_penta_wound.rdl.
-//
-// I2CxFCR is write-only flow control: a 1 raises the command and the
-// consuming FSM clears it, the register is absent from the read mux and
-// reads 0, and the stop and read-byte commands are additionally gated on
-// I2CMCB (this master owns the bus).
-// ===========================================================================
+// VestaRV: the register map of hdl/common/periph/I2C.vhd
+// The VHDL is the authority, and the one non-zero reset in this block is PER INSTANCE: `I2CxAR <= default_SAD`, the generic MCU.vhd binds to i2c0_default_SAD = 0x79 and i2c1_default_SAD = 0x23 (constants.vhd). The generator models both as resetting to 0; the per-instance values are applied at the instances in castalia_penta_wound.rdl.
+// I2CxFCR is write-only flow control: a 1 raises the command and the consuming FSM clears it, the register is absent from the read mux and reads 0, and the stop and read-byte commands are additionally gated on I2CMCB (this master owns the bus).
 
 `include "vesta_udp.rdl"
 

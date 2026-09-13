@@ -1,17 +1,10 @@
 #!/usr/bin/env python3
-"""Contract check on the fpu_vec_gen output consumed by fpu_tb.vhd.
+"""VestaRV: contract check on the fpu_vec_gen output consumed by fpu_tb.vhd.
 
-This proves what can be proven without a native reference toolchain on this
-host: the emitted file has the exact fixed-width record layout fpu_tb.vhd
-parses, the kind and op fields stay inside the ranges its MNAMES / SNAMES
-tables index, and both FPU flavours are actually exercised.
-
-It does NOT check numerical correctness of any vector. The reference itself
-(SSE single precision plus glibc fmaf) is a property of the compiler and libc
-that produced the generator binary, so numerical trust belongs to
-gen_fpu_vectors.sh, not here.
-
-Plain runner: exit 0 means pass. No pytest.
+Proves the emitted file has the fixed-width record layout fpu_tb.vhd parses, that kind and op
+stay inside the ranges its MNAMES and SNAMES tables index, and that both FPU flavours are
+exercised. Numerical correctness is not checked: the reference is a property of the compiler
+and libc that built the generator, so it belongs to gen_fpu_vectors.sh. Exit 0 passes.
 """
 
 import re

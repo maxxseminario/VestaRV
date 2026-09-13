@@ -1,14 +1,6 @@
-// ===========================================================================
-// timer.rdl: the register map of hdl/common/periph/TIMER.vhd.
-//
-// THE VHDL IS THE AUTHORITY: eight slots from MemoryMap.vhd's RegSlotTIMx*,
-// control_reg 19:0 and status_reg 7:0 from the signal declarations, and an
-// all-zero reset branch.
-//
-// TIMxVAL is the one register with NO byte granularity: its write arm is
-// `if wen /= "1111"` and it then loads the whole 32-bit word, so a byte
-// store to any lane writes all four.
-// ===========================================================================
+// VestaRV: the register map of hdl/common/periph/TIMER.vhd
+// The VHDL is the authority: eight slots from MemoryMap.vhd's RegSlotTIMx*, control_reg 19:0 and status_reg 7:0 from the signal declarations, and an all-zero reset branch.
+// TIMxVAL is the one register with NO byte granularity: its write arm is `if wen /= "1111"` and it then loads the whole 32-bit word, so a byte store to any lane writes all four.
 
 `include "vesta_udp.rdl"
 

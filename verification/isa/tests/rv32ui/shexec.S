@@ -1,53 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shexec.S  (M10; M12 single-ROM boot rework)
-#-----------------------------------------------------------------------------
-# EXECUTE-FROM-SHARED proof — instruction fetch THROUGH the mp_arbiter.
-#
-# M12: tiles are NO LONGER preloaded. Hart 0 stages this TCM image once and
-# launches all three tiles into tile_entry through the bootrom loader
-# (mp_boot.h); each tile then parks on TOKEN just as before. Hart 0 copies the
-# payload into shared RAM BEFORE releasing any tile (order unchanged), so the
-# tiles only ever execute a fully-written payload.
-#
-# The M12 boot rework (single shared boot ROM, all harts reset-fetch through
-# the arbiter) is only buildable if a core can EXECUTE from the shared window
-# at all — never proven before M10 (the window was DATA-only by design). This
-# test makes every hart run a small loop IN SHARED RAM that itself LOADS from
-# shared while fetching from shared (the M12 bootrom shape: code + mailbox
-# reads through the same arbiter port):
-#
-#     payload @0x103C0 (5 words, copied there by hart 0):
-#         lw   t2, 0(s0)        # shared DATA load amid shared FETCHES
-#         add  t1, t1, t2       # sequential fetch
-#         addi a1, a1, -1       # sequential fetch
-#         bnez a1, payload      # backward branch WITHIN shared
-#         jalr x0, ra, 0        # return to private code
-#
-# Per-hart iteration counts differ (4+hartid), so each hart proves its OWN
-# loop really ran: t1 must equal iters*0x00010001 (CHK holds 0x00010001).
-#
-# Shared words (ledger: next-free was 0x103C0, 16 words to the 0x103FF end):
-#     CODE    = 0x103C0..0x103D0  5 payload words (0x103D0 holds 0x00008067 —
-#                                 shamo's probe constraint 0x22222222 is safe)
-#     CHK     = 0x103D4           0x00010001, written by hart 0
-#     TOKEN   = 0x103D8           turn word, hart-0 owned: h = hart h's turn
-#     DONE[h] = 0x103D8 + 4*h     0xE0EC0000+h, h=1..NHARTS-1
-# Argus A3: CODE/CHK/TOKEN sit below the DONE base; the NHARTS-sized DONE array
-# runs 0x103DC..(0x103D8+4*(NHARTS-1)). N=18 top = 0x1041C, clear of the loader
-# rows (0x10500+) and below the bootrom zero-range end (0x10800). Every tile
-# runs the SAME payload (no role dispatch) — parameterizes cleanly.
-#     next free: 0x103E8 (N=4)
-#
-# Harts 1-3 (launched by hart 0 at tile_entry): PARK polling TOKEN (reads only), then
-# run the payload, check t1, write DONE[h], set a0 = PASS inline, verify DONE
-# forever (shboot pattern).
-# Hart 0 (SPI boot, arrives late): copy payload + CHK into shared RAM
-# (read-back verified), prove DONE[1..3]==0 (tiles parked cleanly), run the
-# payload ITSELF (the gate hart fails fast if fetch-from-shared is broken),
-# then release tiles one at a time via TOKEN with a bounded DONE budget.
-#*****************************************************************************
+# VestaRV: execute-from-shared proof, instruction fetch through mp_arbiter
+# Every hart runs a loop that lives IN SHARED RAM and itself loads from shared while fetching from shared, which is the shape the boot ROM needs: code and mailbox reads through one arbiter port. Payload at 0x103C0, five words: `lw t2, 0(s0)` / `add t1, t1, t2` / `addi a1, a1, -1` / `bnez a1, payload` / `jalr x0, ra, 0`.
+# Per-hart iteration counts differ (4 + hartid), so each hart proves its own loop ran: t1 must equal iters * 0x00010001, and CHK holds 0x00010001.
+# Shared words: CODE 0x103C0..0x103D0 (0x103D0 holds 0x00008067, so shamo's probe constraint 0x22222222 is safe), CHK 0x103D4, TOKEN 0x103D8 (hart-0 owned turn word, h = hart h's turn), DONE[h] 0x103D8 + 4*h = 0xE0EC0000 + h for h = 1..NHARTS-1. The NHARTS-sized DONE array tops out at 0x1041C at N=18, clear of the loader rows at 0x10500 and inside the bootrom zero range below 0x10800.
+# ORDER IS LOAD-BEARING: hart 0 copies the payload and CHK into shared RAM, read-back verified, BEFORE releasing any tile, so a tile only ever executes a fully written payload. Tiles park polling TOKEN, run the payload, check t1, write DONE[h] and verify it forever; hart 0 proves DONE[1..3] == 0 first, runs the payload itself, then releases tiles one at a time on a bounded DONE budget.
 
 #include "riscv_test.h"
 #include "test_macros.h"

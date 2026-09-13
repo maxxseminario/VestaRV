@@ -1,22 +1,10 @@
 #!/usr/bin/env python3
-"""rdl_negative_control_test.py -- the SystemRDL gates fail when the register
-description stops matching the RTL.
+"""VestaRV: the SystemRDL gates fail when the register description stops matching the RTL.
 
-A gate nobody has watched fail is a gate nobody should trust. This one takes the
-tracked .rdl descriptions, copies them, changes ONE thing in each copy, and
-asserts that the comparison rdl_vs_vhdl_test performs on that thing now reports
-a mismatch -- and that the same comparison on the UNCHANGED copy passes, so the
-failure is attributable to the mutation and not to the copying.
-
-Three mutations, one per class of thing the gates check. All three are on
-uart.rdl, the pilot block, because it is the one whose reader states a word
-offset, a reset AND a storage mask:
-
-    reset value    uart.rdl UARTxBR.BR reset 0 -> 1, against UART.vhd's reset
-                   branch, which clears UART_BR
-    storage mask   uart.rdl UARTxBR.BR [11:0] -> [10:0], against UART.vhd's
-                   signal UART_BR : std_logic_vector(11 downto 0)
-    word offset    uart.rdl UARTxBR 0x08 -> 0x0C, against RegSlotUARTxBR
+Copies the tracked .rdl descriptions, changes one thing in each copy, and asserts the
+corresponding comparison now reports a mismatch while the unchanged copy still passes, so the
+failure is attributable to the mutation. Three mutations, one per class the gates check, all
+on uart.rdl: a reset value, a storage mask and a word offset.
 """
 
 import os
@@ -84,13 +72,10 @@ class NegativeControlTest(unittest.TestCase):
                                 + ' in ' + fileName)
 
     def _uart(self):
-        """The UART decode as the gate reads it today.
-
-           Since report R12a that is the periph_regs reader: UART.vhd's bus side
-           is an instance, and the tables it decodes with are uart_regs_pkg's.
-           The mutation still has to be caught, because the mutated description
-           is compiled in a temp directory while the TRACKED package -- the file
-           the entity compiles against -- is unchanged."""
+        """The UART decode as the gate reads it today, which is the periph_regs reader: UART.vhd's bus
+        side is an instance decoding with uart_regs_pkg's tables. The mutation is still caught,
+        because the mutated description compiles in a temp directory while the tracked package does not.
+        """
         return gate.READERS['uart']['read'](
             os.path.join(REPO, 'hdl', 'common', 'periph', 'UART.vhd'),
             os.path.join(REPO, 'hdl', 'common', 'MemoryMap.vhd'))

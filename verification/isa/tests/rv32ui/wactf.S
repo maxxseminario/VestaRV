@@ -1,108 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# wactf.S  (wound-config firmware smoke -- digperiphs P4.4 Stage S5)
-#-----------------------------------------------------------------------------
-# NPU ACTF activation mux (MODE=0, legacy MLP) firmware smoke, hart 0 only
-# (single-hart directed; tiles stay parked -- no MP_STAGE_IMAGE, no
-# mp_boot.h; the SAME majority w* precedent shape as wnpuconv.S/wxnpu.S/
-# wgemm.S). Companion to shnpu.S (the shared-NPU MLP + vector-120 IRQ-leg
-# precedent) and wgemm.S (the two-layer GEMM firmware smoke this file mirrors
-# structurally): proves the ACTF activation mux (npu_actf_design.md D1-D9)
-# end-to-end through firmware, at the SAME MCU/silicon generics as the RTL
-# bench (X_M=0, W_M=7, Y_M=7, N=24, RHO=2), taking the SAME vector-120
-# think-done IRQ leg the family precedent takes (mirrored EXACTLY: PENDX
-# rider with the route OFF first -- deterministic, no delivery race -- then
-# enable ENX, INSVCX-in-handler rider, exactly-once, negctrl-lite settle,
-# un-route) on the LAST THINK.
-#
-# ONE staged MLP layer (NI=0 -> 1 input, NN=1 -> 2 neurons, BEN=0), reused
-# across a SWEEP of SEVEN THINKs -- only OVSAR (and, for the two groups that
-# need a different accumulator magnitude, WVSAR) is re-pointed between
-# THINKs so results never overwrite each other (design-doc D12):
-#
-#   Group A (X=0.5, W_A0=+1.0/W_A1=-1.0 -> acc0=+0.5/acc1=-0.5, BOTH deep
-#   inside the sigmoid/tanh linear band |acc|<2, mixed sign):
-#     THINK1  ACTF=0 AEN=1  sigmoid            (legacy compatibility anchor)
-#     THINK2  ACTF=1 AEN=1  ReLU               (+ passes raw, - -> 0)
-#     THINK3  ACTF=2 AEN=1  tanh = 2*sigma(2x)-1 (- must sign-extend negative)
-#     THINK6  ACTF=5 AEN=1  reserved -> MUST equal THINK1's sigmoid words (D6)
-#     THINK7  ACTF=2 AEN=0  master-enable proof -> raw Q7.24 passthrough (D1)
-#
-#   Group B (X=0.5, W_B0=+3.0/W_B1=+0.25 -> acc0=+1.5/acc1=+0.125):
-#     THINK4  ACTF=3 AEN=1  clamp/hardtanh -- acc0 >= +1.0 clamps to the
-#             +rail 0x00FFFFFF; acc1 (in-range) is the identity (D4)
-#
-#   Group C (X=0.5, W_C0=0.0/W_C1=-1.0 -> acc0=0 exactly/acc1=-0.5):
-#     THINK5  ACTF=4 AEN=1  exp-approx = 2*sigma(x) -- acc0=0 -> EXACTLY
-#             0x01000000 (1.0, the softmax boundary); acc1<0 -> word in
-#             (0, 1.0) (D5)
-#
-# Golden values: computed by ~/vestarv/verification/npu/gen_wactf_golden.py
-# (a throwaway script built entirely on the VALIDATED npu_fixed.py arithmetic
-# core -- think_layer()/activate(), reused verbatim per npu_actf_design.md
-# D9, never reimplements the MAC/sigmoid/activation arithmetic). That script
-# self-checks: THINK1 accs are mixed-sign and |acc|<2 and equal a direct
-# sigmoid() call; THINK2 ReLU(+)=passthrough, ReLU(-)=0 (!= sigmoid(-));
-# THINK3 tanh(-) is NEGATIVE and sign-extends negative in the full 32-bit
-# word (GA3); THINK4 acc0 is exactly 1.5 and clamps to 0x00FFFFFF (!= the
-# raw acc), acc1 is the in-range identity; THINK5 acc0 is exactly 0 and
-# exp~(0) == 1<<24 == 0x01000000 exactly, acc1<0 gives a word in (0,
-# 0x01000000); THINK6 words == THINK1 words bit-for-bit; THINK7 == the raw
-# Group-A accumulators and != THINK3's tanh output (master-enable proof).
-#
-# Register interface (npu_actf_design.md D8 -- ZERO entity changes; the SAME
-# 8-word MMR bank wnpuconv.S/wxnpu.S/wgemm.S exercise; MLP (MODE=0) simply
-# does not consume NPUCFG1/NPUCFG2, exactly like GEMM ignoring NPUCFG2 --
-# storage/readback is generic and mode-independent):
-#   NPUCR   0x4A00 (+0)   ACTF[25:23] MODE[22:20]=0(MLP) TDIE[19] BEN[18]=0
-#                          AEN[17] THINK[16] NI[15:8]=0(1 input) NN[7:0]=1
-#                          (2 neurons)
-#   IVSAR   0x4A04 (+4)   WVSAR 0x4A08 (+8)   OVSAR 0x4A0C (+C)  (12-bit
-#                          staging-RAM WORD indices)
-#   NPUSR   0x4A10 (+10)  bit0 THINKDONE, sticky W1C (sets on NpuDone
-#                          regardless of TDIE -- TDIE only gates delivery)
-#   NPUCFG1 0x4A14 (+14)  MLP: unconsumed (D8) -- write/readback smoked once
-#                          below purely as a generic MMR storage proof
-#   NPUCFG2 0x4A18 (+18)  MLP: unconsumed (D8) -- same generic storage proof
-#   NPUCFG3 0x4A1C (+1C)  AS-BUILT: no storage, reads 0 (unchanged)
-#   +0x20 (offset 8)      out of the 8-word decode ("when others"), reads 0
-# This test's L2 readback doubles as the same 4-bit MabMmrA decode smoke
-# wnpuconv.S/wxnpu.S/wgemm.S's headers document (CFG3 + offset-8 both
-# known-zero corners) -- the entity is untouched (D8), so the decode
-# behaves identically per mode. L3 adds the NEW ACTF-field readback smoke
-# (npu_actf_design.md D12): NPUCR bits[25:23] round-trip for a THINK=0 write
-# exactly like every other stored NPUCR field.
-#
-# Staging-RAM layout (word index = (addr-0xC000)/4), clear of shnpu's
-# 0xC100-0xC110 band, wnpuconv's 0xC400/0xC500/0xC600 bands, wxnpu's
-# 0xC700/0xC740/0xC780 bands, and wgemm's 0xC800-0xC904 bands:
-#   X_ADDR    = 0xCA00 (word 0x280): the ONE shared input (all 3 groups)
-#   WVA_ADDR  = 0xCA10 (word 0x284): W_A0 @+0, W_A1 @+4 (Group A, 2 words)
-#   WVB_ADDR  = 0xCA20 (word 0x288): W_B0 @+0, W_B1 @+4 (Group B, 2 words)
-#   WVC_ADDR  = 0xCA30 (word 0x28C): W_C0 @+0, W_C1 @+4 (Group C, 2 words)
-#   OV_T1..OV_T7 = 0xCA40/48/50/58/60/68/70 (word 0x290/292/294/296/298/
-#                  29A/29C): 2 words each (one per neuron), one region per
-#                  THINK so no result is ever overwritten by a later THINK
-#
-# Scratch: private TCM 0xA000/0xA004 (single-hart directed -- the
-# wnpuconv/wxnpu/wgemm/wrtc/wow/wi2ct/wqspi/wgpio/wi3c/wtrng precedent; no
-# shared-window word needed, there is no second hart to rendezvous with).
-#   TD_FLAG = 0xA000   (ISR exactly-once counter)
-#   TD_ISVC = 0xA004   (handler's masked INSVCX readback)
-#
-# NPU is mclk-domain (like DMA0/TRNG0) -- NO SYS_CLK_CR write needed (that
-# rule is only for the smclk peripherals: UART/I2C/...).
-#
-# IVT gotcha (shnpu.S/wnpuconv.S/wxnpu.S/wgemm.S precedent, unchanged for
-# this test): this test's .ivt extension also stops at slot 120 (same
-# vector, NPU0_TD) -- WITHOUT parking slots 121-127 the trailing zero-run to
-# the fixed .text.init link address (0x8200) is only 7 zero words, one short
-# of flash_prepend.sh's GAP_MIN(8) region-split threshold, and gets silently
-# MERGED into one oversized segment (proven to corrupt the boot copy in
-# simulation -- see shnpu.S's header for the full forensics). Slots 121-127
-# are parked here for the same reason.
-#*****************************************************************************
+# VestaRV: NPU activation-mux firmware smoke
+# Hart 0 only, tiles parked; MODE = 0 (legacy MLP) at the silicon generics X_M = 0, W_M = 7, Y_M = 7, N = 24, RHO = 2, taking the same vector-120 think-done IRQ leg as the rest of the family on the LAST THINK (PENDX rider with the route OFF first, then enable ENX, INSVCX in the handler, exactly-once, negctrl-lite settle, un-route).
+# ONE staged MLP layer (NI = 0 for a single input, NN = 1 for two neurons, BEN = 0) is reused across SEVEN THINKs; only OVSAR, and WVSAR for the groups needing a different accumulator magnitude, is re-pointed between THINKs so no result overwrites another. Group A (X = 0.5, W = +1.0 and -1.0, so acc = +0.5 and -0.5, both inside the linear band and mixed in sign) runs THINK1 ACTF = 0 sigmoid, THINK2 ACTF = 1 ReLU, THINK3 ACTF = 2 tanh, THINK6 ACTF = 5 reserved which MUST equal THINK1's sigmoid words bit for bit, and THINK7 ACTF = 2 with AEN = 0, which must pass the raw Q7.24 accumulator through. Group B (W = +3.0 and +0.25, acc = +1.5 and +0.125) runs THINK4 ACTF = 3 clamp, where acc0 clamps to the + rail 0x00FFFFFF and acc1 is the identity. Group C (W = 0.0 and -1.0, acc = 0 exactly and -0.5) runs THINK5 ACTF = 4 exp-approx, where acc0 = 0 must give exactly 0x01000000 and acc1 < 0 a word strictly inside (0, 1.0).
+# Register bank: NPUCR 0x4A00 = ACTF[25:23] MODE[22:20] TDIE[19] BEN[18] AEN[17] THINK[16] NI[15:8] NN[7:0]; IVSAR 0x4A04, WVSAR 0x4A08, OVSAR 0x4A0C are 12-bit staging-RAM WORD indices; NPUSR 0x4A10 bit 0 THINKDONE is sticky W1C and sets regardless of TDIE, which only gates delivery; NPUCFG1 0x4A14 and NPUCFG2 0x4A18 are unconsumed in MLP mode and are written and read back only as a generic MMR storage proof; NPUCFG3 0x4A1C has no storage and reads 0; offset +0x20 is outside the 8-word decode and reads 0. L2 reads those two known-zero corners as the MabMmrA decode smoke, and L3 round-trips NPUCR[25:23] on a THINK = 0 write.
+# Staging RAM, word index = (addr - 0xC000)/4, clear of the shnpu, wnpuconv, wxnpu and wgemm bands: X_ADDR 0xCA00 is the one shared input, WVA 0xCA10, WVB 0xCA20 and WVC 0xCA30 hold two weight words each, and OV_T1..OV_T7 at 0xCA40 through 0xCA70 in steps of 8 hold two words each, one region per THINK.
+# Golden values come from verification/npu/gen_wactf_golden.py, built on the validated npu_fixed.py arithmetic core, which self-checks each group's defining property before printing.
+# Scratch lives in private TCM, TD_FLAG = 0xA000 and TD_ISVC = 0xA004. The NPU is mclk-domain, so no SYS_CLK_CR write is needed. IVT GOTCHA: this file's .ivt extension stops at slot 120, and slots 121-127 MUST stay parked, or the trailing zero run to the fixed .text.init link address 0x8200 is one word short of flash_prepend.sh's GAP_MIN of 8 and the regions merge into one oversized segment that corrupts the boot copy.
 
 #include "riscv_test.h"
 #include "test_macros.h"

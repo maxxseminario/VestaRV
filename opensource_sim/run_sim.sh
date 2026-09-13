@@ -1,17 +1,11 @@
 #!/usr/bin/env bash
-# opensource_sim/run_sim.sh — run the full open-source simulate/verify flow:
-#   1. cocotb/GHDL smoke test (sky130/sim)
-#   2. GHDL ISA regression (opensource_sim/isa/run_isa.sh)
-#
-# Usage:
-#   ./opensource_sim/run_sim.sh              [suite ...]   both stages
-#   ./opensource_sim/run_sim.sh --smoke-only               smoke test only
-#   ./opensource_sim/run_sim.sh --isa-only    [suite ...]   ISA suite only
-#
-# [suite ...] is forwarded verbatim to opensource_sim/isa/run_isa.sh (default
-# suites: rv32ui rv32um rv32ua rv32uc rv32uzba rv32uzbb rv32uzbc rv32uzbs).
-#
-# Exit 0 iff every stage that ran is green.
+# VestaRV: run the full open-source simulate and verify flow: the cocotb/GHDL
+# smoke test in sky130/sim, then the GHDL ISA regression in isa/run_isa.sh.
+#   ./opensource_sim/run_sim.sh [suite ...]           both stages
+#   ./opensource_sim/run_sim.sh --smoke-only          the smoke test only
+#   ./opensource_sim/run_sim.sh --isa-only [suite ...] the ISA suite only
+# [suite ...] is forwarded verbatim to run_isa.sh, which supplies its own
+# defaults. Exit 0 only if every stage that ran is green.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -47,10 +41,8 @@ if [ "$RUN_SMOKE" -eq 0 ] && [ "$RUN_ISA" -eq 0 ]; then
     exit 1
 fi
 
-# ---------------------------------------------------------------------------
-# Preflight: fail fast with an actionable pointer at setup_env.sh instead of
-# a confusing error three steps in.
-# ---------------------------------------------------------------------------
+# Preflight, so a missing toolchain points at setup_env.sh rather than failing
+# confusingly three steps in.
 preflight() {
     local missing=0
 
@@ -88,9 +80,7 @@ ISA_RESULT="SKIPPED"
 ISA_LINE=""
 EXIT_CODE=0
 
-# ---------------------------------------------------------------------------
-# 1. cocotb/GHDL smoke test (sky130/sim)
-# ---------------------------------------------------------------------------
+# 1. The cocotb/GHDL smoke test in sky130/sim.
 if [ "$RUN_SMOKE" -eq 1 ]; then
     log "=== smoke test: make -C sky130/sim ==="
     SMOKE_DIR="$REPO_ROOT/sky130/sim"
@@ -117,9 +107,7 @@ if [ "$RUN_SMOKE" -eq 1 ]; then
     log "smoke test: $SMOKE_RESULT"
 fi
 
-# ---------------------------------------------------------------------------
-# 2. ISA regression (opensource_sim/isa/run_isa.sh)
-# ---------------------------------------------------------------------------
+# 2. The ISA regression in isa/run_isa.sh.
 if [ "$RUN_ISA" -eq 1 ]; then
     log "=== ISA suite: opensource_sim/isa/run_isa.sh ${ISA_ARGS[*]} ==="
     ISA_LOG="$(mktemp)"
@@ -141,9 +129,7 @@ if [ "$RUN_ISA" -eq 1 ]; then
     log "ISA suite: $ISA_RESULT"
 fi
 
-# ---------------------------------------------------------------------------
-# Summary
-# ---------------------------------------------------------------------------
+# Summary.
 echo
 echo "=== opensource_sim run summary ==="
 echo "  smoke test (sky130/sim) : $SMOKE_RESULT"

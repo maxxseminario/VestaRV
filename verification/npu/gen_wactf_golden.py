@@ -1,34 +1,10 @@
 #!/usr/bin/env python3
-"""gen_wactf_golden.py -- THROWAWAY golden-value generator for the wactf.S
-firmware smoke (npu_actf_design.md D12, digperiphs P4.4).
+"""VestaRV: golden values for the wactf.S firmware smoke test.
 
-NOT part of the frozen D10 bench pipeline (gen_actf_vectors.py/actf_vectors/)
--- this is a standalone helper, structured exactly like
-gen_wnpuconv_golden.py/gen_wxnpu_golden.py/gen_wgemm_golden.py, that reuses
-the SAME validated npu_fixed.think_layer()/activate() (never reimplements the
-arithmetic) to compute the exact expected words for the wactf.S ACTF sweep,
-at the real MCU/silicon generics (X_M=0, W_M=7, Y_M=7, N=24, RHO=2):
-
-ONE staged MLP-mode (MODE=0) network layout, NI=0 (1 input) / NN=1 (2
-neurons), reused across a sweep of THINKs (design-doc D12) -- only OVSAR
-(and, where a group needs a different accumulator magnitude, WVSAR) is
-re-pointed between THINKs so results never overwrite each other:
-
-  Group A (shared X=0.5, W_A0=+1.0/W_A1=-1.0 -> acc0=+0.5/acc1=-0.5, both
-  well inside the sigmoid/tanh linear band |acc|<2): THINK1 (ACTF=0
-  sigmoid), THINK2 (ACTF=1 ReLU), THINK3 (ACTF=2 tanh), THINK6 (ACTF=5
-  reserved -> must equal THINK1), THINK7 (AEN=0, ACTF=2 -> raw passthrough).
-
-  Group B (clamp): W_B0=+3.0/W_B1=+0.25 -> acc0=+1.5 (clamps to the +rail
-  0x00FFFFFF), acc1=+0.125 (in-range identity). THINK4 (ACTF=3 clamp).
-
-  Group C (exp): W_C0=0.0/W_C1=-1.0 -> acc0=0 exactly (exp~(0)=1.0 =
-  0x01000000 exactly), acc1=-0.5 (exp~(-0.5) in (0,1.0)). THINK5 (ACTF=4
-  exp-approx).
-
-Run with /usr/bin/python3 (NEVER `python3 -c` -- this machine's default
-python3 is the aoj_cal wrapper, which re-evaluates its arguments and STRIPS
-QUOTES).
+A standalone helper reusing npu_fixed.think_layer()/activate() for the ACTF sweep at the
+silicon generics. One staged MLP layer, NI=0 and NN=1, is reused across THINKs with only
+OVSAR (and WVSAR where the accumulator magnitude must change) re-pointed, so results never
+overwrite each other. Run with /usr/bin/python3, which does not strip quotes.
 """
 import os
 import sys
@@ -50,9 +26,7 @@ def s32(u):
 
 NI, NN = 0, 1  # 1 input, 2 neurons
 
-# ---------------------------------------------------------------------------
 # Group A: shared linear-band pair, reused THINK1/2/3/6/7.
-# ---------------------------------------------------------------------------
 X_VAL = 4194304 * 2          # 0.5 in Q0.24 (X_M=0)  = 0x00800000
 assert X_VAL == 0x00800000
 
@@ -60,16 +34,12 @@ W_A0 = 1 << N_BITS            # +1.0 in Q7.24 = 0x01000000
 W_A1 = -(1 << N_BITS)         # -1.0 in Q7.24 = 0xFF000000
 w_listA = [W_A0, W_A1]
 
-# ---------------------------------------------------------------------------
 # Group B: clamp pair (one >= +1.0, one in-range).
-# ---------------------------------------------------------------------------
 W_B0 = 3 << N_BITS             # +3.0 in Q7.24 = 0x03000000  -> acc = 1.5
 W_B1 = (1 << N_BITS) // 4       # +0.25 in Q7.24 = 0x00400000 -> acc = 0.125
 w_listB = [W_B0, W_B1]
 
-# ---------------------------------------------------------------------------
 # Group C: exp pair (acc=0 exactly, and a negative acc).
-# ---------------------------------------------------------------------------
 W_C0 = 0                       # 0.0  -> acc = 0 exactly
 W_C1 = -(1 << N_BITS)          # -1.0 -> acc = -0.5 (same as group A neuron1)
 w_listC = [W_C0, W_C1]
@@ -121,9 +91,7 @@ t6_out, t6_acc = run_group("THINK6 reserved (ACTF=5)", w_listA, 1, 5, "T6")
 # THINK7: Group A, AEN=0, ACTF=2 (master-enable proof: raw passthrough)
 t7_out, t7_acc = run_group("THINK7 AEN=0 passthrough (ACTF=2)", w_listA, 0, 2, "T7")
 
-# ---------------------------------------------------------------------------
 # Self-checks (D9 generator discipline: prove the vectors actually bite).
-# ---------------------------------------------------------------------------
 print("\n-- self-checks --")
 
 # THINK1 sanity: both accs deep in-range, mixed sign.

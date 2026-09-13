@@ -1,3 +1,10 @@
+// VestaRV: boot ROM reset vector and loader
+// Shared by every hart: all reset to PC 0x0 and fetch this through the arbiter. _start dispatches on mhartid; hart 0 boots (SPI flash download, the harvested-power path, or the rv4th monitor) and harts 1..N-1 park in WFI until hart 0 ignites them.
+// Hart 0 must zero MB_ZERO_BASE..MB_ZERO_END before any path that can release a tile: shared RAM powers up unknown on silicon, so a parked-proof of DONE == 0 is only sound after that.
+// Tile loader protocol, per hart h, row at BOOT_MB_BASE + 0x10*h: +0x0 SRC (word-aligned, shared space), +0x4 LEN (words to copy SRC -> TCM 0x8000, 0 = no copy), +0x8 ENTRY (the PC the tile enters). Hart 0 writes the row first, then sets CLINT msip[h].
+// Tile entry ABI: sp = TILE_SP_INIT, every other register undefined, the msip level already cleared, the copy already done.
+// The tile path must stay inside the rv32iac tile subset; //software/testtools:tile_isa_test grades the linked ELF, and the .word 0xFFFFFFFF at force_trap is allowlisted by encoding.
+
 #include "myshkin_s.h"
 
 
@@ -20,40 +27,21 @@
 #define FLASH_SLAVE_PU_DELAY    4000 // loop count; must cover AT45DB021E tRDPD = 35 us max from CS deassertion (4000 x 2-insn loop >= 40 us at 100MHz)
 #define FLASH_SLAVE_PD          0xB9 // Flash Slave Power Down Command
 
-// =============================================================================
-// BOOT WATCHDOG AND BOUNDED FLASH POLLS (2026-09-05, report 08 finding 6).
-//
-// Before this, every SPI poll in the flash path spun forever and nothing in
-// the ROM ever touched the watchdog, so a dead, missing or mis-wired flash
-// hung hart 0 in a two-instruction loop with no observable at all -- and the
-// unstrapped board takes the flash path by default (MemoryMap.vhd:263
-// RstValP1REN = 0x80 pulls BOOT high).
-//
-// WDT register semantics, read from hdl/common/periph/SYSTEM.vhd:
-//   WDTPASS (0x30) takes one of two FULL-WORD passwords (:602-610, wen="0000"
-//     only): WDT_UNLOCK_PASSWD opens a 64-mclk window in which the 8-bit
-//     WDTCR may be written (:588-591), WDT_CLEAR_PASSWD asynchronously zeroes
-//     the counter and needs NO window (:215-219). Both are one-shot strobes,
-//     cleared when the block is deselected (:632-637).
-//   WDTCR (0x34) = EN(7) | CDIV(5:2) | IE(1) | HWRST(0) (:172-175).
-//   HWRST IS NOT A TIMEOUT SELECTOR. It drives resetn_sys low the instant it
-//     is written (:187-190), so the arm below leaves it 0.
-//   With IE = 0 the timeout is undeliverable anywhere, so it becomes a system
-//     reset (:287-291) -- which is what a boot backstop wants.
-//   clk_wdt is mclk (:205-212) and the event is the rising edge of
-//     WDTVAL(CDIV) (:242), so CDIV = 15 fires 32768 mclk after a clear:
-//     1.37 ms at the HFXT mclk this ROM boots on (SYS_CLK_CR resets to 0 =
-//     MCLKSEL_HFXT).
-//
-// DIVISION OF LABOUR, and it is deliberate: the COUNTER owns the SPI polls and
-// the WATCHDOG owns everything else. A watchdog reset on a dead flash would
-// reboot straight back into the same dead flash forever, so the polls fall
-// through to the ROM-resident Forth monitor instead, which is observable on
-// UART0 and can be talked to. The watchdog then covers the case the counter
-// structurally cannot see -- a wedge in which no instruction retires at all
-// (arbiter or SRAM stall), because then the kick does not execute either.
-// Every poll iteration kicks, so a merely SLOW flash can never trip the
-// watchdog however the SPI divider is set.
+// BOOT WATCHDOG AND BOUNDED FLASH POLLS. The unstrapped board takes the flash path by
+// default, so a dead, missing or mis-wired flash must not hang hart 0 silently.
+// WDT semantics (SYSTEM.vhd): WDTPASS takes one of two FULL-WORD passwords, unlock
+// opening a 64-mclk window for the 8-bit WDTCR and clear zeroing the counter with no
+// window; both are one-shot strobes. WDTCR = EN(7) | CDIV(5:2) | IE(1) | HWRST(0).
+// HWRST IS NOT A TIMEOUT SELECTOR: it drives resetn_sys low the instant it is written,
+// so the arm below leaves it 0. With IE = 0 the timeout becomes a system reset, which is
+// what a boot backstop wants. clk_wdt is mclk, so CDIV = 15 fires 32768 mclk after a
+// clear, 1.37 ms at the HFXT mclk this ROM boots on.
+// DIVISION OF LABOUR: the COUNTER owns the SPI polls and the WATCHDOG owns everything
+// else. A watchdog reset on a dead flash would reboot into the same dead flash forever,
+// so the polls fall through to the ROM-resident Forth monitor, which is observable on
+// UART0. The watchdog covers only what the counter cannot see, a wedge in which no
+// instruction retires at all. Every poll iteration kicks, so a merely slow flash can
+// never trip it however the SPI divider is set.
 #define WDT_UNLOCK_PASSWD   0x5F3759DF  // constants.vhd:21 WDT_UNLCK_PASSWD
 #define WDT_CLEAR_PASSWD    0xA0C8A620  // constants.vhd:22 WDT_CLR_PASSWD
 #define WDT_ARM_CR          (SYS_WDT_EN_MASK | SYS_WDT_CDIV_MASK) // EN, CDIV=15, IE=0, HWRST=0
@@ -74,33 +62,12 @@
 //define P1_DIR_BOOT             (GPIO0_MOSI_MASK | GPIO0_CS_MASK | GPIO0_SCK_MASK) // Inputs 
 #define P1_DIR_BOOT             (GPIO0_CS_MASK | GPIO0_TRAP_MASK) // CSFlash bit 1, Boot 0
 
-// =============================================================================
-// M12 single-ROM boot (Castalia, 4 harts). ALL FOUR harts reset to PC 0x0 and
-// fetch this code from THE shared boot ROM through the mp_arbiter. _start
-// dispatches on mhartid: hart 0 runs the real boot (SPI flash copy or the
-// rv4th interpreter); harts 1-3 park in WFI until hart 0 loads and ignites
-// them through the CLINT + the boot-loader mailboxes below.
-//
-// Tile loader protocol (every address is in the shared window; hart 0 writes
-// the row FIRST, then sets CLINT msip[h]=1):
-//   BOOT_MB_BASE + 0x10*h + 0x0 = SRC   (word-aligned source, shared space)
-//   BOOT_MB_BASE + 0x10*h + 0x4 = LEN   (words to copy SRC -> TCM 0x8000;
-//                                        0 = no copy, jump straight to ENTRY)
-//   BOOT_MB_BASE + 0x10*h + 0x8 = ENTRY (PC the tile enters with)
-// Tile entry ABI: sp = TILE_SP_INIT, everything else undefined; the tile's
-// msip level is already cleared; the copy (if any) has filled TCM from 0x8000.
-//
-// Write-before-read contract (user decision, M11): shared RAM powers up
-// UNKNOWN on silicon — hart 0 zeroes MB_ZERO_BASE..MB_ZERO_END (the whole
-// mailbox/ledger region incl. these loader mailboxes) before any software
-// can release a tile, so DONE==0-style parked-proofs are silicon-safe.
-// =============================================================================
+
 #define CLINT_MSIP_BASE     0x5000      // CLINT msip[h] = 0x5000 + 4*h
-// Loader mailbox rows: {SRC,LEN,ENTRY} at BOOT_MB_BASE + 0x10*h, h=1..N-1.
-// N-agnostic base (Argus A3): relocated 0x10400 -> 0x10500 so the rows (up to
-// 0x10500+0x10*(N-1); block 0x10500-0x1061F at N=18) clear the sh-test scratch
-// words below 0x10500 (shfault/shpwr) and stay inside MB_ZERO_END. This MUST
-// stay equal to MP_BOOT_MB_BASE in verification/env/p/mp_boot.h.
+// Loader mailbox rows {SRC,LEN,ENTRY} at BOOT_MB_BASE + 0x10*h, h=1..N-1. The base is
+// N-agnostic: the rows (0x10500-0x1061F at N=18) must clear the sh-test scratch words
+// below 0x10500 and stay inside MB_ZERO_END. MUST equal MP_BOOT_MB_BASE in
+// verification/env/p/mp_boot.h.
 #define BOOT_MB_BASE        0x10500     // loader mailbox rows (h=1..N-1 used)
 #define MB_ZERO_BASE        0x10000     // zeroed region start
 #define MB_ZERO_END         0x10800     // zeroed region end (exclusive)
@@ -125,10 +92,10 @@
 #define NFC_DATA            0x1C        // payload byte window (lane 0)
 #define IVT_MSIP_SLOT       (IVT_BASE_ADDR + 4*83)  // IVT slot 83 (CLINT msip) = 0x814C
 #define RET_INSN            0x00008067  // 'jalr x0,0(ra)' — parked tile's IVT slot 83
-// Tile sp: one past the top of its own 8 KiB TCM array, the same value hart 0
-// uses (myshkin_s.h SP_INIT_VAL) and the same value every generated authority
-// publishes as STACK_POINTER_INIT. WAS 0xBFFC (2026-09-05), which lives in the
-// mirrored half of the 16 KiB decode window and aliases to 0x9FF8.
+// Tile sp: one past the top of its own 8 KiB TCM array, the same value hart 0 uses
+// (myshkin_s.h SP_INIT_VAL) and the same value every generated authority publishes as
+// STACK_POINTER_INIT. An address in the mirrored half of the 16 KiB decode window
+// aliases below the array top and is wrong.
 #define TILE_SP_INIT        SP_INIT_VAL // tile sp = 0xA000, top of its own TCM
 
 // vesta custom instructions (opcode 0x0b; encodings match the test env's
@@ -143,7 +110,7 @@
     .section .text
     .globl _start
 _start:
-    // M12 mhartid dispatch — the very first thing every hart executes.
+    // mhartid dispatch, the very first thing every hart executes.
     .option push
     .option arch, +zicsr
     csrr t0, mhartid
@@ -159,10 +126,10 @@ spi_flash_boot:
     sw zero, SYS_BLOCK_PWR(a0) // Power on all blocks
     li sp, SP_INIT_VAL // Initialize Stack Pointer to the top of the TCM
 
-    // M12 write-before-read contract: zero the shared-RAM mailbox region
-    // (test/app ledger 0x10000-0x104FF + the loader mailboxes at 0x10500)
-    // BEFORE any path that could release a tile. Tiles are parked in ROM
-    // and touch no mailbox until their msip fires, so this cannot race.
+    // Write-before-read contract: zero the shared-RAM mailbox region (test/app ledger
+    // 0x10000-0x104FF plus the loader mailboxes at 0x10500) BEFORE any path that could
+    // release a tile. Tiles are parked in ROM and touch no mailbox until their msip
+    // fires, so this cannot race.
     li a2, MB_ZERO_BASE
     li a3, MB_ZERO_END
 zero_mailboxes:
@@ -287,16 +254,12 @@ SPI_FlashSetup:
     li s2, RAM0_BASE_ADDR // Load RAM base address
     li s3, RAM0_BASE_ADDR + RAM_SIZE -4 // Load RAM end address
 
-    // BOOT ENTRY VECTOR (2026-08-16): nothing is armed here ON PURPOSE, and a
-    // store WAS tried here first -- it cost 5 NPU tests (100 ms watchdog
-    // timeouts on wgemm/wactf/wxnpu/wnpuconv/shnpu). This sits between
-    // `sw zero, SPI_TX(a0)` -- which has a transfer IN FLIGHT -- and
-    // getCommandWord, the same window the myshkin-2025-11 comment above warns
-    // about, and it also clobbered a4's CS mask. The zero is not needed here:
-    // flash_prepend.sh ALREADY prepends a mandatory 0x8000-0x81FF zero-fill
-    // segment to EVERY image, so 0x81FC arrives defined for every image ever
-    // built, and an image that publishes a vector simply emits a later segment
-    // that overwrites it. See the dispatch at the end of boot.
+    // BOOT ENTRY VECTOR: nothing is armed here ON PURPOSE. A store between the
+    // `sw zero, SPI_TX(a0)` above, which leaves a transfer in flight, and
+    // getCommandWord corrupts the frame and clobbers a4's CS mask. It is also
+    // unnecessary: flash_prepend.sh prepends a mandatory 0x8000-0x81FF zero-fill
+    // segment to every image, so the word arrives defined, and an image that
+    // publishes a vector emits a later segment over it. Dispatch is at the end of boot.
 
 
 getCommandWord:
@@ -383,9 +346,9 @@ clr_spi0sr:
     ret
 
 
-// Both polls are BOUNDED (2026-09-05). t1 is the iteration counter and is dead
-// at every call site; the kick keeps a slow-but-alive flash from tripping the
-// watchdog, and the counter, not the watchdog, is what ends a dead one.
+// Both polls are BOUNDED. t1 is the iteration counter and is dead at every call site.
+// The kick keeps a slow-but-alive flash from tripping the watchdog, and the counter,
+// not the watchdog, is what ends a dead one.
 spi0_complete_read_init_read:
     //a0 has spibase
     //Wait for SPIO0TX register to be empty
@@ -484,20 +447,13 @@ executeProgram:
 
 exec_after_powerdown:
 
-    // M19c bootrom fix (a): quiesce SPI0 across the PxSEL pin flip, then restore
-    // the CR byte-identical. The flip releases GPIO0's SPI pads; the flip-instant
-    // transient could otherwise reach FlashActive -> disable_clk_cpu
-    // (= FlashActive, SPI.vhd:653) -> hart0 clk_cpu -> chip death (boot-end
-    // "HAZARD 1"; pre-fix this killed irqctx/shirq at ~13.41 ms). Writing
-    // SPI_CR=0 (spi_en=spi_fen=0) async-holds FlashActive=0 (SPI.vhd:555-564)
-    // across the flip; the restore returns the post-boot CR byte-identical
-    // (0x108C8) so the XIP state apps may rely on is preserved.
-    // NOTE (2026-07-13): this closes HAZARD 1 but does NOT get the binding gate
-    // smoke to 7/7 — irqctx/shirq are ALSO killed by a SEPARATE core X at the
-    // IRET (M19 irtr0 in_service, the worst setup path), which is RTL, not
-    // bootrom. See .devlog/2026-07-13-m19c-physical-reharden.md.
-    // t2 is dead here (a0=SPI0 base, a1=GPIO0 base stay live; a2 is the only reg
-    // clobbered between save and restore).
+    // SPI0 MUST BE QUIESCED ACROSS THE PxSEL PIN FLIP. The flip releases GPIO0's SPI
+    // pads, and the flip-instant transient otherwise reaches FlashActive, which gates
+    // hart 0's clk_cpu and kills the chip. Writing SPI_CR = 0 (spi_en = spi_fen = 0)
+    // async-holds FlashActive low across the flip; the restore returns the CR
+    // byte-identical (0x108C8) so the post-boot XIP state apps may rely on survives.
+    // t2 is dead here; a0 (SPI0 base) and a1 (GPIO0 base) stay live, and a2 is the only
+    // register clobbered between save and restore.
     lw t2, SPI_CR(a0)   // save SPI0 control register
     sw zero, SPI_CR(a0) // spi_en=0, spi_fen=0 -> FlashActive held 0 across the flip
 
@@ -510,7 +466,7 @@ exec_after_powerdown:
     sw a2, GPIO_PxOUTS(a1) // Set GPIO Output Register to set (deassert) CS bit
 
     //Restore SPI0 CR byte-identical (post-boot XIP contract preserved)
-    sw t2, SPI_CR(a0)   // post-boot SPI_CR == 0x108C8, unchanged from pre-M19c
+    sw t2, SPI_CR(a0)   // post-boot SPI_CR == 0x108C8
 
 
     
@@ -574,20 +530,12 @@ exec_after_powerdown:
 	li x30, 0
 	li x31, 0
 
-    // BOOT ENTRY VECTOR dispatch (2026-08-16). Was an unconditional
-    // `j PROG_BASE_ADDR`, which pinned every image's first instruction to
-    // 0x8200 inside the private TCM -- unusable for an image LARGER than the
-    // TCM, which must execute from the shared bulk RAM instead (the 8 KiB-TCM
-    // rv32uc-p-rvc case: an 11,642-byte .text.init wraps onto itself through
-    // the array's address aliasing and overwrites its own code).
-    //
-    // THE DEFAULT PATH IS BIT-IDENTICAL TO THE OLD ONE, deliberately: the word
-    // was zeroed before the flash load, so an image that publishes nothing
-    // takes the branch, RESTORES t0 to the cleared state, and reaches
-    // PROG_BASE_ADDR with all 31 registers zero exactly as before. Only an
-    // image that opts in sees any difference, and the only difference it sees
-    // is t0 holding its own entry address -- one register must carry the
-    // target, since an indirect jump has nowhere else to read it from.
+    // BOOT ENTRY VECTOR dispatch. An image larger than the TCM cannot start at
+    // PROG_BASE_ADDR: it must execute from the shared bulk RAM, so it publishes its
+    // entry here instead. The word was zeroed before the flash load, so an image that
+    // publishes nothing takes the branch, restores t0 and reaches PROG_BASE_ADDR with
+    // all 31 registers zero. An image that opts in enters with t0 holding its own entry
+    // address, since an indirect jump has nowhere else to read the target from.
     li   t0, BOOT_ENTRY_VEC
     lw   t0, 0(t0)
     beqz t0, boot_default_entry     // nothing published -> historical path
@@ -608,12 +556,10 @@ force_trap:
 	.word 0xFFFFFFFF
 
 
-// =============================================================================
-// M12 tile boot (harts 1-3): park in WFI until hart 0 ignites us, then run
-// the ROM-resident loader and enter the program. Executes entirely from the
-// shared ROM through the arbiter; the ONLY private state used is our own TCM
-// (sp + one IVT slot) — nothing here depends on preloaded RAM.
-// =============================================================================
+// Tile boot (harts 1..N-1): park in WFI until hart 0 ignites us, then run the
+// ROM-resident loader and enter the program. Executes entirely from the shared ROM
+// through the arbiter; the only private state used is our own TCM (sp plus one IVT
+// slot), so nothing here depends on preloaded RAM.
 tile_boot:
     // sp must be valid BEFORE any IRQ: IRQ_SV pushes the return PC at sp-4
     // and decrements sp (M5b contract).
@@ -676,20 +622,14 @@ tile_isr_go:
     IRET                        // pops ENTRY -> the tile enters the program
 
 
-// =============================================================================
-// DP-S3 harvested boot (hart 0, strap-selected): the chip runs on harvested
-// field power — NO SPI flash (the single most power-hungry cold-start step),
-// no download. Provision the NFC tag identity + payload from ROM, arm LISTEN
-// (AUTOREAD hardware then serves Type-2 READs with zero firmware in the
-// loop), gate the tile rails, slow mclk, and sleep. The PGOOD boot gate
-// (PWRCTRL hold-in-reset) already guaranteed the supercap can carry us.
-// CLOCK STORY (kickoff landmine): the SPI path's SMCLK->LFXT switch is
-// skipped, so choose EXPLICITLY — both MCLK and SMCLK stay on HFXT
-// (= the SYS_CLK_CR reset value, written anyway to make the choice robust),
-// then mclk divides /8 at the END (the parked loop needs no speed; dynamic
-// power scales with the divide, the go/no-go verdict's service-loop point).
-// Mailboxes were already zeroed above (write-before-read contract holds).
-// =============================================================================
+// Harvested boot (hart 0, strap-selected): the chip runs on harvested field power, so
+// there is NO SPI flash step and no download. Provision the NFC tag identity and payload
+// from ROM, arm LISTEN so the AUTOREAD hardware serves Type-2 reads with no firmware in
+// the loop, gate the tile rails, slow mclk and sleep. The PGOOD boot gate has already
+// guaranteed the supercap can carry this.
+// The SPI path's SMCLK -> LFXT switch is skipped here, so the clock choice is made
+// EXPLICITLY: both MCLK and SMCLK stay on HFXT, then mclk divides /8 at the end, since
+// the parked loop needs no speed and dynamic power scales with the divide.
 harvested_boot:
     li   a0, PERIPH_SYSTEM0_BASE
     sw   zero, SYS_CLK_CR(a0)      // EXPLICIT: MCLK=HFXT, SMCLK=HFXT
@@ -709,15 +649,10 @@ harvested_boot:
     li   a1, GPIO5_BASE
     li   a2, 0x3F
     sw   a2, GPIO_PxSEL(a1)
-    // PxAFS IS NIBBLE-PACKED, NOT 3-BIT-PACKED (bug found by
-    // hdl/common/tb/board_harvest_tb.vhd, 2026-07-28). The REGISTER image is
-    // one NIBBLE per pin, low 3 bits used (GPIO.vhd RegSlotPxAFS write:
-    // PxAFS(3*i+2 downto 3*i) <= write_data(4*i+2 downto 4*i); MemoryMap.vhd
-    // PxAFS<n>_MSB/LSB = 4*n+2 / 4*n). Only PxAFS_out (the internal export
-    // MCU.vhd's AF muxes read) is 3-bit packed. The old 3-bit-packed literal
-    // 0x9249 landed P6.1 on AF4, P6.2 on AF2 and left P6.4/P6.5 on AF0, so
-    // rf_rx / field_detect were never routed in and rf_tx_en / afe_en were
-    // never routed out -- the harvested NFC service path could not work.
+    // PxAFS IS NIBBLE-PACKED, NOT 3-BIT-PACKED. The register image is one nibble per
+    // pin with the low 3 bits used (GPIO.vhd writes PxAFS(3*i+2 downto 3*i) from
+    // write_data(4*i+2 downto 4*i)); only PxAFS_out, the internal export MCU.vhd's AF
+    // muxes read, is 3-bit packed. A 3-bit-packed literal here misroutes the pins.
     li   a2, 0x00111111            // pins 0-5 AFS nibble = 1 (AF1)
     sw   a2, GPIO_PxAFS(a1)
 

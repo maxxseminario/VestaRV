@@ -1,5 +1,4 @@
-X3 Stage B (Zbkb + Zbkx + Zbkc) negative controls
-==================================================================================
+VestaRV: X3 Stage B (Zbkb + Zbkx + Zbkc) negative controls
 
 Two seeds, each a single-line RTL fault in hdl/common/vesta/alu.vhd caught by the
 directed test verification/isa/tests/rv32ui/zbk.S (a bounded, self-checking FAIL

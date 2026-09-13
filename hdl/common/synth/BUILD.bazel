@@ -1,37 +1,9 @@
-# The hermetic synthesizability gate for hdl/common.
+# VestaRV: the hermetic synthesizability gate for hdl/common.
 #
-# WHY THIS IS ITS OWN PACKAGE, AND NOT hdl/common/BUILD.bazel.
-# ---------------------------------------------------------------------------
-# The test_suite would read better as //hdl/common:synth, but hdl/common
-# cannot become a bazel package.  //hdl:vhdl_sources is a `glob(["**/*.vhd"])`
-# rooted at hdl/, and a glob does not descend into a subpackage -- that is why
-# hdl/common/tb re-exports :tb_vhdl_sources and //hdl:vhdl_sources appends it
-# by hand.  A BUILD file at hdl/common/ would carve out the ENTIRE RTL tree at
-# once, and it would also break //hdl:npu_vhd ("common/periph/NPU.vhd") and
-# //hdl:rdl_sources (glob "common/regs/rdl/*.rdl"), both of which name files
-# across that boundary.  This directory holds no VHDL, so making it a package
-# carves out nothing.  The suite is //hdl/common/synth:synth.
-#
-# WHY THE SOURCE LISTS ARE NOT REPEATED HERE.
-# ---------------------------------------------------------------------------
-# Every block's analysis order is already curated once, in
-# //hdl/common/tb/BUILD.bazel, and a second copy would drift.  These targets
-# reuse those vhdl_source_set targets directly.  The two lists that have no
-# bench, and therefore no existing source set -- NPU and the vesta hart -- are
-# defined below.
-#
-# WHAT A RED TARGET HERE MEANS.
-# ---------------------------------------------------------------------------
-# `ghdl --synth` refuses a `wait` statement in a process, an incomplete `if`
-# that infers a latch, and a constant index outside its array bound.  Before
-# this suite, all three reached Genus, which needs a license, takes minutes,
-# and does not run on every commit.  The whole suite measures under 10 s.
-#
-# The counts each target produces are frozen in
-# toolchains/ghdl/synth_census.json and graded by
-# //toolchains/ghdl:synth_census_test, which is the half that catches a change
-# no bench can see: a register bank that doubles, a reset that stops reaching
-# a flop, a clock gate that grows a second latch.
+# The suite is //hdl/common/synth:synth and not //hdl/common:synth because a BUILD file at
+# hdl/common/ would carve the entire RTL tree out of //hdl:vhdl_sources' glob. Source lists
+# are not repeated: these targets reuse //hdl/common/tb's vhdl_source_sets, and only NPU and
+# the vesta hart, which have no bench, are defined below. Counts are frozen in synth_census.json.
 
 load("//opensource_sim/mcu:defs.bzl", "VESTA_MCU_RTL")
 load("//toolchains/ghdl:defs.bzl", "ghdl_synth_test", "vhdl_source_set")
@@ -65,9 +37,7 @@ ICG_LATCHES = [
     "clockmuxglitchfree_B*",
 ]
 
-# ---------------------------------------------------------------------------
 # Infrastructure blocks
-# ---------------------------------------------------------------------------
 
 # The shipped arbiter is N=6 (MCU.vhd:2615), not the entity default of 4, and
 # ADDR_WIDTH is SH_AW = 16 (MCU.vhd:519), not 12.
@@ -206,9 +176,7 @@ ghdl_synth_test(
     tags = ["ghdl"],
 )
 
-# ---------------------------------------------------------------------------
 # The hart
-# ---------------------------------------------------------------------------
 
 # The curated analysis order of opensource_sim/isa/run_isa.sh, minus the
 # testbench and plus pmp_unit, which datapath instantiates as a component: at
@@ -275,9 +243,7 @@ ghdl_synth_test(
     tags = ["ghdl"],
 )
 
-# ---------------------------------------------------------------------------
 # The seventeen peripherals
-# ---------------------------------------------------------------------------
 
 # SKIPPED, and the only target here that is skipped for a TOOL defect rather
 # than a design one.  SYSTEM.vhd:497 writes `ClkEn(1) => open` in an
@@ -469,9 +435,7 @@ ghdl_synth_test(
     tags = ["ghdl"],
 )
 
-# ---------------------------------------------------------------------------
 # The orphans: entities no graded block reaches
-# ---------------------------------------------------------------------------
 #
 # //toolchains/ghdl:synth_coverage_test is what found these.  aludec and
 # pulse_extender are instantiated by NOTHING in hdl/common -- they arrive in
@@ -551,9 +515,7 @@ vhdl_source_set(
     pool = ["//hdl:vhdl_sources"],
 )
 
-# ---------------------------------------------------------------------------
 # The fabric blocks the MCU wires together
-# ---------------------------------------------------------------------------
 
 # The per-tile address decoder.  ENABLE_FLASH_EXTENDED_MEM is TRUE in every
 # tile (hart_tile.vhd:581, "enabled in every tile so the netlists match") and
@@ -680,9 +642,7 @@ vhdl_source_set(
     pool = ["//hdl:vhdl_sources"],
 )
 
-# ---------------------------------------------------------------------------
 # The tiles and the chip top
-# ---------------------------------------------------------------------------
 #
 # All three need BLACK BOXES, because all three instantiate cells that are not
 # RTL in the physical flow.  See hdl/common/synth/macro_blackbox.vhd for the
@@ -810,9 +770,7 @@ ghdl_synth_test(
     tags = ["ghdl"],
 )
 
-# ---------------------------------------------------------------------------
 # The suite
-# ---------------------------------------------------------------------------
 
 SYNTH_TARGETS = [
     ":DMA",

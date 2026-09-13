@@ -1,4 +1,4 @@
-"""
+"""VestaRV: Forth dashboard callbacks, handling register reads and writes over UART.
 Callbacks for the new Myshkin MCU GUI
 Handles register read/write operations via UART/Forth
 """
@@ -20,9 +20,7 @@ acquisition_active = False
 acquisition_lock = threading.Lock()
 
 
-################################################################################
 # Register Read/Write Callbacks
-################################################################################
 
 @app.callback(
     Output({'type': 'bitfield-dropdown', 'name': ALL}, 'value'),
@@ -174,9 +172,7 @@ def write_register_from_bitfields(n_clicks, dropdown_values, dropdown_ids, numer
     raise PreventUpdate
 
 
-################################################################################
 # Legacy Register Callbacks (for non-bitfield registers)
-################################################################################
 
 @app.callback(
     Output({'type': 'reg-display', 'name': MATCH}, 'children'),
@@ -267,12 +263,10 @@ def read_register_control(n_clicks, input_id):
 # reg-input control is still used with the read_register_control callback.
 
 
-# ---------------------------------------------------------------------------
 # BIAS_TIA_G_POT – thermometer lookup table
 # 17 discrete slider positions (0 = max R, 16 = min R).
 # Assumed bit layout (adjust if hardware differs):
 #   bit 15 = 1 MΩ short; bits 0-14 = 15 × 60 kΩ thermometer shorts
-# ---------------------------------------------------------------------------
 _TIA_GAIN_STEPS = [
     0x00000000,  # 0:  max R  – nothing shorted
     0x00008000,  # 1:  1M shorted            (large step)
@@ -375,9 +369,7 @@ def sync_slider_and_input(slider_value, input_value, read_clicks, slider_id):
     return value, value
 
 
-################################################################################
 # Global Control Callbacks
-################################################################################
 
 @app.callback(
     Output('storage', 'data'),
@@ -385,10 +377,8 @@ def sync_slider_and_input(slider_value, input_value, read_clicks, slider_id):
     prevent_initial_call=True
 )
 def sync_all_registers(n_clicks):
-    """
-    Read all registers and update the GUI
-    This is a placeholder - in a full implementation, this would read
-    all registers and update all controls
+    """Read all registers and update the GUI. A placeholder: a full implementation would read every
+    register and update every control.
     """
     if n_clicks is None:
         raise PreventUpdate
@@ -418,9 +408,7 @@ def reset_chip(n_clicks):
     raise PreventUpdate
 
 
-################################################################################
 # Live Terminal Callbacks
-################################################################################
 
 @app.callback(
     Output('command_terminal', 'children'),
@@ -477,9 +465,7 @@ def clear_log(n_clicks):
     return 0
 
 
-################################################################################
 # Clock Frequency Measurement Callbacks
-################################################################################
 
 @app.callback(
     Output('clk-freq-display', 'children'),
@@ -533,9 +519,7 @@ def measure_smclk_frequency(n_clicks):
     return "No response"
 
 
-################################################################################
 # SARADC Fast Data Acquisition
-################################################################################
 
 def continuous_acquisition_loop(log_file):
     """

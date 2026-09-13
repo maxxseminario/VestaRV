@@ -1,3 +1,5 @@
+# VestaRV: the lockstep comparator and its gates.
+
 load("@rules_python//python:defs.bzl", "py_binary", "py_library", "py_test")
 
 package(default_visibility = ["//visibility:public"])
@@ -79,7 +81,6 @@ py_test(
     main = "check_dbg_trampoline.py",
 )
 
-# ---------------------------------------------------------------------------
 # The CORE_ENABLE_* classification tripwire.
 #
 # verify_stage.DEFINE_KNOBS / NON_DEFINE_KNOBS is the single source of truth for

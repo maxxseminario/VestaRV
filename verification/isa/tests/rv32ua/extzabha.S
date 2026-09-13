@@ -1,32 +1,9 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extzabha.S   (X2 Zabha ext-probe, 2026-07-17)
-#-----------------------------------------------------------------------------
-# Build-time dispatch on CORE_ENABLE_ZABHA (extprobe_template.S convention —
-# the macro is supplied EXPLICITLY via -DCORE_ENABLE_ZABHA when staging the ON
-# polarity, NEVER auto-derived from a make-chip header or platform/common/out/
-# state; the two build-order traps in that header apply verbatim).
-#
-#   ON  (#ifdef CORE_ENABLE_ZABHA): execute the real byte/halfword AMO
-#       encodings and CHECK the architectural results -> PASS. This is the
-#       single-hart FUNCTIONAL suite for Zabha (rd sign-extension, byte-lane
-#       steering on all four lanes, halfword lanes, signed AND unsigned
-#       min/max, and adjacent-lane isolation on a private-TCM word).
-#
-#   OFF (#else): the SAME byte-AMO encoding executed UNCONDITIONALLY. On a
-#       build without Zabha (this is the extoff POISON) the encoding MUST take
-#       the illegal-instruction trap. run_extoff.sh + trap_watch.tcl report
-#       TRAP_OK; executing PAST it -> FAIL. (The default a0-watch runner would
-#       hang on this trap — vesta TRAP_STATE is terminal — so extzabha is wired
-#       ONLY into behavioral_mp_stripped/run_extoff.sh, not the 124-suite.)
-#
-# Encodings use `.insn` because the installed gas (13.2) does NOT know the
-# `zabha' -march suffix or the amoadd.b/... mnemonics (verified at X2 bring-up),
-# so every Zabha instruction in the suite is emitted as an explicit R-type:
-#     .insn r 0x2f, funct3, funct7, rd, rs1_base, rs2_val
-#     funct3 = 000 byte / 001 half ; funct7 = funct5<<2 (aq=rl=0)
-#*****************************************************************************
+# VestaRV: Zabha extension probe
+# BUILD-TIME DISPATCH on CORE_ENABLE_ZABHA, supplied EXPLICITLY with -DCORE_ENABLE_ZABHA when staging the ON polarity and never auto-derived from a generated header or build output. With it defined this is the single-hart functional suite for Zabha: rd sign-extension, byte-lane steering on all four lanes, halfword lanes, signed and unsigned min and max, and adjacent-lane isolation on a private-TCM word.
+# Without it the SAME byte-AMO encoding executes unconditionally and must take the illegal-instruction trap; run_extoff.sh with trap_watch.tcl reports TRAP_OK, and executing past it is a FAIL. IT IS WIRED ONLY INTO behavioral_mp_stripped/run_extoff.sh, because the default a0-watch runner would hang on the terminal TRAP_STATE.
+# gas 13.2 knows neither the `zabha` -march suffix nor the amoadd.b family, so every Zabha instruction is an explicit R-type `.insn r 0x2f, funct3, funct7, rd, rs1_base, rs2_val`, with funct3 000 for byte and 001 for half and funct7 = funct5 << 2 with aq and rl clear.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,8 +1,5 @@
-/*
- * looptest - Startup Assembly
- * Minimal: jump straight to main (no BSS clear, no stack init needed).
- * main() is an infinite loop, no trap.
- */
+# VestaRV: looptest startup code
+# Jumps straight to main; no BSS clear and no stack use, since main is an infinite loop.
 
 .section .program_start, "ax"
 .global __start_RAM_program__

@@ -1,37 +1,8 @@
-/* Synthesis BLACK BOX for SYSTEM, the one cell here stubbed for a TOOL defect.
-
-   `ghdl --synth` 6.0.0 dies inside its own front end on
-   hdl/common/periph/SYSTEM.vhd:496, `ClkEn(1) => open` in an individual
-   association:
-
-       ******************** GHDL Bug occurred ********************
-       Exception CONSTRAINT_ERROR raised
-       raised CONSTRAINT_ERROR : vhdl-nodes.adb:407 index check failed
-
-   `ghdl -a -frelaxed` accepts the same line (warning -Wopen-assoc, the waiver
-   xcelium's -relax gives and the reason SYSTEM_tb carries -frelaxed); only
-   synthesis crashes.  //hdl/common/synth:SYSTEM has been a documented skip
-   for it since the suite was built, and --out=none and the file-list form
-   were both measured to crash identically.
-
-   WITHOUT THIS STUB THE WHOLE MCU GOES WITH IT.  MCU.vhd instantiates SYSTEM,
-   so the crash propagates to the chip top and the gate loses 29130 flop bits
-   of coverage to protect one block that is already ungraded.  With it, MCU
-   synthesizes and everything else in the MCU is graded; SYSTEM stays exactly
-   as ungraded as its own skip row already says it is.
-
-   THE CLOCK OUTPUTS ARE NOT TIED OFF, and that is the one place this stub is
-   not a plain constant driver.  SYSTEM is the chip's clock monarch: tying
-   mclk_out low would clock every flop in the MCU from a constant, and the
-   census would then measure a design nothing resembles.  mclk_out and
-   smclk_out pass clk_hfxt_in through, resetn_sys passes resetn_in through,
-   and every other output is a constant.  Ports, names, directions and widths
-   are otherwise SYSTEM.vhd's exactly, so an MCU that names a pin SYSTEM does
-   not have still fails at analysis.
-
-   WHAT RETIRES THIS FILE: a GHDL fix, or rewriting the `ClkEn(1) => open`
-   association in SYSTEM.vhd.  On either day, delete this file, drop
-   blackbox_srcs from the MCU target, and un-skip //hdl/common/synth:SYSTEM. */
+-- VestaRV: synthesis black box for SYSTEM, stubbed for a tool defect
+-- ghdl --synth 6.0.0 dies in its own front end on hdl/common/periph/SYSTEM.vhd:496, the individual association ClkEn(1) => open (CONSTRAINT_ERROR in vhdl-nodes.adb:407). ghdl -a -frelaxed accepts the same line, so only synthesis crashes, and //hdl/common/synth:SYSTEM is a documented skip.
+-- Without the stub the crash propagates through MCU.vhd to the chip top and the gate loses 29130 flop bits of coverage to protect a block that is already ungraded.
+-- The clock outputs are NOT tied off: SYSTEM is the chip's clock monarch, and a constant mclk_out would clock every flop in the MCU from a constant and census a design nothing resembles. mclk_out and smclk_out pass clk_hfxt_in through, resetn_sys passes resetn_in through, every other output is a constant.
+-- Ports, names, directions and widths are otherwise SYSTEM.vhd's exactly. Retire this file when GHDL is fixed or the ClkEn(1) => open association is rewritten: delete it, drop blackbox_srcs from the MCU target, and un-skip //hdl/common/synth:SYSTEM.
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

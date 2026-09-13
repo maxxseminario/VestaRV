@@ -1,37 +1,10 @@
 #!/usr/bin/env python3
-"""rdl_python.py -- find an interpreter that can import systemrdl-compiler.
+"""VestaRV: find an interpreter that can import systemrdl-compiler.
 
-The chip generator reads hdl/common/regs/rdl/*.rdl for its register maps
-(tools/rdl/README.md, report R5), so `make generate` needs a Python that can
-import `systemrdl`. That is not a given: systemrdl-compiler needs Python 3.8 or
-newer and several hosts here carry a 3.6 as /usr/bin/python3, which is why the
-generator's own sources stay 3.6-compatible while its toolchain does not.
-
-The bazel path has no such problem -- //platform/common:chip_artifacts_* puts
-the closure on the generator subprocess's PYTHONPATH -- so this exists only for
-the Makefile. It prints, one per line:
-
-    <PYTHONPATH for the child, possibly empty>
-    <interpreter>
-
-and exits 0. It exits 1 with a message on stderr when nothing on the machine can
-import the compiler, which is the honest outcome: a generation without the
-descriptions would emit a chip with eighteen peripherals' registers missing, and
-that must not happen quietly.
-
-Order of preference:
-  1. this interpreter, if `systemrdl` already imports (a venv, a pip --user
-     install, a newer system python);
-  2. the hermetic interpreter and wheels bazel provisions -- the same ones the
-     build uses, so the Makefile and the build agree by construction.
-
-Deliberately NOT a pip install: the repo's rule for an external tool is a pinned
-version and a pinned artifact hash fetched once (tools/rdl/requirements_lock.txt),
-and a Makefile that silently installed packages would route around it.
-
-    python3 rdl_python.py             both lines
-    python3 rdl_python.py --python    the interpreter only
-    python3 rdl_python.py --pythonpath  the PYTHONPATH only
+Exists for the Makefile only; the bazel path puts the closure on the child's PYTHONPATH.
+Prints the child PYTHONPATH then the interpreter, one per line, preferring this interpreter
+if systemrdl already imports and otherwise the hermetic one bazel provisions. Exits 1 when
+nothing can import the compiler, rather than generating a chip with the registers missing.
 """
 
 import glob
@@ -73,10 +46,10 @@ def _bazelOutputBase():
 
 
 def _bazelToolchain():
-    """(pythonPath, interpreter) from bazel's own hermetic provisioning, or None.
-
-       The wheels are fetched and extracted by the build, so this finds nothing
-       until something has built //tools/rdl:all once. The caller says so."""
+    """(pythonPath, interpreter) from bazel's own hermetic provisioning, or None. The wheels are
+    fetched and extracted by the build, so this finds nothing until //tools/rdl has been built
+    once; the caller says so.
+    """
     base = _bazelOutputBase()
     if not base:
         return None

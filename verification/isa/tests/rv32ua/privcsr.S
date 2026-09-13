@@ -1,52 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# privcsr.S   (P1 standard M-mode trap CSR file — WARL / readback sweep)
-#-----------------------------------------------------------------------------
-# ON-ONLY DIRECTED TEST. Proves the ten P1 CSRs implemented in csr_unit.vhd
-# behave EXACTLY as frozen in
-# ~/work/chip_docs/castalia/priv_arch/p0_specs.md 2.1:
-#
-#   0x300 mstatus   MIE(3)/MPIE(7)/MPP(12:11 WARL {11}); every other bit reads 0
-#   0x310 mstatush  legal, read-zero / write-ignore
-#   0x305 mtvec     BASE(31:2) R/W; MODE(1:0) WARL {00}
-#   0x304 mie       MSIE(3)/MTIE(7)/MEIE(11); every other bit reads 0
-#   0x344 mip       READ-ONLY mirror of the msip/mtip/meip levels (writes ignored)
-#   0x340 mscratch  full 32-bit R/W
-#   0x341 mepc      bit0 always 0; bit1 writable iff ENABLE_COMPRESSED (C is ON
-#                   in the default/ON Castalia config, so bit1 must HOLD)
-#   0x342 mcause    Interrupt(31) + code(3:0) only; bits 30:4 read 0
-#   0x343 mtval     full 32-bit R/W
-#   0x7C0 mtrapctl  bit0 LEGACY, RESET '1'; bits 31:1 WARL 0
-#
-# This is the KICKOFF §3b CLASS-4 test (readback completeness): every CSR must
-# read back what it wrote AND every reserved/WPRI field must read its spec
-# value — a field that silently stores more than the spec allows is exactly the
-# bug class this file exists to catch.
-#
-# BUILD-TIME DISPATCH (extjvt.S / extzfinx.S idiom — the X1 convention):
-#   ON  (-DCORE_ENABLE_TRAPCSR appended to RISCV_GCC_OPTS when the trapCsr
-#        config is staged): run the sweep -> RVTEST_PASS.
-#   OFF (default build, macro unset): the ten addresses are UNKNOWN CSRs and
-#        this core DEAD-ENDS an illegal instruction in the terminal TRAP_STATE,
-#        so the sweep must not be assembled at all. The #else arm FAILs
-#        immediately and loudly — privcsr is deliberately NOT in the default
-#        behavioral_mp runner array, so this arm should never execute; if it
-#        ever does, the ON/OFF staging discipline was violated.
-#   The OFF polarity of these ten addresses is proven SEPARATELY by the P0
-#   privprobe poisons (behavioral_mp_stripped/run_extoff.sh + trap_watch.tcl),
-#   one poison per address — a dead-end trap can only ever prove one at a time.
-#
-# NOTE on `csrr` (UPDATED at P3-entry, 2026-07-29): csr_write_en now implements
-# the spec's instruction-form rule — CSRRW/CSRRWI always write; CSRRS/CSRRC with
-# rs1=x0 and CSRRSI/CSRRCI with uimm=0 do NOT write. A plain `csrr` therefore
-# no longer asserts the write enable at all (CHECK 34 pins this via the mcycle
-# write-precedence freeze). P3-entry also added mstatus.MPRV (CHECK 4/33) and
-# the csr_addr_valid write-enable gate (CHECK 35).
-#
-# t4 carries the CHECK ID at every comparison, so a FAIL is localisable from a
-# waveform / a0 post-mortem without re-running.
-#*****************************************************************************
+# VestaRV: standard M-mode trap CSR file, WARL and readback sweep
+# ON-ONLY. Every CSR must read back what it wrote AND every reserved or WPRI field must read its specified value: a field that silently stores more than the spec allows is the bug class this file exists to catch. t4 carries the CHECK ID at every comparison, so a failure is localisable from a0 and t4 without re-running.
+# The ten registers and their frozen contracts: 0x300 mstatus with MIE(3), MPIE(7) and MPP(12:11) WARL to {11}, every other bit reading 0; 0x310 mstatush legal, read-zero and write-ignore; 0x305 mtvec with BASE(31:2) read/write and MODE(1:0) WARL to {00}; 0x304 mie with MSIE(3), MTIE(7) and MEIE(11), every other bit reading 0; 0x344 mip a READ-ONLY mirror of the msip, mtip and meip levels, with writes ignored; 0x340 mscratch full 32-bit read/write; 0x341 mepc with bit 0 always 0 and bit 1 writable iff ENABLE_COMPRESSED, which is on in the default configuration so bit 1 must hold; 0x342 mcause with Interrupt(31) and code(3:0) only, bits 30:4 reading 0; 0x343 mtval full 32-bit read/write; 0x7C0 mtrapctl with bit 0 LEGACY resetting to '1' and bits 31:1 WARL to 0.
+# BUILD-TIME DISPATCH: the sweep is assembled only when -DCORE_ENABLE_TRAPCSR is appended to RISCV_GCC_OPTS on a staged trapCsr build. Without it the ten addresses are unknown CSRs and this core dead-ends an illegal instruction in the terminal TRAP_STATE, so the #else arm fails immediately and loudly; this file is deliberately not in the default runner array, and that arm executing at all means the staging discipline was violated. The OFF polarity of these ten addresses is proven separately, one poison per address, because a dead-end trap can only prove one at a time.
+# csr_write_en implements the instruction-form rule: CSRRW and CSRRWI always write, while CSRRS and CSRRC with rs1 = x0 and CSRRSI and CSRRCI with uimm = 0 do not, so a plain `csrr` does not assert the write enable at all.
 
 #include "riscv_test.h"
 #include "test_macros.h"

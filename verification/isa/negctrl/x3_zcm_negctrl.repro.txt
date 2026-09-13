@@ -1,12 +1,10 @@
-X3 Stage C (Zcmp + Zcmt) negative controls
-==========================================
+VestaRV: X3 Stage C (Zcmp + Zcmt) negative controls
 Each patch is a single-hunk RTL SEED that plants one spec-class bug. The seed
 makes an ON-polarity directed test FAIL by its OWN check (bounded — the test's
 bne -> RVTEST_FAIL writes 0xDEADBEEF quickly, NEVER a watchdog hang), proving
 the test is not vacuous. Reverting the seed restores PASS.
 
 HOW TO RUN (ON polarity)
-------------------------
   1. hdl/common/MemoryMap.vhd: set CORE_ENABLE_ZCMP := true; CORE_ENABLE_ZCMT := true
   2. rm -rf verification/isa/build/
   3. cd verification/isa && make rv32ua-flash \
@@ -20,7 +18,6 @@ HOW TO RUN (ON polarity)
   rcf basenames (ON build): xxxxrv32ua-p-shcmp / xxxxrv32ua-p-shcmt.
 
 CONTROLS
---------
 x3_zcmp_offdir.patch    [VERIFIED, shcmp]  push frame address +k instead of -k
     -> stores land the wrong way from the anchor; the memory-layout check and
        the pop round-trip both mismatch. Observed: TEST FAILED (bounded).

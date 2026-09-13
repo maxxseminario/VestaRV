@@ -1,19 +1,14 @@
 #!/usr/bin/env bash
-# VHDL -> Verilog conversion for the sky130/LibreLane flow.
-# Run from this directory: ./synth.sh   (needs GHDL >= 5.x on PATH, or run it
-# inside any container that has one). Output: src/vesta.v — a generated build
-# artifact, never committed.
-#
-# This script owns the analysis order and the top entity. The file list is
-# hand-curated on purpose:
-#   - the tree has THREE entities named `regfile`; only regfile_sbirq.vhd
-#     matches what datapath.vhd instantiates (sp_in/sp_out/sp_write).
-#   - ClkGate comes from hdl/common/sim/ (behavioral latch+AND). For hardening
-#     it is swapped below for a real sky130 integrated-clock-gate cell: the
-#     latch+AND form simulates fine but generic CTS mis-times the gated clock
-#     branch by half a period for hold checks (measured -38 ns WNS).
-# --latches: the ClkGate body and a latched result net in div.vhd are
-# intentional; GHDL refuses inferred latches without the flag.
+# VestaRV: VHDL to Verilog conversion for the sky130 and LibreLane flow.
+# Run `./synth.sh` from this directory; it needs GHDL 5.x or newer on PATH, or a
+# container that has one. The output src/vesta.v is a build artifact, never
+# committed. This script owns the analysis order and the top entity, and the file
+# list is hand curated: the tree holds three entities named `regfile` and only
+# regfile_sbirq.vhd matches what datapath.vhd instantiates, while ClkGate comes
+# from hdl/common/sim/ and is swapped below for a real sky130 integrated clock
+# gate, because the behavioural latch-and-AND form simulates fine but generic CTS
+# mis-times the gated clock branch by half a period on hold checks. --latches is
+# required: the ClkGate body and a latched result net in div.vhd are intentional.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -56,11 +51,11 @@ ghdl --synth --std=08 -fsynopsys --latches --workdir="${WORKDIR}" \
      --out=verilog "${TOP}" > "src/${TOP}.v"
 
 echo "== swap behavioral clkgate for the sky130 ICG cell =="
-# GHDL 5 emitted "module clkgate"; GHDL 6 uniquifies every module as
-# <entity>_B<architecture> ("module clkgate_Bbehavioral"). The match accepts
-# both plus a one-line "(...);" header, and the replacement KEEPS the emitted
-# name — the parent instantiates the module by exactly that name. Port names
-# are lowercase under both writers (same lowering as the module name itself).
+# GHDL 5 emits "module clkgate"; GHDL 6 uniquifies every module as
+# <entity>_B<architecture>. The match accepts both, plus a one-line "(...);"
+# header, and the replacement keeps whichever name was emitted, because the
+# parent instantiates the module by exactly that name. Port names are lowercase
+# under both writers, the same lowering the module name gets.
 awk '
 /^module \\?clkgate(_[A-Za-z0-9_]*)?([[:space:](;].*)?$/ { inswap=1
   name=$2
@@ -76,15 +71,15 @@ inswap && /^endmodule([[:space:]].*)?$/ { inswap=0; next }
 !inswap { print }
 ' "src/${TOP}.v" > "src/${TOP}.icg.v" && mv "src/${TOP}.icg.v" "src/${TOP}.v"
 
-# The suffixing also hits the top entity, but LibreLane's DESIGN_NAME must be
-# plain ${TOP}. Nothing inside the file references the top module, so renaming
-# its header is safe. No-op under a GHDL that already emits the plain name.
+# The suffixing also hits the top entity, and LibreLane's DESIGN_NAME must be
+# plain ${TOP}. Nothing in the file references the top module, so renaming its
+# header is safe, and it is a no-op under a GHDL that emits the plain name.
 sed -i -E "s/^module ${TOP}_B[A-Za-z0-9_]*/module ${TOP}/" "src/${TOP}.v"
 
 grep -q "sky130_fd_sc_hd__dlclkp_1" "src/${TOP}.v" || {
     echo "error: ICG substitution did not land in src/${TOP}.v" >&2
-    # Diagnostic for the annotation channel: what DID the writer emit? Every
-    # module header, and every line naming the clock gate under any casing.
+    # Diagnostic: every module header, and every line naming the clock gate under
+    # any casing, so the failure says what the writer actually emitted.
     grep -n "^module" "src/${TOP}.v" | head -6 >&2
     grep -in "clkgate" "src/${TOP}.v" | head -3 >&2
     exit 1

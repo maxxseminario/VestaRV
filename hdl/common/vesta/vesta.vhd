@@ -1,4 +1,5 @@
--- vesta: the RV32 core. Multi-cycle FSM, unified instruction/data bus, optional M/A/C/Zb, privileged and debug extensions.
+-- VestaRV: the RV32 core
+-- Multi-cycle FSM, unified instruction/data bus, optional M/A/C/Zb, privileged and debug extensions.
 -- read_data doubles as the instruction during decode, so no combinational mux may be keyed off an address decode of it.
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -627,7 +628,7 @@ architecture struct of vesta is
     -- Compressed instruction signals.
     -- is_compressed is assigned in the reset branch and in four EXECUTE arms but is absent from the FSM's default list, so it HOLDS elsewhere and infers a latch; its only reader is qualified by EXECUTE with pc(1)='1' and repeat_if='0', so the held value is never read.
     -- Do not add it to the default list without proving the PMP instruction-access-fault arm, which does not assign it and can run with those same qualifiers.
-    -- F12 (2026-09-05): the default list therefore assigns it ONLY when ENABLE_PMP is false, where that arm is statically absent and every EXECUTE path assigns it; the synthesized cores (PMP off) have no latch, a PMP-on build keeps it.
+    -- The default list therefore assigns it ONLY when ENABLE_PMP is false, where that arm is statically absent and every EXECUTE path assigns it; the synthesized cores (PMP off) have no latch, a PMP-on build keeps it.
     signal is_compressed          : std_logic;
     signal is_compressed_cdec     : std_logic;  -- From decompressor (unused)
     signal quadrant_upper         : std_logic_vector(1 downto 0);  -- Upper half instruction type
@@ -1166,7 +1167,7 @@ architecture struct of vesta is
 
     -- Zcmp/Zcmt sequencer registers: latch the sub-op, the embedded operand bits and the old sp ONCE at dispatch, on the edge from EXECUTE into the first ZCM state.
     -- zcm_idx counts list position, advancing one per completed element, in ZCM_PUSH_GAP or ZCM_POP_WB.
-    -- Guarded on the generics: with both off, zcm_op is '0' (maindec), no ZCM next_state is ever produced and these registers would hold their reset values forever. Genus then keeps the 43 flops behind an ICG whose enable it proves constant, so they synthesize as dead registers with no clock waveform (check_timing, hart_tile 2026-09-05). Tying them off here is bit-identical and removes the dead logic.
+    -- Guarded on the generics: with both off, zcm_op is '0' (maindec), no ZCM next_state is ever produced and these registers would hold their reset values forever. Genus then keeps the 43 flops behind an ICG whose enable it proves constant, so they synthesize as dead registers with no clock waveform. Tying them off here is bit-identical and removes the dead logic.
     gen_zcm_seq: if ENABLE_ZCMP or ENABLE_ZCMT generate
     zcm_seq_proc: process(clk_cpu, resetn)
     begin
@@ -2057,7 +2058,7 @@ architecture struct of vesta is
             irq_save_ack <= '0';
             trap_flag <= '0';
             wfi_enter <= '0';   -- only the WFI dispatch arms raise this
-            -- is_compressed default, F12 (2026-09-05): with ENABLE_PMP off every EXECUTE arm assigns it (the PMP instruction-access-fault arm, the one arm that does not, is then statically absent) and its only reader is EXECUTE-qualified, so '0' here is bit-identical and removes the inferred latch. With PMP on the latch is kept on purpose: see the declaration note.
+            -- is_compressed default: with ENABLE_PMP off every EXECUTE arm assigns it (the PMP instruction-access-fault arm, the one arm that does not, is then statically absent) and its only reader is EXECUTE-qualified, so '0' here is bit-identical and removes the inferred latch. With PMP on the latch is kept on purpose: see the declaration note.
             if not ENABLE_PMP then
                 is_compressed <= '0';
             end if;

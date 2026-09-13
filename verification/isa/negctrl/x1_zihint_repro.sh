@@ -1,15 +1,14 @@
 #!/bin/bash
-# X1 Zihintpause negative control — proves the directed mp test shpause.S
-# actually observes PAUSE's arbiter-yield side-effect (not just any nop).
+# VestaRV: X1 Zihintpause negative control. Shows that the directed mp test
+# shpause.S observes PAUSE's arbiter-yield side effect and not just any nop.
+# x1_zihint_seed.patch sets the RTL PAUSE window to 0 cycles, so a retiring PAUSE
+# decodes down the ordinary FENCE_WAIT path with no side effect. The antagonist's
+# pause-phase burst then matches its control-phase burst (RPAU close to RCTL) and
+# shpause's ON assertion, RCTL + MARGIN < RPAU, fails.
 #
-# The seed x1_zihint_seed.patch sets the RTL PAUSE window to 0 cycles, so a
-# retiring PAUSE decodes down the ordinary FENCE_WAIT path (no side-effect).
-# The antagonist's pause-phase burst then matches its control-phase burst
-# (RPAU ~= RCTL), so shpause's ON assertion (RCTL + MARGIN < RPAU) FAILS.
-#
-# Repro (worktree root), with the ON config staged for sim (see the self-report
-# staging steps: make chip CONFIG=<zihint on>, copy out/hdl/{MemoryMap,MCU}.vhd
-# over hdl/common/, stage env/p/core_features.h with #define CORE_ENABLE_ZIHINT):
+# Repro from the worktree root, with the ON config staged for sim (make chip
+# CONFIG=<zihint on>, copy out/hdl/{MemoryMap,MCU}.vhd over hdl/common/, stage
+# env/p/core_features.h with #define CORE_ENABLE_ZIHINT):
 #
 #   # 1. baseline (window=16) -> PASS
 #   grep PAUSE_WINDOW_CYCLES hdl/common/constants.vhd     # := 16

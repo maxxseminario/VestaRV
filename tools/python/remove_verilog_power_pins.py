@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# VestaRV: remove the power pins from a Verilog netlist's module ports.
 
 import argparse
 

@@ -1,15 +1,10 @@
 #!/usr/bin/env python3
-"""Byte-compare two chip_artifacts output trees.
+"""VestaRV: byte-compare two chip_artifacts output trees, the generation determinism gate.
 
-The generation determinism gate. Two identical chip_artifacts targets run the
-generator twice, in two separate staged trees, and every declared artifact must
-come out byte-identical. This is what proves the outputs carry no wall-clock
-stamp, no dict-ordering wobble and no absolute path from the sandbox.
-
-generate.log is excluded by name: it records the staged tree's own absolute
-paths, which differ between the two targets by construction.
-
-Usage: compare_trees.py <treeA> <treeB> [--exclude NAME]...
+Two identical targets run the generator in two separate staged trees and every declared
+artifact must come out byte-identical, which is what proves the outputs carry no wall-clock
+stamp, no dict-ordering wobble and no sandbox path. generate.log is excluded by name: it
+records the staged tree's own absolute paths. Usage: compare_trees.py A B [--exclude NAME]...
 """
 
 import os

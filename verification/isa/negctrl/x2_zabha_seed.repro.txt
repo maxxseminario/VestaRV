@@ -1,5 +1,4 @@
-X2 Zabha negative control — "sub-word AMO write drives all four byte strobes"
-=============================================================================
+VestaRV: X2 Zabha negative control, "sub-word AMO write drives all four byte strobes"
 
 SEED: x2_zabha_seed.patch changes the AMO_WRITE byte-lane write-enable in
 hdl/common/vesta/vesta.vhd from the per-lane value back to a full-word strobe:

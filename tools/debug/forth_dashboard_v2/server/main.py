@@ -1,12 +1,9 @@
-"""FastAPI application: the frozen REST contract + the single /ws hub.
+"""VestaRV: the dashboard's FastAPI application, the REST contract and the single /ws hub.
 
-Run directly (``python3 server/main.py --sim``) or via uvicorn.  create_app()
-is a factory so tests can build a sim-mode app with custom register/macro paths.
-
-Serial rule (contract): REST handlers NEVER touch pyserial.  They enqueue on the
-one SerialManager and await its Future; blocking bulk ops (memops) run in a
-thread executor so the event loop stays free.  The WS terminal enqueues raw
-lines through the same queue.  One queue = no interleaved transactions.
+Run directly or via uvicorn; create_app() is a factory so tests can build a sim-mode app with
+custom paths. REST handlers never touch pyserial: they enqueue on the one SerialManager and
+await its Future, and blocking bulk ops run in a thread executor. The WS terminal uses the
+same queue, so transactions never interleave.
 """
 
 import argparse
@@ -34,9 +31,7 @@ from server.serial_manager import SerialManager, list_ports  # noqa: E402
 from server.sim_chip import SimChip  # noqa: E402
 
 
-# ---------------------------------------------------------------------------
 # Request models
-# ---------------------------------------------------------------------------
 
 IntLike = Union[int, str]
 
@@ -114,18 +109,12 @@ class MacroBody(BaseModel):
     description: str = ""
 
 
-# ---------------------------------------------------------------------------
 # WebSocket hub
-# ---------------------------------------------------------------------------
 
 class WSHub:
-    """Fan-out of serial events to every connected WebSocket.
-
-    The serial manager runs on its own thread and calls on_event() there.  Each
-    WebSocket registers its OWN event loop + asyncio.Queue (created on that
-    loop), so events are delivered with call_soon_threadsafe to the exact loop
-    serving each client -- correct even when clients run on different loops
-    (as the TestClient does, one thread/loop per websocket).
+    """Fan-out of serial events to every connected WebSocket. The serial manager calls on_event() on
+    its own thread, so each WebSocket registers its own event loop and queue and events are
+    delivered with call_soon_threadsafe to the exact loop serving that client.
     """
 
     def __init__(self) -> None:
@@ -159,9 +148,7 @@ def _safe_put(queue: "asyncio.Queue", event: Dict[str, Any]) -> None:
         pass
 
 
-# ---------------------------------------------------------------------------
 # App factory
-# ---------------------------------------------------------------------------
 
 def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200,
                registers_path: Optional[str] = None,
@@ -194,7 +181,7 @@ def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200
     app.state.reg_cache = {}          # (periph,reg) -> last value
     app.state.register_map = None     # lazy
 
-    # -- lifecycle ---------------------------------------------------------
+    # -- lifecycle
 
     @app.on_event("startup")
     def _startup() -> None:
@@ -207,7 +194,7 @@ def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200
     def _shutdown() -> None:
         manager.stop()
 
-    # -- helpers -----------------------------------------------------------
+    # -- helpers
 
     def get_register_map() -> RegisterMap:
         if app.state.register_map is None:
@@ -231,7 +218,7 @@ def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200
             await asyncio.sleep(0.02)
         return manager.status()
 
-    # -- connection / status ----------------------------------------------
+    # -- connection / status
 
     @app.get("/api/status")
     def api_status() -> Dict[str, Any]:
@@ -261,7 +248,7 @@ def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200
         method, ok = _gpio_reset(app.state.reset_pin, bool(body.boot_low))
         return {"ok": ok, "method": method, "status": manager.status()}
 
-    # -- raw command passthrough ------------------------------------------
+    # -- raw command passthrough
 
     @app.post("/api/command")
     async def api_command(body: CommandBody) -> Dict[str, Any]:
@@ -276,7 +263,7 @@ def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200
         return {"tx": body.cmd, "rx": rx, "ok": True,
                 "ms": round((time.monotonic() - start) * 1000, 1)}
 
-    # -- registers ---------------------------------------------------------
+    # -- registers
 
     @app.get("/api/registers")
     def api_registers() -> Dict[str, Any]:
@@ -345,11 +332,11 @@ def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200
                 "verified": read_back == new_value,
                 "fields": rmap.unpack_fields(periph, reg, read_back)}
 
-    # -- memory ------------------------------------------------------------
+    # -- memory
 
     @app.post("/api/memory/read")
     async def api_memory_read(body: MemReadBody) -> Dict[str, Any]:
-        # Fable ruling 1: always base64 (ASCII-hex reads are decoded to raw
+        # always base64 (ASCII-hex reads are decoded to raw
         # bytes server-side by memops before base64-encoding).
         try:
             result = await in_executor(
@@ -380,7 +367,7 @@ def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=502, detail=str(exc))
 
-    # -- flash -------------------------------------------------------------
+    # -- flash
 
     @app.post("/api/flash/erase")
     async def api_flash_erase(body: FlashEraseBody) -> Dict[str, Any]:
@@ -422,11 +409,11 @@ def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200
         except Exception as exc:  # noqa: BLE001
             raise HTTPException(status_code=502, detail=str(exc))
 
-    # -- exec / clk --------------------------------------------------------
+    # -- exec / clk
 
     @app.post("/api/exec")
     async def api_exec(body: ExecBody) -> Dict[str, Any]:
-        # Fable ruling 5: response is exactly {value, tx, ms}.
+        # response is exactly {value, tx, ms}.
         addr = coerce_int(body.addr)
         args = [coerce_int(a) for a in body.args]
         command = forth.build_exec(addr, args)
@@ -450,11 +437,11 @@ def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200
         return {"clock_sel": body.clock_sel, "time_sel": body.time_sel,
                 "freq": freq}
 
-    # -- macros ------------------------------------------------------------
+    # -- macros
 
     @app.get("/api/macros")
     def api_macros_list() -> List[Dict[str, Any]]:
-        # Fable ruling 6: GET returns a JSON ARRAY of {name, commands, description}.
+        # GET returns a JSON ARRAY of {name, commands, description}.
         return macros.list()
 
     @app.post("/api/macros")
@@ -485,7 +472,7 @@ def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200
         return {"name": name, "ok": ok, "results": results,
                 "ms": round((time.monotonic() - start) * 1000, 1)}
 
-    # -- WebSocket ---------------------------------------------------------
+    # -- WebSocket
 
     @app.websocket("/ws")
     async def ws_endpoint(ws: WebSocket) -> None:
@@ -514,7 +501,7 @@ def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200
             pump_task.cancel()
             hub.unregister(queue)
 
-    # -- static (mount last so /api and /ws win) ---------------------------
+    # -- static (mount last so /api and /ws win)
 
     _mount_static(app, static_dir)
 
@@ -522,10 +509,9 @@ def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200
 
 
 def _mount_static(app: FastAPI, static_dir: Optional[str]) -> None:
-    """Serve ./static with a plain file reader (no aiofiles/StaticFiles dep).
-
-    Registered AFTER the API/WS routes so those always win; the catch-all only
-    picks up otherwise-unmatched GETs.  Path traversal is blocked.
+    """Serve ./static with a plain file reader, needing no aiofiles or StaticFiles. Registered after
+    the API and WS routes so those always win, and the catch-all picks up only unmatched GETs.
+    Path traversal is blocked.
     """
     import mimetypes
     from fastapi import Response
@@ -587,9 +573,7 @@ def _gpio_reset(reset_pin: Optional[int], boot_low: bool):
         return ("gpio-error: %s" % exc, False)
 
 
-# ---------------------------------------------------------------------------
 # CLI
-# ---------------------------------------------------------------------------
 
 def _parse_listen(value: str):
     if ":" in value:

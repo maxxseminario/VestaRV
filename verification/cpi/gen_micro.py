@@ -1,36 +1,10 @@
 #!/usr/bin/env python3
-"""Emit the per-instruction-class micro-kernels of the CPI harness.
+"""VestaRV: emit the per-instruction-class micro-kernels of the CPI harness.
 
-Each kernel runs ITERS passes over a loop body holding NOPS copies of the
-instruction under test, with the setStats() window opened around the whole
-loop. Running the same kernel at NOPS>0 and at NOPS=0 and subtracting removes
-the loop's own decrement and backward branch, so what is left is the marginal
-cost of the NOPS copies alone: delta-cycles / delta-instructions is
-cycles-per-instruction for that class, undiluted by the loop.
-
-The operands are chosen so that no kernel is a dependency chain, because what
-is being measured is issue cost on this core rather than a scheduling effect.
-
-WORD ALIGNMENT IS LOAD BEARING. Every loop body starts with `.p2align 2`. The
-core fetches one 32-bit word per bus cycle, so a 32-bit instruction that
-straddles a word boundary takes the split-fetch path and costs one extra
-cycle. Without the directive the body can land on a 2-byte boundary and EVERY
-32-bit instruction in it pays that penalty, which silently doubles the
-measured cost of whatever is under test (measured: the first cut of the
-control-transfer kernels read 2.0 cycles for a taken branch purely from this).
-The straddling-fetch cost is measured on its own, by the RV32IMAC-versus-
-RV32IMA benchmark pair and by the two STRADDLE_BODIES kernels, and must not be
-charged to the instruction class here.
-
-THE TWO STRADDLE KERNELS ARE THE DELIBERATE EXCEPTION. straddleseq and
-straddlebr are built to straddle, because with the fetch-ahead shipped the
-straddling penalty is no longer a single number and the TRM has to state the
-two cases separately. Their `.p2align 2` is doing the opposite job: it fixes
-the block's base so that the offsets INSIDE it, and therefore which member
-straddles, are exact rather than a property of wherever the assembler happened
-to place the loop.
-
-Usage: gen_micro.py <outdir>
+Each kernel runs ITERS passes over a body of NOPS copies of the instruction under test;
+subtracting the NOPS=0 run removes the loop's own cost. Operands never form a dependency
+chain. Every body starts with `.p2align 2`, because a 32-bit instruction straddling a word
+boundary costs an extra fetch cycle; the two STRADDLE_BODIES kernels align in order to straddle.
 """
 
 import os

@@ -1,10 +1,12 @@
+// VestaRV: interrupt control and CPU sleep intrinsics
+// cpu_sleep, cpu_wake and halt_cpu_until_interrupt emit the custom SYSTEM encodings defined in custom_ops.S; they are not standard RISC-V instructions.
+
 #pragma once
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/** Includes **/
 #include <stdint.h>
 #include <MemoryMap.h>
 #include <custom_ops.S>
@@ -18,7 +20,6 @@ extern "C" {
 
 
 
-/** External Function Declarations **/
 void enable_all_interrupts();
 void disable_all_interrupts();
 #ifdef ENABLE_COUNTERS

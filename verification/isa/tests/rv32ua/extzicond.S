@@ -1,46 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extzicond.S   (X1 Zicond ext-probe; derived from extprobe_template.S)
-#-----------------------------------------------------------------------------
-# Build-time-adaptive probe for the Zicond conditional-zero ops. Zicond has NO
-# misa bit, so this dispatches at BUILD TIME on the CORE_ENABLE_ZICOND macro.
-# (The generated Castalia MemoryMap.h carries a matching #define, but it CANNOT
-# be #included from an assembly test -- it unconditionally pulls <stdint.h>/
-# <bits.h>/<custom_ops.S>, whose C typedefs the assembler rejects; the
-# extprobe_template's "#include MemoryMap.h" idiom does not work for this header.)
-#
-# The macro is passed EXPLICITLY via -D, never auto-derived from the gitignored
-# make-chip header (a stale header would silently compile the ON arm against OFF
-# RTL and dead-end the trap). Convention:
-#   * DEFAULT (zicond OFF) build: compile with NO -D -> OFF arm.
-#         cd verification/isa && rm -rf build/ && make rv32ua-flash   # (or build_mp_images.sh)
-#   * ON (zicond) build: stage the ON MemoryMap.vhd, then rebuild images with
-#     -DCORE_ENABLE_ZICOND explicitly appended to RISCV_GCC_OPTS -> ON arm:
-#         cd verification/isa && rm -rf build/ && \
-#         make rv32ua-flash RISCV_GCC_OPTS="-static -mcmodel=medany \
-#             -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4 \
-#             -DCORE_ENABLE_ZICOND"
-#   Always `rm -rf build/` on a polarity flip (shared-header/opts dep) so the -D
-#   tracks the RTL being simulated.
-#
-#   czero.eqz rd,rs1,rs2 : rd = (rs2==0) ? 0 : rs1   (OP 0110011, f3=101, f7=0000111)
-#   czero.nez rd,rs1,rs2 : rd = (rs2!=0) ? 0 : rs1   (OP 0110011, f3=111, f7=0000111)
-#
-# ON arm  (#ifdef CORE_ENABLE_ZICOND): execute the real encodings, CHECK every
-#   architectural result, RVTEST_PASS.
-# OFF arm (#else): base-ISA sanity only, then RVTEST_PASS. It deliberately does
-#   NOT execute a czero encoding: this core has NO software trap recovery
-#   (vesta TRAP_STATE is terminal, trap_flag latched high, PC frozen), so an
-#   illegal-instruction trap here would hang riscv_tb's 100 ms watchdog and
-#   turn the DEFAULT (zicond-off) behavioral_mp suite RED. The OFF-polarity
-#   illegal-instruction trap is proven instead by running the ON-arm image
-#   (czero executes) against the zicond-OFF RTL under trap_watch.tcl -> TRAP_OK
-#   (see the X1-zicond self-report / negctrl notes).
-#
-# Encodings use `.insn` so the file assembles under the suite's base
-# -march=rv32imac (zicond is NOT in -march). norvc/norelax = fixed-width image.
-#*****************************************************************************
+# VestaRV: Zicond extension probe
+# BUILD-TIME DISPATCH on CORE_ENABLE_ZICOND, because Zicond has NO misa bit. The macro is passed EXPLICITLY with -D and never auto-derived from the gitignored generated header, since a stale header would silently compile the ON arm against OFF RTL and dead-end the trap. It also cannot come from #include "MemoryMap.h": that header unconditionally pulls in C typedefs the assembler rejects. ALWAYS `rm -rf build/` ON A POLARITY FLIP, so the -D tracks the RTL being simulated.
+# The operations: `czero.eqz rd, rs1, rs2` gives rd = (rs2 == 0) ? 0 : rs1, encoded OP 0110011 with funct3 101 and funct7 0000111; `czero.nez rd, rs1, rs2` gives rd = (rs2 != 0) ? 0 : rs1, the same with funct3 111.
+# With the macro defined the real encodings execute and every architectural result is checked. Without it the file does base-ISA sanity only and passes, and it DELIBERATELY DOES NOT EXECUTE A czero ENCODING: this core has no software trap recovery, so an illegal-instruction trap here would hang the 100 ms watchdog and turn the default suite red. The OFF-polarity trap is proven instead by running the ON-arm image against Zicond-OFF RTL under trap_watch.tcl.
+# Encodings use `.insn` so the file assembles under the suite's base -march, which has no zicond, and norvc with norelax keeps the image fixed-width.
 
 #include "riscv_test.h"
 #include "test_macros.h"

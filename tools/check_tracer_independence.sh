@@ -1,21 +1,10 @@
 #!/bin/sh
-# check_tracer_independence.sh -- the R-DS5 mechanical guard.
-#
-# W3's binding ruling: vesta_tracer.vhd implements v1_retire_enumeration §3-R0
-# with its OWN logic, and vesta.vhd's retire_now implements it separately. Two
-# independent implementations agreeing over 4,668,509 records is EVIDENCE; one
-# implementation observed twice is a TAUTOLOGY. R-DS5 therefore forbids the
-# tracer from consuming retire_now / inst_retired, and notes that the port-list
-# absence is a stronger guard than the comment that asserts it (method rule 16:
-# prefer an edit that satisfies a simple check).
-#
-# This is that check. rc 0 = independent, rc 1 = the independence has been lost.
-#
-# Placement rationale (S3): NOT a git hook -- hooks are untracked, and the
-# gate-drift saga (tools/cosim/gate/ + check_gate_files.py) is the precedent for
-# what happens when a guard lives only on one disk. NOT folded into
-# check_gate_files.py either: that script's rc means "the gate files match the
-# tracked record", and overloading it would blur what a failure means.
+# VestaRV: R-DS5 guard. vesta_tracer.vhd must not consume retire_now or
+# inst_retired.
+# The tracer implements v1_retire_enumeration 3-R0 with its own logic and
+# vesta.vhd's retire_now implements it separately; two independent
+# implementations agreeing is evidence, one observed twice is a tautology.
+# rc 0 = independent, rc 1 = the independence is gone, rc 2 = the check is dead.
 
 set -u
 # CHECK_TRACER_ROOT lets a caller that does not keep this script one level
@@ -30,10 +19,9 @@ if [ ! -f "$TRACER" ]; then
     exit 2
 fi
 
-# POSITIVE CONTROL FIRST. An expected-zero needs independent proof the
-# instrument was live (method rule 5): a typo'd path, a renamed file or a
-# broken grep all report a clean zero otherwise. `current_state` is a symbol
-# the tracer certainly does contain.
+# Positive control first. An expected zero needs proof the instrument was live:
+# a typo'd path, a renamed file or a broken grep all report a clean zero
+# otherwise. `current_state` is a symbol the tracer certainly contains.
 control=$(grep -c "current_state" "$TRACER")
 if [ "$control" -eq 0 ]; then
     echo "check_tracer_independence: FATAL -- positive control found 0"
@@ -43,8 +31,8 @@ fi
 
 rc=0
 for sym in retire_now inst_retired; do
-    # word-boundary match, comments excluded, so a mention in prose does not
-    # trip the guard -- what is forbidden is CONSUMING the signal.
+    # Word-boundary match with comments stripped: a mention in prose does not
+    # trip the guard. What is forbidden is consuming the signal.
     hits=$(sed 's/--.*//' "$TRACER" | grep -cE "(^|[^A-Za-z0-9_])${sym}([^A-Za-z0-9_]|$)")
     if [ "$hits" -ne 0 ]; then
         echo "check_tracer_independence: FAIL -- '${sym}' appears in $hits code line(s) of vesta_tracer.vhd"

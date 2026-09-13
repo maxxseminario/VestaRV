@@ -1,4 +1,6 @@
-% Headers file
+% VestaRV: TRM preamble, copied verbatim to latex/TRM/packages-commands.tex.
+% Holds the package list, the figure theme every generated diagram draws from,
+% and the address-column and callout macros the template and the emitters use.
 
 % Standard packages
 \usepackage[T1]{fontenc}
@@ -35,12 +37,10 @@
 \usepackage{relsize}
 
 % Extra packages
-% [noforwardlinks]: the list entry otherwise emits \hyperref[acro:XXX] to the
-% acronym's FIRST \ac{} use in the body. Nothing in this manual calls \ac{},
-% so all 39 of those forward links were dead and every build printed "There
-% were undefined references" (D-11, 2026-09-05). The option drops only the
-% forward link; the \hypertarget on each list entry stays, so a future \ac{}
-% still jumps into the glossary.
+% [noforwardlinks]: without it each list entry emits \hyperref[acro:XXX] to the
+% acronym's first \ac{} use. Nothing in this manual calls \ac{}, so those links are
+% dead and the build reports undefined references. The option drops only the forward
+% link; the \hypertarget on each entry stays, so a future \ac{} still jumps here.
 \usepackage[noforwardlinks]{acronym} % Glossary of terms and abbreviations (chapter 1)
 \usepackage{titlesec}               % Compact chapter and part headings (report class)
 \usepackage{verbatim}
@@ -90,19 +90,11 @@
 % every instance of \includegraphics
 \DeclareGraphicsExtensions{.pdf,.eps,.svg,.SVG,.png,.PNG,.jpeg,.jpg,.JPEG,.JPG}
 
-% ---------------------------------------------------------------------------
-% FIGURE THEME.
-% Every generated block diagram in this manual draws from this one palette and
-% this one style set, so the figures read as one hand-made set rather than as
-% thirty independent drawings.
-% The theme is the whole-chip figure's (Figure 1): a red package boundary and
-% red accents, greyscale blocks, sans-serif labels throughout.
-% vestaRed is exactly red!75!black and vestaRedText exactly red!70!black, which
-% is what that figure was already drawn in.
-% Emitters should reach for a v-prefixed style below rather than spelling a
-% fill or a line width inline. A one-off that genuinely needs its own value
-% should still be written as a modification of one of these.
-% ---------------------------------------------------------------------------
+% Figure theme: every generated block diagram draws from this one palette and style
+% set. Red package boundary and accents, greyscale blocks, sans-serif labels, as the
+% whole-chip figure is drawn. vestaRed is exactly red!75!black and vestaRedText exactly
+% red!70!black. Emitters use a v-prefixed style below rather than spelling a fill or a
+% line width inline; a one-off is written as a modification of one of these.
 \definecolor{vestaRed}{rgb}{0.75,0,0}
 \definecolor{vestaRedText}{rgb}{0.70,0,0}
 \definecolor{vestaInk}{rgb}{0,0,0}
@@ -119,15 +111,13 @@
 	% The bus bar, and the package boundary.
 	vbar/.style={thick, draw=vestaInk, fill=black!15},
 	vbound/.style={draw=vestaRed, line width=1.2pt},
-	% A grouping region. Never a full-bleed grey band: a thin dashed outline
-	% that leaves the paper white, because a solid band behind a figure is the
-	% single thing that made these drawings look machine-made.
+	% A grouping region: a thin dashed outline that leaves the paper white, never a
+	% full-bleed grey band.
 	vregion/.style={draw=black!35, line width=0.5pt, dashed, rounded corners=3pt},
-	% Text. Sans throughout, in exactly TWO sizes: vname (\small) for the name
-	% of a block and vlab (\footnotesize) for everything secondary. Nothing in
-	% a diagram is set below \footnotesize, so the smallest label on the page
-	% is 8 pt whenever the figure is input at natural size. The older names
-	% stay defined for the emitters that still use them, at the same floor.
+	% Text: sans throughout, in two sizes only. vname (\small) names a block, vlab
+	% (\footnotesize) carries everything secondary, and nothing is set below
+	% \footnotesize, so the smallest label is 8 pt at natural size. The older names
+	% stay defined, at the same floor, for the emitters that still use them.
 	vname/.style={font=\sffamily\small, align=center, inner sep=1pt},
 	vlab/.style={font=\sffamily\footnotesize, align=center, inner sep=1pt},
 	vhd/.style={font=\sffamily\footnotesize, align=center, inner sep=1pt, anchor=north},
@@ -136,36 +126,34 @@
 	vnote/.style={font=\sffamily\footnotesize\itshape, text=black!55, align=left, inner sep=1.5pt},
 	vgroup/.style={font=\sffamily\small\itshape, text=black!55, align=left, fill=white, inner sep=1.5pt},
 	vredlab/.style={font=\sffamily\small\bfseries, text=vestaRedText, align=left},
-	% Lines. One arrow head for the whole manual: Stealth, on every style that
-	% carries a head, and a junction dot where a wire really joins another.
+	% Lines: one arrow head for the whole manual, Stealth, on every style that carries
+	% a head, and a junction dot where a wire really joins another.
 	vwire/.style={semithick, draw=vestaInk},
 	vflow/.style={->, >={Stealth[length=2mm]}, semithick, draw=vestaInk},
 	vbus/.style={<->, >={Stealth[length=2mm]}, thick, draw=vestaInk},
 	vaccent/.style={->, >={Stealth[length=2mm]}, semithick, draw=vestaRed},
 	vghost/.style={dashed, draw=black!45, semithick},
 	vdot/.style={circle, fill=vestaInk, inner sep=0pt, minimum size=3pt},
-	% A mux, drawn the STM32 way: a trapezium standing on its narrow side,
-	% inputs on the wide (left) edge, the select code beside each input.
+	% A mux: a trapezium standing on its narrow side, inputs on the wide (left) edge,
+	% the select code beside each input.
 	vmux/.style={trapezium, trapezium angle=70, shape border rotate=270, line width=0.6pt, draw=black!70, fill=white, inner sep=1pt},
 }
 
-% Cross-references and register names are visibly clickable, in the theme's
-% text red. Set here rather than in the \usepackage line because the colour is
-% defined above, after hyperref is loaded.
+% Cross-references and register names are clickable, in the theme's text red. Set here
+% rather than on the \usepackage line because the colour is defined after hyperref.
 \hypersetup{hidelinks}
 
 % Running head needs 14pt with the Libertine face; fancyhdr warns on every page otherwise.
 \setlength{\headheight}{14pt}
 
-% Callouts. Exactly two tiers: Note (advisory) and Caution (the hardware
-% misbehaves if the text is ignored). Both are run-in labelled paragraphs in
-% the ST reference-manual manner, with no box and no colour.
+% Callouts, two tiers only: Note (advisory) and Caution (the hardware misbehaves if
+% the text is ignored). Both are run-in labelled paragraphs, no box and no colour.
 \newenvironment{Note}{\par\medskip\noindent\textbf{Note:}\space\ignorespaces}{\par\medskip}
 \newenvironment{Caution}{\par\medskip\noindent\textbf{Caution:}\space\ignorespaces}{\par\medskip}
 
-% Heading-level shift for an included file that still uses article levels.
-% Use inside a group: {\ShiftHeadingsUp \input{file}}. The per-implementation
-% analog chapter is the one consumer; it is not owned by this template.
+% Heading-level shift for an included file that still uses article levels. Use inside
+% a group: {\ShiftHeadingsUp \input{file}}. The per-implementation analog chapter is
+% the one consumer.
 \newcommand{\ShiftHeadingsUp}{\let\subsubsection\subsection \let\subsection\section \let\section\chapter}
 
 % Table highlight color

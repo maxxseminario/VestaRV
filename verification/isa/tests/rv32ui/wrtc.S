@@ -1,38 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# wrtc.S  (wound-config firmware smoke — digperiphs Stage E)
-#-----------------------------------------------------------------------------
-# RTC0 @0x6500 register + write-commit SYNC handshake + periodic-tick IRQ
-# delivery smoke. Single-hart directed (hart 0; tiles stay parked — no
-# MP_LAUNCH, no mp_boot.h). Proves the CPU can drive the RTC, that the D8
-# write-commit SYNC handshake works, and that the periodic tick (vector 114)
-# routes through irq_router (HhENX) -> meip -> env MEIP_DISPATCHER -> IVT ->
-# plain-ret handler -> CLAIM/COMPLETE, and RE-ARMS (two ticks).
-#
-# STAGE-E RIDER PROOF (irq_router RO words for sources 96-127):
-#   * PENDX  @0x781C bit18 (source 114) — read with the ROUTE STILL OFF once
-#     TICKF is high: PEND reflects the RAW source level (irq_in), NOT the
-#     enable, so this is deterministic (no delivery yet). Then enable the route.
-#   * INSVCX @0x782C bit18 — read INSIDE the handler (claimed, before W1C) and
-#     require the claimed source's in_service bit is set.
-#
-# RTC register map (rtc_spec.md / RTC.vhd AS-BUILT; MemoryMap RegSlotRTCx*):
-#   CR 0x6500  SEC 0x6504  SUB 0x6508  ALM 0x650C  PER 0x6510  SR 0x6514
-#   CR : RTCEN[0] ALMEN[1] TICKEN[2] ALMIE[3] TICKIE[4]        (rest rsvd)
-#   SR : SYNC[0](ro,1=commit-busy) ALMF[1](W1C) TICKF[2](W1C)
-#   PER: 16-bit down-counter RELOAD; tick period = (PER+1) lfxt ticks
-#        (1 lfxt tick = 1/32768 s ~= 30.5us). PER read = staging (direct mclk).
-#   irq_rtc (114) = (ALMF & ALMIE) | (TICKF & TICKIE)   (RTC.vhd:203)
-#
-# The ALARM path is 32-bit SECONDS-equality + rising-edge — a same-second
-# alarm cannot fire without a seconds rollover (~1s of lfxt), too slow and not
-# deterministic, so this test uses ONLY the sub-second periodic tick (task
-# directive). RTC0 is mclk-domain (register file on gated ClkMem, flags/IRQ on
-# free-running mclk, counter on ungated lfxt) — NO SYS_CLK_CR write is needed
-# (that rule is only for the smclk peripherals; wqspi writes it because QSPI's
-# serial core is smclk).
-#*****************************************************************************
+# VestaRV: RTC0 register, write-commit handshake and periodic-tick interrupt
+# Hart 0 only, tiles parked. RTC0 sits at 0x6500 and this proves the CPU can drive it, that the write-commit SYNC handshake works, and that the periodic tick on vector 114 routes through irq_router HhENX, meip, the env MEIP_DISPATCHER, the IVT and a plain-ret handler that claims and completes, and then RE-ARMS, which is why two ticks are taken. It also reads PENDX at 0x781C bit 18 WITH THE ROUTE STILL OFF once the tick flag is high, which is deterministic because PEND reflects the raw source level rather than the enable, and reads INSVCX at 0x782C bit 18 inside the handler before the W1C.
+# Register map: CR 0x6500 = RTCEN[0] ALMEN[1] TICKEN[2] ALMIE[3] TICKIE[4]; SEC 0x6504; SUB 0x6508; ALM 0x650C; PER 0x6510, a 16-bit down-counter RELOAD whose tick period is (PER + 1) LFXT ticks of about 30.5 us each, read back as the staging value on the mclk side; SR 0x6514 = SYNC[0], read-only and meaning a commit is busy, ALMF[1] and TICKF[2], both write-1-to-clear. The interrupt is the alarm flag gated by ALMIE or the tick flag gated by TICKIE.
+# THE ALARM PATH IS NOT USED, deliberately: it is a 32-bit seconds equality with a rising edge, so a same-second alarm cannot fire without a seconds rollover, about a second of LFXT, which is too slow and not deterministic. Only the sub-second periodic tick is exercised.
+# RTC0 is mclk-domain, with its register file on the gated bus clock, its flags and interrupt on free-running mclk and its counter on ungated LFXT, so no SYS_CLK_CR write is needed; that rule is only for smclk peripherals.
 
 #include "riscv_test.h"
 #include "test_macros.h"

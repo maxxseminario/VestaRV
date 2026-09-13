@@ -1,131 +1,16 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# lrrs2.S   (F-series fix pass, wave W4 -- DETECTOR for finding F6)
-#-----------------------------------------------------------------------------
-# F6: `lr.w` with a NON-ZERO rs2 field reads  rs1 + reg[rs2]  while arming the
-#     reservation at  rs1.  Read and reservation land on DIFFERENT addresses.
-#
-#   maindec.vhd:846-865   the AMO_OPCODE valid_funct arm whitelists on funct3 +
-#                         funct5 ONLY.  There is no rs2 term, here or at
-#                         maindec.vhd:507 (`lr_op`), so the encoding is a LEGAL
-#                         DECODE with any rs2 -- reserved by the ISA, accepted
-#                         by this core.
-#   maindec.vhd:997-1009  ALU_src falls through to '0' for AMO_OPCODE (comment:
-#                         "Use register (rs1 for address)"), and aludec/ALU do
-#                         ADD, so ALU_Result = reg[rs1] + reg[rs2].
-#   vesta.vhd:2621-2625   the EXECUTE dispatch arm for lr_op asserts
-#                         mem_access_instr <= '1' and goes to LR_READ.
-#   vesta.vhd:1819-1823   data_addr takes `rs1_value` ONLY for
-#                         `EXECUTE and amo_op = '1'` -- lr_op is NOT in that
-#                         arm -- so it falls to `ALU_Result when
-#                         (mem_access_instr = '1' ... or LR_READ)`.  BOTH the
-#                         EXECUTE cycle and LR_READ therefore address at
-#                         rs1 + reg[rs2].
-#   vesta.vhd:1375-1377   reservation_addr <= rs1_value   in LR_READ.
-#                         ("M4b: rs1 IS the LR address (phase-independent)")
-#
-#   The sibling members of the family were ALL fixed for exactly this reason
-#   and say so in the RTL: vesta.vhd:2627-2630 for SC ("M4b FIX: no
-#   EXECUTE-phase access -- the ALU holds rs1+rs2 here (garbage addr)") and
-#   the `EXECUTE and amo_op` arm for AMO (the M8 dispatch-cycle bug).  `lr.w`
-#   is the one member that was left out.
-#
-# THE ASSEMBLER WILL NOT EMIT THIS.  `lr.w rd,(rs1)` forces rs2 = x0.  The test
-# uses `.insn r 0x2f, 2, 0x08, rd, rs1, rs2` -- opcode AMO, funct3 = 010
-# (AMO_WIDTH_W), funct7 = 0001000 = {funct5 = LR_FN5 00010, aq = 0, rl = 0} --
-# which is a hand-built `lr.w` with the rs2 field set.  The encoding is verified
-# from `riscv-none-elf-objdump -d` on the BUILT image, never from the source.
-#
-# ---------------------------------------------------------------------------
-# THE OBSERVABLE: which address was actually READ
-# ---------------------------------------------------------------------------
-# Two words hold two DISTINCT sentinels.  reg[rs2] is set to (B - A) at run
-# time by a `sub`, so nothing is hardcoded and the leg cannot silently stop
-# discriminating if the linker moves anything.
-#
-#   [rs1]      = A : VAL_A = 0xA5A50001
-#   [rs1+rs2]  = B : VAL_B = 0x5A5A0002
-#
-#   rd == VAL_B  ->  the read went to rs1 + reg[rs2].   F6 FIRED.   (pre-fix)
-#   rd == VAL_A  ->  the read went to rs1.                          (post-fix)
-#
-# LEG 1 runs it in the PRIVATE TCM, LEG 2 in the SHARED window.  Both are
-# required, and leg 2 is the one a HALF FIX cannot satisfy -- see below.
-#
-# ---------------------------------------------------------------------------
-# THE TWO CONTROLS THAT PIN THE RESERVATION SIDE
-# ---------------------------------------------------------------------------
-# (a) LOCAL reservation (leg 1, TCM).  reservation_addr is already rs1_value
-#     (vesta.vhd:1377), so an `sc.w` to rs1 SUCCEEDS pre-fix and must STILL
-#     succeed post-fix.  This is a CONTROL: the fix moves the READ, not the
-#     reservation, and a fix that broke this has changed the wrong thing.
-#
-# (b) GLOBAL reservation (leg 2, SHARED).  hart_tile drives lr_sc_bus = "01"
-#     during the LR's EXECUTE cycle (vesta.vhd:1907) and the resv_unit arms at
-#     whatever data_addr carried -- i.e. at rs1 + reg[rs2] pre-fix.  A later
-#     `sc.w` at rs1 then fails through sc_fail_ext even though the LOCAL check
-#     passes.  So leg 2's `sc.w` must SUCCEED post-fix.
-#
-#     THIS IS THE CRITERION A WRONG FIX CANNOT SATISFY.  A fix that steers only
-#     LR_READ, or only the EXECUTE arm, leaves one of the two shared checks
-#     broken: steering LR_READ alone leaves the global reservation (and the
-#     EXECUTE-cycle transaction) at rs1+rs2, so leg 2's sc.w still fails;
-#     steering EXECUTE alone leaves LR_READ re-presenting a DIFFERENT word
-#     address to a window whose ack is word-address-qualified
-#     (hart_tile.vhd:717 sh_acked_addr), so leg 2's rd comes back from the
-#     wrong place again.  Only a consistent fix makes BOTH shared checks green
-#     while leaving both TCM controls untouched.
-#
-# ---------------------------------------------------------------------------
-# ANTI-VACUOUS GATES (enforced in the image, both polarities)
-# ---------------------------------------------------------------------------
-#   * both sentinels are written and READ BACK before the probe, so a leg can
-#     never pass because the memory never held what the test thinks;
-#   * the two sentinels are DIFFERENT and the delta is nonzero -- checked, not
-#     assumed;
-#   * a CANARY word sits between A and B in both legs and must be untouched, so
-#     a store landing NEAR a target cannot be mistaken for a clean run;
-#   * rs2's value is computed (`sub`), never a literal.
-#
-# ---------------------------------------------------------------------------
-# Verdict / a1 codes
-# ---------------------------------------------------------------------------
-#   a0=0xCAFEBABE                  PASS (post-fix expectation)
-#   a0=0xDEADBEEF, a1=0xF6F60001   LEG 1 (TCM):    lr.w read [rs1+rs2]
-#   a0=0xDEADBEEF, a1=0xF6F60002   LEG 2 (SHARED): lr.w read [rs1+rs2]
-#   a0=0xDEADBEEF, a1=0xF6F60003   LEG 2: the sc.w at rs1 FAILED -- the global
-#                                  reservation was armed at rs1+rs2
-#   a0=0xDEADBEEF, a1=0x5E600001   TCM sentinel setup/read-back broke
-#   a0=0xDEADBEEF, a1=0x5E600002   SHARED sentinel setup/read-back broke
-#   a0=0xDEADBEEF, a1=0x5E600003   the two sentinels are equal, or a delta is 0
-#                                  -- the probe could not discriminate
-#   a0=0xDEADBEEF, a1=0x5E600004   CONTROL (a): the TCM sc.w at rs1 failed, or
-#                                  did not store at rs1 -- the LOCAL reservation
-#                                  moved.  Not an F6 result.
-#   a0=0xDEADBEEF, a1=0x5E600005   a canary moved -- a store landed near a target
-#
-# Registers live at the verdict:
-#   a2 leg-1 lr rd      a3 leg-1 sc rd     a4 mem[TCM A] after sc
-#   a5 mem[TCM B]       a6 leg-2 lr rd     a7 leg-2 sc rd
-#   s6 mem[SH_A] after sc      s7 mem[SH_B]
-#   s2 TCM delta        s5 SHARED delta
-#
-# ---------------------------------------------------------------------------
-# SHARED WORDS CLAIMED: 0x10408 .. 0x10414 (4 words), all written before read.
-#   0x10408 = SH_A (rs1 target), 0x1040C = canary, 0x10410 = SH_B (rs1+rs2
-#   target), 0x10414 = spare/second canary.
-#   FREE AT N=4: shexec.S's DONE[3] tops at 0x103E4 and W3's insretov band ends
-#   at 0x10404; W1's scfailrd band starts at 0x10420.  This claim is the gap
-#   between them.  Both < 0x10500 and inside the bootrom zero range (< 0x10800).
-#   AT N=18 it overlaps shexec's DONE[12..15] -- benign under CLAUDE.md's
-#   isolation rule (one image per sim); this test is single-hart and is NOT in
-#   the standing TEST_FILES array, so the two can never coexist.
-#
-# Single hart.  Tiles 1-3 are never launched (tb: "tile hart(s) silent/parked").
-# RVTEST_CODE_END is `unimp` in this env, so every path ends in an explicit
-# RVTEST_PASS / RVTEST_FAIL spin.
-#*****************************************************************************
+# VestaRV: detector for `lr.w` reading rs1 + rs2 while reserving rs1
+# THE DEFECT: the AMO valid_funct arm whitelists on funct3 and funct5 only, with no rs2 term anywhere, so an `lr.w` with a NON-ZERO rs2 field is a legal decode on this core even though the ISA reserves it. ALU_src falls through to 0 for the AMO opcode and the ALU does ADD, so ALU_Result = reg[rs1] + reg[rs2]; data_addr takes rs1_value only for the `EXECUTE and amo_op` arm, which lr_op is not in, so BOTH the EXECUTE cycle and LR_READ address at rs1 + reg[rs2], while reservation_addr takes rs1_value in LR_READ. Read and reservation therefore land on DIFFERENT addresses. The sibling members of the family were all fixed for exactly this reason and say so in the RTL; `lr.w` is the one that was left out.
+# THE ASSEMBLER WILL NOT EMIT THIS, since `lr.w rd,(rs1)` forces rs2 = x0, so the test uses `.insn r 0x2f, 2, 0x08, rd, rs1, rs2`, which is AMO opcode, funct3 010 for word width, funct7 0001000 being funct5 = LR with aq and rl clear. THE ENCODING IS VERIFIED FROM objdump ON THE BUILT IMAGE, never from the source.
+# THE OBSERVABLE is which address was actually read. Two words hold two distinct sentinels, VAL_A = 0xA5A50001 at rs1 and VAL_B = 0x5A5A0002 at rs1 + rs2, and reg[rs2] is computed at run time with a `sub` so nothing is hardcoded and the leg cannot silently stop discriminating if the linker moves anything. rd equal to VAL_B means the read went to rs1 + reg[rs2]; rd equal to VAL_A means it went to rs1. Leg 1 runs in the private TCM and leg 2 in the shared window, and both are required.
+# TWO CONTROLS PIN THE RESERVATION SIDE. (a) The LOCAL reservation in leg 1: reservation_addr is already rs1_value, so an `sc.w` at rs1 succeeds both before and after any fix, and a fix that broke this changed the wrong thing. (b) The GLOBAL reservation in leg 2: hart_tile drives the lr_sc bus during the LR's EXECUTE cycle and the resv_unit arms at whatever data_addr carried, so a later `sc.w` at rs1 fails through sc_fail_ext even though the local check passes, and leg 2's `sc.w` must succeed once the read is steered correctly.
+# LEG 2 IS THE CRITERION A HALF FIX CANNOT SATISFY: steering LR_READ alone leaves the global reservation and the EXECUTE-cycle transaction at rs1 + rs2, so leg 2's store-conditional still fails; steering the EXECUTE arm alone leaves LR_READ re-presenting a different word address to a window whose ack is word-address-qualified, so leg 2's rd comes back from the wrong place again. Only a consistent fix makes both shared checks green while leaving both TCM controls untouched.
+# ANTI-VACUOUS GATES, enforced in both polarities: both sentinels are written and READ BACK before the probe, so a leg can never pass because the memory never held what the test thinks; the two sentinels are different and the delta is nonzero, checked rather than assumed; a CANARY word sits between the two targets in each leg and must be untouched, so a store landing near a target cannot be mistaken for a clean run; and rs2's value is computed, never a literal.
+# Verdicts: a0 = 0xCAFEBABE passes. a0 = 0xDEADBEEF with a1 = 0xF6F60001 leg 1 in TCM read rs1 + rs2; 0xF6F60002 leg 2 in shared read rs1 + rs2; 0xF6F60003 leg 2's store-conditional at rs1 failed, so the global reservation was armed at rs1 + rs2; 0x5E600001 TCM sentinel setup or read-back broke; 0x5E600002 shared sentinel setup or read-back broke; 0x5E600003 the two sentinels are equal or a delta is 0, so the probe could not discriminate; 0x5E600004 control (a) failed, so the LOCAL reservation moved and this is not a result about the read; 0x5E600005 a canary moved, so a store landed near a target.
+# Registers live at the verdict: a2 leg 1's lr rd, a3 its sc rd, a4 the TCM A word after the store and a5 the TCM B word; a6 leg 2's lr rd, a7 its sc rd, s6 the shared A word after the store and s7 the shared B word; s2 and s5 the TCM and shared deltas.
+# Shared words claimed: 0x10408 to 0x10414, four words, all written before read, being SH_A at 0x10408, a canary at 0x1040C, SH_B at 0x10410 and a second canary at 0x10414. They are free at N=4, filling the gap between neighbouring bands, and are below 0x10500 and inside the bootrom zero range; at N=18 they overlap another test's array, which is benign under the one-image-per-sim rule, and this test is single-hart and not in the standing runner array.
+# Single hart: tiles 1-3 are never launched. RVTEST_CODE_END is `unimp` here, so every path ends in an explicit PASS or FAIL spin.
 
 #include "riscv_test.h"
 #include "test_macros.h"

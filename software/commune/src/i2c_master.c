@@ -1,9 +1,10 @@
-/** Includes **/
+// VestaRV: I2C master driver
+// Every wait is bounded by I2C_TIMEOUT bus-poll iterations, so a stuck bus returns a negative I2C_* code instead of hanging.
+
 #include <MemoryMap.h>
 #include <i2c_master.h>
 
 
-/** Defines **/
 #define I2C_TIMEOUT		(10000)
 
 
@@ -20,7 +21,6 @@ int8_t i2cx_master_stop(I2Cx_t* I2Cx);
 
 
 
-/** Function Declarations **/
 int8_t i2c_master_tx_start(uint8_t slave_address);
 int8_t i2c_master_rx_start(uint8_t slave_address);
 int8_t i2c_master_tx_byte(uint8_t tx_data);
@@ -274,7 +274,6 @@ int8_t i2cx_master_stop(I2Cx_t* I2Cx)
 
 
 
-/** Function Definitions **/
 int8_t i2c_master_tx_start(uint8_t slave_address)
 {
 	return i2cx_master_tx_start(I2C0, slave_address);

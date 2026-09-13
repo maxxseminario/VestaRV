@@ -1,22 +1,10 @@
 #!/usr/bin/python3.6
-"""randgen.py -- the K3 constrained-random instruction-stream generator.
+"""VestaRV: the constrained-random instruction-stream generator.
 
-    /usr/bin/python3.6 tools/randgen/randgen.py gen --name k3s01 \\
-        --seed 1 --profile seq --length 320
-    /usr/bin/python3.6 tools/randgen/randgen.py campaign --spec <file>
-    /usr/bin/python3.6 tools/randgen/randgen.py verify      # R-DK5 detector
-    /usr/bin/python3.6 tools/randgen/randgen.py classes     # what this config
-                                                            # can and cannot do
-
-`verify` is the reproducibility detector R-DK5 demands: it regenerates every
-campaign stream from its recorded (seed, profile, length, config digest) and
-compares the SHA-1 of the `.S`.  It REFUSES rather than reports a mismatch when
-the recorded generator version differs from the running one, because a version
-bump legitimately changes the bytes and "a stale artifact parses cleanly"
-(method rule 6) applies to reproduction checks too.
-
-Never `python3` -- that is Calibre's aoj_cal wrapper, which re-evaluates its
-arguments and strips quotes.  Python 3.6 compatible.
+Subcommands gen, campaign, verify and classes. `verify` regenerates every campaign stream from
+its recorded seed, profile, length and config digest and compares the SHA-1 of the .S; it
+refuses rather than reports when the recorded generator version differs, since a version bump
+legitimately changes the bytes. Run as /usr/bin/python3.6: bare python3 strips quotes.
 """
 
 import argparse

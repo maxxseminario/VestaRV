@@ -1,24 +1,15 @@
-# tb_vhd.py — generate out/hdl/riscv_tb.vhd from hdl_templates/riscv_tb.template.vhd
-# ---------------------------------------------------------------------------
-# N-hart multi-core testbench emitter (Argus A3). Mirrors mcu_vhd.py's
-# region-marker / golden-master model: the template is the verified
-# hdl/common/tb/riscv_tb.vhd with the numHarts-dependent regions carved out
-# into --@GEN:<name>@ markers; this module regenerates them from numHarts.
-# At numHarts=4 every emitter reproduces the golden master byte-identically
-# (check_riscv_tb_vhd.py). Other hart counts emit the a0_1..a0_(N-1) tile
-# monitors for that N (the MCU top's a0 ports are emitted by mcu_vhd.py from
-# the same numHarts, so the two stay in lockstep).
-#
-# The MCU keeps DISTINCT a0_1..a0_(N-1) ports (not a flattened bus), so the
-# tb's component decl / port map must list them by name — which is exactly
-# why the tb is generated rather than hand-written for N=18.
-# ---------------------------------------------------------------------------
+# VestaRV: the multi-hart testbench emitter.
+# Generates out/hdl/riscv_tb.vhd from hdl_templates/riscv_tb.template.vhd on mcu_vhd.py's
+# region-marker model, regenerating the numHarts-dependent --@GEN:<name>@ regions. At
+# numHarts=4 every emitter reproduces the golden master byte-identically. The MCU keeps
+# distinct a0_1..a0_(N-1) ports rather than a flattened bus, so the component declaration and
+# port map must list them by name, which is why the testbench is generated at large N.
 import re
 
 REGION_NAMES = [
     'tb-a0-component-ports',
     'tb-a0-signals',
-    # OVERLAY (2026-09-12): two generic extension markers -- extra signal
+    # OVERLAY: two generic extension markers -- extra signal
     # declarations and extra models in the architecture body. Both emit nothing
     # with no overlay, so the file is unchanged and check_riscv_tb_vhd.py still
     # grades the golden master.
@@ -47,13 +38,13 @@ def _header(nHarts):
 
 
 class TbVhdEmitter():
-    # SINGLE HART IS ALLOWED (mcu_hart, 2026-08-24). The floor was 2 because
+    # SINGLE HART IS ALLOWED (asic_default). The floor was 2 because
     # every region below iterates harts 1..N-1 and N = 1 produced empty joins
     # ("if  then", "signal  : boolean") rather than an error.
     # Each region now folds away at N = 1, and the two regions that follow a
     # separator-carrying line -- the component port list and the DUT port map --
     # own that line so the separator can follow the hart count.
-    # OVERLAY (2026-09-12): `geo` is the SAME McuMpGeometry dict mcu_vhd.py
+    # OVERLAY: `geo` is the SAME McuMpGeometry dict mcu_vhd.py
     # reads, so whatever an overlay put on the entity it also declares and
     # associates here -- entity and testbench cannot disagree about the port
     # list. Default {} => every overlay entry point below is inert.
@@ -76,7 +67,7 @@ class TbVhdEmitter():
         if name == 'tb-monitor-edge':          return self.emitMonitorEdge()
         raise Exception('tb_vhd: unknown region "' + name + '"')
 
-    # -- component ports: hart 0's a0, then a0_1..a0_(N-1); last has no ';' -----
+    # -- component ports: hart 0's a0, then a0_1..a0_(N-1); last has no ';'
     # The hart-0 port line moved in here from the template so that its trailing
     # semicolon can depend on whether any a0_h follows it. Emitted character for
     # character as the template carried it, so N >= 2 is unchanged.
@@ -107,7 +98,7 @@ class TbVhdEmitter():
             ' ' * 4 + 'signal ' + names + ' : std_logic_vector(31 downto 0);',
         ]
 
-    # -- latched per-tile pass/fail booleans -----------------------------------
+    # -- latched per-tile pass/fail booleans
     def emitPassFailSignals(self):
         n = self.n
         if n == 1:
@@ -120,7 +111,7 @@ class TbVhdEmitter():
             ' ' * 4 + 'signal ' + failn + ' : boolean := false;',
         ]
 
-    # -- DUT port map: hart 0's a0, then a0_h => a0_h; last has no ',' ---------
+    # -- DUT port map: hart 0's a0, then a0_h => a0_h; last has no ','
     # As with the component ports, the hart-0 association line moved in here so
     # its trailing comma can follow the hart count.
     def emitPortMap(self):
@@ -137,7 +128,7 @@ class TbVhdEmitter():
         lines.extend(extra)
         return lines
 
-    # -- end-of-test report + fail/parked/pass verdict over all tiles ----------
+    # -- end-of-test report + fail/parked/pass verdict over all tiles
     def emitReport(self):
         n = self.n
         if n == 1:
@@ -162,7 +153,7 @@ class TbVhdEmitter():
         lines.append(' ' * 8 + 'end if;')
         return lines
 
-    # -- monitor_harts reset region --------------------------------------------
+    # -- monitor_harts reset region
     def emitMonitorReset(self):
         n = self.n
         if n == 1:
@@ -171,7 +162,7 @@ class TbVhdEmitter():
         failx = ' '.join('h' + str(h) + '_fail <= false;' for h in range(1, n))
         return [' ' * 12 + passx, ' ' * 12 + failx]
 
-    # -- monitor_harts rising-edge region --------------------------------------
+    # -- monitor_harts rising-edge region
     def emitMonitorEdge(self):
         n = self.n
         if n == 1:

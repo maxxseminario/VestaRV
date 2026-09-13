@@ -1,48 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# privumode.S   (P2 U-mode — privilege round trip, MPP WARL, ECALL-from-U)
-#-----------------------------------------------------------------------------
-# ON-ONLY DIRECTED TEST (needs a trapCsr+umode build). privcsr proves the P1 CSR
-# file and privecall proves P1 delivery; THIS file proves the P2 privilege
-# machinery in csr_unit + the ECALL cause mux in vesta, against
-# ~/work/chip_docs/castalia/priv_arch/p0_specs.md §3 / §3.1:
-#
-#   misa.U (bit 20)        set iff ENABLE_UMODE — the program's ONE misa change
-#   mstatus.MPP WARL       {00,11}: a written 00 STAYS 00; the two UNSUPPORTED
-#                          encodings 01/10 map to 11 (M) — the FROZEN
-#                          conservative direction
-#   MRET                   priv <- MPP, THEN MPP <- 00.  The "THEN MPP <- 00"
-#                          half is negative control (a),
-#                          verification/isa/negctrl/p2_mppstuck_seed.patch, and
-#                          CHECK 8 is its catcher: an MRET taken from M with
-#                          MPP=11 must leave MPP reading 00.
-#   trap entry             MPP <- priv (the INTERRUPTED privilege), priv <- M
-#   ECALL from U           mcause 8 (ECALL from M is 11 — privecall's job)
-#
-# Every failure path is a compare-and-branch into RVTEST_FAIL, never a watchdog
-# hang: the trap counter s3 makes "no trap was delivered at all" bounded too,
-# and the instruction after each U-mode ECALL is an explicit `j pvum_fail` (a
-# resume THERE means the U->M transition never happened).
-#
-# REGISTER CONTRACT (standard mode pushes NOTHING — a U-mode sp is untrusted):
-#   s0  expected mepc for the trap under test  (set in M before entering U)
-#   s1  U-mode witness (written by the U code)
-#   s2  handler address
-#   s3  trap counter (handler increments)
-#   s4  mcause captured in the handler
-#   s5  mepc   captured in the handler
-#   s6  mstatus captured INSIDE the trap (the PUSHED state — MPP = trapped priv)
-#   s9  M-mode continuation address; the handler leaves the trap with `jr s9`
-#       rather than MRET, so the pushed mstatus stays inspectable from M
-#   t4  CHECK ID at every comparison — a FAIL is localisable from a0/t4 alone
-#
-# BUILD-TIME DISPATCH (privcsr / privecall / extjvt idiom): ON iff BOTH
-# -DCORE_ENABLE_TRAPCSR and -DCORE_ENABLE_UMODE are appended to RISCV_GCC_OPTS
-# on a staged trapCsr+umode build. The #else arm FAILs immediately and loudly —
-# privumode is deliberately NOT in the default behavioral_mp runner array, so
-# that arm must never execute.
-#*****************************************************************************
+# VestaRV: U-mode privilege round trip, MPP WARL and ECALL-from-U
+# ON-ONLY, needing a trapCsr and umode build. privcsr proves the CSR file and privecall proves delivery; this file proves the privilege machinery in csr_unit and the ECALL cause mux in vesta. misa.U, bit 20, is set iff ENABLE_UMODE and is the program's one misa change. mstatus.MPP IS WARL TO {00, 11}: a written 00 stays 00, and the two unsupported encodings 01 and 10 map to 11, the frozen conservative direction. MRET sets priv from MPP and THEN sets MPP to 00, and that second half is what check 8 catches: an MRET taken from M with MPP = 11 must leave MPP reading 00. Trap entry sets MPP from the interrupted privilege and priv to M. ECALL from U gives mcause 8, while ECALL from M gives 11 and belongs to privecall.
+# Every failure path is a compare and branch into RVTEST_FAIL rather than a watchdog hang: the trap counter s3 makes "no trap was delivered at all" bounded too, and the instruction after each U-mode ECALL is an explicit jump to the fail label, so a resume there means the U to M transition never happened.
+# REGISTER CONTRACT, standard mode pushing nothing because a U-mode sp is untrusted: s0 the expected mepc for the trap under test, set in M before entering U; s1 the U-mode witness; s2 the handler address; s3 the trap counter; s4 mcause; s5 mepc; s6 the mstatus captured INSIDE the trap, whose MPP is the trapped privilege; s9 the M-mode continuation, which the handler jumps to instead of MRETing so the pushed mstatus stays inspectable from M; t4 the CHECK ID at every comparison.
+# BUILD-TIME DISPATCH: assembled only with both -DCORE_ENABLE_TRAPCSR and -DCORE_ENABLE_UMODE on a staged build; the #else arm fails immediately and loudly, and this file is deliberately not in the default runner array.
 
 #include "riscv_test.h"
 #include "test_macros.h"

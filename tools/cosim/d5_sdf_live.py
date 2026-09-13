@@ -1,54 +1,10 @@
 #!/usr/bin/python3.6
-"""d5_sdf_live.py -- prove that an SDF back-annotation actually HAPPENED.
+"""VestaRV: prove that an SDF back-annotation actually happened.
 
-D5 acceptance instrument, blind-authored 2026-08-10 against d5_spec.md section 6
-("SDF annotation PROVEN live -- the sdf.log consumed, banner quoted -- the
-SDF-silently-optional lesson").  /usr/bin/python3.6 only.
-
-WHY THIS EXISTS, AND WHY THE EXISTING GUARD IS NOT ENOUGH
-    Every gate runner in this tree already carries the 2026-07-29 guard, e.g.
-    xcelium/riscv_test/genus_mp/xrun.sh:80-88.  Read it: it checks that the
-    .sdfcmd EXISTS and that every SDF_FILE it names RESOLVES -- all of it
-    BEFORE xrun starts.  That is a pre-flight check, and it cannot see the one
-    failure the memory entry is about: a run where the annotator did not
-    consume the file, or consumed a DIFFERENT one.  A gate leg whose whole
-    claim is "through the SDF-annotated gates" must show the POST-run half.
-
-WHAT COUNTS AS PROOF, and each item is a POSITIVE artifact rather than an
-absence:
-    1. log/sdf.log exists, is non-empty, and is NEWER than the netlist it
-       annotates (a stale log from a previous cut parses perfectly -- method
-       rule 6, and it is exactly how a 47,012 nearly got quoted against a
-       4,668,509 pin).
-    2. Its header block carries the annotator's own banner:
-       "Annotating SDF timing data:", a "Compiled SDF file:" line, a
-       "Backannotation scope:" line and an "MTM control:" line.
-    3. The compiled-SDF name matches what the caller EXPECTED (--expect-sdf).
-       This is the check that catches the D5-specific mistake nothing else
-       would: pointing the dbgon gate leg at MCU_MP.genus.sdf (the debug-OFF
-       netlist's SDF) instead of MCU_MP.genus.dbgon.sdf.  The two files differ
-       by 13 MB and by whether a TAP exists at all, and the run would look
-       entirely healthy.
-    4. -sdfstats wrote a non-empty statistics file.  Xcelium writes it only
-       when the annotator ran; no annotation, no file.
-
-WHAT IT DELIBERATELY DOES NOT DO
-    It does not count annotations, because Xcelium does not report a count and
-    a fabricated one would be a decorative metric (method rule 9).  The SDFNET
-    warning lines are reported as an OBSERVATION with their source file path,
-    never as a pass/fail.
-
-EXIT CODES -- never a silent skip:
-    0  LIVE
-    1  NOT LIVE (a named, quoted reason)
-    2  CANNOT EVALUATE (an input is missing; says which)
-
-SELF-VALIDATION AGAINST A KNOWN NONZERO (method rule 4)
-    --control <dir> points the same code at an artifact set already on disk
-    that is known to have annotated -- the shipped
-    xcelium/riscv_test/genus_mp/log/ -- and requires it to come out LIVE.  A
-    checker that has only ever been run against the thing it is checking has
-    not been checked.
+The runners' pre-flight guard only shows the .sdfcmd resolves; this reads the post-run half:
+sdf.log non-empty and newer than the netlist, its banner/compiled-SDF/scope/MTM lines present,
+the compiled-SDF name equal to --expect-sdf, a non-empty -sdfstats file. --control <dir> runs
+the same code against a known-live set. Exit 0 live, 1 not live, 2 cannot evaluate.
 """
 
 import os

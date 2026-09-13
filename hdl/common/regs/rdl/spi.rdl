@@ -1,15 +1,6 @@
-// ===========================================================================
-// spi.rdl: the register map of hdl/common/periph/SPI.vhd.
-//
-// THE VHDL IS THE AUTHORITY. Storage widths come from the signal
-// declarations (SPIxCR 19:0, SPIxSR 2:0, SPIxRX/TX 31:0, SPIxFOS 23:0), the
-// slot numbers from MemoryMap.vhd's RegSlotSPIx* and the resets from the
-// reg_write reset branch, where CR, TX and FOS are all zeroed.
-//
-// SPI0 is built with ENABLE_EXTENDED_MEM = true and SPI1 with false; on SPI1
-// the flash FSM is compiled out, SPIxFOS ignores writes and reads 0, and
-// SPIxCR.SPIFEN is still writable storage but is forced to 0 internally.
-// ===========================================================================
+// VestaRV: the register map of hdl/common/periph/SPI.vhd
+// The VHDL is the authority: storage widths come from the signal declarations (SPIxCR 19:0, SPIxSR 2:0, SPIxRX/TX 31:0, SPIxFOS 23:0), the slot numbers from MemoryMap.vhd's RegSlotSPIx* and the resets from the reg_write reset branch, where CR, TX and FOS are all zeroed.
+// SPI0 is built with ENABLE_EXTENDED_MEM = true and SPI1 with false; on SPI1 the flash FSM is compiled out, SPIxFOS ignores writes and reads 0, and SPIxCR.SPIFEN is still writable storage but is forced to 0 internally.
 
 `include "vesta_udp.rdl"
 

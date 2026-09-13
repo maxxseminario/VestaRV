@@ -1,42 +1,9 @@
-// ===========================================================================
-// irq_router.rdl: the register map of hdl/common/irq_router.vhd.
-//
-// THE VHDL IS THE AUTHORITY. The enable rows are 4 words per hart at 4*h,
-// the fourth (HhENX) existing only because NUM_SRCS (124 in this
-// configuration) exceeds 96; NUM_EN_WORDS = ceil(NUM_SRCS/32) = 4 and the live
-// width of the top word is NUM_SRCS - 96 = 28 bits.
-//
-// PARAMETERISED (report R7). Four routing words per hart, and the live MSB of
-// the U and X words follows the interrupt count:
-//
-//     NHARTS   the hart count (1..32); one four-word row per hart
-//     VECTORS  NUM_SRCS, the interrupt source count
-//     UMSB     live MSB of the U words = 31 when VECTORS >= 96, else VECTORS-65
-//     UTOP     top vector the U words cover = min(VECTORS, 96) - 1
-//     XMSB     live MSB of the X words = VECTORS - 97
-//
-// Two SHAPES cannot be a parameter, because SystemRDL has no conditional
-// instantiation and no conditional string, so they are preprocessor guards
-// that generate.py defines. Both are ABSENT for every configuration this
-// generator emits today (the vector floor is 114), and the sense is chosen so
-// that a bare compile of this file is the default five-hart chip:
-//
-//     VESTA_IRQR_NO_XWORDS   VECTORS <= 96: no HhENX / PENDX / INSVCX at all
-//     VESTA_IRQR_U_NARROW    VECTORS <  96: the U words are UMSB:0, not 31:0,
-//                            and their prose states the narrower range
-//
-// CLAIM (word 512, 0x7800) IS NOT A REGISTER: a READ atomically returns the
-// lowest pending source ID enabled for the READING hart -- attributed by the
-// arbiter's granted master, not by any field -- and sets in_service(id);
-// with nothing pending it returns CLAIM_NONE = 0xFFFFFFFF. A WRITE is
-// COMPLETE: it clears in_service(id), is owner-unqualified, and ignores IDs
-// at or above NUM_SRCS. It holds no flop of its own, so it has no reset
-// value in the ordinary sense.
-//
-// The CLINT source IDs (83 msip, 84 mtip) have writable row bits that are
-// INERT: they are delivered per hart on hardwired wires and never routed
-// through meip or claim.
-// ===========================================================================
+// VestaRV: the register map of hdl/common/irq_router.vhd
+// The VHDL is the authority. The enable rows are 4 words per hart at 4*h, the fourth (HhENX) existing only because NUM_SRCS (124 in this configuration) exceeds 96; NUM_EN_WORDS = ceil(NUM_SRCS/32) = 4 and the live width of the top word is NUM_SRCS - 96 = 28 bits.
+// Parameterised: NHARTS the hart count (1..32), one four-word row per hart; VECTORS = NUM_SRCS, the interrupt source count; UMSB the live MSB of the U words = 31 when VECTORS >= 96, else VECTORS-65; UTOP the top vector the U words cover = min(VECTORS, 96) - 1; XMSB the live MSB of the X words = VECTORS - 97.
+// Two SHAPES cannot be a parameter, because SystemRDL has no conditional instantiation and no conditional string, so they are preprocessor guards generate.py defines: VESTA_IRQR_NO_XWORDS (VECTORS <= 96: no HhENX / PENDX / INSVCX at all) and VESTA_IRQR_U_NARROW (VECTORS < 96: the U words are UMSB:0, not 31:0, and their prose states the narrower range). Both are ABSENT for every configuration this generator emits today (the vector floor is 114), so a bare compile of this file is the default five-hart chip.
+// CLAIM (word 512, 0x7800) IS NOT A REGISTER: a READ atomically returns the lowest pending source ID enabled for the READING hart, attributed by the arbiter's granted master rather than by any field, and sets in_service(id); with nothing pending it returns CLAIM_NONE = 0xFFFFFFFF. A WRITE is COMPLETE: it clears in_service(id), is owner-unqualified, and ignores IDs at or above NUM_SRCS. It holds no flop of its own, so it has no reset value in the ordinary sense.
+// The CLINT source IDs (83 msip, 84 mtip) have writable row bits that are INERT: they are delivered per hart on hardwired wires and never routed through meip or claim.
 
 `include "vesta_udp.rdl"
 

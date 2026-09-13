@@ -1,22 +1,10 @@
 #!/usr/bin/env python3
-"""check_myshkin_h_coexist.py -- myshkin.h and the generated register headers
-share a translation unit.
+"""VestaRV: myshkin.h and the generated register headers share a translation unit.
 
-myshkin.h publishes eight SYSTEM registers as object-like macros whose names the
-headers in software/include/regs/ use as struct MEMBERS (SYSCLKCR, CLKDIVCR,
-CRCDATA, CRCSTATE, WDTPASS, WDTCR, WDTSR, WDTVAL). Unguarded, the macros expand
-inside the struct declaration and system_t stops parsing (report R6-2).
-VESTA_LEGACY_SYSTEM_MMR in myshkin.h is the mutual exclusion; this compiles the
-four cases that pin it down, at -Wall -Wextra -Werror, freestanding:
-
-  legacy      myshkin.h alone            the bare macros still work
-  flag        -DVESTA_REGS_STRUCTS       both headers, myshkin.h first
-  regs-first  castalia_regs.h first      both headers, suppression automatic
-  control     neither, myshkin.h first   MUST fail, or this test proves nothing
-
-Usage: check_myshkin_h_coexist.py --cc <gcc> --commune <dir> --regs <dir>
-Relative paths resolve against the working directory, which under bazel is the
-runfiles root.
+myshkin.h publishes eight SYSTEM registers as object-like macros whose names the regs headers
+use as struct members, so unguarded they expand inside the struct and system_t stops parsing.
+VESTA_LEGACY_SYSTEM_MMR is the mutual exclusion, and this compiles the four cases that pin it
+down at -Wall -Wextra -Werror: legacy, flag, regs-first, and a control that must fail.
 """
 
 import argparse

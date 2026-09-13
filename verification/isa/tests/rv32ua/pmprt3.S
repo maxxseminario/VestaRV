@@ -1,58 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# pmprt3.S   (P3 RED TEAM — MPRV corner MPP=M, and the UNCHECKED IRQ_REST
-#             stack pop)
-#-----------------------------------------------------------------------------
-# ON-ONLY DIRECTED TEST (needs a trapCsr+umode+pmp build).  Two independent
-# probes, ordered so the non-destructive one runs first.
-#
-# ---------------------------------------------------------------------------
-# PART 1 (CHECK 10..15) — MPRV=1 WITH MPP=M MUST STAY M-CHECKED.
-#   csr_unit.vhd:1085-1087
-#       data_priv_m <= priv_m when mst_mprv = '0' else
-#                      '1'    when mst_mpp  = MPP_M else '0';
-#   The failure mode this hunts is "MPRV=1 is treated as 'check at U'" — which
-#   would spuriously RESTRICT M-mode software that legitimately sets MPRV
-#   while MPP still holds M (e.g. a trap taken from M, handler sets MPRV
-#   before it has re-pointed MPP).  The discriminator is a single unlocked
-#   full-span deny entry: with MPP=M the load must PASS (an unlocked entry
-#   never constrains M), with MPP=U the SAME load must FAULT.
-#
-# ---------------------------------------------------------------------------
-# PART 2 (CHECK 20..27) — THE IRQ_REST POP IS PMP-EXEMPT (ruled, not a bug).
-#   The red team found the legacy interrupt stack path (IRQ_SV push / IRQ_REST
-#   pop) carries no PMP term: pmp_d_rd/pmp_d_wr check EXECUTE + the four
-#   sequencer states only, and the data_addr IRQ_SV/IRQ_REST arms have no
-#   pmp_d_deny gate. GATEKEEPER RULING (Fable, 2026-07-29): this is INTENTIONAL
-#   and now DOCUMENTED (p0_specs.md §4.1, TRM §5.7). The rationale:
-#     * these states target the PRIVATE stack (TCM 0x8000-0xBFFF) by the
-#       sp-validity contract — never the shared window whose side-effecting
-#       reads (mutex claim / router CLAIM) are the entire point of D5;
-#     * `iret` is M-only (u-gated, maindec.vhd:921) — no U-mode escape;
-#     * IRQ_SV/IRQ_REST fire ONLY in legacy delivery (standard mode's MTRAP_SV
-#       has zero memory transactions), and legacy-mode PMP faults dead-end in
-#       TRAP_STATE by the frozen §4 — legacy delivery is not PMP-integrated;
-#     * the ONLY way to reach IRQ_REST on a standard-mode PMP build is an
-#       `iret`, which in standard mode is a DEFINED-BOUNDED software error
-#       (p0_specs.md §1) — exempting its pop cannot wedge or escalate.
-#   The same ruling dispositions the `iret` EXECUTE-cycle phantom read
-#   (red-team F2): both are the iret sequence, both exempt (vesta.vhd
-#   pmp_d_rd carries `and isr_ret = '0'`).
-#
-#   This test now PINS the exemption: the fenced-stack `iret` returns
-#   NORMALLY (CHECK 25/26), while the plain U-view load positive control
-#   (CHECK 22) still faults — proving the fence is real and the pop bypassed
-#   it BY DESIGN. A future change that PMP-checked the pop would fault it,
-#   resume at rt3_p2_flt, and FAIL (t4=24) — a change-detector on the ruling.
-#
-# BOUNDEDNESS: no loop.  Every probe either completes or lands in the handler,
-# which resumes at s7.
-#
-# REGISTER CONTRACT:
-#   s3 trap counter   s4/s5/s6 cause/mepc/mtval   s7 handler resume PC
-#   s11 trap-count snapshot                       t4 CHECK ID
-#*****************************************************************************
+# VestaRV: red team, MPRV with MPP = M, and the unchecked IRQ_REST stack pop
+# ON-ONLY, needing a trapCsr, umode and pmp build. Two independent probes, ordered so the non-destructive one runs first. Boundedness: no loop; every probe either completes or lands in the handler, which resumes at s7.
+# PART 1: MPRV = 1 WITH MPP = M MUST STAY M-CHECKED. csr_unit sets data_priv_m from priv_m when mst_mprv is clear, and otherwise from whether mst_mpp is M. The failure mode hunted is MPRV = 1 being treated as "check at U", which would spuriously restrict M-mode software that legitimately sets MPRV while MPP still holds M, as a handler does when it sets MPRV before re-pointing MPP. The discriminator is a single unlocked full-span deny entry: with MPP = M the load must pass, since an unlocked entry never constrains M, and with MPP = U the same load must fault.
+# PART 2: THE IRQ_REST POP IS PMP-EXEMPT BY RULING, NOT BY OVERSIGHT. The legacy interrupt stack path, the IRQ_SV push and IRQ_REST pop, carries no PMP term, and that is intentional and documented. The rationale: those states target the PRIVATE stack by the sp-validity contract, never the shared window whose side-effecting reads are the entire point of the pre-issue rule; `iret` is M-only and u-gated, so there is no U-mode escape; IRQ_SV and IRQ_REST fire only in legacy delivery, where PMP faults dead-end in TRAP_STATE and PMP is not integrated at all; and the only way to reach IRQ_REST on a standard-mode PMP build is an `iret`, which in standard mode is a defined-bounded software error, so exempting its pop cannot wedge or escalate. The same ruling covers the `iret` EXECUTE-cycle phantom read.
+# THIS TEST PINS THE EXEMPTION: the fenced-stack `iret` returns normally while the plain U-view load positive control still faults, proving the fence is real and the pop bypassed it by design. A future change that PMP-checked the pop would fault it and fail here, so this is a change-detector on the ruling.
+# REGISTER CONTRACT: s3 the trap counter, s4, s5 and s6 cause, mepc and mtval, s7 the handler resume PC, s11 the trap-count snapshot, t4 the CHECK ID.
 
 #include "riscv_test.h"
 #include "test_macros.h"

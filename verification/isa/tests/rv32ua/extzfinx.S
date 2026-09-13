@@ -1,44 +1,9 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extzfinx.S   (ISA extension program, X4 Zfinx, 2026-07-18)
-#-----------------------------------------------------------------------------
-# Zfinx (single-precision FP in x-registers) adaptive probe. Copied from the
-# extzcb.S / extprobe_template.S pattern and specialised for Zfinx.
-#
-# WHY BUILD-TIME (#ifdef) DISPATCH, NOT RUNTIME misa DISPATCH:
-#   Zfinx sets NO misa bit (misa.F stays 0 by spec), so the misa-branch idiom
-#   of extmul.S/extrvc.S cannot tell whether the chip was built with Zfinx.
-#   And this core DEAD-ENDS an illegal instruction in TRAP_STATE (pc frozen,
-#   trap_flag high, next_state<=TRAP_STATE forever) with NO software trap
-#   recovery, so a "try-execute-and-recover" runtime probe is impossible too.
-#   Therefore dispatch at BUILD TIME on CORE_ENABLE_ZFINX:
-#     ON  build (-DCORE_ENABLE_ZFINX) -> execute a representative slice of the
-#                   Zfinx op set + read the fcsr/fflags/frm CSRs and CHECK the
-#                   architectural results -> RVTEST_PASS.
-#     OFF build (default, no -D) -> base-ISA sanity + RVTEST_PASS. The pass/
-#                   fail runner CANNOT observe a dead-end trap as PASS, so the
-#                   OFF arm must take a NON-trapping path to keep the default
-#                   (Zfinx-off) suite green. The genuine "Zfinx-off => illegal-
-#                   instruction trap" behavior is proven SEPARATELY by the
-#                   extzfinx* poison family (behavioral_mp_stripped/
-#                   run_extoff.sh POISON_RCFS + trap_watch.tcl), one poison per
-#                   FP encoding class (dead-end traps only prove one at a time).
-#
-# HOW CORE_ENABLE_ZFINX IS SET (and why NOT via #include "MemoryMap.h"):
-#   Exactly the extzcb rationale -- the default rv32ua compile line resolves
-#   "MemoryMap.h" to the frozen Myshkin header (fails to preprocess), so this
-#   probe dispatches on the macro DIRECTLY (no #include):
-#     OFF build:  riscv-none-elf-gcc -march=rv32imac ...                (unset)
-#     ON  build:  riscv-none-elf-gcc -march=rv32imac ... -DCORE_ENABLE_ZFINX
-#   The default `make rv32ua-flash` builds the OFF arm (green). The shared
-#   Makefile is NOT modified.
-#
-# GAS: the ON arm's FP mnemonics are wrapped in `.option arch,+zfinx` so the
-#   file assembles under the suite base -march=rv32imac (verified: gas 13.2
-#   accepts every single-precision mnemonic on x-registers this way). fflags/
-#   frm/fcsr reads need +zicsr, added in the same push.
-#*****************************************************************************
+# VestaRV: Zfinx extension probe
+# BUILD-TIME DISPATCH, not runtime misa dispatch, because Zfinx SETS NO misa BIT, misa.F staying 0 by spec, and because this core DEAD-ENDS an illegal instruction in TRAP_STATE with the PC frozen and no software trap recovery, so a try-and-recover runtime probe is impossible. With -DCORE_ENABLE_ZFINX a representative slice of the Zfinx operation set executes, the fcsr, fflags and frm CSRs are read, and the results are checked; without it the file does base-ISA sanity and passes, because the pass/fail runner cannot observe a dead-end trap as a pass and the default Zfinx-off suite must stay green. The genuine "Zfinx off means illegal-instruction trap" behaviour is proven separately by the extzfinx poison family under run_extoff.sh, ONE POISON PER FP ENCODING CLASS, because a dead-end trap only ever proves one at a time.
+# THE MACRO IS PASSED DIRECTLY, NEVER THROUGH #include "MemoryMap.h": on the default rv32ua compile line that name resolves to the frozen Myshkin header, which fails to preprocess. So the OFF build is the plain compile line and the ON build adds only -DCORE_ENABLE_ZFINX, with the shared Makefile unmodified.
+# The ON arm's FP mnemonics are wrapped in `.option arch, +zfinx` so the file assembles under the suite base -march, which gas 13.2 accepts for every single-precision mnemonic on x-registers, and the fflags, frm and fcsr reads need +zicsr, added in the same push.
 
 #include "riscv_test.h"
 #include "test_macros.h"

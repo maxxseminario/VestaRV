@@ -1,22 +1,10 @@
 #!/usr/bin/env python3
-# check_memorymap_vhd.py — Phase-1 acceptance checker for the generated MemoryMap.vhd
-#
-# Parses two VHDL packages (the hand-written RTL one in hdl/common/ and the
-# generated one in out/hdl/) and compares them constant-by-constant:
-#   * every RTL constant must exist in the generated package (missing = FAIL)
-#   * overlapping names must have identical values (mismatch = FAIL: there is
-#     only ONE package in the design, a silent value change would corrupt RTL)
-#   * types must be equivalent (slv == std_logic_vector, sl == std_logic;
-#     natural/integer/positive are distinct-but-compatible -> warning only)
-#   * extra generated constants are fine (informational)
-#
-# Expressions (e.g. "2 ** PeriphSlotGPIO0", "(NUM_IRQS + 31) / 32") are
-# evaluated in file order against previously defined constants; VHDL integer
-# '/' is mapped to Python '//'.
-#
-# Python 3.6 compatible. Usage:
-#   python3 check_memorymap_vhd.py [<rtl.vhd> <generated.vhd>]
-# Exit code 0 = drop-in compatible (names/values), 1 = not.
+# VestaRV: acceptance checker for the generated MemoryMap.vhd.
+# Parses the hand-written RTL package and the generated one and compares them constant by
+# constant: every RTL constant must exist in the generated package, overlapping names must have
+# identical values, and types must be equivalent. Extra generated constants are informational.
+# Expressions are evaluated in file order against previously defined constants, with VHDL
+# integer '/' mapped to Python '//'. Exit 0 means drop-in compatible. Python 3.6 compatible.
 
 import os
 import re

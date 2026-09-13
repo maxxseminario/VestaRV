@@ -1,6 +1,7 @@
+# VestaRV: run the Forth dashboard, a local web UI on port 8050.
+# Needs python3 with the dashboard's dependencies; index.py is the entry point.
 .PHONY: help run start stop kill restart clean logs
 
-# Default target
 help:
 	@echo "Myshkin MCU Configuration Interface - Makefile"
 	@echo ""
@@ -14,7 +15,6 @@ help:
 	@echo "  make logs      - Show recent command logs"
 	@echo ""
 
-# Start the application
 run: stop
 	@echo "Starting Myshkin MCU Configuration Interface..."
 	@echo "Open your browser to: http://localhost:8050"
@@ -22,21 +22,17 @@ run: stop
 
 start: run
 
-# Stop the application gracefully
 stop:
 	@echo "Stopping any running instances..."
 	@lsof -ti:8050 2>/dev/null | xargs -r kill 2>/dev/null || true
 	@sleep 1
 
-# Force kill any processes on port 8050
 kill:
 	@echo "Force killing processes on port 8050..."
 	@lsof -ti:8050 2>/dev/null | xargs -r kill -9 2>/dev/null || true
 
-# Restart the application
 restart: stop run
 
-# Clean up log files and cache
 clean:
 	@echo "Cleaning up..."
 	@rm -f myshkin_commands.log
@@ -45,7 +41,6 @@ clean:
 	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 	@echo "Cleanup complete"
 
-# Show recent logs
 logs:
 	@if [ -f myshkin_commands.log ]; then \
 		echo "Recent command logs:"; \

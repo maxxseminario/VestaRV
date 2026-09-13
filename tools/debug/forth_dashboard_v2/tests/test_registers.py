@@ -1,14 +1,9 @@
-"""
-test_registers.py -- schema + ground-truth validation for registers.json.
+"""VestaRV: schema and ground-truth validation for registers.json.
 
-Run from the forth_dashboard_v2 directory::
+    python3 -m pytest tests/test_registers.py    (run from forth_dashboard_v2/)
 
-    python3 -m pytest tests/test_registers.py
-
-The test loads the checked-in ``data/registers.json`` and independently loads
-the v1 source dicts (``peripherals_config`` / ``bitfields_config``) to
-cross-check that the generator faithfully reproduced them. It also proves the
-generator is deterministic (regenerating into a temp file is byte-identical).
+Loads the checked-in data/registers.json and independently loads the v1 source dicts to
+cross-check the generator reproduced them, and regenerates to prove it is deterministic.
 """
 
 import json
@@ -19,9 +14,7 @@ import tempfile
 
 import pytest
 
-# ---------------------------------------------------------------------------
 # Paths
-# ---------------------------------------------------------------------------
 _TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
 _ROOT = os.path.abspath(os.path.join(_TESTS_DIR, ".."))          # forth_dashboard_v2/
 DATA_DIR = os.path.join(_ROOT, "data")
@@ -30,9 +23,7 @@ GEN_PATH = os.path.join(DATA_DIR, "gen_registers.py")
 V1_DIR = os.path.abspath(os.path.join(_ROOT, "..", "forth_dashboard"))
 
 
-# ---------------------------------------------------------------------------
 # Fixtures
-# ---------------------------------------------------------------------------
 @pytest.fixture(scope="module")
 def doc():
     """Parse the checked-in registers.json."""
@@ -51,9 +42,7 @@ def v1():
     return peripherals_config.PERIPHERALS, bitfields_config.BITFIELDS
 
 
-# ---------------------------------------------------------------------------
 # Structural / schema checks
-# ---------------------------------------------------------------------------
 def test_json_parses_and_top_level_shape(doc):
     assert isinstance(doc, dict)
     assert doc["chip"] == "myshkin"
@@ -101,9 +90,7 @@ def test_keys_are_sorted(doc):
             assert fields == sorted(fields)
 
 
-# ---------------------------------------------------------------------------
 # Ground-truth spot checks (hard-coded)
-# ---------------------------------------------------------------------------
 def test_spot_checks(doc):
     p = doc["peripherals"]
     assert p["GPIO0"]["registers"]["PIN"]["addr"] == 0x4000
@@ -127,14 +114,10 @@ def test_spot_checks(doc):
     assert dtp1["lsb"] == 5 and dtp1["width"] == 5
 
 
-# ---------------------------------------------------------------------------
 # Invariants
-# ---------------------------------------------------------------------------
 def test_fields_fit_in_register(doc):
-    """Every resolved field fits inside its register (lsb+width <= 8*size).
-
-    Verified to hold for all 369 resolved fields in the v1 data; if a v1 quirk
-    ever breaks it, this test surfaces the offender explicitly.
+    """Every resolved field fits inside its register, lsb + width <= 8*size. If a v1 quirk ever
+    breaks it, this surfaces the offender explicitly.
     """
     offenders = []
     for pname, pdef in doc["peripherals"].items():
@@ -163,9 +146,7 @@ def test_addr_within_page_of_base(doc):
             assert base <= rdef["addr"] < base + 0x100, "%s.%s" % (pname, rname)
 
 
-# ---------------------------------------------------------------------------
 # Cross-check vs the v1 dicts (loaded independently)
-# ---------------------------------------------------------------------------
 def test_matches_v1_peripherals_and_registers(doc, v1):
     peripherals, _ = v1
     assert set(doc["peripherals"]) == set(peripherals)
@@ -207,9 +188,7 @@ def test_field_resolution_matches_v1_mapping(doc, v1):
                     assert g["values"] == {str(k): v for k, v in finfo["values"].items()}
 
 
-# ---------------------------------------------------------------------------
 # Determinism
-# ---------------------------------------------------------------------------
 def test_regeneration_is_byte_identical():
     with open(JSON_PATH, "rb") as fh:
         checked_in = fh.read()

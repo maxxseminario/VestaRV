@@ -1,100 +1,13 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# dbgprvmp.S   (D-series, D2 -- dcsr.prv UNDER A U-MODE VICTIM; carryover 3)
-#-----------------------------------------------------------------------------
-# BLIND-AUTHORED against d2_spec.md section 8 and d1_spec.md section 1
-# (dcsr.prv), FROZEN 2026-08-05, by an agent that has not seen and will never
-# see the D2 implementation.  Committed polarity: CORRECT RTL = PASS.
-#
-# NEEDS A HARNESS:  ./xrun_dbg.sh rv32ua-p-dbgprvmp dbg_prv.tcl
-#
-# THE ROW IT RUNS ON: config/castalia_debug.json, THE 29th, AS AMENDED.
-#   This file needs debug.enable AND priv.umode in the SAME build.  When it was
-#   written no config in the tree had both -- the two debug rows omitted
-#   priv.umode and the two umode rows were debug-OFF -- and the acceptance
-#   author reported that as a spec gap rather than inventing a config.
-#   R-D2-2(2) ruled it: **castalia_debug.json gains
-#   "priv": {"trapCsr": true, "umode": true}**, explicitly rather than by
-#   inheritance (the CLAUDE.md inheritance-trap discipline), and there is NO
-#   31st Castalia row.  The re-base and the new CATALOG rows are ONE
-#   deliberate re-pin of that row's verify count, predicted before measured.
-#   argus_debug.json stays minimal: this instrument has no N=18 obligation.
-#       SUITE=full make verify CONFIG=config/castalia_debug.json
-#   The d2mut `umode` scratch arm remains available for a hand-staged run
-#   (it is how this file's liveness control was proved), but it is no longer
-#   the only vehicle.
-#
-# WHY dcsr.prv NEEDS A U-MODE VICTIM AT ALL -- the D1 residual, quoted
-#   d1_acceptance_report section 4: "no mutant here targets dcsr.prv, because
-#   every victim in this set is in M-mode and a prv that always reads 3 is
-#   indistinguishable from a correct one".  R-D1-3(2) made it a NAMED D2 item.
-#   The ONLY way to distinguish is a victim that is genuinely NOT in M-mode
-#   when it is halted, so this file's whole construction exists to put one
-#   there and to prove it was there.
-#
-# THE TWO-SIDED PROOF
-#   * the DM side (dbg_prv.tcl): abstract-read dcsr (0x7B0) on the halted
-#     victim and require prv == 0.  That is the assertion carryover 3 asks
-#     for, and it is only meaningful if the victim really was in U-mode --
-#     which the harness cannot know.
-#   * the ARCHITECTURAL side (this file): the victim proves its own privilege
-#     TWICE, once before the halt and once after the resume, by executing
-#     `ecall` and having the M-mode handler record mcause.  ECALL_FROM_U is
-#     cause 8; ECALL_FROM_M is cause 11.  Two 8s bracket the debug visit:
-#     the first says the victim was in U when it parked, the second says
-#     `dret` put it back in U and not in M.  A dret that silently promoted
-#     the hart would give 11 on the second -- and nothing else in the D-series
-#     can see that.
-#
-# THE DELIVERY PATH, and why the test must ask for it
-#   trapCsr defaults ON (R-DK3) but mtrapctl.LEGACY RESETS TO 1, so a fresh
-#   hart delivers traps down the legacy irq_handler/IVT path and mtvec is not
-#   consulted.  Standard delivery is a per-hart FIRMWARE OPT-IN: `csrw 0x7C0,
-#   x0`.  The victim does exactly that before it drops to U, and it never
-#   parks with `extinguish` afterwards -- the CLAUDE.md PARK/WAKE hazard
-#   (clearing LEGACY on a hart that then EXTINGUISHes makes it UNWAKEABLE) is
-#   avoided by construction, not by luck.  hart 0 is untouched and keeps the
-#   legacy path.
-#
-# ---------------------------------------------------------------------------
-# VERDICT.  a0 = 0xCAFEBABE => the victim was in U-mode before the halt, and
-# `dret` returned it to U-mode.
-#   a1 = 0x0D240001   a shared word did not read back
-#   a1 = 0x0D240002   base-ISA sanity failed
-#   a1 = 0x0D240003   THE VICTIM NEVER FINISHED (a2 = PROG): 1 = reached
-#                     U-mode, 2 = first ecall taken, 3 = parked, 4 = released.
-#                     Under xrun_batch.sh this is the expected result.
-#   a1 = 0x0D240004   the FIRST ecall did not report cause 8 (a2 = mcause):
-#                     the victim was not in U-mode when it parked, so the
-#                     whole test would have been measuring nothing
-#   a1 = 0x0D240005   the SECOND ecall did not report cause 8 (a2 = mcause):
-#                     `dret` did not return the hart to U-mode.  a2 = 11 means
-#                     it came back in M -- a privilege ESCALATION through the
-#                     debug visit
-#   a1 = 0x0D240006   the victim's U-mode counter did not advance across the
-#                     debug visit (a2 = the counter): it never really resumed
-#
-# NEGATIVE CONTROL -- how the non-DM half was SEEN TO WORK:
-#   -DDBGPRV_NC_SELF.  The victim releases itself instead of waiting for the
-#   harness, so both ecalls, both mcause recordings, the U-mode counter and
-#   hart 0's whole assertion chain run with no debugger at all.  A PASS proves
-#   the privilege plumbing and the grading are LIVE (method rule 5); it makes
-#   no claim about dcsr.prv and must never be quoted as a D2 result.
-#
-# N-AGNOSTIC.  ONE victim, hart 1, at any NHARTS.
-#
-# SHARED WORDS CLAIMED -- the D-series debug acceptance band 0x10050-0x1007C,
-#   REUSED with this file's meanings (one image per sim):
-#     0x10050  READY     victim: in U-mode, first ecall done, about to park
-#     0x10054  REL       the harness plants 1 here to release the victim
-#     0x10058  DONE      victim: second ecall done, everything published
-#     0x1005C  CAUSE1    mcause of the ecall taken BEFORE the halt (want 8)
-#     0x10060  CAUSE2    mcause of the ecall taken AFTER the resume (want 8)
-#     0x10064  UCNT      the victim's U-mode counter
-#     0x10068  PROG      victim progress
-#     0x1006C-0x1007C  unused by this file
-#*****************************************************************************
+# VestaRV: dcsr.prv under a U-mode victim
+# NEEDS A HARNESS: ./xrun_dbg.sh rv32ua-p-dbgprvmp dbg_prv.tcl. IT NEEDS debug.enable AND priv.umode IN THE SAME BUILD, which is config/castalia_debug.json, whose priv block sets trapCsr and umode EXPLICITLY rather than by inheritance. Run it as `SUITE=full make verify CONFIG=config/castalia_debug.json`. argus_debug.json stays minimal: this instrument has no N=18 obligation.
+# dcsr.prv NEEDS A U-MODE VICTIM, because a prv that always reads 3 is indistinguishable from a correct one when every victim is in M-mode. The whole construction exists to put a hart genuinely outside M-mode when it is halted and to prove it was there.
+# THE PROOF IS TWO-SIDED. The DM side, in dbg_prv.tcl, abstract-reads dcsr on the halted victim and requires prv == 0, which is only meaningful if the victim really was in U-mode, something the harness cannot know. The ARCHITECTURAL side is this file: the victim proves its own privilege TWICE, once before the halt and once after the resume, by executing `ecall` and having the M-mode handler record mcause. ECALL_FROM_U is cause 8 and ECALL_FROM_M is cause 11, so two 8s bracket the debug visit, the first saying the victim was in U when it parked and the second that dret put it back in U rather than M. A dret that silently promoted the hart would give 11 on the second, and nothing else in the series can see that.
+# THE DELIVERY PATH MUST BE ASKED FOR: trapCsr defaults on but mtrapctl.LEGACY RESETS TO 1, so a fresh hart delivers traps down the legacy IVT path and mtvec is not consulted. Standard delivery is a per-hart firmware opt-in, `csrw 0x7C0, x0`, which the victim does before it drops to U. It never parks with `extinguish` afterwards, because clearing LEGACY on a hart that then extinguishes makes it UNWAKEABLE; that is avoided by construction, not by luck. Hart 0 is untouched and keeps the legacy path.
+# Verdicts: a0 = 0xCAFEBABE means the victim was in U-mode before the halt and dret returned it to U-mode. a1 = 0x0D240001 a shared word did not read back; 0x0D240002 base-ISA sanity failed; 0x0D240003 the victim never finished, with a2 = PROG naming how far, 1 reached U-mode, 2 first ecall taken, 3 parked, 4 released, which is the expected result under a plain batch run; 0x0D240004 the first ecall did not report cause 8, so the victim was not in U-mode when it parked and the whole test would have measured nothing; 0x0D240005 the second ecall did not report cause 8, so dret did not return the hart to U-mode, and a2 = 11 means it came back in M, a privilege escalation through the debug visit; 0x0D240006 the victim's U-mode counter did not advance across the visit, so it never really resumed.
+# NEGATIVE CONTROL -DDBGPRV_NC_SELF: the victim releases itself instead of waiting for the harness, so both ecalls, both mcause recordings, the U-mode counter and hart 0's whole assertion chain run with no debugger at all. A pass proves the privilege plumbing and the grading are LIVE; it makes no claim about dcsr.prv.
+# N-agnostic: one victim, hart 1, at any NHARTS. Shared words, in the D-series debug acceptance band 0x10050-0x1007C, reused with this file's meanings under the one-image-per-sim rule: 0x10050 READY, 0x10054 REL (harness-planted to release the victim), 0x10058 DONE, 0x1005C CAUSE1 (want 8), 0x10060 CAUSE2 (want 8), 0x10064 UCNT, 0x10068 PROG.
 
 #include "riscv_test.h"
 #include "test_macros.h"

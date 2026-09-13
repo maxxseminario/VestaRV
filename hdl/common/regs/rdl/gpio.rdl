@@ -1,25 +1,7 @@
-// ===========================================================================
-// gpio.rdl: the register map of hdl/common/periph/GPIO.vhd.
-//
-// Six 8-pin ports (num_pins = 8 on every instance in this chip; the block
-// asserts num_pins <= 8 because PxAFS packs one nibble per pin).
-// THE VHDL IS THE AUTHORITY: the slot numbers are MemoryMap.vhd's
-// RegSlotPx* constants plus the LOCAL constant RegSlotPxTASK = 12, the
-// widths come from `signal Px* : std_logic_vector(num_pins-1 downto 0)`
-// and the resets from the RstValPx* generics, which differ PER PORT and are
-// applied at the instance in castalia_penta_wound.rdl.
-//
-// Three registers the generator models 32 bits wide are only num_pins wide
-// in the RTL: PxOUTT, PxIF and PxTASK all loop `for i in 0 to (num_pins/8)-1`
-// on the write side and read back `read_data_buff(num_pins-1 downto 0)`. They
-// are 32 in the emitted map because Peripheral.ChangeGPIOPortSize's
-// registersToChange list names P?IFG, P?RIF and P?FIF -- registers this GPIO
-// does not have -- and never mentions P?OUTT, P?IF or P?TASK, so the narrowing
-// that reaches the other ten misses those three. PxAFS is genuinely 32: it is
-// a nibble per pin.
-// PxOUT is hw=rw because the event fabric's task_outset / task_outclr write
-// it directly (CLR wins a same-cycle overlap).
-// ===========================================================================
+// VestaRV: the register map of hdl/common/periph/GPIO.vhd
+// Six 8-pin ports (num_pins = 8 on every instance in this chip; the block asserts num_pins <= 8 because PxAFS packs one nibble per pin). The VHDL is the authority: the slot numbers are MemoryMap.vhd's RegSlotPx* constants plus the LOCAL constant RegSlotPxTASK = 12, the widths come from `signal Px* : std_logic_vector(num_pins-1 downto 0)` and the resets from the RstValPx* generics, which differ PER PORT and are applied at the instance in castalia_penta_wound.rdl.
+// PxOUTT, PxIF and PxTASK are only num_pins wide in the RTL but 32 in the emitted map, because Peripheral.ChangeGPIOPortSize's registersToChange list names registers this GPIO does not have and never mentions those three. PxAFS is genuinely 32: it is a nibble per pin.
+// PxOUT is hw=rw because the event fabric's task_outset / task_outclr write it directly (CLR wins a same-cycle overlap).
 
 `include "vesta_udp.rdl"
 

@@ -1,41 +1,10 @@
 #!/usr/bin/env python3
-"""Inline a PSL vunit file into a copy of the bench architecture it binds.
+"""VestaRV: inline a PSL vunit file into a copy of the bench architecture it binds.
 
-WHY THIS EXISTS, measured on GHDL 6.0.0 (mcode) and not assumed:
-
-  * `ghdl -a foo.psl` ACCEPTS a standalone vunit file and registers it in the
-    work library ("vunit pmp_grant_props at 30(1509)" appears in work-obj08.cf).
-  * The vunit is then NEVER elaborated.  `ghdl --elab-order` does not list the
-    .psl file, and a vunit holding a deliberately false property over the
-    bench's own signals produces ZERO fires -- in a separate `ghdl -a` + `-r`
-    pair and in a single `ghdl -c ... -r` process alike.
-  * The IDENTICAL property written as a `-- psl` comment inside the
-    architecture fires ten times over the same stimulus.
-
-So a bazel target that analyzed the .psl files and ran the bench would be
-GREEN AND VACUOUS.  This tool moves the directives into the one form GHDL's
-simulator does evaluate, mechanically, from the tracked .psl file, so the
-properties stay single-sourced and the target is not hollow.
-
-GHDL PSL facts this relies on, each measured:
-  * `-- psl <stmt>;` starts a directive; it continues on following lines that
-    are PLAIN `--` comments.  Repeating the `psl` keyword on a continuation
-    line is a syntax error, so statements are emitted flattened to one line.
-  * `assert <prop> report "<string>";` and `cover {<sere>} report "<string>";`
-    are both supported, and the string is what GHDL prints, which is the only
-    way to tell one directive from another in the run log.
-  * a `(psl assertion error)` does NOT change GHDL's exit code by itself;
-    `--assert-level=error` makes the first one abort the run with rc 1.
-  * PSL `cover` IS reported, as "(psl cover note)".  That is a GHDL property,
-    not a general one: the xcelium flow these files were written for reports
-    nothing for cover, which is why the witness files use `assert never`.
-
---tally additionally emits a plain VHDL process that samples each witness
-boolean on the same clock and reports a single banner once EVERY witness has
-been seen.  It exists because ghdl_test grades on one fixed string, and
-"all N witnesses fired" is not a fixed string GHDL prints.  The PSL directives
-are emitted too and are evaluated independently; the tally is a mirror of the
-same source text, not a substitute for it.
+GHDL 6.0.0 accepts a standalone .psl vunit and then never elaborates it, so a target that
+analyzed one and ran the bench would be green and vacuous; the same property as a `-- psl`
+comment inside the architecture does fire. Directives are emitted flattened to one line,
+since repeating the psl keyword on a continuation line is a syntax error.
 """
 
 import argparse

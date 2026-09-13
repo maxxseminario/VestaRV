@@ -1,33 +1,9 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# afselv2.S  (GPIO multi-AF v2: relocatable peripheral INPUTS)
-#-----------------------------------------------------------------------------
-# System-level proof of the pin-mux v2 input relocations (afsel.S proved the
-# v1 machinery: PxAFS semantics, output planes, the 2-way T0CAP0 input mux).
-# v2 adds io slots to the spread planes and extends the input muxes to fixed
-# priority chains (v2 pad > AF1 pad > home). This test drives the two NEW mux
-# shapes end-to-end with the software-loopback pattern (input routing keys on
-# PxAFS alone, so the candidate pad can stay in GPIO output mode):
-#
-#   gp=2      SPI1 master setup (8-bit, SCK=SMCLK/8)
-#   gp=3      NEGATIVE CONTROL: P4AFS field6=0 -> MISO1 still observes its
-#             driven-low home pad P2.1: transfer receives 0x00
-#   gp=4      P4AFS field6=7 -> MISO1 observes P4.6 (v2 spread io slot,
-#             AF7): with the pad GPIO-driven high, transfer receives 0xFF
-#   gp=5      ...and with P4.6 driven low, 0x00 (really tracking the pad)
-#   gp=6      UART0 setup (57.6k @ 24 MHz: BR=25) + TIMER0 free-run on MCLK
-#             as the bit-clock (poll-until-counting, clock-mux handoff)
-#   gp=7      NEGATIVE CONTROL: a full bit-banged frame on P4.5 with
-#             P4AFS=0 must NOT be received (RX0 watches home P2.5, held 1)
-#   gp=8      P4AFS field5=2 -> RX0 observes P4.5 (v2 spread io slot, AF2):
-#             a timer-paced 0xA5 frame is received clean (RCIF, no FEF/OVF)
-#   gp=9      second frame 0x3C received (not a one-shot fluke)
-#
-# Port bases are RTL numbering: GPIO1=P2 @0x4100, GPIO3=P4 @0x4D00.
-# Hart 0 only (tiles stay parked). Bounded polls only (inside the 100ms
-# tb watchdog). Requires SPI1 (verify_stage tags this test 'spi1').
-#*****************************************************************************
+# VestaRV: relocatable peripheral inputs, pin-mux v2
+# afsel.S proves the v1 machinery, the PxAFS semantics, the output planes and the two-way capture input mux; v2 adds io slots to the spread planes and extends the input muxes to fixed priority chains, v2 pad over AF1 pad over home. This test drives the two NEW mux shapes end to end with the software-loopback pattern, which works because INPUT ROUTING KEYS ON PxAFS ALONE and the candidate pad can stay in GPIO output mode.
+# The phases, by gp: 2 sets up SPI1 as an 8-bit master; 3 is a NEGATIVE CONTROL where MISO1 still observes its driven-low home pad and the transfer receives 0x00; 4 routes MISO1 to a v2 spread io slot with the pad driven high and the transfer receives 0xFF; 5 drives the same pad low and receives 0x00, so it really tracks the pad; 6 sets up UART0 at 57.6k and a free-running TIMER0 on MCLK as the bit clock, polling until it counts for the clock-mux handoff; 7 is a NEGATIVE CONTROL where a full bit-banged frame on an unrouted pad must NOT be received, since RX0 watches its home pad held high; 8 routes RX0 to the v2 spread io slot and a timer-paced 0xA5 frame is received clean, with the receive flag set and no framing or overrun error; 9 receives a second frame, so it is not a one-shot fluke.
+# Port bases use RTL numbering, so GPIO1 is P2 at 0x4100 and GPIO3 is P4 at 0x4D00. Hart 0 only, with the tiles parked, and all polls are bounded inside the 100 ms tb watchdog. It requires SPI1 and is tagged accordingly.
 
 #include "riscv_test.h"
 #include "test_macros.h"

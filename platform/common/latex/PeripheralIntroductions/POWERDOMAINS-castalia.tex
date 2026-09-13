@@ -1,10 +1,9 @@
-% Power-domain material for the consolidated "Reset, clocks and power"
-% chapter. Input by TRM.template.tex, which owns the \chapter; this file
-% carries the \section{Power domains} (label s:powerdomains, referenced by the
-% template) and \subsection headings under it. Extracted from the PWRCTRL intro (2026-08); the
-% PWRCTRL chapter keeps the register-level sequencer and boot-gate description.
-% Hart numbering is derived: gateable harts are 1--\MaxHartIndex{} at every
-% hart count, and \PwrGateMask is the PWRCR mask those bits make.
+% VestaRV: power-domain material for the TRM's "Reset, clocks and power" chapter.
+% Input by TRM.template.tex, which owns the \chapter; this file carries the
+% \section{Power domains} (label s:powerdomains, referenced by the template) and the
+% \subsection headings under it. The PWRCTRL chapter keeps the register-level sequencer
+% and boot-gate description. Hart numbering is derived: gateable harts are
+% 1--\MaxHartIndex{} at every hart count, and \PwrGateMask is the PWRCR mask they make.
 \section{Power domains} \label{s:powerdomains}
 
 The chip has one always-on power domain and one switchable domain per channel tile. Everything the rest of the chip needs (the arbiter, the boot ROM, the shared RAM, the peripherals, the pad ring and hart 0) sits on the unswitched \texttt{VDD} rail. Each channel tile, harts 1 to \MaxHartIndex{}, has a rail of its own behind PMOS header switches, with isolation cells clamping every signal that leaves the tile while it is unpowered, and a per-tile hardware sequencer in \peripheral{PWRCTRL} that applies the controls in the legal order in both directions. Figure \ref{fig:pwr-domains} draws the two domains and the four controls that gate one tile.

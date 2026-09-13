@@ -1,9 +1,11 @@
-# VestaRV Firmware Projects Makefile
-# This makefile helps create and manage firmware projects
+# VestaRV: create and manage the firmware projects in this directory.
+# `make new PROJECT=<name> [TYPE=ram|rom]` writes a project from the templates in
+# the define blocks below; those templates emit the new project's own makefile,
+# main.c and start.S, so their quoted '#' lines are generated content, not
+# comments on this file.
 
 .PHONY: help new clean-all build-all list
 
-# Default target
 help:
 	@echo "VestaRV Firmware Project Manager"
 	@echo ""
@@ -23,7 +25,6 @@ help:
 	@echo "Example with type:"
 	@echo "  make new PROJECT=my-bootloader TYPE=rom"
 
-# Create new project with standard structure
 new:
 	@if [ -z "$(PROJECT)" ]; then \
 		echo "Error: PROJECT name required"; \
@@ -50,7 +51,7 @@ new:
 	echo "  3. make all"; \
 	echo ""
 
-# List all firmware projects (directories with makefiles)
+# A firmware project is a directory holding a makefile.
 list:
 	@echo "Firmware Projects:"
 	@for dir in */; do \
@@ -59,7 +60,6 @@ list:
 		fi; \
 	done
 
-# Build all projects
 build-all:
 	@echo "Building all firmware projects..."
 	@for dir in */; do \
@@ -70,7 +70,6 @@ build-all:
 	done
 	@echo "All projects built successfully"
 
-# Clean all projects
 clean-all:
 	@echo "Cleaning all firmware projects..."
 	@for dir in */; do \
@@ -81,7 +80,6 @@ clean-all:
 	done
 	@echo "All projects cleaned"
 
-# Function to create barebones project makefile
 define create_makefile
 	printf '%s\n' \
 		'# $(1) Firmware Makefile' \
@@ -255,7 +253,6 @@ define create_makefile
 		> $(1)/makefile
 endef
 
-# Function to create template main.c
 define create_main_c
 	printf '%s\n' \
 		'/*' \
@@ -282,7 +279,6 @@ define create_main_c
 		> $(1)/src/main.c
 endef
 
-# Function to create template start.S
 define create_start_s
 	printf '%s\n' \
 		'/*' \

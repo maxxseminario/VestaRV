@@ -1,24 +1,7 @@
-// ===========================================================================
-// castalia_penta_wound.rdl: the whole memory-mapped register space of the
-// tapeout configuration, platform/common/config/penta_wound.json.
-//
-// One instance per peripheral the resolved configuration instantiates, at the
-// base address the generator computes, carrying its interrupt vector as
-// vesta_vector. The addresses are the CPU byte addresses, so this addrmap is
-// based at 0 and the instances sit at 0x4000 and up.
-//
-// PER-INSTANCE RESET VALUES. Two blocks reset differently in different
-// instances because the RTL takes the value as a GENERIC, and those are
-// dynamically assigned at the bottom of this file:
-//   GPIO   RstValPxOUT / PxDIR / PxSEL / PxREN / PxAFS, one set per port
-//          (MemoryMap.vhd "GPIO Register Reset Values"; GPIO0 = P1 there).
-//   I2C    I2CxAR resets to the default_SAD generic: 0x79 on I2C0 and 0x23
-//          on I2C1 (constants.vhd i2c0_default_SAD / i2c1_default_SAD).
-// The generator models every one of them as resetting to 0.
-//
-// NOT IN THIS MAP, and neither is a memory-mapped register:
-//   debug_module.vhd  -- DMI address space, described in debug_module.rdl.
-// ===========================================================================
+// VestaRV: the whole memory-mapped register space of the tapeout configuration, platform/common/config/penta_wound.json
+// One instance per peripheral the resolved configuration instantiates, at the base address the generator computes, carrying its interrupt vector as vesta_vector. The addresses are CPU byte addresses, so this addrmap is based at 0 and the instances sit at 0x4000 and up.
+// Two blocks reset differently in different instances because the RTL takes the value as a GENERIC, assigned at the bottom of this file: GPIO RstValPxOUT / PxDIR / PxSEL / PxREN / PxAFS, one set per port (MemoryMap.vhd "GPIO Register Reset Values"; GPIO0 = P1 there), and I2C I2CxAR, which resets to the default_SAD generic, 0x79 on I2C0 and 0x23 on I2C1. The generator models every one of them as resetting to 0.
+// debug_module.vhd is not in this map and is not a memory-mapped register block: it lives in the DMI address space, described in debug_module.rdl.
 
 `include "clint.rdl"
 `include "dma.rdl"
@@ -79,7 +62,7 @@ addrmap castalia_penta_wound {
     evfab      EVFAB      @0x6B00;
     irq_router IRQROUTER  @0x7000;
 
-    // ---- interrupt vectors ------------------------------------------------
+    // Interrupt vectors.
     // The vector each instance owns, from the resolved configuration. A block
     // with no vector (PWRCTRL, MUTEX, EVFAB, IRQROUTER) carries none.
     GPIO0      ->vesta_vector = 1;
@@ -109,7 +92,7 @@ addrmap castalia_penta_wound {
     TRNG0      ->vesta_vector = 121;
     I2CT0      ->vesta_vector = 122;
 
-    // ---- per-instance reset values ----------------------------------------
+    // Per-instance reset values.
     // GPIO0
     GPIO0.PxOUT.PxOUT->reset = 8'h01;
     GPIO0.PxDIR.PxDIR->reset = 8'h41;

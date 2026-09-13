@@ -1,16 +1,13 @@
 #!/usr/bin/env bash
-# isa_suite_test.sh — bazel sh_test entry for one GHDL ISA suite.
-#
+# VestaRV: bazel sh_test entry for one GHDL ISA suite.
 # Argv: <suite> <rlocationpath of @ghdl//:ghdl>
-#
-# Everything is hermetic: the ghdl binary and its pre-analyzed VHDL-2008
-# std/ieee libraries come from the @ghdl module, the ON-polarity images from
-# //verification/isa's os_* targets, the RTL from //hdl:vhdl_sources — the
-# host contributes only bash and coreutils. The wrapper adapts the runfiles
-# layout to run_isa.sh's prebuilt-image mode (ISA_BUILD_DIR/ISA_WORK_DIR):
-# images are staged into TEST_TMPDIR because run_isa.sh globs a per-suite
-# directory, and the GHDL work library lands there because the source tree
-# (runfiles) is read-only.
+# The run is hermetic: the ghdl binary and its pre-analysed VHDL-2008 std and
+# ieee libraries come from the @ghdl module, the ON-polarity images from
+# //verification/isa's os_* targets and the RTL from //hdl:vhdl_sources, leaving
+# the host to supply bash and coreutils. This wrapper adapts the runfiles layout
+# to run_isa.sh's prebuilt-image mode: the images are staged into TEST_TMPDIR
+# because run_isa.sh globs a per-suite directory, and the GHDL work library lands
+# there because the runfiles tree is read-only.
 set -euo pipefail
 
 suite="$1"

@@ -1,13 +1,9 @@
-% Privileged-architecture chapter (P-series, 2026-07). CONFIGURATION-DRIVEN.
-% The chapter itself always renders: the legacy vectored trap mechanism it
-% opens with is the shipping default of every build, so describing it is the
-% honest description of the hardware. The standard-mode, U-mode and PMP
-% sections are wrapped in \ifprivtrapcsr / \ifprivumode / \ifprivpmp, emitted
-% by LatexUserGuide.GenerateDefinesFile() from priv.trapCsr / priv.umode /
-% priv.pmp; \PmpEntries is the configured entry count. A build therefore
-% documents only the privileged hardware it actually contains.
-% Sources (do not write this chapter from memory of the RTL): the frozen
-% P-series specifications and the phase reports.
+% VestaRV: privileged-architecture chapter of the TRM, configuration-driven.
+% The chapter always renders: the legacy vectored trap mechanism it opens with is the
+% shipping default of every build. The standard-mode, U-mode and PMP sections are
+% wrapped in \ifprivtrapcsr / \ifprivumode / \ifprivpmp, emitted from priv.trapCsr /
+% priv.umode / priv.pmp by LatexUserGuide.GenerateDefinesFile(); \PmpEntries is the
+% configured entry count. Write it from the frozen P-series specifications, not memory.
 \chapter{Privileged Architecture} \label{s:privarch}
 
 Every VestaRV hart executes at the RISC-V \textit{machine} (M) privilege level, the level that owns the whole address space and every control register. What differs between configurations is how a hart \textit{takes a trap} (an interrupt or an exception) and whether it can drop to the \textit{user} (U) privilege level and be fenced off from memory it does not own.
@@ -113,10 +109,10 @@ A minimal handler installation looks like this (the assembler needs the Zicsr ex
     .option pop
 \end{verbatim}
 
-% Row striping across a CONDITIONAL row: the user-mode environment-call row
-% flips the shade parity of every row below it, so those rows take their shade
-% from a pair of macros that swap with \ifprivumode instead of a literal
-% \rowcolor. (Both branches must define both macros, or the OFF build breaks.)
+% Row striping across a conditional row: the user-mode environment-call row flips the
+% shade parity of every row below it, so those rows take their shade from a pair of
+% macros that swap with \ifprivumode instead of a literal \rowcolor. Both branches
+% must define both macros, or the off build breaks.
 \ifprivumode
 \newcommand{\privstripeA}{\rowcolor{tablehighlightcolor}}
 \newcommand{\privstripeB}{}

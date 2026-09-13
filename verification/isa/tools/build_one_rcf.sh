@@ -6,24 +6,19 @@
 #   ./tools/build_one_rcf.sh tests/rv32ua/dbgdenymp.S rv32ua-p-dbgdenymp
 #   ./tools/build_one_rcf.sh tests/rv32ua/dbgdenymp.S rv32ua-p-ddnc7b0 -DDBGDENY_NC_7B0
 #
-# WHY IT EXISTS.  `make rv32ua-flash` is the right tool for the standing image
-# set and the wrong tool for a single staged instrument or a negative control:
-#   * `build/` is WIPED whenever `build/.imgset` changes (CLAUDE.md), so adding
-#     one test name to a Makefrag destroys and rebuilds every rv32ua image --
-#     shared state, and the reason only one agent works in this tree at a time;
-#   * a per-test `-D` control arm has no expression in the Makefrag at all;
-#   * `make <suite>-flash` re-prepends the SPI header over a glob, and a STALE
-#     .rcf in rcf/ picks up a SECOND header (the K5 026a0ae trap) -- an image
-#     that traps at 0x8200 with instr_curr = 0 and looks exactly like a core bug.
-# This script builds into its own directory, prepends exactly once, and writes
-# the finished padded image straight to rcf/ with `rm -f` first (the safe idiom).
+# `make rv32ua-flash` is the wrong tool for a single staged instrument or a
+# negative control: build/ is wiped whenever build/.imgset changes, so adding one
+# test name to a Makefrag rebuilds every rv32ua image; a per-test -D control arm
+# has no expression in a Makefrag; and `make <suite>-flash` re-prepends the SPI
+# header over a glob, so a stale .rcf in rcf/ picks up a second header and traps
+# at 0x8200 with instr_curr = 0, which reads exactly like a core bug.
 #
-# It replicates the Makefile recipe verbatim; if that recipe ever changes, this
-# file is wrong and the drift will show up as an image that does not boot.
+# This replicates the Makefile recipe verbatim. If that recipe changes, this file
+# is wrong and the drift shows up as an image that does not boot.
 #   arch:    -march=rv32imac -mabi=ilp32           (Makefile:278, rv32ua)
 #   opts:    -static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles
 #   image:   MEM_SIZE 0x14000 -> 20480 words, BIN_OFFSET 0
-#   header:  flash_prepend.sh, applied ONCE, name padded to 22 chars
+#   header:  flash_prepend.sh, applied once, name padded to 22 chars
 set -e
 
 SRC="${1:?usage: build_one_rcf.sh <src.S> <basename> [extra -D ...]}"
@@ -72,16 +67,16 @@ if [ "$LINES" -ne "$WORDS" ]; then
     echo "FATAL: $OUT/$BASE.rcf has $LINES lines (expected $WORDS)"; exit 2
 fi
 
-# pad the basename to 22 chars with leading x's, exactly as pad_all_rcf does
+# Pad the basename to 22 characters with leading x's, as pad_all_rcf does.
 NAME="$BASE.rcf"
 PAD=$((22 - ${#NAME})); [ $PAD -lt 0 ] && PAD=0
 PADDED="$(printf '%*s' $PAD '' | tr ' ' x)$NAME"
 [ "$PADDED" != "$NAME" ] && mv "$OUT/$NAME" "$OUT/$PADDED"
 
-# prepend the SPI flash header EXACTLY ONCE, in the one-off dir
+# Prepend the SPI flash header exactly once, in the one-off directory.
 ( cd "$ISA_DIR" && ./flash_prepend.sh "build_oneoff/$BASE/$PADDED" )
 
-# rm -f FIRST, then copy -- never let a stale destination take a second header
+# rm -f first, then copy: a stale destination must never take a second header.
 rm -f "$ISA_DIR/rcf/$PADDED"
 cp "$OUT/$PADDED" "$ISA_DIR/rcf/$PADDED"
 echo "wrote rcf/$PADDED  ($(wc -l < "$ISA_DIR/rcf/$PADDED") lines)"

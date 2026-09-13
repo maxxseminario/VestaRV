@@ -1,15 +1,15 @@
-/** Includes **/
+// VestaRV: MCLK measurement and DCO0 tuning
+// measure_mclk_freq gates TIMERB with a known window from TIMERA and scales the edge count; set_DCO0_freq binary-searches the DCO trim word against that measurement.
+
 #include <MemoryMap.h>
 
 
 
-/** Function Declarations **/
 uint32_t measure_mclk_freq(TIMERx_t* TIMERA, TIMERx_t* TIMERB);
 void set_DCO0_freq(uint32_t freq_hz, TIMERx_t* TIMERA, TIMERx_t* TIMERB);
 
 
 
-/** Function Defititions **/
 uint32_t measure_mclk_freq(TIMERx_t* TIMERA, TIMERx_t* TIMERB)
 {
 	// Configure TIMERA to use DCO0

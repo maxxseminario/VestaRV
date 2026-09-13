@@ -1,24 +1,9 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# casbh.S   (X2 Zacas directed suite — amocas.b / amocas.h sub-word CAS)
-#-----------------------------------------------------------------------------
-# ON-POLARITY ONLY. Sub-word CAS is legal ONLY when BOTH Zacas AND Zabha are
-# built (it rides Zabha's byte-lane machinery), so this test is simulated on a
-# zacas-ON + zabha-ON MCU. gas 13.2 has no amocas mnemonic, so the encodings
-# are explicit `.insn' R-types (funct5=00101, funct7=funct5<<2=0x14):
-#     amocas.b rd,rs2,(rs1) -> funct3=000 ; amocas.h -> funct3=001
-#
-# Sub-word semantics: compare the addressed sub-word (sign-extend BOTH the old
-# memory sub-word and rd's low sub-word — equality is extension-invariant);
-# rd <- sign-extended old sub-word (loadext path, like Zabha); on match the
-# addressed lane takes rs2's low sub-word (adjacent lanes untouched).
-#
-# Coverage: both compare outcomes x lane placement (all four byte lanes, both
-# halves), sign-extension of rd, adjacent-lane guards, and sub-word aliasing
-# (rd==rs1 = the F1 lane-select regression; rd==rs2 = the F2 operand regression;
-# stale-compare via the FAIL arms).
-#*****************************************************************************
+# VestaRV: Zacas sub-word compare-and-swap directed suite
+# ON-POLARITY ONLY. SUB-WORD CAS IS LEGAL ONLY WHEN BOTH Zacas AND Zabha ARE BUILT, because it rides Zabha's byte-lane machinery, so this test is simulated on an MCU with both on. gas 13.2 has no amocas mnemonic, so the encodings are explicit `.insn` R-types with funct5 00101 shifted into funct7, funct3 000 for the byte form and 001 for the half form.
+# The sub-word semantics: compare the addressed sub-word, sign-extending BOTH the old memory sub-word and rd's low sub-word, since equality is extension-invariant; rd takes the sign-extended old sub-word, as on the Zabha load path; and on a match the addressed lane takes rs2's low sub-word while the adjacent lanes are untouched.
+# Coverage is both compare outcomes crossed with lane placement, all four byte lanes and both halves, plus sign-extension of rd, adjacent-lane guards, and the sub-word aliasing cases, rd == rs1 for the lane-select regression and rd == rs2 for the operand regression, with the stale-compare class covered through the failing arms.
 
 #include "riscv_test.h"
 #include "test_macros.h"

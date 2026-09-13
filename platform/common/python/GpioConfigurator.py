@@ -1,3 +1,8 @@
+# VestaRV: the per-pin GPIO description: primary function, alternate-function planes,
+# package pin and reset attributes.
+# A pin drives alternate function <Index> when PxSEL(pin) is '1' and the pin's PxAFS field
+# selects plane <Index>. The emitters read these objects for the pin tables, the AF matrix,
+# the C-header AF defines and the MCU.vhd routing.
 
 
 class GpioAltFunc():
@@ -57,18 +62,9 @@ class GpioConfigurator():
 	
 	
 	def __init__(self, bitNumber, primaryName='', funcName='', funcIOType=None, description='', rstOUT=0, rstDIR=0, rstSEL=0, rstREN=0, rstAFS=0, altFuncs=None, noConnect:bool=False):
-		'''
-		@bitNumber: The pin number on the GPIO port
-		@primaryName: The the name of the pin in its primary (GPIO) function. This is only used to generate helpful defines in the MemoryMap.h file, and has no hardware significance
-		@funcName: The name of the secondary (peripheral) function AT PLANE AF0 — the function the pin drives when PxSEL(pin)='1' and the pin's PxAFS field is 0 (the reset state). This name will be used to define all hardware signals and software defines.
-		@funcIOType: Defines the I/O type of the pin. Valid inputs are: None, 'i', 'o', 'io'. If 'i' is included in the string, a hardware signal with its name as {funcName}_IN will be declared and set as the value from the pad's input terminal. If 'o' is included in the string, hardware signals with names of {funcName}_OUT, *_DIR, and *_REN will be declared and routed to the pad's output, direction, and resistor enable terminals. WARNING: Some peripherals, such as SPI, have pins that may be considered "inputs" only, such as MISO. However, it is sometimes necessary for an input pin to have its OUT, DIR, and REN lines set by the peripheral rather than the GPIO registers. Therefore, such pins should be declared as 'io' rather than just 'i' to allow the peripheral to control all I/O signals associated with the designated pad.
-		@description: A description of the pin for the manual
-		@rstOUT: The reset value of the PxOUT
-		@rstDIR: The reset value of PxDIR
-		@rstSEL: The reset value of PxSEL
-		@rstREN: The reset value of PxREN
-		@rstAFS: The reset value of the pin's PxAFS field (which AF plane the pin selects at reset), 0-7
-		@altFuncs: Additional alternate functions beyond AF0, as a list of (afIndex, name, ioType, description) tuples (afIndex 1-7, unique; name/ioType follow the funcName/funcIOType rules). The pin drives alternate function afIndex when PxSEL(pin)='1' and the pin's PxAFS field = afIndex. AF planes with no assignment behave as high-impedance inputs.
+		'''One GPIO pin: its number, its primary name, and the AF0 function name and I/O type it drives
+		when PxSEL is 1 and PxAFS is 0. Declare a pin 'io' rather than 'i' whenever the peripheral
+		must drive OUT, DIR and REN itself, as SPI's MISO does; an unassigned AF plane is Hi-Z in.
 		'''
 		# Pin Number
 		if type(bitNumber) != int:
@@ -195,7 +191,7 @@ class GpioConfigurator():
 					raise Exception('altFuncs ioType must be one of: i, o, io')
 				self.AltFuncs.append(GpioAltFunc(afIndex, afName, afIOType, afDescription))
 			self.AltFuncs.sort(key=lambda af: af.Index)
-			# G1a (2026-07-11): a pin MAY carry altFuncs with no AF0 funcName —
+			# G1a: a pin MAY carry altFuncs with no AF0 funcName —
 			# a config-dropped peripheral's home pin reverts to plain GPIO at
 			# AF0 while its unrelated relocation planes (e.g. the TIMER capture
 			# AF1s on P4.2/4.3) stay. funcName<->funcIOType consistency is

@@ -1,31 +1,10 @@
 #!/usr/bin/env python3
-"""splice_web_data.py -- inject out/web/chip_data.js into an HTML file between a
-pair of splice markers (WP S2, 2026-07-16). This is the CONSUMPTION CONTRACT for
-docs/chip_configurator.html (owned by WP S7): the HTML declares an inline region
+"""VestaRV: inject out/web/chip_data.js into an HTML file between its splice markers.
 
-    /*VESTA_DATA_BEGIN*/ ... /*VESTA_DATA_END*/
-
-and this tool replaces whatever is between those markers with the current
-generator output, so the configurator stops carrying a hand-transcribed second
-source of truth.
-
-Usage:
     python3 python/splice_web_data.py [--data out/web/chip_data.js] TARGET.html
-    python3 python/splice_web_data.py --check TARGET.html      # is it up to date?
+    python3 python/splice_web_data.py --check TARGET.html
 
-Contract / guarantees:
-  * The markers are literal comment tokens (valid inside <script> AND CSS-style
-    comment scanning), matched anywhere in the file. Everything between them is
-    replaced; the markers themselves are preserved.
-  * IDEMPOTENT: splicing the same data twice produces the identical file and
-    never nests/duplicates the region.
-  * The injected text is the FULL chip_data.js content (the `const VESTA_DATA =
-    {...};` statement), placed on its own lines between the markers.
-  * Exit 0 on success; non-zero if the markers are missing or (with --check) the
-    region is stale.
-
-The tool only needs to EXIST and be correct now; S7 adds the markers to the
-configurator later. Python 3.6 compatible; no external deps.
+Markers are matched anywhere in the file and preserved; splicing twice gives the same file.
 """
 
 import io

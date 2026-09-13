@@ -362,7 +362,7 @@ architecture sim of DMA_tb is
     signal ClkMem : std_logic := '0';
     signal resetn : std_logic := '0';
 
-    -- ==== DUT #1 (NCH=4) harness =========================================
+    -- DUT #1 (NCH=4) harness
     signal pbus  : periph_bus_t := PERIPH_BUS_IDLE;
     signal rdata : std_logic_vector(31 downto 0);
     signal m_req  : std_logic;
@@ -383,7 +383,7 @@ architecture sim of DMA_tb is
     signal qspi_sr_obs    : std_logic_vector(7 downto 0);
     signal qspi_clr_wdata : std_logic_vector(31 downto 0);
 
-    -- ==== event-fabric taps ==============================================
+    -- event-fabric taps
     -- DUT#1 only: dut2 leaves these at the component default or open, since its group is register-shape only and needs no task-tap coverage.
     signal task_go  : std_logic_vector(3 downto 0) := "0000";  -- tb-driven, default 0000
     signal evt_done : std_logic_vector(3 downto 0);
@@ -401,7 +401,7 @@ architecture sim of DMA_tb is
     signal ch_busy_prev  : std_logic_vector(3 downto 0) := (others => '0');
     signal evt_mon_clear : std_logic := '0';
 
-    -- ==== DUT #2 (NCH=2) harness =========================================
+    -- DUT #2 (NCH=2) harness
     signal pbus2  : periph_bus_t := PERIPH_BUS_IDLE;
     signal rdata2 : std_logic_vector(31 downto 0);
     signal m_req2  : std_logic;
@@ -420,7 +420,7 @@ architecture sim of DMA_tb is
     signal qsr2 : std_logic_vector(7 downto 0);
     signal qclr2 : std_logic_vector(31 downto 0);
 
-    -- ==== CRC reference chain (four chained work.CRC16, fed bytes b0 through b3) ====
+    -- CRC reference chain (four chained work.CRC16, fed bytes b0 through b3)
     signal crc_word : std_logic_vector(31 downto 0) := (others => '0');
     signal crc_seed : std_logic_vector(15 downto 0) := (others => '0');
     signal crc_s1, crc_s2, crc_s3, crc_res : std_logic_vector(15 downto 0);

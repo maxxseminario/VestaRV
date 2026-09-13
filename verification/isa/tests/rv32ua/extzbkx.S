@@ -1,22 +1,8 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extzbkx.S   (X3 Stage B Zbkx ext-probe, 2026-07-17)
-#-----------------------------------------------------------------------------
-# Build-time dispatch on CORE_ENABLE_ZBKX (extprobe_template.S convention — the
-# macro is supplied EXPLICITLY via -DCORE_ENABLE_ZBKX when staging the ON
-# polarity, NEVER auto-derived from a make-chip header or platform/common/out/).
-#
-#   ON  (#ifdef CORE_ENABLE_ZBKX): execute xperm8/xperm4 (incl. out-of-range
-#       index -> 0) and CHECK the architectural results -> PASS.
-#   OFF (#else): the SAME xperm8 encoding executed UNCONDITIONALLY. On a build
-#       without Zbkx (the extoff POISON build) it MUST take the illegal trap;
-#       run_extoff.sh + trap_watch.tcl report TRAP_OK, past it -> FAIL. xperm8
-#       (funct7=0010100,funct3=100) is illegal on a Zbb-ON build too (funct7
-#       aliases BSET's, but BSET needs funct3=001), so this is a clean poison.
-#
-# `.insn` encodings — gas 13.2 has no zbk* mnemonics.
-#*****************************************************************************
+# VestaRV: Zbkx extension probe
+# BUILD-TIME DISPATCH on CORE_ENABLE_ZBKX, supplied EXPLICITLY with -DCORE_ENABLE_ZBKX when staging the ON polarity and never auto-derived from a generated header. With it defined, xperm8 and xperm4 execute, including an out-of-range index that must give zero lanes, and their results are checked. Without it the SAME xperm8 encoding executes unconditionally and must take the illegal-instruction trap on a build without Zbkx; run_extoff.sh with trap_watch.tcl reports TRAP_OK, and executing past it is a FAIL.
+# xperm8, funct7 0010100 with funct3 100, is illegal on a Zbb-ON build too, since its funct7 aliases BSET's but BSET needs funct3 = 001, so this is a clean poison. Every operation is an explicit `.insn`, because gas 13.2 has no zbk* mnemonics.
 
 #include "riscv_test.h"
 #include "test_macros.h"

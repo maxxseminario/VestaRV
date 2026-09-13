@@ -1,24 +1,8 @@
-// =============================================================================
-// uart.rdl: the register map of hdl/common/periph/UART.vhd, and the PILOT for
-// the SystemRDL adoption (tools/rdl/README.md).
-//
-// UART is the pilot because its decode is the easiest in the tree to read back
-// mechanically: five slots, one `case en_addr_periph is` per direction, one
-// `signal UART_<REG> : std_logic_vector(N downto 0)` per storage register, and
-// a reset branch that names every one of them.
-// //platform/common:rdl_vs_vhdl_uart_test re-derives the five slot numbers from
-// hdl/common/MemoryMap.vhd, the storage widths from the signal declarations and
-// the resets from the reg_write_proc reset branch, and compares all three.
-//
-// The whole file is byte-equivalent to the UARTx PeripheralTemplate in
-// generate.py, descriptions and value descriptions included; that equivalence is
-// //platform/common:rdl_vs_generator_test, and it is the claim that makes this a
-// pilot rather than a second copy of the register map.
-//
-// Everything resets to zero. UARTxSR and UARTxRX hold no software-writable
-// state: SR is eight hardware flags of which three take a write-1-to-clear, and
-// RX is the receive holding register.
-// =============================================================================
+// VestaRV: the register map of hdl/common/periph/UART.vhd, and the pilot for the SystemRDL adoption (tools/rdl/README.md)
+// UART is the pilot because its decode is the easiest in the tree to read back mechanically: five slots, one `case en_addr_periph is` per direction, one `signal UART_<REG> : std_logic_vector(N downto 0)` per storage register, and a reset branch that names every one of them.
+// //platform/common:rdl_vs_vhdl_uart_test re-derives the five slot numbers from hdl/common/MemoryMap.vhd, the storage widths from the signal declarations and the resets from the reg_write_proc reset branch, and compares all three.
+// The whole file is byte-equivalent to the UARTx PeripheralTemplate in generate.py, descriptions and value descriptions included; that equivalence is //platform/common:rdl_vs_generator_test, and it is the claim that makes this a pilot rather than a second copy of the register map.
+// Everything resets to zero. UARTxSR and UARTxRX hold no software-writable state: SR is eight hardware flags of which three take a write-1-to-clear, and RX is the receive holding register.
 
 `include "vesta_udp.rdl"
 

@@ -1,40 +1,8 @@
-/* Synthesis BLACK BOXES for the cells `ghdl --synth` must not look inside.
-
-   WHAT A BLACK BOX IS HERE, AND WHY THE GATE NEEDS ONE.
-   hdl/common/MCU.vhd and hdl/common/hart_tile.vhd instantiate three compiled
-   memory macros and three analog cells by direct `entity work.<name>`
-   association, so every one of them has to be a design unit in the library
-   before the instantiating unit is analyzed.  In the physical flow those six
-   are not HDL at all: genus reads their timing libraries and elaborates them
-   as blackboxes (`set_db hdl_error_on_blackbox false`,
-   genus/MCU_WOUND/tcl/MCU_WOUND_hier.genus.tcl:163), and the only HDL that
-   exists for them is BEHAVIOURAL -- hdl/common/sim/ARM_IP_RAM.vhd and
-   hdl/common/sim/ARM_IP_ROM.vhd for the macros (untracked, hidden by the
-   .gitignore `*ARM*` pattern, so no hermetic target can name them), and the
-   _behav / _simulation models in hdl/common/sim/ for the analog cells.  Those
-   models are not synthesizable and are not meant to be: the oscillator's
-   architecture is a `wait for` loop, and an 8 KiB array modelled as RTL would
-   census as 65536 flop bits of silicon that does not exist.
-
-   THE CONTRACT EACH STUB KEEPS.  Port names, directions and widths match the
-   real cell exactly -- an MCU that names a pin no macro has still fails at
-   analysis, which is the direction that matters.  Every output is DRIVEN, to
-   a constant: an undriven output raises -Wnowrite naming the port, which
-   toolchains/ghdl/synth_census.py treats as fatal.  Nothing is registered, so
-   a stub contributes no flop and no latch to any census row.
-
-   WHAT A STUB CANNOT CATCH, stated so it is not mistaken for coverage: a port
-   list changed on the real macro and not mirrored here leaves the gate green,
-   the same limitation opensource_sim/mcu/mem_macros_sim.vhd documents for the
-   behavioural models.  The census freezes the blackbox list per target
-   (`blackboxes` in toolchains/ghdl/synth_census.json), so a cell cannot be
-   added to this file and quietly removed from a graded hierarchy.
-
-   THIS FILE IS DELIBERATELY OUTSIDE //hdl:vhdl_sources.  hdl/common/synth is
-   a bazel package, and //hdl:vhdl_sources is a glob rooted at hdl/ that does
-   not descend into a subpackage, so no simulation source list can reach these
-   stubs by accident.  They are named directly, by path, only by the
-   ghdl_synth_test targets in this package's BUILD file. */
+-- VestaRV: synthesis black boxes for the cells ghdl --synth must not look inside
+-- MCU.vhd and hart_tile.vhd instantiate three compiled memory macros and three analog cells by direct entity work.<name> association, so each has to be a design unit before the instantiating unit is analyzed; the only other HDL for them is the non-synthesizable behavioural models in hdl/common/sim/.
+-- Each stub mirrors the real cell's port names, directions and widths exactly and drives every output to a constant: an undriven output raises -Wnowrite, which toolchains/ghdl/synth_census.py treats as fatal. Nothing is registered, so a stub adds no flop or latch to a census row.
+-- A port list changed on the real macro and not mirrored here leaves the gate green. The blackbox list is frozen per target in toolchains/ghdl/synth_census.json, so a cell cannot be added here and quietly dropped from a graded hierarchy.
+-- hdl/common/synth is a bazel package and //hdl:vhdl_sources does not descend into a subpackage, so no simulation source list reaches these stubs: only the ghdl_synth_test targets in this package name them by path.
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
@@ -110,9 +78,7 @@ end architecture blackbox;
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 
-/* The current-starved ring oscillator, instance dco0.  The tracked model
-   hdl/common/sim/OscillatorCurrentStarved_simulation.vhd drives ClkOut from a
-   `wait for ClkDCODelay` loop, which has no synthesis meaning at all. */
+-- The current-starved ring oscillator, instance dco0. Its tracked model drives ClkOut from a wait-for loop, which has no synthesis meaning.
 entity OscillatorCurrentStarved is
     port (
         Reset  : in  std_logic;

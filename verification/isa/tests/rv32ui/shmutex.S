@@ -1,47 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shmutex.S  (M7c — LOCKING v2: the HW mutex bank signature test;
-#             M12 single-ROM boot rework)
-#-----------------------------------------------------------------------------
-# M12: tiles are NO LONGER preloaded. Hart 0 stages this TCM image once and
-# launches all three tiles into tile_entry through the bootrom loader
-# (mp_boot.h), then falls through to run the same body. No software release
-# gate is needed (the mutex bank resets all-free) — the launch is the only
-# thing that gets the tiles running.
-#-----------------------------------------------------------------------------
-# HW MUTEX BANK @0x6000 (page-3 slot 0): READ = atomic return-old-and-claim
-# (0 = was free, you now own it; else the holder's hartid+1), WRITE 0 =
-# release, nonzero writes ignored. Atomicity comes from the arbiter's
-# whole-transaction serialization — 1-INSTRUCTION ACQUIRE, NO LR/SC — which
-# is why this test lives in rv32ui: no 'a' extension anywhere.
-#
-# Phase 1 (every hart, disjoint mutexes — proves s_master ATTRIBUTION):
-# hart h dances its own mutex (hart 0 -> MUTEX1, hart h -> MUTEX[1+h]):
-# read returns 0 (free, claims), re-read returns h+1 (MY marker, held claim-
-# read does not disturb), nonzero write ignored (still reads h+1 — ownership
-# cannot be forged), write-0 releases (fresh read returns 0 and reclaims),
-# re-read h+1 again, final release.
-#
-# Phase 2 (all four harts, MUTEX0): 32 critical sections each — 1-insn
-# acquire with hartid-scaled backoff + bounded retry (M4c livelock rule
-# applies to ANY spin on the fair arbiter, HW mutex included), held-readback
-# check, NON-atomic lw/addi/sw of a shared counter + OWNER re-check inside.
-# Hart 0 requires CTR == EXACTLY 128 (4*32); a lost update or ownership
-# violation fails loudly. Harts 1-3 contend once launched; hart 0 runs its
-# own body immediately after launching — no release gate, the bank resets
-# all-free.
-#
-# Shared words (>= 0x10380, clear of shlock's journal 0x10280-0x1037F):
-#     CTR      = 0x10380          must end EXACTLY NHARTS*32
-#     OWNER    = 0x10384          holder writes hartid+1, re-checks
-#     DONE[h]  = 0x10390 + 4*h    0x40BE0000+h after hart h's 32 sessions
-# Argus A3: CTR/OWNER sit BELOW the DONE base, so the NHARTS-sized DONE array
-# (N=18: 0x10394..0x103D4, < 0x10500) can't overrun them. Phase-1 uses the
-# disjoint mutex MUTEX[1+hartid]; the HW bank has only 16 mutexes, so at N=18
-# harts >= 15 index past MUTEX15 (see report — phase-1 needs manual review).
-# (next free shared word: 0x103A0)
-#*****************************************************************************
+# VestaRV: hardware mutex bank test
+# THE MUTEX BANK AT 0x6000 IS A ONE-INSTRUCTION ACQUIRE, NO LR/SC: a READ atomically returns the old value and claims (0 means it was free and is now yours, anything else is the holder's hartid + 1), a WRITE of 0 releases, and a nonzero write is ignored. Atomicity comes from the arbiter serialising whole transactions, which is why this test lives in rv32ui and touches no 'a' extension instruction.
+# Phase 1, every hart on a disjoint mutex (hart h takes MUTEX[1+h], hart 0 takes MUTEX1), proves s_master attribution: a first read returns 0 and claims, a re-read returns h+1 so a held claim-read does not disturb, a nonzero write is ignored so ownership cannot be forged, a write of 0 releases, and the cycle repeats.
+# Phase 2 runs 32 critical sections per hart on MUTEX0: one-instruction acquire with hartid-scaled backoff and a bounded retry, since the livelock rule applies to any spin on the fair arbiter, then a held-readback check and a NON-atomic lw/addi/sw of the shared counter with an owner re-check inside. Hart 0 requires CTR to end at exactly NHARTS*32.
+# Shared words: CTR = 0x10380 (exactly NHARTS*32), OWNER = 0x10384 (holder writes hartid + 1 and re-checks), DONE[h] = 0x10390 + 4*h (0x40BE0000 + h). CTR and OWNER sit below the DONE base so the NHARTS-sized array cannot overrun them; N=18 tops at 0x103D4.
+# THE BANK HAS ONLY 16 MUTEXES, so at N=18 phase 1's MUTEX[1+hartid] indexes past MUTEX15 for harts 15 and above.
 
 #include "riscv_test.h"
 #include "test_macros.h"

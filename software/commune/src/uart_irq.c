@@ -1,4 +1,6 @@
-/** Includes **/
+// VestaRV: interrupt-driven UART0 driver
+// 64-byte software ring buffers in each direction, serviced by ISR_UART0. A transmit call returns as soon as the byte is queued; an overrun on receive drops the newest byte.
+
 #include <MemoryMap.h>
 #include <uart_irq.h>
 #include <irq.h>
@@ -10,7 +12,6 @@ RVISR(IRQ_UART0_VECTOR, ISR_UART0)
 
 
 
-/** Defines **/
 #define UART_RX_BUFFER_LENGTH	(64)
 #define UART_TX_BUFFER_LENGTH	(64)
 
@@ -29,7 +30,6 @@ static volatile uint32_t uart_tx_buffer_tail = 0;
 
 
 
-/** Function Declarations **/
 void uart_init_default(uint16_t baud_register_value);
 void uart_putchar(char c);
 char uart_getchar();
@@ -52,7 +52,6 @@ uint8_t hex4ToNum(char hex4);
 
 
 
-/** Function Definitions **/
 void uart_init_default(uint16_t baud_register_value)
 {
 	// Initialize the UART peripheral

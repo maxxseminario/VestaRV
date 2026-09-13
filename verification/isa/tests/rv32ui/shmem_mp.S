@@ -1,54 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shmem_mp.S  (M3c.4; M12 single-ROM boot rework)
-#-----------------------------------------------------------------------------
-# HART-GENERIC contention test for the MCU_MP shared-RAM window at 0x10000
-# (region 4, behind mp_arbiter on the free-running mclk).
-#
-# M12: this WAS the default tile-preload image (harts 1-3 hammered from t=0).
-# Nothing preloads the tiles now, so hart 0 stages this TCM image once and
-# launches all three tiles into tile_body through the bootrom loader
-# (mp_boot.h); each tile then runs the SAME hammer body it always did, and
-# hart 0 falls through to run it too.
-#
-# T1 FIX (finding rtl_findings.md T1, fix pass WT). M12 replaced an INSTANT
-# preload with a bootrom copy that takes ~8 clk_cpu cycles/word, and nothing
-# in this test waited for it. Measured on the V4 4-hart trace: hart 0 issued
-# its last launch msip at cycle 0x11e1e and wrote a0 at 0x12211 — 1,011 of its
-# own cycles later — while a tile needs ~32,768 to copy 4096 words. At the end
-# of the sim tile 1 had copied 33 words and NO tile had ever reached tile_body,
-# so the phase-1 sweep, the 64 LR/SC increments and the phase-3 hammer all ran
-# on hart 0 ALONE and the test passed anyway. The advertised 4-way contention
-# had not happened in any regression run since M12.
-#
-# The fix is the READY barrier below: every hart advertises READY[hartid] and
-# no hart leaves the barrier until all NHARTS have. That does BOTH jobs — it
-# makes the contention real (all harts enter phase 1 together) and it makes a
-# missing tile FATAL (the barrier is a bounded wait on a word only that tile
-# writes, so tile absence is now a0=0xDEADBEEF instead of a silent PASS).
-# The launch volume is deliberately NOT reduced: shcount launches the same
-# 4096-word image CONCURRENTLY and gates on the tiles arriving, at N=4 and in
-# the Argus N=18 suite, and passes — so 4096 is proven at both hart counts and
-# no smaller LEN could have fixed this on its own anyway (nothing fits in
-# hart 0's 1,011-cycle window).
-#
-# Each hart reads mhartid and hammers its OWN word at 0x10090 + 4*hartid —
-# DISJOINT per hart (shared-word atomicity needs the M4 resv_unit/byte lanes).
-# Argus A3 rebase: the historical 0x10040 base put hart 16's word at 0x10080 =
-# the phase-2 atomic COUNTER at N=18 (self-collision). Rebased to 0x10090 (N=18
-# span 0x10090..0x100D4, clear of the counter 0x10080 and all other ledger
-# words, inside the bootrom-zeroed 0x10000-0x107FF range).
-#
-# Barrier: every hart publishes READY[hartid] and waits for all NHARTS (T1).
-# Phase 1: a fully-verified write/readback sweep on the hart's disjoint word.
-# Phase 2: 64 LR/SC increments on the COMMON counter, under live contention.
-# Phase 3: set a0 = 0xCAFEBABE (PASS) and keep hammering FOREVER (write, read
-# back twice, compare) so every hart contends with NHARTS-1 live arbiter
-# masters for the rest of the run. The tb latches pass AND fail independently,
-# so a post-PASS mismatch (lost arbitration grant, cross-master data
-# corruption) still fails the run via RVTEST_FAIL (a0 = 0xDEADBEEF).
-#*****************************************************************************
+# VestaRV: shared-RAM window contention test
+# Hart-generic hammer on the shared window at 0x10000, region 4, behind mp_arbiter on the free-running mclk. Hart 0 stages this TCM image once, launches every tile into tile_body through the boot ROM loader (mp_boot.h), then runs the same body itself.
+# THE READY BARRIER IS LOAD-BEARING, not scaffolding: every hart advertises READY[hartid] and none leaves until all NHARTS have. Without it the tiles are still copying their image (about 32768 cycles for 4096 words) while hart 0 finishes in about a thousand of its own, so every phase runs on hart 0 alone and the test passes with no contention at all. The barrier makes the contention real AND makes a missing tile fatal, since it is a bounded wait on a word only that tile writes.
+# The 4096-word launch volume is deliberate: shcount launches the same image concurrently at N=4 and N=18 and passes, so the size is proven at both hart counts.
+# Each hart hammers its OWN word at 0x10090 + 4*hartid, disjoint per hart, because shared-word atomicity needs the resv_unit and byte lanes. The base must stay clear of the phase-2 atomic counter at 0x10080, which the historical 0x10040 base collided with at N=18; the N=18 span is 0x10090..0x100D4, inside the bootrom-zeroed 0x10000-0x107FF range.
+# Phase 1 is a verified write/readback sweep on the hart's own word, phase 2 is 64 LR/SC increments on the common counter under live contention, and phase 3 sets a0 = PASS and then hammers forever, so every hart contends with NHARTS-1 live masters for the rest of the run. The tb latches pass and fail independently, so a mismatch after PASS still fails the run.
 
 #include "riscv_test.h"
 #include "test_macros.h"

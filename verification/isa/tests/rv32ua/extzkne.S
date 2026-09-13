@@ -1,24 +1,8 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extzkne.S   (X3 Zkne ext-probe, 2026-07-17)
-#-----------------------------------------------------------------------------
-# Build-time dispatch on CORE_ENABLE_ZKN (extprobe_template.S convention — the
-# macro is supplied EXPLICITLY via -DCORE_ENABLE_ZKN when staging the ON polarity,
-# NEVER auto-derived from a make-chip header or platform/common/out/ state; the
-# two build-order traps in that header apply verbatim).
-#
-#   ON  (#ifdef CORE_ENABLE_ZKN): execute real aes32esi/aes32esmi encodings and
-#       CHECK the architectural results -> PASS.
-#   OFF (#else): the aes32esmi encoding executed UNCONDITIONALLY. On a build
-#       without Zkn the OP funct5=10011/funct3=000 encoding MUST take the
-#       illegal-instruction trap. run_extoff.sh + trap_watch.tcl report TRAP_OK;
-#       executing PAST it -> FAIL. Wired ONLY into behavioral_mp_stripped/
-#       run_extoff.sh (the a0-watch runner would hang on the terminal TRAP_STATE).
-#
-# gas 13.2 has no aes32* mnemonic; explicit `.insn' R-type (OP 0x33, funct3=0,
-# funct7=(bs<<5)|fn5, fn5 esi=0x11 esmi=0x13).
-#*****************************************************************************
+# VestaRV: Zkne extension probe
+# BUILD-TIME DISPATCH on CORE_ENABLE_ZKN, supplied EXPLICITLY with -DCORE_ENABLE_ZKN when staging the ON polarity and never auto-derived from a generated header or build output. With it defined, the real aes32esi and aes32esmi encodings execute and their results are checked. Without it the aes32esmi encoding executes unconditionally and the OP funct5 = 10011, funct3 = 000 encoding must take the illegal-instruction trap; run_extoff.sh with trap_watch.tcl reports TRAP_OK, and executing past it is a FAIL. IT IS WIRED ONLY INTO behavioral_mp_stripped/run_extoff.sh, because the a0-watch runner would hang on the terminal TRAP_STATE.
+# gas 13.2 has no aes32* mnemonic, so every operation is an explicit `.insn` R-type with OP 0x33, funct3 = 0 and funct7 = (bs << 5) | fn5, where fn5 is 0x11 for esi and 0x13 for esmi.
 
 #include "riscv_test.h"
 #include "test_macros.h"

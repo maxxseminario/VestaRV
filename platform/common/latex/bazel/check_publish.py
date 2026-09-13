@@ -1,18 +1,9 @@
 #!/usr/bin/env python3
-"""Byte-compare a freshly built TRM.pdf against the published copy.
+"""VestaRV: byte-compare a freshly built TRM.pdf against the published copy.
 
-This is the Bazel port of the `check-publish` target in
-platform/common/Makefile.  It answers one question: is the TRM committed
-under implementations/asic/<chip>/docs/ the PDF that the current sources
-produce, or is it stale?
-
-The comparison is a byte-diff and not a page count or a text diff, and
-that is only meaningful because build_trm_pdf.py pins SOURCE_DATE_EPOCH.
-Without that pin every rebuild differs in its PDF metadata and the check
-degenerates into "was this built today".
-
-Exit 0 means the published TRM is current.  Exit 1 means it is stale and
-someone has to rebuild and republish it.
+A byte-diff rather than a page or text diff, which is meaningful only because build_trm_pdf.py
+pins SOURCE_DATE_EPOCH; without that pin every rebuild differs in its PDF metadata and the
+check degenerates into `was this built today`. Exit 0 the published TRM is current, 1 stale.
 """
 
 import argparse
@@ -22,13 +13,9 @@ from pathlib import Path
 
 
 def find_workspace_root():
-    """Locate the source workspace, from a test as well as from `bazel run`.
-
-    `bazel run` names it outright.  A test does not, and the published TRM
-    lives in a directory that has no BUILD file, so it cannot be a data
-    dependency and has to be reached as a source path instead.  This file
-    is itself a runfiles symlink back into the source tree, so resolving
-    it and walking up to MODULE.bazel finds that tree.
+    """Locate the source workspace, from a test as well as from `bazel run`. The published TRM lives
+    in a directory with no BUILD file, so it cannot be a data dependency; this file is itself a
+    runfiles symlink back into the source tree, so resolving it and walking up finds that tree.
     """
     named = os.environ.get("BUILD_WORKSPACE_DIRECTORY")
     if named:

@@ -1,7 +1,5 @@
-/*
- * blinky - Startup Assembly
- * VestaRV Firmware Boot Code
- */
+# VestaRV: blinky startup code
+# The .program_start entry must fit in 16 bytes, so it only jumps to _init.
 
 .section .program_start, "ax"
 .global __start_RAM_program__

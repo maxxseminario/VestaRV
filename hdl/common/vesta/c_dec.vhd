@@ -1,3 +1,5 @@
+-- VestaRV: compressed-instruction decoder
+-- Expands a 16-bit RVC encoding into the equivalent 32-bit instruction. Each optional sub-extension is gated on its own generic; an all-off build is bit-identical to the base RVC decoder.
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
@@ -71,7 +73,7 @@ begin
                 funct3 := instr16(15 downto 13);
                 
                 case opcode is
-                    -- ========== QUADRANT 0 (00) ==========
+                    -- QUADRANT 0 (00)
                     when "00" =>
                         case funct3 is
                             -- C.ADDI4SPN expands to addi rd', sp, nzuimm[9:2].
@@ -220,7 +222,7 @@ begin
                                 dec := (others => '0');  -- Reserved
                         end case;
 
-                    -- ========== QUADRANT 1 (01) ==========
+                    -- QUADRANT 1 (01)
                     when "01" =>
                         case funct3 is
                             -- C.NOP / C.ADDI expands to addi rd, rd, nzimm[5:0].
@@ -433,7 +435,7 @@ begin
                                                 dec := (others => '0');
                                           end case;
                                         elsif ENABLE_ZCB then
-                                          -- ==== Zcb (funct6 = 100111) ====
+                                          -- Zcb (funct6 = 100111)
                                           case instr16(6 downto 5) is
                                             -- C.MUL rd', rd', rs2'; the base MUL op is gated by ENABLE_MUL, so maindec traps this as illegal when MUL is off.
                                             when "10" =>
@@ -580,7 +582,7 @@ begin
                                 dec := (others => '0');
                         end case;
                         
-                    -- ========== QUADRANT 2 (10) ==========
+                    -- QUADRANT 2 (10)
                     when "10" =>
                         case funct3 is
                             -- C.SLLI expands to slli rd, rd, shamt[5:0].

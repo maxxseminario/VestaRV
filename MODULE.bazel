@@ -1,4 +1,4 @@
-"""Vesta RISC-V (vestarv) bazel module.
+"""VestaRV: the bazel module definition, dependencies and toolchain registrations.
 
 The system python on this host is 3.6, so rules_python provisions a hermetic
 3.11 interpreter for every python target in the repo.

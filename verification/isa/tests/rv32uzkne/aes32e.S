@@ -1,19 +1,9 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# aes32e.S   (X3 Zkne directed per-op test: aes32esi / aes32esmi, 2026-07-17)
-#-----------------------------------------------------------------------------
-# ON-POLARITY ONLY suite (rv32uzkne, built with -DCORE_ENABLE_ZKN). Directed
-# known-answer checks for the two AES encrypt ops across all four byte-selects
-# (bs 0..3) plus a rd==rs1 accumulate alias. Expected values from a host golden
-# model that mirrors alu.vhd aes32_datapath() exactly.
-#
-#   aes32esi  rd,rs1,rs2,bs : rd = rs1 XOR rol(zext(SBOX(byte bs of rs2)), 8*bs)
-#   aes32esmi rd,rs1,rs2,bs : rd = rs1 XOR rol(MixCol(SBOX(byte bs of rs2)), 8*bs)
-#
-# gas 13.2 has no aes32* mnemonic; explicit `.insn' R-type (OP 0x33, funct3=0,
-# funct7=(bs<<5)|fn5, fn5 esi=0x11 esmi=0x13).
-#*****************************************************************************
+# VestaRV: Zkne AES encrypt per-operation test
+# ON-POLARITY ONLY, built with -DCORE_ENABLE_ZKN. Directed known-answer checks for the two AES encrypt operations across all four byte selects plus a rd == rs1 accumulate alias. Expected values come from a host golden model that mirrors the ALU's AES datapath exactly.
+# The semantics: `aes32esi rd,rs1,rs2,bs` gives rd = rs1 XOR rol(zext(SBOX(byte bs of rs2)), 8*bs), and `aes32esmi` gives rd = rs1 XOR rol(MixCol(SBOX(byte bs of rs2)), 8*bs).
+# gas 13.2 has no aes32* mnemonic, so each is an explicit `.insn` R-type with OP 0x33, funct3 = 0 and funct7 = (bs << 5) | fn5, where fn5 is 0x11 for esi and 0x13 for esmi.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,23 +1,15 @@
-"""Parser + builder tests.
+"""VestaRV: parser and builder tests for the Forth command layer.
 
-NOTE on "real transcript lines": the recorded log
-tools/debug/forth_dashboard/myshkin_commands.log contains ONLY sim-mode TX
-lines (no genuine chip RX) -- see the escalation note in the WP2 report.  The
-RX lines below are therefore reconstructed to the EXACT byte format the chip
-emits, verified against:
-
-    software/rv4th/src/rv4th.c  (case 6 '.', 28 'h.', 13 'hb.', 92 'mr', 83 'fe')
-    software/rv4th/src/uart.c   (uart_puti signed decimal; uart_puth* UPPERCASE)
-
-They also include the exact noise bytes (0x1a, '?') that v1's parser had to
-strip (tools/debug/forth_dashboard/myshkin.py).  Real TX command strings ARE
-lifted from the log to pin the builders.
+The recorded log holds only sim-mode TX lines, so the RX lines here are reconstructed to the
+exact byte format the chip emits, verified against software/rv4th/src/rv4th.c and uart.c, and
+they include the noise bytes (0x1a, '?') the v1 parser had to strip. The TX command strings
+are lifted from the log to pin the builders.
 """
 
 from server import forth
 
 
-# --- command builders (pinned against real TX strings in the log) -----------
+# command builders (pinned against real TX strings in the log)
 
 def test_builder_read_dec_matches_log_shape():
     # log line: "0x04B0C @ ." -> same numeric address, canonical hex form.
@@ -60,7 +52,7 @@ def test_builder_mr_and_me():
     assert forth.build_erase(0x10000, 64) == "64 0x10000 me"
 
 
-# --- '.' signed decimal parsing ---------------------------------------------
+# '.' signed decimal parsing
 
 def test_parse_decimal_basic():
     assert forth.parse_decimal("124 ") == 124
@@ -80,7 +72,7 @@ def test_parse_decimal_multiline_takes_last():
     assert forth.parse_decimal("\n8 \n") == 8
 
 
-# --- 'h.' hex parsing (8 uppercase digits, no prefix) -----------------------
+# 'h.' hex parsing (8 uppercase digits, no prefix)
 
 def test_parse_hex_word():
     assert forth.parse_hex_word("0000007B ") == 123
@@ -95,14 +87,14 @@ def test_parse_hex_word_with_prompt_leftover():
     assert forth.parse_hex_word("DEADBEEF \n") == 0xDEADBEEF
 
 
-# --- fe flag ----------------------------------------------------------------
+# fe flag
 
 def test_parse_bool():
     assert forth.parse_bool("1 ") is True
     assert forth.parse_bool("0 ") is False
 
 
-# --- mr ascii payload + CRC -------------------------------------------------
+# mr ascii payload + CRC
 
 def test_parse_hexdump_slices_payload():
     # mr mode 0: 4 payload bytes then a 4-hex CRC; parse_hexdump ignores the CRC.
@@ -121,7 +113,7 @@ def test_parse_mr_ascii_returns_payload_and_crc():
     assert got_crc == crc
 
 
-# --- 32-bit helpers + CRC ---------------------------------------------------
+# 32-bit helpers + CRC
 
 def test_to_i32_wraps():
     assert forth.to_i32(0xFFFFFFFF) == -1

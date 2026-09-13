@@ -1,8 +1,10 @@
-# This makefile is intended to be included in other makefiles so that they all build projects the same way. Please include it at the bottom of your program makefile.
+# VestaRV: the shared compilation and helper rules for a firmware project.
+# Include it at the BOTTOM of a program makefile, after that makefile has set
+# TARGET, SRC_SOURCES, LIB_SOURCES, EXTENSIONS, the directory variables and the
+# flag variables. Set NOSTDLIB=true to link without the standard library.
+# RISCV overrides the toolchain prefix.
 
-##################################################
-### TOOLCHAIN DIRECTORIES
-##################################################
+# Toolchain.
 ifdef RISCV
 	RISCV_DIR = ${RISCV}
 else
@@ -31,9 +33,7 @@ MV			= mv
 MKDIR		= mkdir
 RCF			= $(PYTHON_DIR)/ihex2rcf.py
 
-##################################################
-### DEPENDENCIES
-##################################################
+# Dependencies.
 SRC_OBJECTS	= $(patsubst %,%.src.o,$(SRC_SOURCES))
 LIB_OBJECTS	= $(patsubst %,%.lib.o,$(LIB_SOURCES))
 
@@ -42,65 +42,58 @@ OBJECTS     = $(patsubst %,$(OBJ_DIR)/%,$(LIB_OBJECTS)) $(patsubst %,$(OBJ_DIR)/
 
 HEADERS     = $(wildcard $(GCC_INC_DIR)/*.h) $(wildcard $(LIB_INC_DIR)/*.h) $(wildcard $(INC_DIR)/*.h)
 
-##################################################
-### STANDARD LIBRARY INCLUSION MACRO
-##################################################
 
-# If the make variable NOSTDLIB is set to true, then make will add a linker flag to not include the standard library
-# It will also add a compiler flag to define __nostdlib__, which will tell start.S to call main() instead of _start()
-# Note that _start() is defined in the standard library and must be called before main if the standard library is used
-# Also note that using the standard library in C++ will bloat the program .text section with a minimum set of new functions
-# It will also add stuff to the .data section and the .eh_frame section. The .eh_frame section is used for exception handling. If you are not using exceptions, you can disable it.
+# NOSTDLIB=true adds -nostdlib to the link and defines __nostdlib__, which tells
+# start.S to call main() instead of _start(). _start() lives in the standard
+# library and must run before main whenever that library is linked. In C++ the
+# standard library also adds a minimum set of functions to .text, plus .data and
+# an .eh_frame section that is only needed if exceptions are used.
 ifeq ($(NOSTDLIB),true)
 	NOSTDLIB_CFLAGS	= -D__nostdlib__ 
 	NOSTDLIB_LFLAGS	= -nostdlib
 endif
 
-##################################################
-### COMPILATION AND LINKER FLAGS
-##################################################
+# Compilation and linker flags.
 
 ARCH = rv32$(EXTENSIONS)
 CFLAGS_TOTAL = $(CFLAGS) $(NOSTDLIB_CFLAGS) -march=$(ARCH) $(OPTIMIZATION_FLAGS) $(USER_DEFINES) -I $(GCC_INC_DIR) -I $(LIB_INC_DIR) -I $(INC_DIR) -g
 LFLAGS_TOTAL = $(LFLAGS) $(NOSTDLIB_LFLAGS) -march=$(ARCH) $(OPTIMIZATION_FLAGS) -Wl,-Bstatic,-T,$(LD_SCRIPT),-Map,$(BIN_DIR)/$(TARGET).map,--cref -lc -lgcc -lm -L $(LD_DIR) -g
 
-##################################################
-### COMPILATION RULES
-##################################################
+# Compilation rules.
 
-# Make the entire project
+# The entire project.
 .PHONY: all
 all: $(BIN_DIR)/$(TARGET).hex $(BIN_DIR)/$(TARGET).lst $(BIN_DIR)/ram.rcf
 
-# Compile project source files from the project source directory into object files
+# Project source files to object files.
 $(OBJ_DIR)/%.src.o: $(SRC_DIR)/% $(HEADERS) makefile
 	@echo ""
 	@echo "> Compiling project source file $<"
 	@echo ""
 	$(CC) -c $< -o $@ $(CFLAGS_TOTAL)
 	
-# Compile library source files from the library source directory into object files
+# Library source files to object files.
 $(OBJ_DIR)/%.lib.o: $(LIB_SRC_DIR)/% $(HEADERS) makefile
 	@echo ""
 	@echo "> Compiling library source file $<"
 	@echo ""
 	$(CC) -c $< -o $@ $(CFLAGS_TOTAL)
 
-# Link object files together to create binary elf output file, show memory usage
+# Link the objects into the ELF and report memory usage.
 $(BIN_DIR)/$(TARGET).elf: $(OBJECTS)
 	@echo ""
 	@echo "> Linking $@"
 	@echo ""
 	$(CC) $(OBJECTS) -o $@ $(LFLAGS_TOTAL)
 
-# Convert elf file into Intel hex file
+# ELF to Intel hex.
 $(BIN_DIR)/%.hex: $(BIN_DIR)/%.elf
 	@echo ""
 	@echo "> Creating output hex file $@"
 	@echo ""
 	$(OBJCOPY) --remove-section=.comment --remove-section=.riscv.attributes -O ihex $< $@
 
-# Create assembly lst file
+# ELF to the C-to-assembly listing.
 $(BIN_DIR)/%.lst: $(BIN_DIR)/%.elf
 	@echo ""
 	@echo "> Creating C-to-assembly lst file $@"
@@ -108,14 +101,14 @@ $(BIN_DIR)/%.lst: $(BIN_DIR)/%.elf
 	$(OBJDUMP) --prefix-addresses --show-raw-insn -SrlD $< > $@
 	@make memory -s
 
-# Create ROM RCF file
+# The ROM memory initialisation file.
 $(BIN_DIR)/rom.rcf: $(BIN_DIR)/$(TARGET).hex
 	@echo ""
 	@echo "> Creating boot ROM RCF file $@"
 	@echo ""
 	$(RCF) $< $@ $(ROM_START) $(ROM_SIZE) 32 --default 0x00000000
 
-# Create RAM RCF file
+# The RAM memory initialisation file.
 $(BIN_DIR)/ram.rcf: $(BIN_DIR)/$(TARGET).hex
 	@echo ""
 	@echo "> Creating RAM RCF file $@"
@@ -123,11 +116,9 @@ $(BIN_DIR)/ram.rcf: $(BIN_DIR)/$(TARGET).hex
 	$(RCF) $< $@ $(RAM_START) $(RAM_SIZE) 32 --default 0xDEADBEEF --bootloaderUsesSpiFlashCommands --allow_undefined
 
 	
-##################################################
-### HELPER RULES
-##################################################
+# Helper rules.
 
-# Upload using the forth interpreter
+# Upload through the Forth interpreter.
 uname_a=$(shell uname -a)
 .PHONY: upload
 upload:
@@ -145,15 +136,7 @@ endif
 .PHONY: flash
 flash: upload
 
-## Reset the board
-#.PHONY: reset
-#reset:
-#	@echo ""
-#	@echo "> Resetting ASIC and booting from the SPI flash"
-#	@echo ""
-#	../../python/boot_spi
 
-# Remove junk
 .PHONY: tidy
 tidy:
 	@echo ""
@@ -162,7 +145,7 @@ tidy:
 	find $(OBJ_DIR) -type f -regextype posix-extended -iregex '.*\.(o)' -delete
 	find $(BIN_DIR) -type f -regextype posix-extended -iregex '.*\.(map|xout|out|d|lst|map)' -delete
 
-# Remove all non-source compilation artifacts
+# Remove every non-source compilation artifact.
 .PHONY: clean
 clean: tidy
 	@echo ""
@@ -170,7 +153,6 @@ clean: tidy
 	@echo ""
 	find $(BIN_DIR) -type f -regextype posix-extended -iregex '.*\.(hex|elf|rcf|hdlmem)' -delete
 
-# Print the memory usage of the target
 .PHONY: memory
 memory:
 	@echo ""
@@ -182,7 +164,7 @@ memory:
 	@echo ""
 	$(SIZE) $(BIN_DIR)/$(TARGET).elf --format=berkeley --radix=10
 
-# Set up the folder hierarchy
+# Create the directory hierarchy a fresh checkout does not carry.
 .PHONY: setup
 setup:
 	@if [ ! -d $(SRC_DIR) ] ; then $(MKDIR) $(SRC_DIR) ; fi

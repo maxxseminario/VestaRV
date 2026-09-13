@@ -1,18 +1,10 @@
 #!/usr/bin/env python3
-"""Read the rendered TRM text back and look for LaTeX that leaked through.
+"""VestaRV: read the rendered TRM text back and look for LaTeX that leaked through.
 
-This is the Bazel port of the `trm-lint` target in platform/common/Makefile.
-
-pdflatex exits 0 on the two defects this catches.  A mangled command such
-as a line break landing between the backslash and the name compiles
-cleanly and ships the letters "texttt" as body text; an unresolved cross
-reference renders as "??".  Neither appears in the build log, so the
-built PDF is the only place either can be seen.
-
-Unlike the Makefile, a missing pdftotext is a FAILURE here rather than a
-skip.  The Makefile has to degrade gracefully on a developer box that has
-TeX but no poppler; a Bazel test that silently passes when its tool is
-absent is a test that reports green for having done nothing.
+pdflatex exits 0 on both defects this catches: a mangled command ships its own letters as body
+text, and an unresolved cross reference renders as ??. Neither appears in the build log. A
+missing pdftotext is a failure here rather than a skip, because a test that passes when its
+tool is absent reports green for having done nothing.
 """
 
 import argparse

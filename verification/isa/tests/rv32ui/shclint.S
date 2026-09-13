@@ -1,38 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shclint.S  (M5b)
-#-----------------------------------------------------------------------------
-# Hart-0 directed test of the real CLINT registers + hart-0 IRQ delivery,
-# run against the default shmem_mp contention tiles (harts 1-3 hammer the
-# shared window throughout — every CLINT access below rides the arbiter
-# under real 4-way contention).
-#
-# CLINT map (shared window, 0x5000) — N-parameterized layout (Argus A3):
-#     MSIP[h]        = 0x5000 + 4*h                     (bit 0, level IRQ)
-#     MTIME_OFF      = roundup16(4*NHARTS)  (= 0x10 @N=4, 0x50 @N=18)
-#     MTIME  lo/hi   = 0x5000+MTIME_OFF / +4            (free-running, writable)
-#     MTIMECMP[0]    = 0x5000 + MTIME_OFF + 0x10        (resets ALL-ONES -> quiet)
-# At N=4 the formula reproduces the historic 0x5010/0x5020 layout exactly; at
-# N=18 the wider msip array pushes mtime to 0x5050 and mtimecmp[0] to 0x5060.
-#
-# Checks:
-#   1. mtime ticks: two reads (separate arbiter txns) strictly increase.
-#   2. mtime is writable: set lo=0x40000000/hi=0, read back within a small
-#      delta (it keeps counting underneath).
-#   3. RETIRED (M19): the CLINT slots are hardwire-enabled on EVERY hart —
-#      the old SYS_IRQ_ENU packing-quirk unmask is gone; steps 4/5 delivering
-#      with no setup at all IS the hardwired-enable proof.
-#   4. msip self-IPI: MSIP[0]=1 -> ISR (slot 83) clears it + sets flag bit 0.
-#   5. mtip: MTIMECMP[0] = mtime+64 (lo FIRST while hi is still all-ones —
-#      no spurious window — THEN hi=0 arms it) -> ISR (slot 84) disarms by
-#      setting cmp hi back to all-ones + sets flag bit 1.
-#
-# ISR contract: hardware pushes only the return PC at sp-4 (sp set first);
-# ISRs save/restore what they touch; the level MUST be cleared before iret
-# or the irq_handler immediately re-triggers. Hart 0 is never asleep here,
-# so no ignite. isr_flags lives in PRIVATE RAM (.data) — no shared traffic.
-#*****************************************************************************
+# VestaRV: CLINT register and hart-0 interrupt delivery test
+# Hart 0 directed, run against the default shmem_mp contention tiles, so every CLINT access rides the arbiter under real four-way contention.
+# CLINT map in the shared window at 0x5000, N-parameterised: MSIP[h] = 0x5000 + 4*h (bit 0, level), MTIME_OFF = roundup16(4*NHARTS), MTIME lo/hi = 0x5000 + MTIME_OFF and +4 (free-running and writable), MTIMECMP[0] = 0x5000 + MTIME_OFF + 0x10 (resets all-ones, so quiet). At N=4 that reproduces 0x5010/0x5020; at N=18 mtime moves to 0x5050 and mtimecmp[0] to 0x5060.
+# Checks: mtime strictly increases across two separate arbiter reads; mtime is writable and keeps counting underneath; a msip self-IPI reaches IVT slot 83; and mtip reaches slot 84 when MTIMECMP[0] is armed lo FIRST while hi is still all-ones, then hi = 0, so there is no spurious window. The CLINT slots are hardwire-enabled on every hart, and delivery with no unmask at all is the proof of that.
+# ISR contract: hardware pushes only the return PC at sp-4, so ISRs save and restore what they touch, and the LEVEL must be cleared before iret or the handler immediately re-triggers. Hart 0 is never asleep here, so no ignite. isr_flags lives in private .data, adding no shared traffic.
 
 #include "riscv_test.h"
 #include "test_macros.h"

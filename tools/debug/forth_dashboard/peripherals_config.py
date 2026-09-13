@@ -1,20 +1,8 @@
-"""
-Myshkin MCU Peripheral Configuration
-=====================================
-This module contains the complete peripheral and register map for the Myshkin chip.
-Extracted from MCU-User-Guide.pdf
+"""VestaRV: the peripheral and register map the Forth dashboard reads.
 
-Peripheral List:
-- GPIO0, GPIO1, GPIO2, GPIO3 (4x GPIO ports, 8 pins each = 32 total)
-- SPI0, SPI1 (2x SPI interfaces)
-- UART0, UART1 (2x UART interfaces)
-- TIMER0, TIMER1 (2x 32-bit timers with PWM)
-- SYSTEM (Clock control, power management, interrupts, watchdog, DCO, CRC)
-- NPU (Neural Processing Unit)
-- POTENTIOSTAT (Potentiostat with DACs and bias generators)
-- SARADC (10-bit SAR ADC)
-- DSADC (Delta-Sigma ADC with bias generators)
-- I2C0, I2C1 (2x I2C interfaces)
+The complete map for the myshkin chip, extracted from MCU-User-Guide.pdf: GPIO0 to GPIO3,
+SPI0/1, UART0/1, TIMER0/1, SYSTEM (clock, power, interrupts, watchdog, DCO, CRC), NPU,
+POTENTIOSTAT, SARADC, DSADC and I2C0/1.
 """
 
 # Peripheral base addresses

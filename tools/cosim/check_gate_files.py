@@ -1,62 +1,10 @@
 #!/usr/bin/python3.6
-# check_gate_files.py — lockstep-gate infrastructure drift checker.
+# VestaRV: lockstep-gate infrastructure drift checker.
 #
-# WHY THIS EXISTS
-# ---------------
-# The two standing lockstep gates and the 136-test behavioural suite are driven
-# by scripts and lists that live under `xcelium/`, and `.gitignore:312`'s bare
-# `xcelium/` rule (a deliberate 2026-07-18 decision) means git tracks NONE of
-# them. A `git clean -xdf` deletes the entire gate apparatus. That is not
-# theoretical: at W5 (2026-07-31) the pass measured TWO live consequences of it —
-#
-#   * amendment A10's correction to the boot x-wildcard substitution
-#     (`00004000:000000b0` -> `...b1`, a value that had been silently
-#     overwriting a bit the RTL actually drives since V3) existed ONLY on disk,
-#     in `xrun_cosim.sh`; and
-#   * the V4 missing-plant negative control, `RERUN.sh`, lived only in a session
-#     scratchpad OUTSIDE the repo, still carried the pre-A10 value, and had
-#     therefore stopped executing entirely (mk_inject EXIT_REFUSED, rc=5).
-#
-# This is the same canonical-copy-plus-verifier idiom the project already uses
-# for the generated `MCU.vhd` (`platform/common/python/check_mcu_vhd.py`): the
-# tracked copy under `tools/cosim/gate/` is the record, the copy under
-# `xcelium/` is what actually runs, and THIS SCRIPT MAKES A DIVERGENCE LOUD.
-#
-# `.gitignore` NEGATIONS, and exactly when they work (amended at K2). For the
-# `xcelium/` files a negation is IMPOSSIBLE: `.gitignore:312` excludes the
-# DIRECTORY, and git will not re-include a file whose parent directory is
-# excluded — that is why this whole canonical-copy idiom exists. But the rule is
-# about directory exclusions, not about ignoring in general, and K2 hit the
-# other case: `.gitignore:53 *.rcf` is a FILE-NAME rule, so the canonical boot
-# ROM copy under `tools/cosim/gate/` was silently unaddable while this checker
-# happily reported OK. One negation (`!tools/cosim/gate/*.rcf`) fixes that, and
-# it is the only one. If you add a canonical copy whose name matches any
-# file-name rule, CHECK `git status --ignored tools/cosim/gate/` — a canonical
-# copy git is not tracking is worse than no canonical copy, because the checker
-# passes.
-#
-# EXIT CODES
-#   0  every canonical copy matches its live copy (or has no live counterpart)
-#   1  DRIFT — at least one pair differs; a unified diff is printed
-#   2  a file is missing on one side
-#
-# USAGE (from anywhere; paths are resolved from this file's location)
-#   /usr/bin/python3.6 tools/cosim/check_gate_files.py            # check
-#   /usr/bin/python3.6 tools/cosim/check_gate_files.py --update   # live -> canonical
-#   /usr/bin/python3.6 tools/cosim/check_gate_files.py --restore  # canonical -> live
-#
-#   --update  records an INTENTIONAL change to a gate file. Run it, then COMMIT
-#             the canonical copy in the same commit as whatever motivated the
-#             change. It is the only sanctioned way to move the record.
-#   --restore is what a fresh clone (or a post-`git clean` tree) needs. It
-#             refuses to overwrite a live file that differs unless --force is
-#             also given, so it cannot silently discard an uncommitted fix — the
-#             exact accident this checker exists to catch.
-#
-# Never `python3` (kickoff invariant 6): `python3` on this host may be Calibre's
-# aoj_cal wrapper, which re-evals its arguments and strips quotes.
-#
-# Python 3.6 compatible.
+# The gates run from scripts under xcelium/, which .gitignore excludes as a directory, so the
+# tracked copy under tools/cosim/gate/ is the record and this makes a divergence loud. A
+# .gitignore negation cannot re-include a file under an excluded directory, which is why the
+# canonical-copy idiom exists. --update records a change; --restore refuses without --force.
 
 import difflib
 import os
@@ -91,7 +39,7 @@ import sys
 #   * `cosim_work/vesta_ref` -- a compiled binary, rebuildable from the tracked
 #     `vesta_ref.cc` + `build_vesta_ref.sh` against a pinned Spike.
 #   * `~/local/bin/{spike,dtc}` and the conda env -- third-party installs.
-#   * `cds.lib`, in EITHER behavioural flow (R-K2-3, 2026-08-03). It looks like
+#   * `cds.lib`, in EITHER behavioural flow. It looks like
 #     Tier A and it is not: both runners REGENERATE it unconditionally before
 #     they use it --
 #         xrun_parallel.sh:233   cat > "$BEHAVIORAL_DIR/cds.lib" <<LIB
@@ -121,7 +69,7 @@ GATE_FILES = [
      None,
      'the V4 missing-plant negative control — runs from the tracked copy'),
 
-    # K2b, 2026-08-03. The per-config KNOB-BEARING lockstep lists. They are
+    # The per-config KNOB-BEARING lockstep lists. They are
     # CANONICAL-ONLY on purpose: a live gitignored copy is what put the other
     # lists at risk in the first place, and nothing needs one here — the
     # runner takes an absolute TESTS_FILE, so these are read from the tracked
@@ -151,7 +99,7 @@ GATE_FILES = [
      'the record of F-K2b-2 (the custom CSR mtrapctl is illegal in the '
      'reference, so no TRAPCSR row can be clean)'),
 
-    # K4, 2026-08-03. The R-DK1 matrix's own knob-bearing lists, same
+    # The knob-matrix's own knob-bearing lists, same
     # CANONICAL-ONLY treatment and for the same reason. Nine of the sixteen
     # tier-B rows get one; the seven that do not are recorded with their
     # reason in pin_table.md rather than with an empty file here (an empty
@@ -206,11 +154,9 @@ GATE_FILES = [
      'arms are POISONs + the five ON-polarity-only rv32uzkn* rows), the '
      'largest knob-bearing list in the programme'),
 
-    # ---------------------------------------------------------------------
-    # K2 (G10), 2026-08-03. Everything below was named by the K0 harness probe
-    # §3.6 (tiers A-C) and the K0 inventory probe §5.5 (the six ON-polarity
-    # test lists) as load-bearing, gitignored, and unprotected.
-    # ---------------------------------------------------------------------
+    # Everything below was named by the harness and inventory probes as
+    # load-bearing, gitignored and unprotected: the tier A to C files and the six
+    # ON-polarity test lists.
 
     # Tier A — WITHOUT THESE, `make verify` AND THE 136-TEST SUITE CANNOT RUN
     # AT ALL ON A FRESH CLONE. The first entry is the one that matters most:
@@ -325,43 +271,19 @@ GATE_FILES = [
     # hardcoded path, and the four pins are measured against — so a silent
     # change to it is a silent change to the gate.
     #
-    # RE-CUT TWICE ON 2026-08-23, both times deliberately, neither time drift.
-    # First the ISA flip: the ROM is now built rv32ic with
-    # -fno-tree-loop-distribute-patterns, .text 10,140 -> 7,376 bytes, so every
-    # word of the image moved. Then the DEPTH change: memory.romSize went 16384
-    # -> 8192 and rom0 became the 2048 x 32 rom2k_hvt_pg macro, so the padded
-    # image is 8,192 bytes and this file is 2,048 lines, not 4,096. The tail
-    # that went away was all zeros -- the first 2,048 lines are unchanged.
-    # software/bootrom_mp/testdata/rom_rcf_golden.txt moved with it both times.
-    #
-    # AND A THIRD TIME the same day: the rv4th .noinit arrays were sized to the
-    # real 8 KiB TCM and the boot ROM was re-linked against the true generated
-    # memory.x, so every absolute data address in the image moved.  md5
-    # cab1bbe82d67d959d514dda9e338e3f9 -> d177e8314f2de080150070762b3d80f7.
-    # The first 0x304 bytes are unchanged, so the boot-mode X pins in
-    # xrun_cosim.sh (pc 0x5c and 0x15c) were re-measured and still hold.
-    #
-    # AND A FOURTH TIME, 2026-09-05 (report 08 findings 2 and 6): sp 0xBFFC ->
-    # 0xA000, bounded SPI polls, boot watchdog.  md5
-    # d177e8314f2de080150070762b3d80f7 -> 99b0c95dfb3fc0da52a49d1a68efa904.
-    # THIS CUT MOVED THE FIRST WORD (0x004, the mhartid dispatch branch), so
-    # the pc 0x5c / 0x15c boot-mode X pins above are STALE and must be
+    # The image is re-cut whenever a source under software/bootrom_mp/src/ or the
+    # generated memory map moves, and software/bootrom_mp/testdata/rom_rcf_golden.txt
+    # moves with it; the three copies are one md5,
+    # cea7e60f4723f63acfd92c5883716f1e.
+    # THE BOOT-MODE X PINS IN xrun_cosim.sh (pc 0x5c and 0x15c) ARE STALE: a cut
+    # moved the word at 0x004, the mhartid dispatch branch, and they must be
     # re-measured before the cosim reference is trusted again.
-    #
-    # AND A FIFTH TIME, 2026-09-12, with no source change: the default chip
-    # became config/castalia.json (one default silicon chip), NUM_IRQ_SRCS went
-    # 121 -> 124, the vector table grew 484 -> 496 bytes and RAM moved to
-    # 0x081F0.  md5 99b0c95dfb3fc0da52a49d1a68efa904 ->
-    # cea7e60f4723f63acfd92c5883716f1e.  The first changed word is 0x39C, so
-    # this cut does not disturb the pc 0x5c / 0x15c pins any further; they are
-    # still stale from the fourth cut.
     ('bootrom_mp_rom.rcf',
      'software/bootrom_mp/bin/rom.rcf',
      'the boot ROM image the COSIM_BOOT reference and the behavioural ROM '
      'model both execute (.gitignore:83)'),
 
-    # ---------------------------------------------------------------------
-    # D1, 2026-08-05 (R-D1-2 (4), confirmed by R-D1-3 (3)). The debug-mode
+    # The debug-mode
     # acceptance instruments. They are gate files by the same argument as
     # everything above -- they are the standing acceptance of a shipped
     # feature, they live in the gitignored `xcelium/` tree, and a
@@ -410,7 +332,7 @@ GATE_FILES = [
      'the shared verdict reader -- riscv_tb reports only a0, and every D1 '
      'instrument encodes WHICH assertion failed in a1/a2/a3, so a FAIL that '
      'cannot be read is a FAIL that cannot be diagnosed'),
-    # ---- D2 acceptance instruments (R-D1-2(4) extended by R-D2-2(6)) ----
+    # D2 acceptance instruments
     ('behavioral_mp/dbg_bfm.tcl',
      'xcelium/riscv_test/behavioral_mp/dbg_bfm.tcl',
      'the DMI bus-functional master library every D2 harness sources -- '
@@ -462,8 +384,7 @@ GATE_FILES = [
      'I2 runner -- the D1 dbg_iface_tb port bench; was the one unprotected '
      'unit-bench runner (d2_probe finding 11), retro-registered at D2 C5'),
 
-    # ---------------------------------------------------------------------
-    # D3 (R-D3-5(3), 2026-08-06): THE FLOW FILES.  A DIFFERENT KIND OF ENTRY,
+    # D3: THE FLOW FILES.  A DIFFERENT KIND OF ENTRY,
     # and the reason it belongs here is exactly the reason this whole
     # mechanism exists.  genus/ and innovus/common/ are BOTH gitignored
     # (.gitignore:5 and :14), so these five files -- the two SDC-bearing
@@ -506,8 +427,7 @@ GATE_FILES = [
      'reference cut actually describes -- and the provenance rule is that '
      'the cut artifacts (DB/GDS/rpt) were NOT touched, so this file is the '
      'only thing that says which netlist they came from'),
-    # ---------------------------------------------------------------------
-    # D3 (2026-08-06): THE JTAG ACCEPTANCE SET. Blind-authored against the
+    # D3: THE JTAG ACCEPTANCE SET. Blind-authored against the
     # frozen specs, demonstrated to FAIL before the transport existed, and
     # executed at N=4 AND N=18. They caught the sticky-FAILED RTL defect that
     # four of their own number could not see -- and the wall caught six
@@ -566,7 +486,7 @@ GATE_FILES = [
      'HEAD (the east edge runs 51-75, so 51 precedes 52). Nothing on the '
      'north edge -- ever: it is the PRCUT-isolated analog band'),
 
-    # ---- D4: the trampoline-plant acceptance set (seven tcl legs) --------
+    # D4: the trampoline-plant acceptance set (seven tcl legs)
     # Authored blind against the frozen spec and demonstrated to FAIL before
     # the implementation existed. dbg_tramp_lib carries the no-force guard,
     # which is CODE rather than a promise: it renames dbg_plant_trampoline to
@@ -622,7 +542,7 @@ GATE_FILES = [
      'CODE -- proven by an abstract round-trip that cannot complete unless '
      'the DM observed the trampoline s own TOK_HALTED'),
 
-    # ---- D5: THE TRANSPORT (d5_spec 2, architecture ruled at R-D5-1(3)) ----
+    # THE DEBUG TRANSPORT.
     # These four are the reason a debugger can reach this chip at all, and
     # every one of them lives in the gitignored `xcelium/` tree. Losing them
     # to a `git clean -xdf` would not cost a test -- it would cost the
@@ -662,7 +582,7 @@ GATE_FILES = [
      'that sized EVERY DR as BYPASS and would have pinned dmiresets at 0 -- '
      'the F1 false-reassurance class exactly'),
 
-    # ---- D4: the debug-ON assembly flow (R-D4-5(2), the R-D3-5(3) shape) --
+    # ---- The debug-ON assembly flow --
     # genus/ is gitignored, so the flow that produces the standing debug-ON
     # assembly pin AND the two generated inputs it reads are canonical here.
     # Before D4 those inputs lived in a FOREIGN /tmp SCRATCHPAD: the pin was
@@ -686,9 +606,9 @@ GATE_FILES = [
      'default and is the isolation, NOT staleness; a regeneration reading '
      'UMODE true used the wrong config and moves the pin'),
 
-    # ---- D5: the seven blind-authored acceptance instruments ---------------
-    # Authored against d5_spec.md by an agent barred from every fix, and every
-    # one of them was SEEN TO FAIL before it was seen to pass. They live in
+    # D5: the seven blind-authored acceptance instruments
+    # Authored blind against the frozen spec by an author barred from every fix, and
+    # every one was SEEN TO FAIL before it was seen to pass. They live in
     # gitignored xcelium/, so until now a `git clean -xdf` deleted the entire
     # evidential basis of the phase while leaving the RTL it graded in place.
     ('behavioral_mp/dbg_dmreg.tcl',
@@ -750,16 +670,16 @@ GATE_FILES = [
      'shredding the debuggee\'s registers on every halt), and E2 exists '
      'because E1 passes pre-fix with a ZERO WITNESS. 5 of 11 FAILED pre-fix'),
 
-    # ---- D5: the DD16 bounded gate leg (R-D5-10(1)) ------------------------
+    # D5: the DD16 bounded gate leg
     # The flow that carries the standing "the TAP answers through real cells"
-    # proof. Same reasoning as the D4 flow/ block above and the R-D3-5(3)
-    # shape: xcelium/ is gitignored, so a `git clean -xdf` deletes a signed-off
+    # proof. Same reasoning as the flow/ block above:
+    # xcelium/ is gitignored, so a `git clean -xdf` deletes a signed-off
     # proof and leaves nothing that says it ever existed.
     #
     # SCOPE, ruled deliberately: these are the files THIS PHASE CREATED. The
     # sibling genus_mp/ (debug-OFF) gate-sim flow has no rows either and is
     # equally exposed -- that gap is PRE-EXISTING and is named residue, not
-    # D5's to sweep (beside the R-D3-5(3) innovus/common gap).
+    # this phase's to sweep, beside the innovus/common gap.
     ('genus_mp_dbgon/xrun_gatedbg.sh',
      'xcelium/riscv_test/genus_mp_dbgon/xrun_gatedbg.sh',
      'the gate-leg runner: a genus_mp sibling that elaborates the debug-ON '

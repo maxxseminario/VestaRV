@@ -1,53 +1,10 @@
 #!/usr/bin/env python3
-"""Check that every allocated section of a linked firmware image lies inside a
-memory region the CURRENT chip memory map declares.
+"""VestaRV: check every allocated section of a linked firmware image lies in a declared region.
 
-WHY THIS EXISTS.
-A firmware image is linked through a linker script, and a linker script is a
-hand-maintained description of the chip.
-When the chip's memory shrinks and the linker script does not, the link still
-succeeds and the image is still byte-reproducible, but it addresses memory the
-part does not have.
-That is what happened to the boot ROM: tools/build/linker-scripts/memory.x was
-frozen on 2026/04/20 describing a 16 KiB TCM, the real TCM halved to 8 KiB on
-2026-08-16, and flashboot's .noinit ran 16,060 bytes past the end of RAM for
-over a week without a single red gate.
-
-So this check never reads a linker script for its bar.
-It reads the machine-readable memory map the chip generator emits, and it reads
-the section headers of the actual ELF.
-A linker script that lies cannot fool it, because the linker script is not an
-input to the comparison.
-
-WHAT COUNTS AS A VIOLATION.
-An allocated section (SHF_ALLOC) of nonzero size whose address range
-[addr, addr + size) is not fully contained in one declared region.
-  * NOBITS sections count.  .bss and .noinit occupy no file space but they
-    occupy address space at run time, which is precisely the resource that ran
-    out.  The defect that motivated this check is a NOBITS section.
-  * Zero-size sections do not count.  The blinky-family images carry dozens of
-    empty placeholder sections (.__interrupt_vector_N, .NN0SRAM, the AFE
-    histogram windows) that a linker leaves at whatever address the script
-    named; they address nothing and are not a runtime hazard.
-  * Non-allocated sections do not count.  .comment, .debug_*, .symtab and the
-    .riscv.attributes note are file metadata, never loaded.
-  * A section in the NPU staging RAM or the shared RAM window is NOT an
-    overrun.  Those are declared regions and images place things there on
-    purpose (dbg_trampoline lives at 0x10780).  The bar is "inside SOME
-    declared region", not "inside the TCM".
-
-WHERE THE REGIONS COME FROM.
-platform/common/config/MemoryMap.json is authoritative for ROM, the peripheral
-window and the TCM.  It does not name the two arbitrated windows, so NPU_RAM
-and SHARED_RAM are read out of the generated linker fragment
-platform/common/out/linker-scripts/memory.x, which the same generator writes
-from the same configuration in the same run.
-The two are cross-checked before either is used: memory.x's ROM and TCM windows
-must agree with the JSON to the byte.  A doctored memory.x therefore fails here
-rather than widening the bar it is supposed to enforce.
-
-Plain runner, no test framework: exit 0 passes, non zero fails.
-That is the repository convention for python checks here.
+Reads the generated memory map and the ELF section headers, never a linker script, so a stale
+script cannot fool it. A violation is an SHF_ALLOC section of nonzero size not fully inside
+one region; NOBITS count, zero-size and non-allocated do not. The two arbitrated windows come
+from out/linker-scripts/memory.x, cross-checked against config/MemoryMap.json first.
 """
 
 import argparse
@@ -106,10 +63,8 @@ class Section(object):
 
 
 def readSections(path):
-    """Every section header of a 32-bit little-endian RISC-V ELF.
-
-    The section headers are parsed here rather than shelled out to readelf so
-    the check has no toolchain dependency and can run in any sandbox.
+    """Every section header of a 32-bit little-endian RISC-V ELF, parsed here rather than shelled out
+    to readelf so the check has no toolchain dependency and can run in any sandbox.
     """
     with open(path, "rb") as f:
         data = f.read()
@@ -177,12 +132,9 @@ def readGeneratedMemoryX(path):
 
 
 def buildRegions(mapJsonPath, memoryXPath):
-    """The declared regions, and the cross-check that the two sources agree.
-
-    Returns (regions, complaints). A non-empty complaints list is a failure in
-    its own right: it means the generated linker fragment no longer describes
-    the same chip as the generated memory map, so neither can be trusted as the
-    bar for anything.
+    """The declared regions, and the cross-check that the two sources agree; returns (regions,
+    complaints). A non-empty complaints list is a failure in its own right: the generated linker
+    fragment no longer describes the same chip as the generated memory map.
     """
     with open(mapJsonPath, "r", encoding="utf-8") as f:
         chip = json.load(f)

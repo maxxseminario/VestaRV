@@ -1,3 +1,5 @@
+# VestaRV: the repository hygiene and line-ending gates.
+
 load("@rules_python//python:defs.bzl", "py_test")
 
 package(default_visibility = ["//visibility:public"])
@@ -9,9 +11,7 @@ exports_files([
     "check_vhdl_style.py",
 ])
 
-# ---------------------------------------------------------------------------
 # The VHDL prose style gate
-# ---------------------------------------------------------------------------
 
 # The file list the sandboxed run scans. $(SRCS) of a source-file dependency
 # expands to workspace-relative paths, which is what --files-from wants and
@@ -73,9 +73,7 @@ py_test(
     main = "check_vhdl_style.py",
 )
 
-# ---------------------------------------------------------------------------
 # The .bazelignore guard
-# ---------------------------------------------------------------------------
 
 # PROVES that .bazelignore still names every EDA output tree it is required to
 # guard. Those trees hold roughly 450 GB of generated output, and dropping a
@@ -107,9 +105,7 @@ py_test(
     main = "check_bazelignore.py",
 )
 
-# ---------------------------------------------------------------------------
 # NOT WIRED HERE: check_line_endings.py and check_repo_hygiene.py
-# ---------------------------------------------------------------------------
 #
 # Both are git-based by design - one reads the byte-level state of every
 # tracked file, the other asks what a branch added - and a bazel test runs in

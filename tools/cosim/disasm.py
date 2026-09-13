@@ -1,20 +1,11 @@
 #!/usr/bin/python3.6
-# -*- coding: utf-8 -*-
-"""Compact rv32imac_zba_zbb_zbs_zbc disassembler for lockstep triage output.
+# coding: utf-8
+"""VestaRV: compact rv32imac_zba_zbb_zbs_zbc disassembler for lockstep triage output.
 
-Phase V2 (Agent A).  Stdlib only, Python 3.6 syntax only.
-
-This is NOT a general-purpose disassembler.  Its only job is to annotate the
-`R` records the comparator prints around a divergence so a human reading the
-context does not have to hand-decode hex.  Coverage target = exactly the ISA
-the default Castalia config implements (`v0_report.md` §6:
-rv32imac_zba_zbb_zbs_zbc, all X-/P-series knobs false) plus the three VestaRV
-custom encodings on opcode 0x0b (`verification/env/p/riscv_test.h`).
-
-Anything outside that returns a string beginning with "unknown" — a deliberate,
-documented limitation (kickoff: "'unknown' is acceptable for exotica").  The
-caller must never make a comparison decision from this module's output; it is
-presentation only.
+Not a general-purpose disassembler: its only job is to annotate the R records the comparator
+prints around a divergence. Coverage is exactly the ISA the default config implements plus the
+three custom encodings on opcode 0x0b; anything else returns a string beginning with `unknown`.
+The caller must never make a comparison decision from this output. Stdlib, Python 3.6.
 """
 
 from __future__ import print_function
@@ -60,9 +51,7 @@ def _imm(v):
     return "%d" % v
 
 
-# --------------------------------------------------------------------------
 # 32-bit forms
-# --------------------------------------------------------------------------
 
 _BRANCH = {0: "beq", 1: "bne", 4: "blt", 5: "bge", 6: "bltu", 7: "bgeu"}
 _LOAD = {0: "lb", 1: "lh", 2: "lw", 4: "lbu", 5: "lhu"}
@@ -226,9 +215,7 @@ def _d32(insn):
     return "unknown opcode=0x%02x" % op
 
 
-# --------------------------------------------------------------------------
 # 16-bit (RVC) forms
-# --------------------------------------------------------------------------
 
 def _cr(n):
     """Compressed 3-bit register field -> ABI name (x8..x15)."""
@@ -336,11 +323,9 @@ def _d16(insn):
 
 
 def disasm(hexfield):
-    """Decode a wire-format `insn` field (4 or 8 lowercase hex digits).
-
-    Returns a short mnemonic string, or a string starting with "unknown"/"x?"
-    when the encoding is outside the covered ISA or the field carries an
-    Amendment-A5 `x` nibble.  Never raises.
+    """Decode a wire-format `insn` field of 4 or 8 lowercase hex digits into a short mnemonic, or a
+    string starting with "unknown" or "x?" when the encoding is outside the covered ISA or the
+    field carries an `x` nibble. Never raises.
     """
     if hexfield is None:
         return "?"

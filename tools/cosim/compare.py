@@ -1,34 +1,11 @@
 #!/usr/bin/python3.6
-# -*- coding: utf-8 -*-
-"""VestaRV <-> Spike lockstep comparator (phase V2, Agent A).
+# coding: utf-8
+"""VestaRV: the VestaRV-against-Spike lockstep comparator.
 
-Normalises an RTL commit trace (`vesta_tracer.vhd`, the frozen wire format in
-`tools/cosim/RECORD_FORMAT.md`) and a Spike `--log-commits` log into one flat
-ordered record stream each, aligns them at the entry PC (kickoff decision D3),
-and compares the COMPARED projection of every record in order.  On the first
-divergence it prints both sides with N records of context, every `R` annotated
-with a decoded mnemonic.
-
-Exit codes are the contract with `xrun_cosim.sh`; they are documented in
-`tools/cosim/README.md` and must not be changed without changing that file.
-
-    0  match
-    1  divergence (includes: entry PC never reached; a T record, which is a
-       control-flow divergence in V2 -- and, with `--bracket-isr`, an ISR
-       bracket whose trace-internally determined resume PC does not match the
-       pc of the first post-`iret` retire)
-    2  RTL stream exhausted early (Spike continues)
-    3  Spike stream exhausted while RTL continues  -- NEVER success: a
-       trapping instruction makes Spike print nothing and exit rc=0 silently
-       (RECORD_FORMAT §4, v0_report §10.3)
-    4  an Amendment-A5 x-corrupted record was reached -- INVESTIGATE
-    5  parse or usage error (includes, since V4: `--stop-before-sleep` whose
-       truncation point leaves ZERO compared records -- an operator-supplied
-       flag combination that cannot produce a comparison, never a vacuous 0)
-
-Stdlib only.  Python 3.6 syntax only.  Invoke as /usr/bin/python3.6 explicitly:
-this host's `python3` may be Calibre's `aoj_cal` wrapper, which re-evals its
-arguments and strips quotes (kickoff invariant 6).
+Normalises both traces into one ordered record stream each, aligns at the entry PC and
+compares the compared projection in order. Exit codes are the contract with xrun_cosim.sh:
+0 match, 1 divergence, 2 RTL exhausted early, 3 Spike exhausted while RTL continues (never
+success), 4 an x-corrupted record, 5 parse or usage error. python3.6 explicitly, stdlib only.
 """
 
 from __future__ import print_function
@@ -52,7 +29,7 @@ EXIT_SPIKE_SHORT = 3
 EXIT_XCORRUPT = 4
 EXIT_USAGE = 5
 
-# The v1 tracer's non-compared diagnostic tags (v1_report §8).  They are
+# The tracer's non-compared diagnostic tags.  They are
 # findings-surface: counted and summarised, never silently dropped.
 FINDING_TAGS = (
     "CSRLEAK",        # A1 / findings F3, F7 -- CSR commit on a non-retire edge
@@ -89,9 +66,7 @@ COMPARED_FIELDS = {
 }
 
 
-# --------------------------------------------------------------------------
 # presentation
-# --------------------------------------------------------------------------
 
 def annotate(rec):
     """One display line for a record: the wire form plus, for R, a mnemonic."""
@@ -135,29 +110,12 @@ def mismatch_detail(a, b):
     return out or ["(no compared field differs -- comparator bug)"]
 
 
-# --------------------------------------------------------------------------
 # stream preparation
-# --------------------------------------------------------------------------
 
 def canonicalise_a2(recs):
-    """Amendment A2: sort same-`pc` runs of consecutive R records by `rd`.
-
-    A multi-`rd` retire (Zcmp `cm.pop*`/`cm.mv*`, knobs-on only) is n
-    consecutive R records with identical pc/insn, one per committed register
-    write.  Spike prints the same writes on one line in numeric-key order and
-    the parser splits them the same way, but the two sides are not obliged to
-    agree on order, so any run is canonicalised before comparison.
-
-    A run of length 1 -- the overwhelmingly common case, and the only case in
-    the default Castalia config since ENABLE_ZCMP/ZCMT are false -- is
-    untouched.
-
-    A same-pc run also forms when ONE instruction executes repeatedly, i.e. a
-    self-loop such as `RVTEST_PASS`'s `c.j`, where both sides emit in execution
-    order and reordering could in principle mask a real ordering divergence.
-    The two cases are distinguished structurally: a multi-`rd` retire writes n
-    DISTINCT registers, a repeated execution repeats the same `rd`.  So the sort
-    is applied only when every `rd` in the run is distinct.  Returns a NEW list.
+    """Amendment A2: sort same-pc runs of consecutive R records by rd, since a multi-rd retire is n
+    records the two sides need not order alike. The sort is applied only when every rd in the run
+    is distinct, which separates a multi-rd retire from a self-loop. Returns a new list.
     """
     out = []
     i = 0
@@ -188,23 +146,15 @@ def align_entry(recs, entry):
 
 
 def compared_stream(recs):
-    """Drop X records (never compared, §5); keep R/M/C and T.
-
-    T is retained IN POSITION so the walk can report it as a control-flow
-    divergence at the point it occurs (§4: Spike's commit log carries no trap
-    information, and in the D3 window no trap is expected, so a T record is a
-    signal).
-
-    THE NON-BRACKET PATH.  `--bracket-isr` deliberately does NOT change this
-    function: with the option off, behaviour must stay bit-identical to V2.
+    """Drop X records, which are never compared, and keep R, M, C and T. T is retained in position so
+    the walk reports it as a control-flow divergence where it occurs. --bracket-isr deliberately
+    does not change this function, so with the option off the behaviour is bit-identical.
     """
     return [r for r in recs if r.is_compared() or r.kind == "T"]
 
 
-# --------------------------------------------------------------------------
 # Amendment A15 (V4): the spurious failed-SC `M … S` record
 #   STATUS SINCE A16 (WT, finding T2): COMPATIBILITY SHIM + x-FALLBACK.
-# --------------------------------------------------------------------------
 #
 # A16 fixed this AT SOURCE: `vesta_tracer.vhd` now samples `sc_fail_ext` in
 # SC_CHECK and emits `# SCGHOST` instead of an `M … S` for a write resv_unit
@@ -253,7 +203,7 @@ def compared_stream(recs):
 #   * every application is counted per (pc, addr) identity and printed.
 # THIS IS NOT A "SKIP FAILED SC" SWITCH. A failed SC's ADDRESS is still compared
 # (via the reference's own store... which it does not make -- so what remains is
-# the CONSISTENCY check below), and per Fable's A14 restatement the `rd` itself is
+# the CONSISTENCY check below), and under the A14 restatement the `rd` itself is
 # ASSERTED, not compared. What A15 buys is that the store-presence CONSISTENCY
 # becomes checkable at all: an `M … S` after an rd=0 (SUCCESS) SC is left in place
 # and compared normally, and its ABSENCE there is still a divergence.
@@ -271,10 +221,9 @@ def _is_sc_w(insn_hex):
 
 
 def drop_scfail_ghost_stores(recs):
-    """A15: remove the `M … S` that a FAILED `sc.w` emitted but never committed.
-
-    `recs` is an already-compared stream (R/M/C, X dropped). Returns
-    (kept, info) where `info` carries the census the summary must print.
+    """A15: remove the `M ... S` that a failed sc.w emitted but never committed. `recs` is an
+    already-compared stream; returns (kept, info), where info carries the census the summary
+    must print.
     """
     keep = [True] * len(recs)
     census = {}            # (pc, addr) -> count
@@ -308,9 +257,7 @@ def drop_scfail_ghost_stores(recs):
              "census": census, "indeterminate": indet})
 
 
-# --------------------------------------------------------------------------
 # sleep truncation (V4, --stop-before-sleep)
-# --------------------------------------------------------------------------
 #
 # In the multi-hart phase a tile hart (1..N-1) boots the shared ROM, runs its
 # handful of comparable retires and then executes `EXTINGUISH` -- a VestaRV
@@ -329,21 +276,9 @@ EXTINGUISH_INSN = "0000100b"
 
 
 def find_sleep_cut(recs):
-    """Locate the `--stop-before-sleep` cut in an entry-aligned RTL window.
-
-    `recs` must already be BOTH hart-filtered and entry-aligned (index 0 is the
-    entry retire), so the answer composes with `--hart` and `--entry` by
-    construction.  Nothing is removed here -- the caller slices.
-
-    Returns a dict:
-        wfi   window index of the first `X ... wfi_enter`, or None
-        ext   window index of the first `R` whose insn is EXTINGUISH, or None
-        cut   the earlier of the two in FILE ORDER, or None if neither exists
-        why   "wfi_enter" / "EXTINGUISH" / None -- which trigger won
-        rec   the trigger Rec (for the line/cycle report), or None
-        wfi_rec / ext_rec   the two trigger Recs, for the adjacency warning
-        adj   True/False if both exist (ext == wfi + 1), else None
-        total number of records in the untruncated window
+    """Locate the --stop-before-sleep cut in an entry-aligned RTL window, which must already be
+    hart-filtered, so the answer composes with --hart and --entry. Nothing is removed here, the
+    caller slices. Returns a dict of the wfi and EXTINGUISH indices, the cut, why, and the recs.
     """
     wfi = ext = None
     for i, r in enumerate(recs):
@@ -370,9 +305,7 @@ def find_sleep_cut(recs):
     return got
 
 
-# --------------------------------------------------------------------------
 # the ISR bracket (V3, --bracket-isr)
-# --------------------------------------------------------------------------
 #
 # Spike/the reference CANNOT model VestaRV's legacy vectored trap (custom
 # `iret`, IVT dispatch, hardware return-PC push), so the reference is never
@@ -395,7 +328,7 @@ def find_sleep_cut(recs):
 # whole outermost window -- IVT jump retire, ISR retires, its memory and CSR
 # records, any nested trap -- leaves the compared stream.
 #
-# --- Amendment A11 (V4): the SLEEP bracket ---------------------------------
+# Amendment A11 (V4): the SLEEP bracket
 #
 # A window may ALSO open on `X <hart> <cycle> wfi_enter`, because VestaRV's park
 # instruction is `EXTINGUISH` (0x0000100b), a custom opcode the reference cannot
@@ -434,11 +367,9 @@ def _or_dash(v):
 
 
 class Bracket(object):
-    """One RTL ISR window plus its verdict.
-
-    Opened either by a `T` record (kind "TRAP", V3) or by an
-    `X <hart> <cycle> wfi_enter` (kind "SLEEP", Amendment A11); closed by the
-    matching `X ... iret` in both cases.
+    """One RTL ISR window plus its verdict, opened either by a T record (kind TRAP) or by an
+    `X <hart> <cycle> wfi_enter` (kind SLEEP), and closed by the matching `X ... iret` in both
+    cases.
     """
 
     __slots__ = ("n", "index", "kind", "opener", "t", "x", "epc", "ivt",
@@ -489,12 +420,9 @@ class Bracket(object):
             self.src = None
 
     def adopt_trap(self, t, push):
-        """A11 (woken): the legacy sentinel `T` inside a SLEEP window JOINS it.
-
-        It does not open a window of its own -- that would double-open the one
-        span A11 describes -- but it does supply the epc/cause/ivt/push that the
-        landing check and the summary read, exactly as a TRAP bracket's own `T`
-        does.
+        """The legacy sentinel T inside a SLEEP window joins it rather than opening a window of its own,
+        which would double-open the one span. It still supplies the epc, cause, ivt and push that the
+        landing check and the summary read.
         """
         self._set_trap(t)
         self.adopted = True
@@ -506,7 +434,7 @@ class Bracket(object):
             return "TRAP"
         return "SLEEP+T" if self.adopted else "SLEEP"
 
-    # -- step 1 ----------------------------------------------------------
+    # -- step 1
     def resolve_expected(self):
         """The stacked-PC slot decides: an ISR store to it REDIRECTS the iret."""
         hits = [s for s in self.stores
@@ -547,11 +475,9 @@ class Bracket(object):
 
 
 class _DiagIndex(object):
-    """A7 diagnostics by tag, searchable by the line range they must fall in.
-
-    An `# IRQPUSH` / `# IRETPOP` is a COMMENT, so it has no position in the
-    record stream: the only sound association is "the last one of this tag
-    between the previous record's line and this record's line".
+    """A7 diagnostics by tag, searchable by the line range they must fall in. An IRQPUSH or IRETPOP
+    is a comment with no position in the record stream, so the only sound association is the last
+    one of that tag between the previous record's line and this record's line.
     """
 
     def __init__(self, diags):
@@ -573,20 +499,9 @@ class _DiagIndex(object):
 
 
 def bracket_partition(recs, diags):
-    """Split an entry-aligned RTL stream into (compared, brackets, notes).
-
-    `compared` is the stream the walk consumes: R/M/C outside every ISR window,
-    in order, with `X` records dropped and `T` records consumed as bracket
-    openers.  Nothing inside a window survives -- and every removal is counted,
-    so the summary can account for the whole input stream.
-
-    Amendment A11: a window also opens on `X ... wfi_enter`.  Nesting is a STACK
-    (`levels` below), never a flag: each level is either "T" (a trap level, or a
-    sleep level that has ADOPTED its `T`) or "S" (a sleep level still able to
-    adopt one), and every level is popped by one `X ... iret`.  A SLEEP window
-    that reaches end-of-stream without adopting a `T` is PARKED: correct, not an
-    error, and its interior goes BACK into `compared` rather than being
-    swallowed.
+    """Split an entry-aligned RTL stream into (compared, brackets, notes). Nothing inside a window
+    survives into `compared` and every removal is counted. Nesting is a stack popped by `X ...
+    iret`; a SLEEP window that never adopts a T is parked and its interior goes back.
     """
     dix = _DiagIndex(diags)
     out, brackets, notes = [], [], []
@@ -645,7 +560,7 @@ def bracket_partition(recs, diags):
                 awaiting = []
             continue
 
-        # ---- inside a window -------------------------------------------
+        # inside a window
         cur.n_skipped += 1
         cur.swallowed.append(r)
         if r.has_x:
@@ -769,9 +684,7 @@ def parse_window(text):
     return int(b, 16), int(s, 16)
 
 
-# --------------------------------------------------------------------------
 # main
-# --------------------------------------------------------------------------
 
 class _Parser(argparse.ArgumentParser):
     """argparse exits 2 on a usage error, which collides with EXIT_RTL_SHORT."""
@@ -916,15 +829,9 @@ def load_x_allow(path):
 
 
 def summarise_brackets(err, info):
-    """The per-bracket summary block (V3 ISR-BRACKET).
-
-    Everything the mechanism decided is printed: the window, the interrupt
-    source, the case, the expected-vs-actual resume PC and its verdict, the
-    store census with the MMIO exclusions named, and -- for a SEQUENTIAL bracket
-    that landed on its own `epc` -- the explicit `no-op (epc==resume)`
-    annotation.  That last one is a free built-in check: it says the bracket did
-    nothing beyond what the RTL itself did, and it has to be VISIBLE for the
-    reader to know when the mechanism is and is not carrying weight.
+    """The per-bracket summary block. Everything the mechanism decided is printed, including the
+    explicit no-op annotation when a SEQUENTIAL bracket landed on its own epc, which is what says
+    the bracket did nothing beyond what the RTL itself did.
     """
     brs = info["brackets"]
     base, size = info["bracket_mmio"]
@@ -1015,13 +922,9 @@ def _in_window(addr_hex, base, size):
 
 
 def summarise_sleep_cut(err, info):
-    """The `--stop-before-sleep` block (V4).
-
-    The comparator's whole ethos is that nothing is silently skipped, and a
-    truncating option is the easiest place to break that: silence here would be
-    indistinguishable from a comparator that was told to skip the hard part.
-    So the trigger, its file line and cycle, the kept count and the dropped
-    count are always printed -- and so is the case where nothing was cut.
+    """The --stop-before-sleep block. A truncating option is the easiest place to skip something
+    silently, so the trigger, its file line and cycle, the kept count and the dropped count are
+    always printed, and so is the case where nothing was cut.
     """
     sbs = info["sleep_cut"]
     err.write("  --- sleep truncation [--stop-before-sleep] ---\n")
@@ -1285,7 +1188,7 @@ def main(argv):
             summarise(err, info)
         return code
 
-    # --- entry alignment (D3) ------------------------------------------
+    # entry alignment (D3)
     ri = align_entry(rtl_all, entry)
     if ri < 0:
         out.write("DIVERGENCE: the RTL stream never reaches the entry PC "
@@ -1320,7 +1223,7 @@ def main(argv):
                   "this should be 0; a DTB-on log has a 5-instruction "
                   "prologue at 0x1000 (RECORD_FORMAT §7).\n" % si)
 
-    # --- sleep truncation (V4, --stop-before-sleep) ----------------------
+    # sleep truncation (V4, --stop-before-sleep)
     # Applied to the hart-filtered, ENTRY-ALIGNED window -- i.e. after both of
     # those -- and BEFORE the bracket/compared projection, so the count printed
     # in the summary is the count the walk actually consumes.  A trigger that
@@ -1403,7 +1306,7 @@ def main(argv):
         return finish(EXIT_MATCH, "--count: %d RTL records in the "
                                   "entry-aligned window" % len(rtl))
 
-    # --- ISR-bracket structural gate (before the walk) -------------------
+    # ISR-bracket structural gate (before the walk)
     # These two shapes make a bracket UNVERIFIABLE, so they are refused rather
     # than passed over: the whole point of the mechanism is that the landing is
     # a compared verdict, and a bracket with no landing has no verdict.
@@ -1486,7 +1389,7 @@ def main(argv):
                               "got %s)" % (b.n, b.expected, b.landing_pc))
             b.checked = True
 
-    # --- the walk -------------------------------------------------------
+    # the walk
     i = j = 0
     n = 0
     while True:
@@ -1576,7 +1479,7 @@ def main(argv):
 
         a, b = rtl[i], spk[j]
 
-        # --- ISR-bracket step 2: VERIFY THE LANDING (a compared verdict) ---
+        # ISR-bracket step 2: VERIFY THE LANDING (a compared verdict)
         # Done AT the first post-`X iret` retire, before that record is itself
         # compared, so the bracket's own claim is checked before anything that
         # depends on it.  Nothing else about the walk changes: the resume really

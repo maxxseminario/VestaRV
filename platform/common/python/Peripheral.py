@@ -1,3 +1,7 @@
+# VestaRV: a peripheral and its template in the chip description model.
+# A PeripheralTemplate carries the registers, prose and bus metadata of one block;
+# CreatePeripheral() instantiates it at an address. The cross-checks here are what keep a
+# description from claiming a slot or a register width the RTL does not have.
 from Register import RegisterTemplate, Register
 from GpioConfigurator import GpioConfigurator
 
@@ -7,7 +11,7 @@ import fnmatch
 # bit per pin, so the port size changes them together. P?OUTT, P?IF and P?TASK
 # were missing (their write side loops `for i in 0 to (num_pins/8)-1` and the
 # read mux returns `read_data_buff(num_pins-1 downto 0)`, exactly like the other
-# ten), so the map published them 32 bits wide -- 2026-09-10, caught by
+# ten), so the map published them 32 bits wide, caught by
 # //platform/common:rdl_vs_generator_test against gpio.rdl. P?IFG, P?RIF and
 # P?FIF name registers this GPIO does not have and are kept only so a port built
 # from an older template still narrows. P?AFS is deliberately absent: it is four
@@ -137,25 +141,9 @@ class Peripheral():
 	StrobeNote = None	# Access side-effect software must know (e.g. SPIxRX read clears TCIF)
 
 	def __init__(self, peripheralTemplate:PeripheralTemplate, peripheralMemorySlot:int, peripheralMemorySlotCount:int, registerMemorySlotsPerPeripheralMemorySlot:int, peripheralMemoryStartAddress:int, interruptPriority, nameIndex='', absoluteBaseAddress=None, legacySlot=None, sharedBus=None, combinationalRead=False, clockDomain=None, strobeNote=None, registerSlotCount=None):
-		'''
-		@peripheralTemplate - The PeripheralTemplate type to bind this Peripheral to
-		@peripheralMemorySlot - The peripheral memory slot number that this peripheral will use
-		@peripheralMemorySlotCount - The total number of peripheral memory slots in the peripheral memory address space
-		@registerMemorySlotsPerPeripheralMemorySlot - The number of register memory slots contained in one peripheral memory slot. A register memory slot is 4 bytes long (32 bits)
-		@peripheralMemoryStartAddress - The address of the beginning of the peripheral memory address space
-		@interruptPriority - The value of the interrupt priority (range: [0, ∞), smaller is higher priority). Also the element number in the interrupt vector table. Set to None if there is no interrupt in this peripheral
-		@nameIndex - The index to replace the "x" character in the PeripheralTemplate and the RegisterTemplates
-		@legacySlot - The 0x4000-page slot number this peripheral owns or (for shared-window devices) used to own. Defaults to peripheralMemorySlot. Set explicitly for moved peripherals whose slot number still matters to the RTL; None for devices that never had one (e.g. CLINT)
-		@sharedBus - None (hart-0-private), 'periph' (register bus bridged onto the mp_arbiter) or 'native' (speaks the arbiter slave protocol directly)
-		@combinationalRead - True when the peripheral's register read is combinational and needs the MCU-side bridge register (I2C, NPU)
-		@clockDomain - 'mclk', 'smclk' or 'muxed'; software-visible clocking class of the peripheral core
-		@strobeNote - access side-effect note (e.g. reading SPIxRX auto-clears TCIF)
-		@registerSlotCount - per-peripheral override of the register-word count (A2/Argus engine
-			delta). The global registerMemorySlotsPerPeripheralMemorySlot (64) is ALSO the legacy
-			0x4000-page slot pitch, so it cannot simply be raised; absolute-base shared-window
-			peripherals whose register file scales with the hart count (IRQROUTER rows at 4*h,
-			CLINT/PWRCTRL at large N, a 32-mutex bank) declare their own word count here instead.
-			Only legal together with absoluteBaseAddress. None = the global count.
+		'''Bind one Peripheral to a PeripheralTemplate at a peripheral memory slot. interruptPriority is
+		also the interrupt vector element, None for no interrupt; registerSlotCount is legal only with
+		an absoluteBaseAddress, the global count being also the legacy 0x4000-page pitch.
 		'''
 		# Check peripheralTemplate
 		if type(peripheralTemplate) != PeripheralTemplate:
@@ -306,7 +294,7 @@ class Peripheral():
 		# every register and only passed because it ran BEFORE
 		# ChangeGPIOPortSize narrowed the others -- an ordering accident that
 		# broke the moment the register templates started arriving from
-		# hdl/common/regs/rdl/gpio.rdl already at their RTL width (report R5).
+		# hdl/common/regs/rdl/gpio.rdl already at their RTL width.
 		registerNames = []
 		registerSizes = []
 		for r in self.Registers:
@@ -360,7 +348,7 @@ class Peripheral():
 		# Every register whose width is num_pins in GPIO.vhd. P?OUTT, P?IF and P?TASK
 		# were missing (their write side loops `for i in 0 to (num_pins/8)-1` and the
 		# read mux returns `read_data_buff(num_pins-1 downto 0)`, exactly like the
-		# other ten), so the map published them 32 bits wide -- 2026-09-10, caught by
+		# other ten), so the map published them 32 bits wide, caught by
 		# //platform/common:rdl_vs_generator_test against gpio.rdl. P?IFG, P?RIF and
 		# P?FIF name registers this GPIO does not have and are kept only so a port
 		# built from an older template still narrows.

@@ -1,6 +1,7 @@
-% IRQROUTER chapter. Configuration-driven: vector numbers, word counts and
-% hart counts come from include/defines.tex. Section order is the
-% per-peripheral template enforced by python/check_intro_names.py.
+% VestaRV: IRQROUTER chapter of the TRM.
+% Configuration-driven: vector numbers, word counts and hart counts come from
+% include/defines.tex. Section order is the per-peripheral template enforced by
+% python/check_intro_names.py.
 \section{Overview}
 
 The interrupt router (\peripheral{IRQROUTER}) is the chip's peripheral interrupt controller. Every deglitched peripheral interrupt level terminates here, and delivery follows the claim/complete model of a RISC-V platform-level interrupt controller: the router raises one external-interrupt wire (\texttt{meip}, vector \MeipVector{}) to each hart, and the servicing hart reads \register{CLAIM} to discover and atomically claim the pending source. Routing is per hart and per vector, so a peripheral's interrupt can be steered to whichever hart currently owns that peripheral.

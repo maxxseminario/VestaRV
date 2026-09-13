@@ -1,43 +1,10 @@
 // See LICENSE for license details.
 
-//*****************************************************************************
-// shpause.S  (X1 Zihintpause -- directed multi-hart PAUSE arbiter-yield test)
-//-----------------------------------------------------------------------------
-// THE observable evidence that ENABLE_ZIHINT's PAUSE side-effect is live: the
-// ANTAGONIST (hart 1) runs a FIXED bus-work burst (NITER iterations of a
-// shared store + load), and the MEASURER (hart 0) times the burst with the
-// FREE-RUNNING CLINT mtime (0x5000 + roundup16(4*NHARTS), +1 per mclk --
-// advances even while a hart is stalled, so it is a true wall-clock). The burst
-// is run twice:
-//   Phase 1 CONTROL : antagonist runs the burst with NO pause      -> RCTL
-//   Phase 2 PAUSE   : antagonist adds PAUSE each iteration (16-cycle bus
-//                     yield, D6)                                    -> RPAU
-// Each PAUSE drops the antagonist OUT of the arbiter request contest for the
-// window (verified at RTL: the core enters PAUSE_WAIT with its shared-bus
-// request de-asserted), so the SAME fixed bus work takes deterministically
-// LONGER wall-clock with PAUSE: RPAU > RCTL by ~NITER*window mclk. The burst is
-// pure bus traffic (no lock) so it always completes -- bounded, no livelock.
-//
-//   ON build  (#ifdef CORE_ENABLE_ZIHINT): ASSERT RPAU > RCTL + MARGIN.
-//       The negative-control seed (PAUSE_WINDOW_CYCLES = 0) makes PAUSE a plain
-//       fence-nop -> RPAU ~= RCTL -> this assertion FAILS (that is the point).
-//   OFF build (#else): PAUSE is a plain fence-nop; the comparison is
-//       meaningless, so it degrades to a forward-progress check (both bursts
-//       timed, all tiles reported DONE) and PASSES -- keeping the suite green
-//       under the DEFAULT (off) build.
-//
-// RCTL/RPAU are stored to shared words (and left in s4/s5) for readback.
-//
-// SYNCHRONISATION (tiles boot SERIALLY through the ROM loader): the measurer
-// waits for the antagonist's READY flag before phase 1 so BOTH phases see a
-// live antagonist, and waits for every tile's DONE flag before the verdict so a
-// still-booting tile can never masquerade as the failure.
-//
-// CPP GOTCHA (cost a debug cycle): inline `#` comments on `#define`s are NOT
-// stripped by cpp and leak into the macro body, so `NAME + 4` puts the `+ 4`
-// inside an assembler comment and silently drops it. Every define below uses
-// `//` (cpp-stripped) and every derived address uses REGISTER arithmetic.
-//*****************************************************************************
+// VestaRV: directed multi-hart PAUSE arbiter-yield test
+// The antagonist hart runs a FIXED bus-work burst of NITER shared store and load pairs, and the measurer times it with the FREE-RUNNING CLINT mtime at 0x5000 + roundup16(4*NHARTS), which advances even while a hart is stalled and is therefore true wall-clock. The burst runs twice, once with no PAUSE giving RCTL and once with a PAUSE each iteration giving RPAU. Each PAUSE drops the antagonist OUT of the arbiter request contest for the window, with its shared-bus request de-asserted, so the SAME fixed bus work takes deterministically longer and RPAU must exceed RCTL by about NITER times the window. The burst is pure bus traffic with no lock, so it always completes.
+// With CORE_ENABLE_ZIHINT defined the test ASSERTS RPAU > RCTL + MARGIN; the negative-control seed sets the pause window to zero cycles, making PAUSE a plain fence-nop so the two times converge and the assertion fails, which is the point. Without it PAUSE is a plain fence-nop and the comparison is meaningless, so the test degrades to a forward-progress check, timing both bursts and requiring every tile to report done, which keeps the default suite green. RCTL and RPAU are stored to shared words and left in s4 and s5 for readback.
+// SYNCHRONISATION MATTERS BECAUSE TILES BOOT SERIALLY through the ROM loader: the measurer waits for the antagonist's READY flag before phase 1 so both phases see a live antagonist, and waits for every tile's DONE flag before the verdict so a still-booting tile cannot masquerade as the failure.
+// CPP GOTCHA: an inline `#` comment on a `#define` is NOT stripped by cpp and leaks into the macro body, so a trailing `+ 4` ends up inside an assembler comment and is silently dropped. Every define here uses `//`, which cpp does strip, and every derived address uses register arithmetic.
 
 #include "riscv_test.h"
 #include "test_macros.h"

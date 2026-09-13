@@ -1,37 +1,9 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shlrsc.S  (M4b; M12 single-ROM boot rework)
-#-----------------------------------------------------------------------------
-# Directed LR/SC test against the SHARED-RAM window (0x10000, region 4, behind
-# mp_arbiter + resv_unit). Runs on hart 0 while harts 1-3 hammer their disjoint
-# words (0x10040+4*h) — hart 1's continuous traffic on 0x10044 is the REAL
-# foreign-write source that kills a reservation in step 4.
-#
-# M12: the default tile preload (harts 1-3 running shmem_mp) is retired, so
-# this test now LAUNCHES the tiles itself: hart 0 stages this TCM image once
-# and launches all NHARTS-1 tiles into tile_hammer through the bootrom loader
-# (mp_boot.h). tile_hammer mirrors shmem_mp phase 3 — write an incrementing
-# per-hart pattern to the hart's own word, read it back, compare (so a wrongly
-# committed foreign SC of 0xDEAD to 0x10044 is caught by hart 1's own
-# readback, exactly as the old shmem_mp tiles policed it). Before step 4 hart 0
-# waits (bounded) until it OBSERVES 0x10044 CHANGING — proof hart 1 is live —
-# so the foreign write is guaranteed during the step-4 window (no new shared
-# word needed for the handshake).
-#
-# Covers, in order:
-#   1. LR/SC success on an idle shared word (+ memory updated)
-#   2. SC without LR -> fail, memory NOT written (would have written before
-#      the M4b core fix: SC used to store unconditionally in EXECUTE)
-#   3. LR word A, SC word B -> fail (address mismatch), B untouched
-#   4. LR on hart 1's hammer word, delay, SC -> fail (foreign write killed the
-#      global reservation; a wrongly-committed 0xDEAD is policed by hart 1's
-#      own write/readback in tile_hammer)
-#   5. LR A, own plain store to A, SC A -> fail (own write kills reservation —
-#      conservative resv_unit policy), memory holds the plain store's value
-#   6. LR/SC success on PRIVATE memory (tohost-adjacent scratch) — local path
-#      keeps working with the global unit in place
-#*****************************************************************************
+# VestaRV: directed LR/SC against the shared-RAM window
+# Runs on hart 0 against the shared window at 0x10000, behind mp_arbiter and resv_unit, while the tiles hammer their disjoint words at 0x10040 + 4*h. Hart 0 stages this TCM image once and launches every tile into tile_hammer through the boot ROM loader; tile_hammer writes an incrementing per-hart pattern to its own word, reads it back and compares, SO A WRONGLY COMMITTED FOREIGN STORE-CONDITIONAL IS CAUGHT BY THE VICTIM'S OWN READBACK.
+# HART 1'S CONTINUOUS TRAFFIC IS THE REAL FOREIGN-WRITE SOURCE for step 4, and before that step hart 0 waits, bounded, until it OBSERVES hart 1's word CHANGING, which proves hart 1 is live and guarantees the foreign write falls inside the step-4 window without needing a handshake word.
+# The six cases, in order: (1) LR/SC success on an idle shared word, with memory updated; (2) SC without LR must fail with memory NOT written, which an earlier core violated by storing unconditionally in EXECUTE; (3) LR on word A then SC on word B must fail on address mismatch with B untouched; (4) LR on hart 1's hammer word, a delay, then SC must fail because the foreign write killed the global reservation; (5) LR on A, an own plain store to A, then SC on A must fail under the conservative reservation policy, with memory holding the plain store's value; (6) LR/SC success on PRIVATE memory, so the local path keeps working with the global unit in place.
 
 #include "riscv_test.h"
 #include "test_macros.h"

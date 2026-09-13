@@ -1,11 +1,12 @@
-/** Includes **/
+// VestaRV: SPI flash driver
+// Targets the AT45DB021E on SPI0 in 256-byte page mode. flash_memory_init sends the wake, unprotect and page-size opcodes; the page-size opcode is one-time programmable on the part.
+
 #include <MemoryMap.h>
 #include <spi.h>
 #include <flash_memory.h>
 
 
 
-/** Defines **/
 // SPI Flash Opcodes
 #define SPI_FLASH_OPCODE_WAKE		(0xAB)
 #define SPI_FLASH_OPCODE_UNPROTECT	(0x3D2A80A6)
@@ -18,7 +19,6 @@
 
 
 
-/** Function Declarations **/
 void flash_memory_init();
 void flash_memory_beginRead(uint32_t start_address);
 void flash_memory_writePage(uint32_t page_address, uint8_t *data_256bytes);
@@ -29,7 +29,6 @@ void deassert_CS_FLASH();
 
 
 
-/** Function Definitions **/
 void flash_memory_init()
 {
 	// Initializes the SPI flash memory for reading and writing

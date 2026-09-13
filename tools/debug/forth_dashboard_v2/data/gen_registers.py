@@ -1,79 +1,10 @@
 #!/usr/bin/env python3
 """
-gen_registers.py -- generate registers.json for the Forth Dashboard v2.
+VestaRV: generate registers.json for the Forth Dashboard v2.
 
-This standalone stdlib-only script imports the v1 dashboard's register
-definitions (the single source of truth) and emits a flat, self-contained
-``registers.json`` that both the v2 backend and frontend consume. It never
-copies the v1 data: it imports it live from
-``tools/debug/forth_dashboard/{peripherals_config,bitfields_config}.py``.
-
-Bitfield -> register resolution
--------------------------------
-Replicated faithfully from v1's ``bitfields_config.get_bitfields`` (lines
-938-942): a register's bitfield block is found by stripping the trailing
-instance digits from the peripheral name and joining with the register name::
-
-    generic = peripheral.rstrip('0123456789')   # 'SPI0' -> 'SPI', 'I2C1' -> 'I2C'
-    key     = f"{generic}_{register}"           # 'SPI_CR', 'GPIO_POUT', ...
-    fields  = BITFIELDS.get(key)                # None -> no fields
-
-So SPI0.CR and SPI1.CR both resolve to the shared 'SPI_CR' block; every GPIO
-port shares the 'GPIO_*' blocks; UART0/UART1 share 'UART_*'; etc. Registers
-with no matching key (e.g. all of SYSTEM, the SPI FOS register) carry ``{}``.
-
-Bitfield encoding normalization
--------------------------------
-v1 encodes a field's position two ways (see ``extract_bitfield``, lines
-956-967):
-  * ``'bits': <int>``          -- the LSB position (the field is ``width`` bits
-                                  wide starting there; width may be > 1, e.g.
-                                  the TPR DTP selectors are width 5 at a scalar
-                                  LSB).
-  * ``'bits': [lo, hi]``       -- an inclusive range whose LOW element is the
-                                  LSB (v1 uses ``bits[0]`` as ``start_bit``);
-                                  e.g. SPI_CR.BR is ``[8, 15]`` width 8 -> LSB 8.
-Both are normalized here to ``lsb`` + ``width`` (``width`` is taken verbatim
-from v1, which always matches ``hi - lo + 1`` for the ranged fields).
-
-Output schema (registers.json)
--------------------------------
-{
-  "generated_from": "<source description>",
-  "chip": "myshkin",
-  "peripherals": {
-    "<PERIPH>": {
-      "description": "<str>",
-      "base_addr": <int>,
-      "registers": {
-        "<REG>": {
-          "addr": <int>,
-          "size": <int>,            # width in BYTES (v1 value, verbatim)
-          "type": "<str>",          # CONTROL/STATUS/DATA/CONFIG/BIAS
-          "description": "<str>",
-          "fields": {               # {} when the register has no bitfield block
-            "<FIELD>": {
-              "lsb": <int>,
-              "width": <int>,
-              "desc": "<str>",
-              "values": {"0": "<str>", ...} | null   # null == numeric field
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
-Determinism: addresses are ints; peripheral/register/field keys are emitted in
-sorted order and enum ``values`` keys in numeric order, with ``sort_keys=False``
-so the chosen ordering is stable. The same v1 input always yields byte-identical
-output, so the script is safely rerunnable.
-
-Usage::
-
-    python3 gen_registers.py                 # writes ./registers.json
-    python3 gen_registers.py -o /tmp/out.json
+Imports the v1 dashboard's register and bitfield definitions live rather than copying them.
+A bitfield block is keyed peripheral-with-trailing-digits-stripped + '_' + register, so SPI0.CR
+and SPI1.CR share SPI_CR; v1's scalar-LSB and [lo, hi] forms both normalise to lsb + width.
 """
 
 import argparse
@@ -105,20 +36,16 @@ def load_v1() -> "tuple[Dict[str, Any], Dict[str, Any]]":
 
 
 def bitfield_key(peripheral: str, register: str) -> str:
-    """Resolve a (peripheral, register) pair to its BITFIELDS key.
-
-    Faithful to v1 ``bitfields_config.get_bitfields``: strip trailing instance
-    digits from the peripheral name, then join with the register name.
+    """Resolve a (peripheral, register) pair to its BITFIELDS key, as v1 does: strip trailing
+    instance digits from the peripheral name, then join with the register name.
     """
     generic = peripheral.rstrip("0123456789")
     return f"{generic}_{register}"
 
 
 def normalize_field(info: Dict[str, Any]) -> Dict[str, Any]:
-    """Normalize one v1 bitfield dict into ``{lsb, width, desc, values}``.
-
-    Collapses v1's two ``bits`` encodings (scalar LSB vs inclusive ``[lo, hi]``
-    range whose low element is the LSB) into an explicit ``lsb``.
+    """Normalize one v1 bitfield dict into {lsb, width, desc, values}, collapsing v1's scalar-LSB and
+    inclusive [lo, hi] encodings into an explicit lsb.
     """
     bits = info["bits"]
     lsb = bits[0] if isinstance(bits, list) else bits

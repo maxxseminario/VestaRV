@@ -1,38 +1,10 @@
 #!/usr/bin/env python3
-"""gen_wgemm_golden.py -- THROWAWAY golden-value generator for the wgemm.S
-firmware smoke (npu_gemm_design.md S5, digperiphs P4.3).
+"""VestaRV: golden values for the wgemm.S firmware smoke test.
 
-NOT part of the frozen D10 bench pipeline (gen_gemm_vectors.py/gemm_vectors/)
--- this is a standalone helper, structured exactly like
-gen_wnpuconv_golden.py/gen_wxnpu_golden.py, that reuses the SAME validated
-npu_fixed.think_layer() (never reimplements the arithmetic) to compute the
-exact expected words for the TWO-LAYER CHAINED GEMM case wgemm.S exercises,
-at the real MCU/silicon generics (X_M=0, W_M=7, Y_M=7, N=24, RHO=2):
-
-  Layer 1 (chaining source, design-doc ADJUDICATION ADDENDUM A2):
-    M1=2  K1=3  N1=4  BEN=0  AEN=1 (sigmoid, ACTF=0)  MODE=3 (gemm)
-    A1 row-major (Q0.24), B1 column-major (Q7.24) -> C1 (Q0.24, sigmoid out)
-
-  Layer 2 (chained: A2 = C1 IN PLACE, zero repack -- IVSAR2 = OVSAR1):
-    M2=2  K2=4(=N1)  N2=2  BEN=0  AEN=0  MODE=3 (gemm)
-    B2 column-major (Q7.24) at its own WVSAR2 -> C2 (Q7.24)
-
-Chaining legality (A2, D2 point 4): C1's raw words must satisfy the Q0.24
-"|C|<1" contract (A is the 25-bit Q0.24 SramQ_in slice) -- checked below
-before printing anything. Since FPSigmoid's outputs are always in [0,1)
-(a sigmoid approximation, never negative), this is true by construction
-whenever AEN=1 on the chaining layer; asserted anyway as a harness check.
-
-Run with /usr/bin/python3 (NEVER `python3 -c` -- this machine's default
-python3 is the aoj_cal wrapper, which re-evaluates its arguments and STRIPS
-QUOTES).
-
-Prints (in order): the predicted-cycle formula check for both layers, the
-A1/B1/B2 stimulus tables (decimal + 32-bit two's-complement hex, ready to
-paste into `li`/immediate constants in wgemm.S), the layer-1 pre-activation
-accumulator trace (proving the |acc|<4 sigmoid-active-band + mixed-sign
-self-check), the 8 C1 words (Q0.24 sigmoid output) and the 4 C2 words
-(Q7.24), and the chained-A2-legality self-check.
+A standalone helper, not part of the frozen bench pipeline, computing the two-layer chained
+GEMM case at the silicon generics through npu_fixed.think_layer(). Layer 2 reads layer 1's
+output in place (IVSAR2 = OVSAR1), which is legal only while C1 satisfies the Q0.24 |C|<1
+contract; that is asserted. Run with /usr/bin/python3: the default python3 strips quotes.
 """
 import os
 import sys
@@ -42,11 +14,9 @@ from npu_fixed import think_layer  # noqa: E402
 
 X_M, W_M, Y_M, N_BITS, RHO = 0, 7, 7, 24, 2
 
-# ---------------------------------------------------------------------------
 # Layer 1: chaining source. MUST run AEN=1 (design-doc addendum A2: chaining
 # C->A needs |C|<1; the sigmoid's zero-extended Q0.24 output words chain
 # exactly, the passthrough Q7.24 form only chains when |C|<1 by construction).
-# ---------------------------------------------------------------------------
 M1, K1, N1, AEN1 = 2, 3, 4, True
 
 # A1 row-major (Q0.24 raw); real values ~0.005-0.013 (well inside [-1,1))
@@ -63,9 +33,7 @@ B1mat = [
 ]
 w_list1 = [B1mat[k][n] for n in range(N1) for k in range(K1)]  # column-major (D10)
 
-# ---------------------------------------------------------------------------
 # Layer 2: chained (A2 = C1 in place, zero repack). K2 MUST equal N1.
-# ---------------------------------------------------------------------------
 M2, K2, N2, AEN2 = 2, 4, 2, False
 assert K2 == N1, "chaining shape contract: K2 must equal N1 (A2 = C1 in place)"
 
@@ -99,9 +67,7 @@ print("Layer1: M=%d K=%d N=%d BEN=0 AEN=%d MODE=gemm  T=%d cycles"
 print("Layer2: M=%d K=%d N=%d BEN=0 AEN=%d MODE=gemm  T=%d cycles (chained A2=C1)"
       % (M2, K2, N2, int(AEN2), T2))
 
-# ---------------------------------------------------------------------------
 # Operand legality (npu_gemm_design.md binding inputs)
-# ---------------------------------------------------------------------------
 for row in A1:
     for a in row:
         assert -(1 << 24) <= a < (1 << 24), "A1 value %d out of Q0.24 legal range" % a
@@ -128,10 +94,8 @@ for n in range(N2):
         v = B2mat[k][n]
         print("  B2[k=%d][n=%d] (w_list[%2d]) = %-9d  0x%08X" % (k, n, n * K2 + k, v, u32(v)))
 
-# ---------------------------------------------------------------------------
 # Layer 1: run think_layer per row (D10's exact idiom), tracing the
 # pre-activation accumulator to prove the sigmoid-active-band self-check.
-# ---------------------------------------------------------------------------
 C1 = []
 traces1 = []
 for m in range(M1):
@@ -163,19 +127,15 @@ for m in range(M1):
         v = flat_C1[idx]
         print("  C1[m=%d][n=%d] (idx=%d) = %-9d  0x%08X" % (m, n, idx, v, u32(v)))
 
-# ---------------------------------------------------------------------------
 # Chained-A2-legality self-check (design-doc D2 zero-repack claim; A2 raw
 # words are the 25-bit Q0.24 SramQ_in slice legal range).
-# ---------------------------------------------------------------------------
 for v in flat_C1:
     assert -(1 << 24) <= v < (1 << 24), \
         "C1 value %d is out of the Q0.24 |C|<1 chaining-legal range" % v
 print("\n  chaining self-check PASS: all %d C1 words satisfy the Q0.24 |C|<1 "
       "A-chaining contract (D2 point 4)" % len(flat_C1))
 
-# ---------------------------------------------------------------------------
 # Layer 2: A2 = C1 IN PLACE (zero repack), one think_layer call per row.
-# ---------------------------------------------------------------------------
 A2 = [flat_C1[m * K2:(m + 1) * K2] for m in range(M2)]
 assert M2 * K2 == len(flat_C1), "chaining shape mismatch: M2*K2 != M1*N1"
 
@@ -194,10 +154,8 @@ for m in range(M2):
         v = flat_C2[idx]
         print("  C2[m=%d][n=%d] (idx=%d) = %-9d  0x%08X" % (m, n, idx, v, u32(v)))
 
-# ---------------------------------------------------------------------------
 # D14 sanity: an M=1 subsumption check on layer 2 row 0 (harness check
 # against refactors, same idiom as gen_gemm_vectors.py's test (a)).
-# ---------------------------------------------------------------------------
 out_single, _ = think_layer(A2[0], w_list2, ni=K2 - 1, nn=N2 - 1, ben=0, aen=0,
                              x_m=X_M, w_m=W_M, y_m=Y_M, n_bits=N_BITS, rho=RHO,
                              w_offset=0)

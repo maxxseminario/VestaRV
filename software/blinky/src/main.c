@@ -1,27 +1,7 @@
-/*
- * blinky - Drive P3.0 (T0CMP0 pad) with TIMER0 hardware for a visible
- * ~1 Hz blink (2 Hz toggle). Uses the auto-generated header
- * platform/myshkin/gcc/lib/include/MemoryMap.h.
- *
- * The chip pads externally labelled "P3.x" are driven by the HDL entity
- * named GPIO2 (slot 8, base 0x4800) -- see hdl/myshkin/MCU.vhd line ~855.
- * Pin 0 of that port is T0CMP0.
- *
- * Timing (assuming SMCLK ~= 10 MHz):
- *   timer_clock = SMCLK / 32768 ~= 305 Hz
- *   CMP2RST resets the 32-bit counter at CMP2 -> period = (CMP2+1)/305
- *   CMP0IH toggles cmp0_out on each CMP0 match -> one toggle per period
- *   CMP2 = 152 -> period ~= 0.50 s -> 2 Hz toggle -> ~1 Hz blink
- *   CMP0 = 76  -> mid-cycle (value not critical with CMP0IH; just must
- *                 be <= CMP2 so it fires once per period)
- *
- * Header values were cross-checked against hdl/myshkin/periph/TIMER.vhd:
- *   control_reg(6)       = timer_enable        -> TEN_BIT     = 0x40
- *   control_reg(7)       = compare2_reset_en   -> CMP2RST_BIT = 0x80
- *   control_reg(14)      = compare0_init_level -> CMP0IH_BIT  = 0x4000
- *   control_reg(9:8)     = clock_source_select -> SSEL_SMCLK  = 0
- *   control_reg(19:16)   = clock_divider       -> DIV_32768   = 0xF<<16
- */
+// VestaRV: blinky demo application
+// Drives P3.0 (the T0CMP0 pad) from TIMER0 hardware for a ~1 Hz blink (2 Hz toggle), through the generated MemoryMap.h.
+// The pads labelled P3.x are driven by the HDL entity GPIO2 (slot 8, base 0x4800); pin 0 of that port is T0CMP0.
+// At SMCLK 10 MHz the timer clock is SMCLK/32768 = 305 Hz. CMP2RST resets the 32-bit counter at CMP2, so the period is (CMP2+1)/305 and CMP2 = 152 gives 0.50 s; CMP0IH toggles cmp0_out once per period, so CMP0 only has to be <= CMP2.
 
 #include "MemoryMap.h"
 

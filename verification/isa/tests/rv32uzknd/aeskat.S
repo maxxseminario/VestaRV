@@ -1,33 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# aeskat.S   (X3 Zknd/Zkne AES-128 known-answer test, 2026-07-17)
-#-----------------------------------------------------------------------------
-# FULL AES-128 encrypt AND decrypt of the FIPS-197 Appendix B/C.1 known-answer
-# vector, computed with the aes32e*/aes32d* scalar-crypto instructions, asserting
-# the ciphertext (encrypt) and plaintext (decrypt) match the FIPS-197 constants.
-#
-#   Key        2b7e151628aed2a6abf7158809cf4f3c
-#   Plaintext  3243f6a8885a308d313198a2e0370734
-#   Ciphertext 3925841d02dc09fbdc118597196a0b32
-#
-# ON-POLARITY ONLY suite (rv32uzknd, built with -DCORE_ENABLE_ZKN). The round
-# keys ek0..ek10 (encrypt schedule) and dw1..dw9 (= InvMixColumns(w[round]) for
-# the equivalent inverse cipher) are precomputed and baked as .word data, so the
-# test contains NO software key expansion / InvMixColumns -- it exercises only the
-# aes32* datapath. Values validated by a host golden model that mirrors alu.vhd
-# aes32_datapath() exactly and reproduces the FIPS-197 constants.
-#
-# Word j of a 16-byte block/key = little-endian load of bytes [4j..4j+3].
-# Encrypt round column j = rk_j (+) esmi over {s[j],s[j+1],s[j+2],s[j+3]} at
-# bs 0..3 (ShiftRows); final round uses esi. Decrypt (equivalent inverse cipher)
-# column j = dw_j (+) dsmi over {s[j],s[j-1],s[j-2],s[j-3]} at bs 0..3
-# (InvShiftRows); final round uses dsi with ek0.
-#
-# gas 13.2 has no aes32* mnemonic / no zkn* -march, so every op is an explicit
-# `.insn' R-type: OP opcode 0x33, funct3=0, funct7 = (bs<<5)|fn5, fn5 =
-#   esi 0x11  esmi 0x13  dsi 0x15  dsmi 0x17   ; rd = rs1 XOR f(rs2, bs).
-#*****************************************************************************
+# VestaRV: AES-128 known-answer test over the scalar-crypto instructions
+# ON-POLARITY ONLY, built with -DCORE_ENABLE_ZKN. It encrypts AND decrypts the FIPS-197 Appendix B and C.1 vector with the aes32e* and aes32d* instructions and asserts both the ciphertext and the recovered plaintext against the published constants: key 2b7e151628aed2a6abf7158809cf4f3c, plaintext 3243f6a8885a308d313198a2e0370734, ciphertext 3925841d02dc09fbdc118597196a0b32.
+# THE ROUND KEYS ARE PRECOMPUTED AND BAKED IN AS .word DATA, both the encrypt schedule and the inverse-cipher schedule, so the test contains NO software key expansion and no software InvMixColumns and exercises only the aes32* datapath. The values are validated by a host golden model that mirrors the ALU's AES datapath exactly and reproduces the FIPS-197 constants.
+# Word j of a 16-byte block or key is the little-endian load of bytes 4j through 4j+3. An encrypt round column is the round key XORed with esmi over the ShiftRows-selected state bytes at byte selects 0 to 3, with the final round using esi; a decrypt column is the inverse-cipher round key XORed with dsmi over the InvShiftRows-selected bytes, with the final round using dsi and the original key.
+# gas 13.2 has neither the aes32* mnemonics nor a zkn -march token, so every operation is an explicit `.insn` R-type with OP 0x33, funct3 = 0 and funct7 = (bs << 5) | fn5, where fn5 is 0x11 for esi, 0x13 for esmi, 0x15 for dsi and 0x17 for dsmi, and rd = rs1 XOR f(rs2, bs).
 
 #include "riscv_test.h"
 #include "test_macros.h"

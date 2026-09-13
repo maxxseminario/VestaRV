@@ -1,37 +1,11 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""npu_vector_regen_diff.py -- re-run an NPU vector generator and diff its
-output against the tracked vector directory, byte for byte.
+# coding: utf-8
+"""VestaRV: re-run an NPU vector generator and diff its output against the tracked vectors.
 
-    python3 tools/python/npu_vector_regen_diff.py \
-        --generator verification/npu/gen_actf_vectors.py \
-        --golden    verification/npu/actf_vectors
-
-    rc 0  every tracked file was reproduced byte-identically, and the
-          generator produced no file the tracked directory lacks
-    rc 1  a file differs, is missing, or is unexpected (each is named)
-    rc 2  an input is missing or the generator itself failed
-
-WHY IT COPIES THE GENERATOR SOMEWHERE ELSE FIRST
-    Each generator computes its output directory as
-
-        OUT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                               "<name>_vectors")
-
-    with no flag to redirect it, so running it in place would OVERWRITE the
-    tracked vectors it is being checked against, and the check would pass by
-    construction. This runner copies the whole generator directory into a
-    scratch tree and runs the copy, so __file__ moves and the output lands
-    beside the copy. The tracked files are only ever read.
-
-    The output directory inside the scratch tree is assumed to have the same
-    basename as --golden, which is how every one of these generators names it.
-
-DETERMINISM
-    The generators that randomise (gen_gemm_vectors, gen_xnor_vectors) seed
-    their own random.Random instances with fixed literals, so re-running is
-    reproducible. This tool asserts that rather than assuming it: any drift,
-    from a seed change or from anything else, shows up as a byte difference.
+Each generator derives its output directory from __file__ with no redirect flag, so running
+it in place would overwrite the vectors it is checked against and pass by construction; the
+generator directory is copied to a scratch tree and the copy is run. The generators seed
+their own Random instances, and this asserts that rather than assuming it. Exit 0, 1 or 2.
 """
 
 from __future__ import print_function

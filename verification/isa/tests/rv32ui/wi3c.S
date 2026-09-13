@@ -1,34 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# wi3c.S  (wound-config firmware smoke — FW-2)
-#-----------------------------------------------------------------------------
-# I3C0 @0x6100 IRQ-DELIVERY integration smoke via the deterministic idle-high
-# address-NACK path. Single-hart directed (hart 0; tiles parked).
-#
-# P5.6/7 (I3C SDA/SCL) are KEPT AT AF0 (P5AFS reset = 0x0) so sda_in/scl_in
-# idle HIGH = bus released (MCU.vhd:3710-11 -> '1' when not AF1). A launched SDR
-# transfer to any address then samples the ACK bit HIGH = NACK (I3C.vhd:700),
-# which sets ANACK + TCIF together (I3C.vhd:725-726). So the transfer TERMINATES
-# with two enabled IRQ sources:
-#   vec 86 (TC)   = TCIF  & TCIE  (I3C.vhd:1273, CR[24])
-#   vec 89 (NACK) = ANACK & ERRIE (I3C.vhd:1276, CR[25])
-# Both route through irq_router HhENU -> meip -> MEIP_DISPATCHER -> per-test IVT
-# slots 86/89 -> plain-ret handlers -> CLAIM/COMPLETE. Order-independent DONE.
-#
-# I3C register map (i3c_spec.md; MemoryMap):
-#   CR 0x6100  CMD 0x6104  TX 0x6108  RX 0x610C  SR 0x6110
-#   CR : I3CEN[0] BUSMODE[1] SDAPP[2] IBIEN[3] ODBR[15:8] PPBR[23:16]
-#        TCIE[24] ERRIE[25] DAAIE[26] IBIIE[27] RXFIE[28] TXEIE[29]
-#   CMD: ADDR[6:0] RNW[7] REPSTART[8] STOPEN[9] ... DLEN[23:16]  (lane-0 LAUNCH)
-#   SR : BUSY[0] TCIF[1] RXFULL[2] TXEIF[3] ANACK[4] ...  (W1C)
-#
-# Router row 0: HhENU @0x7008; sources 86->bit22, 89->bit25.
-# IVT: per-test .ivt tail (supersedes IVT_ARM_MEIP) — .org 0x14C arms 83/84/85,
-# then .org to slots 86 and 89 with jal into local plain-ret handlers.
-#
-# SMCLK RULE: serial core is SMCLK-domain; write SYS_CLK_CR=0 first.
-#*****************************************************************************
+# VestaRV: I3C0 interrupt-delivery smoke through the address-NACK path
+# Hart 0 only, tiles parked. THE PINS ARE DELIBERATELY LEFT AT AF0, so sda_in and scl_in idle HIGH, meaning the bus is released, because MCU.vhd drives them to 1 when the alternate function is not selected. A launched SDR transfer to any address then samples the ACK bit high, which is a NACK, and that sets both the address-NACK flag and the transfer-complete flag together, so the transfer TERMINATES with two enabled interrupt sources: vector 86 from transfer-complete gated by TCIE, and vector 89 from the NACK gated by ERRIE. Both route through irq_router HhENU, meip, the MEIP_DISPATCHER and per-test IVT slots into plain-ret handlers that claim and complete, and the DONE check is order-independent.
+# Register map: CR 0x6100 = I3CEN[0] BUSMODE[1] SDAPP[2] IBIEN[3] ODBR[15:8] PPBR[23:16] TCIE[24] ERRIE[25] DAAIE[26] IBIIE[27] RXFIE[28] TXEIE[29]; CMD 0x6104 = ADDR[6:0] RNW[7] REPSTART[8] STOPEN[9] and DLEN[23:16], with a lane-0 write launching the transfer; TX 0x6108; RX 0x610C; SR 0x6110 = BUSY[0] TCIF[1] RXFULL[2] TXEIF[3] ANACK[4] and the rest, all write-1-to-clear.
+# Router row 0 uses HhENU at 0x7008, with source 86 at bit 22 and source 89 at bit 25. The IVT is a per-test tail that supersedes the env's meip arming: it arms slots 83, 84 and 85 and then places jumps into local plain-ret handlers at slots 86 and 89.
+# SMCLK RULE: the serial core is smclk-domain, so SYS_CLK_CR must be zeroed first.
 
 #include "riscv_test.h"
 #include "test_macros.h"

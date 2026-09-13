@@ -1,22 +1,8 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# cbozill.S   (X3 Zicboz — cbo.clean/flush/inval are ALWAYS illegal)
-#-----------------------------------------------------------------------------
-# The cbo.clean (imm=0x001), cbo.flush (0x002) and cbo.inval (0x000) cache-block
-# management encodings share cbo.zero's opcode/funct3 (MISC-MEM, funct3=010) but
-# are UNSUPPORTED on this core (gate decision D4) — illegal on EVERY build,
-# Zicboz ON or OFF. This is a pure POISON: the cbo.clean encoding MUST take the
-# illegal-instruction trap. Run through the trap_watch harness (the a0-watch
-# runner would hang on the terminal TRAP_STATE); executing PAST it -> FAIL.
-#
-# This is the illegal-SIBLING probe: it is built and run against a Zicboz-ON MCU
-# as well as the stripped build (mirrors X2's casill.S for amocas.d). The
-# negative control "legalize-sibling seed" (admit cbo.clean in maindec) makes
-# this probe SURVIVE instead of TRAP_OK.
-#
-# cbo.clean rs1  ==  .insn i 0x0f, 0x2, x0, rs1, 0x1   (imm=0x001)
-#*****************************************************************************
+# VestaRV: cbo.clean, cbo.flush and cbo.inval are always illegal
+# The three cache-block management encodings share cbo.zero's opcode and funct3, MISC-MEM with funct3 = 010, but are UNSUPPORTED on this core, so they are illegal on EVERY build whether Zicboz is on or off. This is a pure POISON: the cbo.clean encoding MUST take the illegal-instruction trap, and executing past it is a FAIL. cbo.clean rs1 is `.insn i 0x0f, 0x2, x0, rs1, 0x1`.
+# It is run through the trap_watch harness, because the a0-watch runner would hang on the terminal TRAP_STATE, and it is BUILT AND RUN AGAINST A Zicboz-ON MCU as well as the stripped build. The negative control, a seed that admits cbo.clean in maindec, makes this probe SURVIVE instead of trapping.
 
 #include "riscv_test.h"
 #include "test_macros.h"

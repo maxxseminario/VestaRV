@@ -1,7 +1,5 @@
-/* FPGA stand-ins for the single-port SRAM macros, written so Vivado infers block RAM.
-   The simulation model in hdl/common/sim/ARM_IP_RAM.vhd is close to synthesizable already, but it clears the whole array asynchronously while PGEN is high.
-   No block RAM can do that, so a tool given that model builds the memory out of distributed RAM and flip-flops instead, and a design with 64 KiB of shared memory and an 8 KiB tile memory does not fit that way on a small part.
-   Dropping the PGEN clear is the whole difference. */
+-- VestaRV: FPGA stand-ins for the single-port SRAM macros, written so Vivado infers block RAM
+-- The simulation model in hdl/common/sim/ARM_IP_RAM.vhd clears the whole array asynchronously while PGEN is high. No block RAM can do that, so a tool given that model builds the memory out of distributed RAM and flip-flops, and 64 KiB of shared memory plus an 8 KiB tile memory does not fit that way on a small part. Dropping the PGEN clear is the whole difference.
 
 library ieee;
 use ieee.std_logic_1164.all;

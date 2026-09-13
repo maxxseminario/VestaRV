@@ -1,23 +1,10 @@
 #!/usr/bin/env python3
 """
-gen_power_dashboard.py — regenerate power_dashboard.html from the NEWEST
-post-genus and post-innovus power reports on disk.
+VestaRV: regenerate power_dashboard.html from the newest power reports on disk.
 
-Sources scanned (nothing is rerun — this only scrapes existing reports):
-  genus/<BLOCK>/rpt/<block>.genus.power.rpt            report_power -by_hierarchy -levels 4 (units W)
-  innovus/common/<BLOCK>/timingReports/<design>_postCTS.power / _postRoute.power
-                                               report_power [-leakage]      (units mW)
-  innovus/common/<BLOCK>/rpt/<tag>_era/power_all.rpt   full report_power at signoff (units mW)
-  innovus/common/<BLOCK>/rpt/<tag>_era/inst_power.rpt  report_power -instances      (units mW)
-
-Usage:
-  python3 tools/python/gen_power_dashboard.py [-o power_dashboard.html]
-
-Run it after any genus or Innovus rerun; the page is rebuilt from whatever is
-newest, and every card shows the source file + its report date so staleness is
-visible. Known caveats are printed on the page itself (ETM tiles report ~0
-power at assembly level; the flow's postCTS/postRoute reports are leakage-only;
-activity is statistical 0.2; the corner is ss_0p9v_125c, i.e. leakage at 125C).
+Scrapes existing genus and Innovus reports and reruns nothing; genus reports are in W and the
+Innovus ones in mW. Every card names its source file and report date, so staleness is visible,
+and the page prints its own caveats: leakage-only postCTS/postRoute, statistical activity 0.2.
 """
 
 import argparse
@@ -31,7 +18,7 @@ import time
 REPO = os.path.expanduser(os.environ.get("VESTA_ROOT", "~/vestarv"))
 INNOVUS = os.path.join(REPO, "innovus", "common")
 
-# Per-block layout (2026-07-27): genus/<BLOCK>/rpt and
+# Per-block layout: genus/<BLOCK>/rpt and
 # innovus/common/<BLOCK>/{timingReports,rpt}. Scan every block dir; skip the
 # shared/attic dirs (attic holds pre-reorg flat-layout leftovers).
 _NONBLOCK = {"attic", "shared", "common"}
@@ -129,7 +116,7 @@ def file_meta(path):
     }
 
 
-# ---------------------------------------------------------------- genus ----
+# genus
 
 def parse_genus(path):
     """report_power -by_hierarchy: Cells Pct Leakage Internal Switching Total Lvl Instance (W)."""
@@ -159,7 +146,7 @@ def parse_genus(path):
     return d
 
 
-# -------------------------------------------------------------- innovus ----
+# innovus
 
 def parse_innovus_power(path):
     """Innovus report_power text (leakage-only or full). Units mW."""
@@ -265,7 +252,7 @@ def parse_innovus_power(path):
     return d
 
 
-# ----------------------------------------------------------------- scan ----
+# scan
 
 def scan():
     families = {}   # family -> {"genus": [...], "innovus": {design: {stage: rpt}}, "era": [...]}
@@ -335,7 +322,7 @@ def scan():
     return families
 
 
-# ----------------------------------------------------------------- html ----
+# html
 
 CSS = """
 :root {

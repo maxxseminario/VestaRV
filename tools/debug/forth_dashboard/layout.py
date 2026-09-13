@@ -1,4 +1,4 @@
-"""
+"""VestaRV: the Forth dashboard layout, one tab per peripheral type.
 New Layout for Myshkin MCU GUI
 Tab-based interface with one tab per peripheral type
 """
@@ -10,17 +10,9 @@ from bitfields_config import get_bitfields
 
 
 def create_peripheral_tab(peripheral_name, figure_path=None, figure_caption=None, side_figures=None):
-    """
-    Create a tab content for a specific peripheral
-    
-    Args:
-        peripheral_name: Name of peripheral (e.g., 'GPIO0', 'UART0', 'POTENTIOSTAT')
-        figure_path: Optional path to a top figure image (relative to assets/)
-        figure_caption: Optional caption for the top figure
-        side_figures: Optional list of dicts with 'path' and 'caption' for sidebar figures
-    
-    Returns:
-        html.Div containing the peripheral controls
+    """The tab content for one peripheral, as an html.Div of its controls. figure_path and
+    figure_caption place a top figure, side_figures a list of {'path', 'caption'} dicts in the
+    sidebar; paths are relative to assets/.
     """
     periph = PERIPHERALS[peripheral_name]
     

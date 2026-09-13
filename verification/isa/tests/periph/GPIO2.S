@@ -1,19 +1,6 @@
-#*****************************************************************************
-# GPIO_TESTBENCH.S
-#-----------------------------------------------------------------------------
-# GPIO testbench for RISC-V assembly with GPIO0 to GPIO1 communication
-# Author: [Your name]
-# Date: [Current date]
-#
-# Test Categories:
-# 1. Basic GPIO Register Tests (Tests 1-15)
-# 2. GPIO Set/Clear/Toggle Tests (Tests 16-60)  
-# 3. GPIO Direction Control Tests (Tests 61-70)
-# 4. GPIO Communication Tests (Tests 71-80)
-# 5. GPIO Interrupt Tests (Tests 81-130)
-#
-# GPIO3 and GPIO2 are connected externally for loopback testing
-#-----------------------------------------------------------------------------
+# VestaRV: GPIO peripheral test, ports 2 and 3
+# Drives one port and reads the other back: the two are wired together externally for loopback, so both must be bonded for this image to pass.
+# Covers the register file, the set/clear/toggle aliases, direction control, port-to-port transfer and the pin-change interrupts.
 
 #include "riscv_test.h"
 #include "test_macros.h"

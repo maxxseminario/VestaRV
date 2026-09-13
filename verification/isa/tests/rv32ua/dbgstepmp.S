@@ -1,134 +1,14 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# dbgstepmp.S   (D-series, D1 -- STEP EXACTNESS, dret, ebreakm, dscratch)
-#-----------------------------------------------------------------------------
-# BLIND-AUTHORED against d1_spec.md sections 1-2, FROZEN 2026-08-05, by an agent
-# that has not seen and will never see the D1 implementation.  Committed
-# polarity: CORRECT RTL = PASS (R-K5-8).
-#
-# NEEDS A HARNESS:  ./xrun_dbg.sh rv32ua-p-dbgstepmp dbg_step.tcl
-# (one hierarchical force, on hart 1's dbg_haltreq, to get INTO debug mode the
-# first time -- see dbghaltmp.S's header for why no software path exists).
-# Everything after that first entry is driven by DEBUG CODE, not by the
-# harness: the stub itself writes dpc, sets dcsr.step, drets, counts its own
-# re-entries and finally arms dcsr.ebreakm.  So this file tests the parts of
-# d1_spec.md section 2 that only debug mode can reach, with exactly ONE
-# external event in the whole run.
-#
-# ---------------------------------------------------------------------------
-# WHY THE STEP START POINT IS WRITTEN, NOT WAITED FOR
-#   d1_spec.md 2: "If dcsr.step: exactly ONE instruction retires, then
-#   re-entry with cause=step."  To measure that you must know WHICH instruction
-#   was about to retire.  Waiting for a halt request to land on a chosen
-#   instruction is a calibration, and a calibrated test passes on the machine
-#   it was tuned on and silently stops covering anything afterwards (method
-#   rule 7).  So the stub does not wait: on its FIRST entry it WRITES dpc with
-#   the address of step_zone, read from a shared word the subject published
-#   before parking.  The step sequence therefore starts at a structurally
-#   determined address no matter where the halt request happened to land -- and
-#   writing dpc is itself part of the spec (dpc is a read/write CSR in debug
-#   mode) and part of what `dret` must honour.
-#
-# THE STEP MEASUREMENT IS TWO INDEPENDENT COUNTS, ON PURPOSE
-#   step_zone is four identical `addi s1, s1, 1` instructions followed by a
-#   store and an `ebreak`.  After four steps:
-#     (a) the PC LEDGER.  Each re-entry's dpc must be exactly 4 past the
-#         previous one (norvc region, so 4 is the whole instruction).  The stub
-#         keeps the previous dpc in dscratch1 and records any deviation.
-#     (b) the INSTRUCTION COUNT.  s1 must have been incremented EXACTLY four
-#         times.  d1_spec.md 5 asks for step exactness "count instructions, not
-#         cycles", and this is that count.
-#   The two disagree under different mistakes and that is the point.  A step
-#   that retires TWO instructions per re-entry gives dpc deltas of 8 -- caught
-#   by (a) -- AND s1 = 8 after four entries -- caught by (b).  A step that
-#   re-enters without retiring anything gives delta 0 and s1 = 0.  But a step
-#   implemented as "re-enter after the NEXT instruction, and also let the one
-#   at dpc go" gives clean deltas of 4 with s1 = 8: (a) alone would pass it.
-#   Neither count is redundant.
-#
-# THE ebreakm PAIR, and where the other half lives
-#   Entry 5 clears dcsr.step and SETS dcsr.ebreakm, then drets.  The subject
-#   runs on and hits the `ebreak` at step_zone+20, which must now enter debug
-#   with cause = 1 and dpc = the ebreak's own address (d1_spec.md 2: dpc <-
-#   interrupted pc; for a synchronous breakpoint that is the ebreak itself,
-#   NOT the instruction after -- which is why entry 6 advances dpc by 4 before
-#   its dret, and why a build that already advanced it would resume past the
-#   next instruction and be caught by the PROG word).
-#   The dcsr.ebreakm = 0 polarity is NOT here: it cannot be, because the only
-#   way to reach debug mode is a halt request and the only way to clear
-#   ebreakm afterwards is more debug code.  It is dbgdenymp.S's hart 3, where
-#   `ebreak` runs on a hart that has never been in debug mode and must take an
-#   ordinary breakpoint exception.  Between the two files both polarities are
-#   covered; neither file covers both.
-#
-# dscratch0/1 ARE THE STUB'S ONLY STATE, deliberately
-#   The stub has no stack (debug code must not assume one), no static data of
-#   its own, and it must survive being re-entered six times.  It keeps its
-#   entry counter in dscratch0 and the previous dpc in dscratch1.  That is
-#   what those CSRs are for, and it means a broken dscratch is not a silent
-#   omission: the entry counter stops advancing and the run fails with
-#   ENTRIES wrong rather than with a subtle miscount.
-#
-# ---------------------------------------------------------------------------
-# VERDICT.  a0 = 0xCAFEBABE => single-step retires exactly one instruction per
-# re-entry by both counts, dret honours a written dpc, ebreakm arms and
-# disarms, ebreak-in-debug reports cause 1 at its own address, and dscratch0/1
-# hold 32 bits across six debug entries.  a0 = 0xDEADBEEF with:
-#   a1 = 0x0D57E001   THE SUBJECT NEVER ENTERED DEBUG MODE (a2 = ENTRIES = 0).
-#                     Expected under xrun_batch.sh; under dbg_step.tcl it is
-#                     THE finding -- cross-read the harness's STEPLOG lines.
-#   a1 = 0x0D57E003   a step re-entry moved dpc by something other than 4
-#                     (a2 = the offending delta with bit 31 set, a3 = LAST_DPC)
-#   a1 = 0x0D57E004   the stepped instructions did not retire exactly once each
-#                     (a2 = SUBJ_COUNTER; 4 expected).  8 = two per step,
-#                     0 = none, anything else = the step count itself drifted.
-#   a1 = 0x0D57E002   wrong number of debug entries (a2 = ENTRIES; 6 expected).
-#                     Checked AFTER the two counts above, deliberately -- see
-#                     the CHECK ORDER note at ds_check.
-#   a1 = 0x0D57E005   the FIRST entry's cause was not 3 = haltreq (a2 = dcsr)
-#   a1 = 0x0D57E006   the ebreak entry's cause was not 1 (a2 = dcsr)
-#   a1 = 0x0D57E007   the ebreak entry's dpc was not the ebreak's own address
-#                     (a2 = EBRK_DPC, a3 = the expected address)
-#   a1 = 0x0D57E008   the subject never resumed past the ebreak (a2 = PROG):
-#                     dret from the ebreak entry did not honour dpc+4
-#   a1 = 0x0D57E009   dpc was not written back as asked on entry 1
-#                     (a2 = the first recorded dpc, a3 = step_zone)
-#   a1 = 0x0D57E00A   a shared word did not read back / base-ISA sanity failed
-#   a1 = 0x0D57E00B   dpc did not WARL-mask an unaligned write (a2 = the value
-#                     read back after writing &step_zone|3, a3 = step_zone).
-#                     Bit 0 must be hardwired 0 and bits 31:2 must survive;
-#                     bit 1 is ENABLE_COMPRESSED-dependent and is published,
-#                     not asserted.
-#
-# NEGATIVE CONTROL -- how the non-debug half was SEEN TO WORK at unimplemented
-#   HEAD:  -DDBGSTEP_NC_SELF.  The subject calls the stub as an ordinary
-#   subroutine six times in a row and the stub, in this arm, uses ORDINARY
-#   registers instead of dscratch0/1 and publishes synthetic dcsr/dpc values
-#   shaped exactly like the real ones, walking step_zone by hand.  Every
-#   publish, every hart-0 assertion and the whole verdict path then run for
-#   real.  A PASS on that arm proves the instrument is LIVE (method rule 5);
-#   it makes NO claim about debug mode and must never be quoted as a result.
-#
-# SHARED WORDS CLAIMED -- the same 12-word D1 band 0x10050-0x1007C that
-#   dbgdenymp.S and dbghaltmp.S use, with this file's meanings (one image per
-#   sim; the three never coexist):
-#     0x10050 STEPPC       &step_zone, published by the subject, READ by the stub
-#     0x10054 ENTRIES      debug entries so far (the stub's dscratch0 shadow)
-#     0x10058 STEP_ERR     nonzero = a dpc delta other than 4 was seen
-#     0x1005C SUBJ_COUNTER s1 after the stepped region
-#     0x10060 EBRK_DPC     dpc at the ebreak entry
-#     0x10064 EBRK_DCSR    dcsr at the ebreak entry
-#     0x10068 ENTRY1_DCSR  dcsr at the FIRST (haltreq) entry
-#     0x1006C PROG         subject progress; DONE = resumed past the ebreak
-#     0x10070 LAST_DPC     the most recent dpc (diagnosis only)
-#     0x10074 DPC_WARL     dpc read back after writing (&step_zone | 3)
-#     0x10078-0x1007C      unused by this file
-#   Plus, since the 2026-08-05 migration, the SHARED DEBUG ENTRY PAGE at
-#   0x10780-0x1087F (64 words since R-D2-2(3), enlarged from 32 precisely
-#   because this file's stub is a measured 60).  See the STUB SIZE note at
-#   ds_stub_start.
-#*****************************************************************************
+# VestaRV: single-step exactness, dret, ebreakm and dscratch
+# NEEDS A HARNESS: ./xrun_dbg.sh rv32ua-p-dbgstepmp dbg_step.tcl, which makes ONE hierarchical force on hart 1's dbg_haltreq to get into debug mode the first time. Everything after that first entry is driven by DEBUG CODE, not by the harness: the stub writes dpc, sets dcsr.step, drets, counts its own re-entries and finally arms dcsr.ebreakm. So this file covers the parts only debug mode can reach, with exactly one external event in the whole run.
+# THE STEP START POINT IS WRITTEN, NOT WAITED FOR. To measure "exactly one instruction retires" you must know which instruction was about to retire, and waiting for a halt request to land on a chosen instruction is a calibration that passes on the machine it was tuned on and silently stops covering anything afterwards. So on its FIRST entry the stub WRITES dpc with the address of step_zone, read from a shared word the subject published before parking, and the sequence starts at a structurally determined address wherever the halt landed. Writing dpc is itself part of the contract, since dpc is read/write in debug mode and dret must honour it.
+# THE MEASUREMENT IS TWO INDEPENDENT COUNTS, ON PURPOSE. step_zone is four identical `addi s1, s1, 1` instructions followed by a store and an `ebreak`. After four steps the PC LEDGER requires each re-entry's dpc to be exactly 4 past the previous one, since the region is norvc, with the previous dpc kept in dscratch1; and the INSTRUCTION COUNT requires s1 to have been incremented exactly four times. They disagree under different mistakes, which is the point: a step retiring two instructions per re-entry gives deltas of 8 and s1 = 8, and a step that re-enters without retiring gives delta 0 and s1 = 0, but a step implemented as "re-enter after the NEXT instruction, and also let the one at dpc go" gives clean deltas of 4 with s1 = 8, which the ledger alone would pass.
+# THE ebreakm PAIR: entry 5 clears dcsr.step, sets dcsr.ebreakm and drets, and the subject then hits the `ebreak` at step_zone+20, which must enter debug with cause 1 and dpc = THE EBREAK'S OWN ADDRESS, not the instruction after, which is why entry 6 advances dpc by 4 before its dret and why a build that already advanced it resumes past the next instruction and is caught by PROG. The dcsr.ebreakm = 0 polarity cannot live here, because the only way into debug mode is a halt request and the only way to clear ebreakm afterwards is more debug code; it is dbgdenymp.S's hart 3. Between the two files both polarities are covered and neither file covers both.
+# dscratch0 AND dscratch1 ARE THE STUB'S ONLY STATE, deliberately: it has no stack, since debug code must not assume one, no static data of its own, and it must survive six re-entries. It keeps its entry counter in dscratch0 and the previous dpc in dscratch1, so a broken dscratch is not a silent omission but a stalled entry counter and a wrong ENTRIES.
+# Verdicts: a0 = 0xCAFEBABE means single-step retires exactly one instruction per re-entry by both counts, dret honours a written dpc, ebreakm arms and disarms, ebreak-in-debug reports cause 1 at its own address, and dscratch0 and dscratch1 hold 32 bits across six entries. a1 = 0x0D57E001 the subject never entered debug mode, expected under a plain batch run and the finding under dbg_step.tcl; 0x0D57E003 a re-entry moved dpc by something other than 4; 0x0D57E004 the stepped instructions did not retire exactly once each, where a2 = 8 means two per step, 0 means none and anything else means the step count drifted; 0x0D57E002 wrong number of debug entries, 6 expected, checked AFTER the two counts above; 0x0D57E005 the first entry's cause was not 3; 0x0D57E006 the ebreak entry's cause was not 1; 0x0D57E007 the ebreak entry's dpc was not the ebreak's own address; 0x0D57E008 the subject never resumed past the ebreak, so dret did not honour dpc+4; 0x0D57E009 dpc was not written back as asked on entry 1; 0x0D57E00A a shared word did not read back or base-ISA sanity failed; 0x0D57E00B dpc did not WARL-mask an unaligned write, where bit 0 must be hardwired 0 and bits 31:2 must survive, while bit 1 is ENABLE_COMPRESSED-dependent and is published rather than asserted.
+# NEGATIVE CONTROL -DDBGSTEP_NC_SELF: the subject calls the stub as an ordinary subroutine six times, and in that arm the stub uses ordinary registers instead of dscratch0 and dscratch1 and publishes synthetic dcsr and dpc values shaped like the real ones, walking step_zone by hand. Every publish, every hart-0 assertion and the verdict path run for real, so a pass proves the instrument is LIVE. It makes no claim about debug mode.
+# Shared words, in the 12-word D1 band 0x10050-0x1007C shared with dbgdenymp.S and dbghaltmp.S under the one-image-per-sim rule: 0x10050 STEPPC (&step_zone, published by the subject and read by the stub), 0x10054 ENTRIES, 0x10058 STEP_ERR, 0x1005C SUBJ_COUNTER, 0x10060 EBRK_DPC, 0x10064 EBRK_DCSR, 0x10068 ENTRY1_DCSR, 0x1006C PROG, 0x10070 LAST_DPC, 0x10074 DPC_WARL. Plus the shared debug entry page at 0x10780-0x1087F, which is 64 words precisely because this file's stub measures 60.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,8 +1,8 @@
-% Event fabric chapter. Section order is the per-peripheral template enforced by
+% VestaRV: event fabric chapter of the TRM.
+% Section order is the per-peripheral template enforced by
 % python/check_intro_names.py (Overview / Functional description / Interrupts
-% and events / Programming / Usage notes). Restructured 2026-09-05; the prose
-% is unchanged apart from the headings it now sits under, and the two table
-% captions moved out of their tabular (they broke the List of Tables numbering).
+% and events / Programming / Usage notes). A table caption must sit outside its
+% tabular, or the List of Tables numbering breaks.
 \section{Overview}
 
 The event/trigger fabric (\peripheral{EVFAB}) is a PPI-style crossbar that lets peripherals command each other with no processor in the loop. Eight independent channels each hold one \{EVSEL, TASKSEL\} pair; when the event a channel selects fires and the channel is enabled, the fabric emits a registered one-\texttt{MCLK} pulse on the task it selects, one \texttt{MCLK} after the event. The whole block (the event front end, the crossbar, the output register, and the sticky status words) rides the free-running fabric clock (\texttt{MCLK}) in the always-on shared domain: \texttt{WFI} keeps it alive, field-power mode only slows it down, and \peripheral{PWRCTRL} never gates it. A chain therefore keeps firing with every hart asleep and the bus completely idle, which is the entire point of the block. \peripheral{EVFAB} is never a bus master, never stalls, and never rate-limits: it only ever adds one \texttt{MCLK} of latency between an event and the task pulse it drives. The main features are listed below:

@@ -1,41 +1,10 @@
 #!/usr/bin/env python3
-"""check_config_defaults.py -- assert that every knob's default is stated ONCE
-in effect, even though generate.py states it TWICE in source (K7/F-K7-1,
-2026-08-04; approved by R-K7-1).
+"""VestaRV: assert every knob's two default literals in generate.py agree.
 
-THE DEFECT THIS EXISTS FOR, measured at K7 while implementing R-DK3:
-
-  generate.py declares each knob's default in two independent places --
-
-    _CONFIG_SCHEMA:   'priv.trapCsr': {'type': 'bool', 'default': False}
-    the _cfg call:    'trapCsr': _cfg('priv.trapCsr', False)
-
-  -- and `_cfg()` NEVER CONSULTS THE SCHEMA (it returns the default passed to
-  it). So the schema literal drives the configurator, the TRM's Chip
-  Configuration tables and validation, while the _cfg literal drives every
-  generated artifact: headers, linker scripts, MemoryMap.vhd's CORE_ENABLE_*,
-  MCU.vhd, the resolved config, and the image -D polarity.
-
-  Change one and not the other and the failure is SILENT AND SPLIT: the manual
-  and the web configurator say the knob ships on while the RTL ships it off, or
-  the reverse. Nothing in the build noticed -- the R-DK3 flip would have been
-  cosmetic if the second site had been missed.
-
-  Audited at K7 over all 57 schema keys: 56 agreed; the 57th (chipName) differs
-  BY DESIGN and is excepted below. So there was no live disagreement -- this
-  check exists to keep it that way, not to fix a backlog.
-
-METHOD. generate.py is IMPORT-UNSAFE (importing it RUNS a generation -- see
-R-K1-3), so this parses the source textually rather than importing it. That is
-the weaker instrument, and it is compensated the way method_rules rule 4 asks:
-the script FAILS LOUDLY if it cannot find both sites for a key, so a parse that
-silently matched nothing cannot masquerade as agreement. A key present in the
-schema with no _cfg site is a PROBLEM, not a skip.
-
-Modes:
-  default   GATE -- exit 1 on any disagreement (this is a hard invariant).
-  --list    print every key with both literals and exit 0 (audit aid).
-Python 3.6 compatible.
+_CONFIG_SCHEMA drives the configurator, the TRM tables and validation; the _cfg() literal
+drives every generated artifact, and _cfg() never consults the schema, so a one-sided change
+is silent. generate.py is import-unsafe (importing it runs a generation), so the source is
+parsed textually and a key whose two sites are not both found fails rather than being skipped.
 """
 
 import os

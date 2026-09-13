@@ -1,70 +1,10 @@
 #!/usr/bin/python3.6
-"""check_knob_classes.py -- the CORE_ENABLE_* classification tripwire (2026-08-23).
+"""VestaRV: the CORE_ENABLE_* classification tripwire.
 
-WHAT IT GUARDS.
-
-Two independent readers decide whether an RTL `constant CORE_ENABLE_<X> :
-boolean := true` is COMPARABLE against an image set's `.imgset` stamp:
-verify_stage.memorymap_on_knobs (the suite half) and the polarity guard in
-tools/cosim/gate/xrun_cosim.sh (the lockstep half). Both now read ONE
-classification -- verify_stage.DEFINE_KNOBS (stampable) and
-verify_stage.NON_DEFINE_KNOBS (exempt) -- and both REFUSE a constant that is in
-neither list.
-
-That refusal makes a NEW knob loud. It does not make a knob already on the
-exempt list stay correct, and one of them is on that list conditionally:
-
-  * IF_AHEAD is exempt PERMANENTLY. The generator emits no
-    `#define CORE_ENABLE_IF_AHEAD` at all -- microarchitecture only, nothing in
-    software can dispatch on it -- so no image can carry the polarity even in
-    principle.
-  * DEBUG is exempt DEFERRED. The define EXISTS (ChipGenerator emits it into
-    MemoryMap.h and core_features.h); what does not exist is any test that
-    dispatches on it, because every D-series debug instrument needs a tcl
-    harness and no CATALOG row can carry the `debug` tag. Admitting it today
-    would put `-DCORE_ENABLE_DEBUG` on every image of every config -- debug
-    defaults TRUE -- and rebuild the whole canonical set at a new polarity, to
-    buy zero #ifdef arms.
-  * the five base-ISA knobs are exempt for the reason measured in
-    verify_stage.DEFINE_KNOBS, with ONE known #ifdef named there.
-
-"No test dispatches on it" is a MEASUREMENT, and a measurement that nothing
-re-runs is an assumption within a week. This script re-runs it. The day someone
-writes a live `#ifdef CORE_ENABLE_DEBUG` into a test source, this FAILS and says
-to move `debug` into DEFINE_KNOBS and pay the rebuild deliberately -- instead of
-the gate quietly comparing an OFF-arm image against ON-polarity RTL, which is
-the PASS-shaped failure the whole polarity apparatus exists to prevent.
-
-WHAT IT CHECKS.
-
-  1. TOTALITY. Every CORE_ENABLE_<X> constant ChipGenerator.py can emit into
-     MemoryMap.vhd is classified, in exactly one of the two lists. This is the
-     check that would have caught CORE_ENABLE_IF_AHEAD on the day it landed.
-  2. NO BUILD-TIME DISPATCH ON AN EXEMPT KNOB. Sweeping every ISA test source
-     for a real preprocessor conditional (not a comment, not prose) on an
-     exempt knob. The one KNOWN hit is allowed BY NAME and by file, and the
-     allowance is checked to still be there -- if it moves or disappears, that
-     is reported too, because a stale allowance is a stale rationale.
-  3. A KNOWN-NONZERO CONTROL, because a sweep validated only by finding nothing
-     has not been validated. The sweep must find the stampable knobs it is
-     supposed to find (TRAPCSR, UMODE and PMP all dispatch heavily); if it does
-     not, the file set is wrong or mis-staged and this FATALs rather than
-     reporting a clean result.
-
-EXIT CODES
-  0  the classification is total and no exempt knob is dispatched on
-  1  a finding -- an unclassified knob, or an exempt knob with a live #ifdef
-  2  the check could not be run (missing input, or the nonzero control failed)
-
-USAGE
-  /usr/bin/python3.6 tools/cosim/check_knob_classes.py
-  /usr/bin/python3.6 tools/cosim/check_knob_classes.py --files-from <manifest>
-
---files-from is the STRICT mode the bazel test uses: one workspace-relative
-path per line, and an unreadable manifest is exit 2 so a mis-staged sandbox
-cannot pass here as an empty scan reported as OK.
-
-Python 3.6 compatible. Reads only; changes nothing.
+Checks that every knob ChipGenerator.py can emit is in exactly one of
+verify_stage.DEFINE_KNOBS or NON_DEFINE_KNOBS, that no exempt knob has a live #ifdef in an
+ISA test source, and that a known-nonzero control still finds the stampable knobs. Exit 0
+clean, 1 finding, 2 could not run. python3.6, read-only.
 """
 
 import os
@@ -112,7 +52,7 @@ def load_classes():
         fail('no verify_stage.py under %s' % pc_py)
     sys.path.insert(0, pc_py)
     try:
-        import verify_stage as V   # import-safe: main() is guarded (R-K1-3)
+        import verify_stage as V   # import-safe: main() is guarded
     except ImportError as e:
         fail('cannot import verify_stage: %s' % e)
     if not hasattr(V, 'knob_classes'):
@@ -123,12 +63,9 @@ def load_classes():
 
 
 def generator_knobs():
-    """Every CORE_ENABLE_<X> ChipGenerator.py can emit, and whether it also
-    emits a matching C #define for it.
-
-    Read out of the generator SOURCE rather than out of a generated file: the
-    question is what the generator CAN produce for some configuration, not what
-    today's resolved config happened to switch on.
+    """Every CORE_ENABLE_<X> ChipGenerator.py can emit, and whether it also emits a matching C
+    #define. Read out of the generator source rather than a generated file: the question is what
+    the generator can produce for some configuration, not what today's config switched on.
     """
     path = os.path.join(ROOT, 'platform', 'common', 'python', 'ChipGenerator.py')
     if not os.path.isfile(path):
@@ -209,7 +146,7 @@ def main():
     constants, defines = generator_knobs()
     findings = []
 
-    # --- 1. TOTALITY ------------------------------------------------------
+    # 1. TOTALITY
     classified = set(stampable) | set(exempt)
     both = set(stampable) & set(exempt)
     unclassified = sorted(constants - classified)
@@ -231,7 +168,7 @@ def main():
             '    readable in MemoryMap.vhd.'
             % (k, k, 'DOES' if k in defines else 'DOES NOT'))
 
-    # --- 2/3. THE SWEEP, AND ITS CONTROL ----------------------------------
+    # 2/3. THE SWEEP, AND ITS CONTROL
     paths = source_files(manifest)
     hits, nread = sweep(paths)
 

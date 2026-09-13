@@ -1,5 +1,5 @@
 #!/bin/sh
-# Fetch bazelisk into tools/bin/bazel for this checkout.
+# VestaRV: fetch bazelisk into tools/bin/bazel for this checkout.
 # Bazelisk is a static go binary; it reads .bazelversion at the repo root and
 # downloads/runs that exact bazel release, so this is the only bootstrap step.
 set -eu

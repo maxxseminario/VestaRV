@@ -1,3 +1,5 @@
+# VestaRV: shared chip headers used by the firmware builds.
+
 load("@rules_python//python:defs.bzl", "py_test")
 
 # Shared chip headers used by the firmware builds.

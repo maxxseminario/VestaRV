@@ -1,137 +1,15 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# dbgexcmp.S   (D-series, D2 -- F-D2-0: A SYNCHRONOUS EXCEPTION TAKEN IN DEBUG
-#               MODE MUST RE-ENTER DEBUG MODE, IN BOTH DELIVERY POLARITIES)
-#-----------------------------------------------------------------------------
-# BLIND-AUTHORED 2026-08-06 against the F-D2-0 contract statement only, by an
-# agent that has not seen and will never see the implementer's fix (R-D2-3(5)
-# bars the author from d2_implementation_report.md; the wall runs both ways for
-# this finding).  Committed polarity: CORRECT RTL = PASS (R-K5-8).
-#
-# NEEDS A HARNESS:  ./xrun_dbg.sh rv32ua-p-dbgexcmp dbg_exc.tcl
-# No Debug Module is required and none exists: the harness forces the tile's
-# `dbg_haltreq` port directly, the D1 mechanism, so this detector lives on the
-# debug row's instrument set from today and does not wait for D2's DM.
-#
-# ---------------------------------------------------------------------------
-# THE CONTRACT, and the four separate ways to break it
-#   A hart that takes a synchronous exception WHILE IN DEBUG MODE must
-#   re-enter debug mode at DEBUG_ENTRY_ADDR with `dpc` and `dcsr` UNCHANGED.
-#   It must not enter TRAP_STATE, must not latch `trap_flag`, must not clobber
-#   `mepc`/`mcause`, and must come out able to run and be halted again.
-#   Those are four different pieces of RTL and a build can get any one of them
-#   wrong on its own, so each has its own verdict code.
-#
-#   BOTH DELIVERY POLARITIES ARE EXERCISED, on two victims, because the two
-#   fail DIFFERENTLY and a detector that only ran one of them would report a
-#   green half as if it were the whole:
-#     hart 1  LEGACY delivery (mtrapctl.LEGACY = 1, the RESET configuration
-#             every hart boots in).  A wrong build takes the ordinary trap
-#             path; on the shipped default that is the TERMINAL TRAP_STATE, so
-#             the failure is a WEDGE and its in-band signature is a missing
-#             second entry.  There is no positive tripwire available on this
-#             path -- an illegal instruction in legacy mode does not reach an
-#             IVT slot -- so the harness's cpu_state read is what names it.
-#     hart 2  STANDARD delivery (the hart executes `csrw 0x7C0, x0` first).  A
-#             wrong build vectors to `mtvec`, and THAT one can be caught
-#             positively: this hart points mtvec at a TRIPWIRE that publishes
-#             a magic and spins.  If the tripwire ever fires, standard
-#             delivery took an exception away from a hart that was in debug
-#             mode, and the verdict names it outright instead of reporting a
-#             timeout.
-#     hart 3  BYSTANDER.  It only counts.  If a fault on one hart takes the
-#             chip down, its counter stops and that is a separate code.
-#
-# THE EXCEPTION IS AN ILLEGAL INSTRUCTION, NOT AN `ebreak`, ON PURPOSE.
-#   `ebreak` in debug mode is the one re-entry d1_spec already defines and
-#   dbgstepmp already covers, so using it here would test the covered path.
-#   `.word 0x0000007F` is absent from maindec's valid_opcode list on EVERY
-#   build -- the same positive control rocsrw.S and dbghaltmp.S use -- so it
-#   is a synchronous exception on every matrix row and needs no knob.
-#
-# WHY dpc/dcsr MUST BE UNCHANGED, and how that is read
-#   The re-entry is not a new debug entry: the hart is already in debug mode
-#   and `dpc`/`dcsr` still describe the ORIGINAL entry.  A build that rewrites
-#   them has destroyed the debugger's resume address -- the hart would `dret`
-#   into the middle of its own debug stub.  So the stub records dpc/dcsr on
-#   entry 1 and again on entry 2, and hart 0 compares them.  The assertion is
-#   an EQUALITY between two measured values, not a comparison against a
-#   constant anyone calibrated (method rule 7).
-#
-# mepc IS SEEDED WITH A MAGIC BEFORE THE PARK, deliberately.  Comparing
-#   mepc-before against mepc-after would pass on a build that zeroes it twice.
-#   Seeding it with 0x0D26E9C0 means a clobber to the fault PC, to zero, or to
-#   anything else is visible in the verdict's a2.  mcause is recorded rather
-#   than seeded (it is the trap unit's to write, and inventing a required
-#   value for it would be testing the invention).
-#
-# ---------------------------------------------------------------------------
-# VERDICT.  a0 = 0xCAFEBABE => an exception in debug mode re-entered debug mode
-# on BOTH delivery polarities, with dpc, dcsr, mepc and mcause all intact, and
-# both victims came back out and ran.  a0 = 0xDEADBEEF with:
-#   a1 = 0x0D260001   a shared word did not read back
-#   a1 = 0x0D260002   base-ISA sanity failed
-#   a1 = 0x0D260003   a victim never published READY (a2 = the hart index)
-#   a1 = 0x0D26h005   THE STD TRIPWIRE FIRED on hart h (a2 = TRIP): standard
-#                     delivery vectored an exception to mtvec while the hart
-#                     was in debug mode.  The positive form of the finding.
-#   a1 = 0x0D26h004   hart h NEVER RE-ENTERED debug mode after the exception
-#                     (a2 = ENTRIES[h], 1 = it entered once and never came
-#                     back).  On the legacy polarity this is the finding, and
-#                     the harness's EXCLOG lines say whether the hart is
-#                     wedged in TRAP_STATE or parked with dbg_halted still
-#                     asserted (the unrecoverable-park class).
-#   a1 = 0x0D26h006   dpc CHANGED across the re-entry (a2 = DPC2, a3 = DPC1)
-#   a1 = 0x0D26h007   dcsr CHANGED across the re-entry (a2 = DCSR2, a3 = DCSR1)
-#   a1 = 0x0D26h008   mepc was CLOBBERED (a2 = MEPC2, a3 = MEPC1)
-#   a1 = 0x0D26h009   mcause was CLOBBERED (a2 = MCAUSE2, a3 = MCAUSE1)
-#   a1 = 0x0D26h00A   hart h never resumed after its `dret` (a2 = POST)
-#   a1 = 0x0D26000B   the BYSTANDER stopped counting (a2 = CNT[3]): the fault
-#                     did not stay on the victims
-# NO a0 AT ALL (tb watchdog): hart 0 wedged in its own preamble.
-#
-# NEGATIVE CONTROL -- how the non-debug half was SEEN TO WORK:
-#   -DDBGEXC_NC_SELFENTRY.  Each victim JUMPS to its own planted stub instead
-#   of waiting to be halted, and the stub publishes CONSTANTS shaped exactly
-#   like the real thing (a synthetic dcsr/dpc) and skips both the debug-CSR
-#   reads and the fault, so it runs on a tree with no debug mode at all.  The
-#   planting, the hartid dispatch, both polarities' setup, every publish, both
-#   victims' resume, hart 0's whole assertion chain and the verdict path all
-#   execute for real.  A PASS on that arm proves the instrument is LIVE and
-#   that a later FAIL is about the RTL, not about the plumbing (method rule 5).
-#   It is a CONTROL: it makes no claim about debug mode and must never be
-#   quoted as a D2 result.
-#
-# WHERE THE STUB IS PLANTED, and why in TWO places
-#   DEBUG_ENTRY_ADDR is the VHDL generic default 0xBE00 on the tree as it
-#   stands, and becomes shared 0x10780 when the generator's debug-ON emission
-#   lands (R-D2-1(3)).  This detector must work on BOTH trees -- it is the
-#   FAIL leg today and the PASS leg after the fix -- so it plants the same
-#   position-independent stub at BOTH addresses: hart 0 plants the shared copy
-#   once, and every victim plants its own private-TCM copy.  Whichever address
-#   the build's generic carries, the stub is there.  Two plants, no #ifdef,
-#   and no dependence on which change lands first.
-#
-# N-AGNOSTIC.  Exactly three tiles are launched at any NHARTS and no shared
-#   word is indexed past hart 3.
-#
-# SHARED WORDS CLAIMED -- the D2 CORE-DETECTOR BAND 0x10880-0x108FF (32 words),
-#   two 16-word per-hart blocks at 0x10840 + 0x40*h for h = 1, 2.  The band is
-#   above the debug entry page (which ends 0x1087F) and below shlock's JOURNAL
-#   at 0x11000, and nothing else claims 0x10880-0x10FFF at either N.  It is
-#   OUTSIDE the bootrom zero range, so hart 0 clears it and reads it back
-#   before anything else -- the write-before-read contract, discharged in band.
-#   REUSED with different meanings by dbgirqmp.S (one image per sim; the two
-#   never coexist -- the shdma/wdma precedent).
-#     +0x00 ENTRIES   +0x04 DPC1     +0x08 DPC2    +0x0C DCSR1
-#     +0x10 DCSR2     +0x14 MEPC1    +0x18 MEPC2   +0x1C MCAUSE1
-#     +0x20 MCAUSE2   +0x24 CNT      +0x28 TRIP    +0x2C READY
-#     +0x30 REL       +0x34 POST     +0x38 EXTRA   +0x3C (spare)
-#   hart 3's block is 0x10900-0x1093F and its CNT is at 0x10900 + O_CNT.
-#   (The first draft mis-addressed it at 0x10940 -- outside every block -- and
-#   the liveness control caught that too: a1 = 0x0D27000B with a2 = 0.)
-#*****************************************************************************
+# VestaRV: synchronous exception taken in debug mode must re-enter debug mode
+# NEEDS A HARNESS: ./xrun_dbg.sh rv32ua-p-dbgexcmp dbg_exc.tcl. No Debug Module is required and none exists; the harness forces the tile's dbg_haltreq port directly.
+# THE CONTRACT: a hart that takes a synchronous exception WHILE IN DEBUG MODE must re-enter debug mode at DEBUG_ENTRY_ADDR with dpc and dcsr UNCHANGED. It must not enter TRAP_STATE, must not latch trap_flag, must not clobber mepc or mcause, and must come out able to run and be halted again. Those are four separate pieces of RTL and a build can get any one wrong on its own, so each has its own verdict code.
+# BOTH DELIVERY POLARITIES ARE EXERCISED, because they fail differently. Hart 1 runs LEGACY delivery, the reset configuration: a wrong build takes the ordinary trap path, which on the shipped default is the terminal TRAP_STATE, so the failure is a wedge whose in-band signature is a missing second entry, and only the harness's cpu_state read can name it, since an illegal instruction in legacy mode reaches no IVT slot. Hart 2 runs STANDARD delivery after `csrw 0x7C0, x0`: a wrong build vectors to mtvec, so this hart points mtvec at a TRIPWIRE that publishes a magic and spins, turning that failure into a positive result rather than a timeout. Hart 3 is a bystander that only counts, so a fault taking the chip down shows as its counter stopping, under its own code.
+# THE EXCEPTION IS AN ILLEGAL INSTRUCTION, NOT AN `ebreak`, ON PURPOSE: ebreak in debug mode is the one re-entry already defined and covered elsewhere. `.word 0x0000007F` is absent from maindec's valid_opcode list on every build, so it is a synchronous exception on every matrix row and needs no knob.
+# dpc AND dcsr MUST BE UNCHANGED because the re-entry is not a new debug entry: the hart is already in debug mode and those registers still describe the ORIGINAL entry, so a build that rewrites them has destroyed the debugger's resume address and the hart would dret into the middle of its own stub. The stub records both on entry 1 and again on entry 2 and hart 0 compares them, so the assertion is an equality between two measured values rather than a comparison against a calibrated constant. mepc IS SEEDED WITH 0x0D26E9C0 BEFORE THE PARK, deliberately, because comparing before against after would pass on a build that zeroes it twice; mcause is recorded rather than seeded, since inventing a required value for it would test the invention.
+# Verdicts: a0 = 0xCAFEBABE means an exception in debug mode re-entered debug mode on both polarities with dpc, dcsr, mepc and mcause intact and both victims running again. a1 = 0x0D260001 a shared word did not read back; 0x0D260002 base-ISA sanity failed; 0x0D260003 a victim never published READY; 0x0D26h005 the standard-delivery tripwire fired on hart h, the positive form of the finding; 0x0D26h004 hart h never re-entered debug mode, which is the finding on the legacy polarity and where the harness's log says whether the hart is wedged in TRAP_STATE or parked with dbg_halted still asserted; 0x0D26h006 dpc changed; 0x0D26h007 dcsr changed; 0x0D26h008 mepc was clobbered; 0x0D26h009 mcause was clobbered; 0x0D26h00A hart h never resumed after its dret; 0x0D26000B the bystander stopped counting. No a0 at all means hart 0 wedged in its own preamble.
+# NEGATIVE CONTROL -DDBGEXC_NC_SELFENTRY: each victim jumps to its own planted stub instead of waiting to be halted, and the stub publishes constants shaped like the real thing while skipping both the debug-CSR reads and the fault, so it runs on a tree with no debug mode at all. Everything else executes for real, so a pass proves the instrument is LIVE. It is a control and makes no claim about debug mode.
+# THE STUB IS PLANTED IN TWO PLACES, deliberately and with no #ifdef: DEBUG_ENTRY_ADDR is the VHDL generic default 0xBE00 on a tree without the debug-ON emission and shared 0x10780 with it, and this detector must work on both, so hart 0 plants the shared copy once and every victim plants its own private-TCM copy. The stub is position-independent, so whichever address the build's generic carries, it is there.
+# N-agnostic: exactly three tiles at any NHARTS and no shared word indexed past hart 3. Shared words: the D2 core-detector band 0x10880-0x108FF, two 16-word per-hart blocks at 0x10840 + 0x40*h for h = 1 and 2, with hart 3's block at 0x10900. The band sits above the debug entry page, which ends at 0x1087F, and below shlock's journal at 0x11000, and nothing else claims it at either N. IT IS OUTSIDE THE BOOTROM ZERO RANGE, so hart 0 clears it and reads it back before anything else, discharging the write-before-read contract in band. Block layout: +0x00 ENTRIES, +0x04 DPC1, +0x08 DPC2, +0x0C DCSR1, +0x10 DCSR2, +0x14 MEPC1, +0x18 MEPC2, +0x1C MCAUSE1, +0x20 MCAUSE2, +0x24 CNT, +0x28 TRIP, +0x2C READY, +0x30 REL, +0x34 POST, +0x38 EXTRA. It is reused with different meanings by dbgirqmp.S under the one-image-per-sim rule.
 
 #include "riscv_test.h"
 #include "test_macros.h"

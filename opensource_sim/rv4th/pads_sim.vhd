@@ -1,7 +1,6 @@
-/* Tracked behavioural model of the one TSMC pad cell the MCU-level testbenches instantiate.
-   The signoff model is PDUW16SDGZ_G in tsmc/pads/tphn65gpgv2od3_sl/verilog/tphn65gpgv2od3_sl.v, which lives in the shared IP tree outside this repository and is Verilog, so GHDL can neither reach it nor read it.
-   This is the same substitution hdl/common/sim/ClkGate.vhd makes for the technology clock gate: one tracked behavioural VHDL unit that the open-source tier names in place of a cell library it cannot have.
-   It deliberately does NOT live under hdl/common/sim, because that directory is globbed into //hdl:vhdl_sources and every xcelium cell list reads the real .v; keeping it here means no cell list can pick up both and declare the cell twice. */
+-- VestaRV: tracked behavioural model of the one TSMC pad cell the MCU-level testbenches instantiate
+-- The signoff model is PDUW16SDGZ_G in tsmc/pads/tphn65gpgv2od3_sl/verilog/tphn65gpgv2od3_sl.v, which lives in the shared IP tree outside this repository and is Verilog, so GHDL can neither reach it nor read it. This is the substitution hdl/common/sim/ClkGate.vhd makes for the technology clock gate.
+-- It deliberately does NOT live under hdl/common/sim: that directory is globbed into //hdl:vhdl_sources and every xcelium cell list reads the real .v, so keeping it here means no cell list can pick up both and declare the cell twice.
 
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;

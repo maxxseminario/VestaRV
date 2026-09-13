@@ -1,34 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# afsel.S  (GPIO multi-AF: PxAFS alternate-function select)
-#-----------------------------------------------------------------------------
-# System-level proof of the multi-alternate-function GPIO fabric: every pin
-# is GPIO + up to 8 alternate functions (AF0..AF7). PxSEL still picks GPIO vs
-# alternate mode; the NEW PxAFS register (slot 11, one nibble per pin, low 3
-# bits used) picks WHICH alternate function drives the pad. PxAFS resets to 0
-# = AF0 = the legacy function, so all pre-multi-AF software is unaffected.
-#
-# Hart 0 only (tiles stay parked in the ROM). Phases:
-#   gp=2..5   PxAFS register semantics: full write/readback, reserved nibble
-#             bit 3 reads 0, byte-lane (sb) write masking
-#   gp=6      TIMER0 PWM setup (CMP0 toggle @0x20, CMP2RST period 0x60, MCLK)
-#             + bounded poll-until-counting (clock-mux handoff)
-#   gp=7      NEGATIVE CONTROL: P2.0 (RTL) in alt mode at AF0 drives the GPIO
-#             OUT register value (0) — the timer waveform must NOT leak in
-#   gp=8,9    P2AFS field0=1 -> AF1=T0CMP0: P2IN(0) must reach 1, then 0
-#             (the PWM is really on the pad — plane-1 OUTPUT mux + wiring)
-#   gp=10     NEGATIVE CONTROL: edges on P4.0 (RTL) with P4AFS=0 must not
-#             capture (T0CAP0 still observes its driven-low home pad P3.2)
-#   gp=11     P4AFS field0=1 -> T0CAP0 observes P4.0: a software rising edge
-#             on the pad sets CAP0IF (relocated INPUT mux; input routing is
-#             keyed on PxAFS alone, so the pin can stay in GPIO output mode —
-#             the software-loopback self-test pattern from the TRM)
-#
-# Port bases are RTL numbering: GPIO1=P2 @0x4100, GPIO2=P3 @0x4800,
-# GPIO3=P4 @0x4D00. All accesses go through the shared window / arbiter.
-# Bounded polls only (4096 max — inside the 100ms tb watchdog).
-#*****************************************************************************
+# VestaRV: GPIO alternate-function select
+# Every pin is GPIO plus up to eight alternate functions. PxSEL still picks GPIO against alternate mode, and PxAFS, ONE NIBBLE PER PIN WITH THE LOW 3 BITS USED, picks WHICH alternate function drives the pad. PxAFS RESETS TO 0, that is AF0, the legacy function, so software written before the multi-AF fabric is unaffected.
+# Hart 0 only, with the tiles parked. The phases, by gp: 2 to 5 exercise PxAFS register semantics, full write and readback, the reserved nibble bit 3 reading 0, and byte-lane write masking; 6 sets up TIMER0 PWM with a CMP0 toggle, a CMP2RST period and MCLK, then polls until it counts, because the clock mux needs a handoff; 7 is a NEGATIVE CONTROL where a pin in alternate mode at AF0 drives the GPIO OUT value and the timer waveform must not leak in; 8 and 9 route AF1 to T0CMP0 and require the input to follow the PWM, proving it really reaches the pad; 10 is a NEGATIVE CONTROL where edges on an unrouted pad must not capture, since T0CAP0 still observes its driven-low home pad; 11 routes T0CAP0 to that pad and a software rising edge must set CAP0IF.
+# INPUT ROUTING IS KEYED ON PxAFS ALONE, so the candidate pin can stay in GPIO output mode, which is what makes the software-loopback self-test pattern work.
+# Port bases use RTL numbering, so GPIO1 is P2 at 0x4100, GPIO2 is P3 at 0x4800 and GPIO3 is P4 at 0x4D00, and every access goes through the shared window. All polls are bounded at 4096, inside the 100 ms tb watchdog.
 
 #include "riscv_test.h"
 #include "test_macros.h"

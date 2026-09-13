@@ -1,4 +1,5 @@
-# NPU Test Weights
+# VestaRV: NPU golden input activation vector
+# Emitted into its own section .npu0_x so the test can place it at the NPU's window; it is data, not code, despite the "ax" flags.
 .section .npu0_x , "ax"
 npu0_x:
 # NPU Data Here

@@ -1,49 +1,11 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""theme_sync.py -- splice docs/vesta_theme.css into the pages that adopt it.
+# coding: utf-8
+"""VestaRV: splice docs/vesta_theme.css into the pages that adopt it.
 
-docs/THEME_ADOPTION.md section 1 states the contract this tool implements:
-the block of vesta_theme.css between
-
-    /* VESTA_THEME_BEGIN */
-    ... tokens + shared components ...
-    /* VESTA_THEME_END */
-
-is pasted verbatim into each page's own <style> element, between the same two
-marker lines, and "automation re-splices updates by replacing whatever sits
-between them". That automation did not exist; this is it.
-
-Usage:
-
-    python3 tools/python/theme_sync.py --check          # every marked page
-    python3 tools/python/theme_sync.py                  # rewrite them in place
-    python3 tools/python/theme_sync.py --check PAGE...  # only these pages
-
-Exit codes:
-    0  --check: every page carries the canonical block.
-       write mode: every page is now up to date.
-    1  --check: at least one page is stale (each is named, with line counts).
-    2  an input is missing, or a page's markers are absent or out of order.
-
-WHAT COUNTS AS A MARKER, AND WHY IT IS ANCHORED
-    Only a line whose stripped text is exactly "/* VESTA_THEME_BEGIN */" (or
-    the END form) is a marker. The pages mention both tokens again in prose
-    inside their leading HTML comment, and register_browser.html mentions
-    VESTA_THEME_END mid-line in a section rule. Those are text, not markers,
-    and a substring search would splice over half the file.
-
-WHAT IS PRESERVED BYTE FOR BYTE
-    The two marker lines themselves, everything before BEGIN, everything after
-    END, and each file's existing line endings (the file is read and written
-    with newline translation off). Only the lines strictly between the markers
-    are replaced, and idempotence is therefore exact: splicing twice produces
-    the identical file.
-
-PAGES WITHOUT MARKERS ARE NOT TOUCHED, AND THAT IS DELIBERATE.
-    vestarv_roadmap.html and the afe_rev2_* pages carry no markers: they are
-    outside the design system, and discovery is by marker presence precisely
-    so that adding a page to the system is one edit (paste the block) rather
-    than two (paste the block, then remember to add the file to a list here).
+Replaces only the lines strictly between a page's two marker lines, so splicing twice gives
+the identical file; markers, surrounding text and line endings survive byte for byte. A
+marker is a line whose stripped text is exactly the marker, never a substring, and a page
+with no markers is not discovered. Exit 0 in sync, 1 stale, 2 an input or marker is missing.
 """
 
 from __future__ import print_function

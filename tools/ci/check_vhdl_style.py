@@ -1,32 +1,10 @@
 #!/usr/bin/env python3
-"""check_vhdl_style.py -- the house VHDL prose style gate.
+"""VestaRV: the house VHDL prose style gate, ASCII only.
 
-WHY THIS EXISTS.
----------------------------------------------------------------------------
-This repo's VHDL comment style is binding, and its first rule is ASCII only.
-Em-dashes, unicode arrows, smart quotes and non-breaking spaces get pasted in
-from notes and web pages without anyone noticing, and they survive review
-because they render as something plausible.
-Downstream they are not harmless: the vendor VHDL readers, the LaTeX TRM
-pipeline and the diff tooling all treat a stray multi-byte character
-differently, and a non-breaking space that looks exactly like a space is a
-genuinely nasty thing to debug.
-
-So this check is deliberately blunt.
-Any byte in a VHDL file that is not printable 7-bit ASCII, tab, CR or LF is a
-failure, reported with its path, line, column, codepoint and unicode name so
-the offending character can be found and typed out in words instead.
-
-WHAT IS OUT OF SCOPE, AND WHY.
----------------------------------------------------------------------------
-The rule binds on the trees the owner actually edits. Frozen tape-out
-snapshots and vendored gate netlists are not editable by the people this gate
-catches, so grading them would only produce a red that nobody is allowed to
-fix. EXCLUDED_TREES below names each one with its reason; --all scans them
-anyway when someone wants the full picture.
-
-Exit codes:  0 = pass.  1 = a banned character was found.  2 = the instrument
-is not live (git missing, unreadable file, or an empty scan).
+Any byte in a VHDL file that is not printable 7-bit ASCII, tab, CR or LF fails, reported with
+path, line, column, codepoint and unicode name. Deliberately blunt: the vendor readers, the
+LaTeX pipeline and the diff tooling each treat a stray multi-byte character differently.
+EXCLUDED_TREES names the frozen and vendored trees with a reason; --all scans them anyway.
 """
 
 import argparse
@@ -41,7 +19,6 @@ import unicodedata
 # see tools/ci/check_line_endings.py.
 ALLOWED_CONTROL = ("\t", "\n", "\r")
 
-# ---------------------------------------------------------------------------
 # TREES THIS GATE DOES NOT GRADE.
 #
 # Each entry is an ADJUDICATED exclusion, not a swept-under-the-rug one: the
@@ -58,7 +35,6 @@ ALLOWED_CONTROL = ("\t", "\n", "\r")
 #                  which is clean today - this is the tree the gate is for.
 #   hdl/castalia/  not a frozen tree, so it is live and stays graded. It is
 #                  clean today.
-# ---------------------------------------------------------------------------
 EXCLUDED_TREES = (
     # FROZEN - do not touch. Single-core Myshkin tape-out RTL.
     "hdl/myshkin/",
@@ -98,11 +74,9 @@ def discover(root):
 
 
 def is_excluded(path):
-    """True if a path falls inside a tree this gate does not grade.
-
-    Matches on the workspace-relative tail, so the same rule holds whether the
-    caller passed a repo-relative path, an absolute worktree path, or a
-    runfiles path from inside a bazel sandbox.
+    """True if a path falls inside a tree this gate does not grade. Matches on the workspace-relative
+    tail, so the same rule holds for a repo-relative path, an absolute worktree path or a runfiles
+    path from inside a bazel sandbox.
     """
     norm = path.replace(os.sep, "/")
     for tree in EXCLUDED_TREES:

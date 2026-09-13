@@ -1,64 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# csrrevrt.S   (F-series fix pass, W2 -- the DETECTOR for finding F7)
-#-----------------------------------------------------------------------------
-# F7: the CSR write is REVERTED by the compressed half-fetch bubble.
-#
-# Mechanism, re-anchored to the RTL (hdl/common/vesta/vesta.vhd, branch
-# rtl-fixpass):
-#   * shape E -- EXECUTE with pc(1)='1', quadrant_upper="11", repeat_if='0' --
-#     is the split-fetch bubble of a 32-bit instruction that starts on a
-#     halfword boundary. Its FSM arm suppresses reg_write_dp, wen and pc_en
-#     and NOTHING else.
-#   * in that cycle instr_curr = instr_curr_prev, i.e. the PREVIOUS, ALREADY
-#     RETIRED instruction is decoded again.
-#   * csr_valid_eff = csr_valid and not dec_squash, and dec_squash is
-#     trap_entry_seq/pmp_if_squash only -- both '0' here. So csr_write_en
-#     re-fires, with csr_addr = instr_curr(31:20) and csr_wdata read LIVE
-#     from rf[rs1].
-#   For the swap idiom `csrrw rd, csr, rd` the previous cycle already committed
-#   rd = the OLD csr value, so the bubble writes the CSR back to its own old
-#   value: the architectural write is REVERTED.
-#
-# WHY mcycle AND NOT mscratch/minstret:
-#   In the DEFAULT build every ENABLE_* knob is false (hart_tile.vhd), and
-#   csr_unit.vhd's csr_addr_stores() then admits EXACTLY FOUR storing CSRs:
-#   mcycle, mcycleh, minstret, minstreth. mscratch/mtvec/jvt/fflags/PMP cannot
-#   be written at all, so a detector aimed at them is green before and after
-#   the fix and proves nothing.  minstret is deliberately avoided: it is
-#   finding F1's subject and wave W3 changes how it counts, which would couple
-#   this wave's evidence to another wave's fix.  mcycle free-runs, which is
-#   fine -- the payload 0xC5C5C5C5 is ~3.3e9, i.e. ~137 s of 24 MHz counting
-#   away from any boot-era count, so a RANGE check separates the two states
-#   with an enormous margin. Never compare mcycle for equality.
-#
-# Shape of the test: the SAME two-instruction idiom is run twice.
-#   STEP 1  misaligned (the bug): csrrw at 4n+2, the reading csrrs at 4n+6, so
-#           the reader's own half-fetch bubble re-fires the csrrw's write.
-#   STEP 2  aligned CONTROL: identical pair at 4n and 4n+4, no bubble.
-#   The control must ALWAYS read back the payload; only the misaligned read
-#   moves. That isolates the alignment as the cause rather than the CSR, the
-#   register choice or the read path.
-#
-# Verdict / a1 codes:
-#   a0=0xCAFEBABE                    PASS  (no revert; post-fix expectation)
-#   a0=0xDEADBEEF, a1=0xF7F7F7F7     F7 FIRED -- the misaligned read saw the
-#                                    pre-swap counter (a2 holds it)
-#   a0=0xDEADBEEF, a1=0x5E800001     setup: the misaligned csrrw did not swap
-#   a0=0xDEADBEEF, a1=0x5E800002     setup: the ALIGNED control also failed,
-#                                    so the CSR write path itself is broken and
-#                                    STEP 1 proves nothing
-# Live registers at the verdict: a2 = STEP 1 read-back, a3 = STEP 1 csrrw rd,
-#   a4 = STEP 2 (control) read-back.
-#
-# Shared window: NONE. This test claims no shared scratch word at all and
-#   touches no peripheral; it runs entirely out of hart 0's private TCM.
-#
-# Conventions: `.option arch, +zicsr` because rv32ua's -march has no zicsr;
-#   `.option norvc` everywhere except the two deliberate c.nop alignment
-#   shims; RVTEST_CODE_END is `unimp` in this env so every path spins.
-#*****************************************************************************
+# VestaRV: detector for a CSR write reverted by the compressed half-fetch bubble
+# THE DEFECT: an EXECUTE cycle with pc(1) = '1', quadrant_upper = "11" and repeat_if = '0' is the split-fetch bubble of a 32-bit instruction starting on a halfword boundary. Its FSM arm suppresses reg_write_dp, wen and pc_en and nothing else, while instr_curr holds instr_curr_prev, so the PREVIOUS, ALREADY RETIRED instruction is decoded again. csr_valid_eff is only squashed by trap_entry_seq or pmp_if_squash, both low here, so csr_write_en re-fires with csr_wdata read live from rf[rs1]. For the swap idiom `csrrw rd, csr, rd` the previous cycle already committed rd = the OLD csr value, so the bubble writes the CSR back to its own old value and the architectural write is REVERTED.
+# mcycle, NOT mscratch OR minstret: in the default build every ENABLE_* knob is false and csr_unit's csr_addr_stores then admits exactly four storing CSRs, mcycle, mcycleh, minstret and minstreth, so a detector aimed at mscratch, mtvec, jvt, fflags or the PMP registers is green before and after the fix and proves nothing. minstret is another finding's subject and is avoided so this evidence stays uncoupled. mcycle free-runs, and the payload 0xC5C5C5C5 is about 137 s of 24 MHz counting away from any boot-era count. ALWAYS RANGE-CHECK IT, NEVER COMPARE FOR EQUALITY.
+# The same two-instruction idiom runs twice. STEP 1 is misaligned: the csrrw at 4n+2 and the reading csrrs at 4n+6, so the reader's own half-fetch bubble re-fires the csrrw's write. STEP 2 is the aligned control, an identical pair at 4n and 4n+4 with no bubble. THE CONTROL MUST ALWAYS READ BACK THE PAYLOAD; only the misaligned read moves, which isolates alignment as the cause rather than the CSR, the register choice or the read path.
+# Verdicts: a0 = 0xCAFEBABE passes; a0 = 0xDEADBEEF with a1 = 0xF7F7F7F7 means the revert fired and a2 holds the pre-swap counter the misaligned read saw; a1 = 0x5E800001 means the misaligned csrrw did not swap; a1 = 0x5E800002 means the ALIGNED control also failed, so the CSR write path itself is broken and step 1 proves nothing. At the verdict a2 is step 1's read-back, a3 is step 1's csrrw rd and a4 is step 2's read-back.
+# No shared window is claimed and no peripheral is touched; the test runs entirely out of hart 0's private TCM. `.option arch, +zicsr` is needed because rv32ua's -march has none, `.option norvc` is used everywhere except the two deliberate c.nop alignment shims, and RVTEST_CODE_END is `unimp` here, so every path spins.
 
 #include "riscv_test.h"
 #include "test_macros.h"

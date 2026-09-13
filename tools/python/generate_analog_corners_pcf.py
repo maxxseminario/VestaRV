@@ -1,5 +1,5 @@
-# Prints every combination of corner model data to standard output.  Redirect to .pcf file.
-# Targets TSMC 0.13 um low-power technology CM013LP
+# VestaRV: print every combination of corner model data, for redirection to a .pcf file.
+# Targets TSMC 0.13 um low-power technology CM013LP.
 
 import sys
 

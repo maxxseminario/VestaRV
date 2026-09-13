@@ -1,29 +1,9 @@
-"""Declare the hermetic LaTeX smoke document, behind one explicit switch.
+"""VestaRV: declare the hermetic LaTeX smoke document, behind one explicit switch.
 
-bazel_latex 1.2.2 calls native.sh_binary inside its latex_document macro, and
-Bazel 9 removed that native rule.  The failure is at LOAD time, which a manual
-tag cannot contain: any wildcard pattern that has to enumerate this package
-fails outright, taking every unrelated target under //platform/... with it.
-
-Putting this line in .bazelrc puts sh_binary back, and py_binary with it, which
-bazel_latex's generated latexrun BUILD file needs for the same reason:
-
-    common --incompatible_autoload_externally=+sh_binary,+sh_test,+py_binary,+py_library,+py_test
-
-The two changes are one change and have to land together, so this file carries
-the switch.  Flip ENABLE to True in the same commit that adds that line.  Until
-then the package declares nothing and still loads, and a wildcard sweep sees an
-empty package rather than a broken one.
-
-Probing for the flag instead of naming it was tried and does not work:
-hasattr(native, "sh_binary") reads False even with the flag in effect, so the
-guard would suppress the target on exactly the configuration that supports it.
-
-The smoke document was BUILT GREEN on this host with the flag set, before the
-switch was added, so what is gated here is known to work and not a guess.
-
-Delete this file and call latex_document directly once bazel_latex loads
-sh_binary from @rules_shell.
+bazel_latex 1.2.2 calls native.sh_binary, which Bazel 9 removed, and the failure is at load
+time, so any wildcard enumerating this package would fail outright. The .bazelrc
+--incompatible_autoload_externally line puts sh_binary and py_binary back, and
+ENABLE_HERMETIC_LATEX_SMOKE must be flipped with it. Probing hasattr(native, ...) reads False.
 """
 
 load("@bazel_latex//:latex.bzl", "latex_document")

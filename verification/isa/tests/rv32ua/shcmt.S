@@ -1,25 +1,9 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shcmt.S  (X3 Zcmt — compressed table jump + jvt CSR directed functional test)
-#-----------------------------------------------------------------------------
-# Build-time dispatch on CORE_ENABLE_ZCMT (explicit -DCORE_ENABLE_ZCMT at ON).
-# Hart 0 only (tiles park).
-#
-#   OFF (#else): base sanity + PASS. cm.jt/cm.jalt and the jvt CSR are illegal
-#       here; the stub emits none of them (image bit-identical to a base build).
-#
-#   ON  (#ifdef): build a jump-vector table in TCM, set jvt via csrw, fence.i,
-#       then:
-#         * cm.jt index=3   (index<32, no link) -> control reaches entry[3]'s
-#           target AND ra is UNCHANGED.
-#         * cm.jalt index=40 (index>=32, links) -> control reaches entry[40]'s
-#           target AND ra == the return site (cm.jalt address + 2).
-#
-# gas 13.2 has no cm.* mnemonics nor a jvt CSR name; cm.jt/jalt are raw 16-bit
-# `.short's (C2 op=10, funct3=101, 12:10=000, index at bits 9:2) and jvt is
-# csrw to the numeric address 0x017.
-#*****************************************************************************
+# VestaRV: Zcmt table jump and jvt CSR functional test
+# BUILD-TIME DISPATCH on CORE_ENABLE_ZCMT, supplied EXPLICITLY. Without it the file does base sanity and passes, emitting neither cm.jt nor cm.jalt nor any jvt access, so the image stays bit-identical to a base build; with it, hart 0 runs the test while the tiles park.
+# It builds a jump-vector table in TCM, sets jvt with csrw, issues fence.i, then checks two cases: `cm.jt` with index 3, below 32 and therefore not linking, must reach entry 3's target with ra UNCHANGED; and `cm.jalt` with index 40, at or above 32 and therefore linking, must reach entry 40's target with ra equal to the return site, the cm.jalt address plus 2.
+# gas 13.2 has neither cm.* mnemonics nor a jvt CSR name, so cm.jt and cm.jalt are raw 16-bit `.short` values in C2 with op = 10, funct3 = 101, bits 12:10 = 000 and the index at bits 9:2, and jvt is written by csrw to the numeric address 0x017.
 
 #include "riscv_test.h"
 #include "test_macros.h"

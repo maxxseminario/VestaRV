@@ -1,15 +1,7 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extdiv.S  (core-features work, 2026-07-08)
-#-----------------------------------------------------------------------------
-# M-extension (divide half) adaptive probe — see extprobe.S for the group
-# contract and extmul.S for the misa.M dispatch (and the split-config
-# limitation). Exercises the ITERATIVE DIVIDER (its own hardware unit,
-# generated away entirely when ENABLE_DIV is false):
-#   * M advertised  -> DIV/REM must produce correct results -> PASS
-#   * M absent      -> the DIV below must take the illegal-instruction trap.
-#*****************************************************************************
+# VestaRV: M-extension adaptive probe, divide half
+# Exercises the ITERATIVE DIVIDER, which is its own hardware unit and is generated away entirely when ENABLE_DIV is false. With M advertised, DIV and REM must produce correct results; with M absent, the DIV must take the illegal-instruction trap. See extprobe.S for the group contract and extmul.S for the misa.M dispatch and its split-configuration limitation.
 
 #include "riscv_test.h"
 #include "test_macros.h"

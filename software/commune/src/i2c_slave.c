@@ -1,9 +1,10 @@
-/** Includes **/
+// VestaRV: I2C slave driver
+// Every wait is bounded by I2C_TIMEOUT bus-poll iterations. The transmit path queues one byte ahead of the master clocking it out, so the queue must be primed before the master addresses this slave as a transmitter.
+
 #include <MemoryMap.h>
 #include <i2c_slave.h>
 
 
-/** Defines **/
 #define I2C_TIMEOUT		(10000)
 
 
@@ -21,7 +22,6 @@ int8_t i2cx_slave_tx_byte(I2Cx_t* I2Cx, uint8_t tx_data);
 
 
 
-/** Function Declarations **/
 int8_t i2c_slave_init(uint8_t this_slave_address);
 uint8_t i2c_has_slave_been_addressed();
 uint8_t i2c_slave_get_mode();
@@ -200,7 +200,6 @@ int8_t i2cx_slave_tx_byte(I2Cx_t* I2Cx, uint8_t tx_data)
 
 
 
-/** Function Definitions **/
 int8_t i2c_slave_init(uint8_t this_slave_address)
 {
 	return i2cx_slave_init(I2C0, this_slave_address);

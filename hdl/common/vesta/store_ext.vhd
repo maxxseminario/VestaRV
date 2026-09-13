@@ -1,3 +1,5 @@
+-- VestaRV: store-data replication
+-- Replicates the byte or halfword being stored across the 32-bit write data, so the byte-lane write enables alone select what reaches memory.
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;

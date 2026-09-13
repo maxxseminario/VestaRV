@@ -1,11 +1,10 @@
 #!/bin/sh
-# verification/formal/run_pmp_props.sh  (R-S4-3 item 6)
-# TRACKED runner for the pmp grant-function set.  Every pmp result before
-# this ran on a reconstructed command line, which is not reproducible.
-# NOTE: `set -e`/`set -u` are deliberately NOT used -- cdspaths.sh
-# references a never-defined assuraPath, so `set -u` kills the shell
-# before xrun ever runs (measured; it is what made run_fabric_props.sh
-# die silently on a clean shell).
+# VestaRV: run the pmp_unit grant-function PSL set under Xcelium.
+# MODE=props (default) expects zero fires; MODE=witness expects at least one.
+# rc 0 pass, 1 property failure, 2 infrastructure (nothing compiled or ran).
+# `set -e` and `set -u` are deliberately absent: cdspaths.sh references a
+# never-defined assuraPath, so `set -u` kills the shell before xrun runs and
+# the failure is indistinguishable from a real property fire.
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 . "$ROOT/cdspaths.sh" >/dev/null 2>&1
 HDL="$ROOT/hdl/common"; F="$ROOT/verification/formal"

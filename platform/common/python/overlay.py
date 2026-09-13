@@ -1,44 +1,10 @@
 #!/usr/bin/env python3
-"""overlay.py -- the chip generator's one out-of-tree extension point.
+"""VestaRV: the chip generator's one out-of-tree extension point.
 
-WHY IT EXISTS. Some chips in the VestaRV family carry blocks whose register
-descriptions, RTL, package models and testbench models are not distributable
-with the public tree (an analog front end under NDA, a customer macro, a
-partner's pad ring). Before this module the only way to build such a chip was
-to carry its plumbing in generate.py / mcu_vhd.py / tb_vhd.py, which put the
-private block's names, port lists and pad maps in the public repository.
-
-WHAT IT IS. A directory OUTSIDE the repository that MIRRORS the repository
-layout and contributes four kinds of content:
-
-  <overlay>/platform/common/python/vesta_overlay.py   the hook module
-  <overlay>/platform/common/config/*.json             extra configurations
-  <overlay>/hdl/common/regs/rdl/*.rdl                 extra register sources
-  <overlay>/platform/common/config/rdl.json           extra .rdl registry rows
-  <overlay>/platform/common/latex/PeripheralIntroductions/*.tex
-  <overlay>/hdl/...                                   extra RTL, read by the
-                                                      out-of-tree flows
-
-HOW IT IS SELECTED. Either
-
-  VESTA_OVERLAY=/abs/path/to/overlay   in the environment (wins), or
-  "overlay": "../../.."                in the CONFIG= json, resolved relative
-                                       to that json file's own directory.
-
-With neither set every entry point below is inert and the public tree generates
-exactly what it generates today. That is the invariant the public gates hold:
-no overlay present, nothing changes.
-
-THE HOOK MODULE. `vesta_overlay.py` defines, for each stage it cares about, a
-function `stage_<name>(**kw)`. The public tree calls `overlay.call('<name>',
-...)` at the fixed points listed in OVERLAY_STAGES below and uses the return
-value; a stage the overlay does not define returns the caller's `default`. The
-overlay may keep its own state between stages in `overlay.state`; the public
-tree never reads it.
-
-Stage names are contract. Adding one is a public-tree change; what a stage DOES
-is entirely the overlay's business, and no block name, port name or pad number
-of a private block appears on this side of the boundary.
+An overlay is a directory outside the repository mirroring its layout, selected by
+VESTA_OVERLAY (wins) or a config's "overlay" key resolved against that json's directory.
+With neither set every entry point here is inert. Its vesta_overlay.py defines
+stage_<name>(**kw) for the OVERLAY_STAGES below; an undefined stage returns the default.
 """
 
 import os
@@ -96,10 +62,10 @@ _moduleLoaded = False
 
 
 def setRoot(path, relativeTo=None):
-	"""Point the overlay at `path`, which may be relative to `relativeTo`
-	   (the directory of the configuration file that named it). Ignored when
-	   VESTA_OVERLAY is already set: the environment wins, so a flow can force
-	   an overlay onto a configuration that does not name one."""
+	"""Point the overlay at `path`, which may be relative to `relativeTo`, the directory of the
+	configuration file that named it. Ignored when VESTA_OVERLAY is set: the environment wins, so
+	a flow can force an overlay onto a configuration that does not name one.
+	"""
 	global _root, _rootResolved, _module, _moduleLoaded
 	if os.environ.get('VESTA_OVERLAY', '').strip():
 		return
