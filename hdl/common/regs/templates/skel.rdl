@@ -1,0 +1,75 @@
+// VestaRV: the register map of a skeleton peripheral, the starting point for a new block
+// Three registers and nothing else: a control word with a strobe, a status word with a
+// hardware-set write-1-to-clear flag, and a data word. Copy the directory, rename SKEL
+// everywhere, then register the copy in platform/common/config/rdl.json and
+// rdl_vhdl.RTL_PACKAGES. This file is NOT registered: //hdl/common/regs/templates:skel_smoke
+// drives the emitter with a scratch registration of its own. See docs/new_chip.md.
+
+`include "vesta_udp.rdl"
+
+enum skelxcr_en_e {
+    SKEL_DISABLED = 1'h0 { desc = "Block disabled"; };
+    SKEL_ENABLED = 1'h1 { desc = "Block enabled"; };
+};
+
+reg SKELxCR_t {
+    regwidth = 32;
+    desc = "Skeleton control register. EN gates the datapath; GO is a write-1 command that starts one pass and holds no flop.";
+    field {
+        sw = rw; hw = r;
+        reset = 1'h0;
+        vesta_access = "rw";
+        encode = skelxcr_en_e;
+        desc = "Block enable. Cleared, the datapath is idle and a GO write does nothing.";
+    } EN[0:0];
+    // sw = w plus singlepulse is the one-bit command: no storage, reads 0, and
+    // periph_regs reports it on wr_pulse for the access that carries it.
+    field {
+        sw = w; hw = r;
+        singlepulse;
+        reset = 1'h0;
+        vesta_access = "w1";
+        desc = "Start one pass. A 1 starts the datapath when EN is set; a 0 has no effect. Reads 0.";
+    } GO[1:1];
+};
+
+reg SKELxSR_t {
+    regwidth = 32;
+    desc = "Skeleton status register. BUSY is a live hardware level; DONE is the sticky completion flag.";
+    // sw = rw, hw = w, onwrite = woclr is the W1C flag. The flop stays in SKEL.vhd
+    // with the hardware that sets it; periph_regs only reports the written 1.
+    field {
+        sw = rw; hw = w; onwrite = woclr;
+        reset = 1'h0;
+        vesta_access = "rw1";
+        desc = "Pass-complete flag. Set by hardware when a pass finishes. Write 1 to clear.";
+    } DONE[0:0];
+    field {
+        sw = r; hw = w;
+        reset = 1'h0;
+        vesta_access = "r";
+        desc = "Pass in progress. Reads 1 from the GO write until the pass finishes.";
+    } BUSY[1:1];
+};
+
+reg SKELxDR_t {
+    regwidth = 32;
+    desc = "Skeleton data register. Plain software storage, written per byte lane and read back unchanged.";
+    field {
+        sw = rw; hw = r;
+        reset = 32'h0;
+        vesta_access = "rw";
+        desc = "Payload word";
+    } DATA[31:0];
+};
+
+addrmap skel {
+    name = "SKELx";
+    desc = "Skeleton peripheral: a control strobe, a hardware-set status flag and one data word";
+    vesta_peripheral = "SKELx";
+    vesta_word_base = 0;
+
+    SKELxCR_t  SKELxCR  @0x00;
+    SKELxSR_t  SKELxSR  @0x04;
+    SKELxDR_t  SKELxDR  @0x08;
+};
