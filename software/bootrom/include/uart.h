@@ -1,17 +1,21 @@
+// VestaRV: UART driver interface for the boot ROM.
+// Two layers: the uartx_* calls take a UARTx_t* and work on any instance, the uart_* calls are
+// UART0-only wrappers. The printString/printHex* names are aliases kept for older firmware.
+// The uart1_* block is compiled only when the generated map defines UART1_BASE, so a chip
+// configuration that drops the second UART drops these declarations with it.
+// UART_CALC_BR converts a clock and a baud into the UART0BR value; it truncates, so check the error.
+
 #pragma once
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/** Includes **/
-// #include <MemoryMap.h>
 #include <myshkin.h>
 #include <stdint.h>
 
 
 
-/** Defines **/
 #define UART_CALC_BR(__clockfreq, __baudrate)	((__clockfreq / (16 * __baudrate)) - 1)
 #define UART_CALC_BAUDRATE(__clockfreq, __baud_control_reg)	(__clockfreq / (16 * (__baud_control_reg + 1)))
 
@@ -64,8 +68,6 @@ void	uartx_putuib16(UARTx_t* UARTx, uint16_t nu);
 void	uartx_putuib32(UARTx_t* UARTx, uint32_t nu);
 void	uartx_putf(UARTx_t* UARTx, double val, uint8_t num_decimal_digits);
 void	uartx_pute(UARTx_t* UARTx, double val, uint8_t num_decimal_digits);
-
-
 
 
 /** Function Declarations for UART0 **/

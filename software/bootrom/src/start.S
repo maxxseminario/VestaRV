@@ -1,3 +1,10 @@
+// VestaRV: single-hart boot ROM reset vector and SPI-flash loader.
+// The GPIO0 BOOT pin picks the path at reset: low enters the ROM-resident rv4th monitor on UART0
+// (branch to main), high downloads a program image from SPI flash into RAM and jumps to PROG_BASE_ADDR.
+// Flash stream format, command word first: 0x10adbeef load (start, end-exclusive, then (end-start)/4
+// words), 0xdeadbeef fill a range with one word, 0xcafebabe execute. Every destination range is
+// bounds-checked against RAM0_BASE_ADDR .. RAM0_BASE_ADDR+RAM_SIZE-4; a violation or an unknown
+// command branches to force_trap, whose .word 0xFFFFFFFF is an illegal encoding the core traps on.
 #include "myshkin_s.h"
 
 
@@ -23,8 +30,6 @@
 # For dir, '1' means input on xcelium, write '1' in assembly for output 
 #define P1_SEL_BOOT             (GPIO0_MISO_MASK | GPIO0_MOSI_MASK | GPIO0_SCK_MASK | GPIO0_TRAP_MASK) // Set GPIO Select Register for boot mode (MISO and BOOT to alt function, rest to GPIO)
 #define SPI0_DIR_MASK           GPIO0_MISO_MASK  
-//#define P1_DIR_BOOT             (GPIO0_MISO_MASK | GPIO0_BOOT_MASK) // Inputs 
-//define P1_DIR_BOOT             (GPIO0_MOSI_MASK | GPIO0_CS_MASK | GPIO0_SCK_MASK) // Inputs 
 #define P1_DIR_BOOT             (GPIO0_CS_MASK | GPIO0_TRAP_MASK) // CSFlash bit 1, Boot 0
 
 // Globals 
@@ -48,7 +53,6 @@ spi_flash_boot:
     li a1, PERIPH_GPIO0_BASE
 
     //Get ready for SPI Flash Setup / RV4th Boot
-    # sb zero, GPIO_PxREN(a1) // Disable GPIO Pullup/Pulldown Resistors
     li a2, P1_DIR_BOOT     // Set GPIO Direction Register for Flash (output)
     sb a2, GPIO_PxDIR(a1)   // Set GPIO Direction Register to output for CS Flash 
     li a2, P1_SEL_BOOT      // Set GPIO PSEL for boot mode
@@ -73,13 +77,6 @@ SPI_FlashSetup:
     li a6, SPI_CR_INIT // Load SPI Flash Control Register Initialization Value
     sw a6, SPI_CR(a0) // Set SPI Flash Control Register
 
-    # //Setup SPI1 (For testing.. TODO: Create separate fn for setting up all peripherals in boot)
-    # # li a4, PERIPH_SPI1_BASE // Load SPI1 Base Address
-    # # mv t0, a6 // Copy SPI Flash Control Register Initialization Value to t2
-    # li   t1, 0x00040000    # t1 = 0xFFF7C000   (bit 18 is 0, rest are 1 in upper bits)
-    # or   t0, t0, t1     # clear bit 18 of t0, leave other bits unchanged
-    # sw t0, SPI_CR(a4) // Set SPI1 Control Register as slave 
-
     //Assert CS
     li a4, GPIO0_CS_MASK // Load CS Flash mask
     sw a4, GPIO_PxOUTC(a1) // Clear GPIO Output Register to clear (assert) CS bit
@@ -99,8 +96,6 @@ SPI_FlashSetup:
 
     //Assert CS
     sw a4, GPIO_PxOUTC(a1) // Clear GPIO Output Register to clear (assert) CS bit
-    //Write Flash Slave Status Register Read Command
-    //li a6, FLASH_SLAVE_SRREAD // Load Flash Slave Status Register Read Command
     li a6, FLASH_SLAVE_HFREAD // Load Flash Slave High Frequency Read Command
     sw a6, SPI_TX(a0) // Write to SPI Flash Transmit Register
     //Wait for SRREAD command to send
@@ -136,9 +131,7 @@ getCommandWord:
     beq t0, a7, eraseSegmentFromRAM // Check if command word is 0xdeadbeef - Note: This is not tested.
     li a7, 0xcafebabe // Check if command word is 0xcafebabe
     beq t0, a7, executeProgram // Check if command word is
-    //Program should never get here, but if it does, just loop forever
-    //TODO: Throw trap error here 
-    # j getCommandWord
+    // An unrecognised command word is a corrupt or absent image: trap rather than spin.
     j force_trap	
 
 loadSegmentToRAM:
@@ -153,7 +146,6 @@ loadSegmentToRAM:
     jal ra, spi0_complete_read_init_read
     addi a3, t0, 0 // Store the end address of RAM segment to a3
 
-    //TODO: Do some input validation here to see if addresses are valid (RAM).
     bgeu a2, a3, force_trap	// If start address >= stop address, make a trap condition
     # s2 is RamStartAddress
     bltu a2, s2, force_trap	// If start address < peripheral memory start address, make a trap condition
@@ -181,7 +173,6 @@ eraseSegmentFromRAM:
     addi a2, t0, 0 // Store the start address of RAM segment to a2
     jal ra, spi0_complete_read_init_read
     addi a3, t0, 0 // Store the end address of RAM segment to a3
-    //TODO: Do some input validation here to see if addresses are valid (RAM).
 
     # s2 is RamStartAddress
     # s3 is RamStartAddress + RamSize -4
@@ -262,26 +253,14 @@ executeProgram:
 
     
     
-    # //Set smclk to lfxt 
+    // MCLK stays on HFXT; SMCLK moves to LFXT so the loaded program starts on the 32.768 kHz clock.
     li t0, PERIPH_SYSTEM0_BASE
-    # li t1, 0x02 // Set smclk to lfxt
-    # Set mclk to hfxt, and smclk to lftxt
     li t1, SYS_MCLKSEL_HFXT | SYS_SMCLKSEL_LFXT
     sw t1, SYS_CLK_CR(t0) // Write to System Clock Control Register
     li t1, 0X080 
     sw t1, SYS_DCO0_BIAS(t0) // Write to System DCO0 Bias Register
     sw t1, SYS_DCO1_BIAS(t0) // Write to System DCO1 Bias Register
 
-
-    # # For testing 
-    # li t1, SYS_MCLKSEL_HFXT | SYS_SMCLKSEL_LFXT
-    # sw t1, SYS_CLK_CR(t0) // Write to System Clock Control Register
-
-#     # Wait a while for clk to settle (For debugging, not needed in real application)
-#     li t2, 1000
-# wait_clk_settle:
-#     addi t2, t2, -1
-#     bnez t2, wait_clk_settle
 
     //Jump to the start of the program in RAM
 
@@ -321,9 +300,7 @@ executeProgram:
     j PROG_BASE_ADDR // Jump to the start of the program in RAM
 
 
-    # TODO: Perhaps Delay for clk sel to settle. 
-
-# Invalid intstruction that will induce trap state in the core. 
+// An illegal encoding: reaching it puts the core in the trap state.
 force_trap:
 	.word 0xFFFFFFFF
 
@@ -332,10 +309,6 @@ force_trap:
 .section .vestarv_doc, "ax"
 vestarv_id:
     .asciz "Myshkin \November, 2025\nThe first instantiation of VestaRV.\nDesigned by Maxx Seminario featuring ECS by Seth McRobert.\nShe herself is my best apology for all her accusations. \n\nWhat beautiful things there are at every step, even the most hopeless man must feel so beautiful! \n"
-
-# for now, 4th code here 
-# main: 
-#     jal zero, main // Jump to the start of the forth interpreter in ROM
 
 
 

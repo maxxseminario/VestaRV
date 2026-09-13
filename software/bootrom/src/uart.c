@@ -1,5 +1,8 @@
-/** Includes **/
-// #include <MemoryMap.h>
+// VestaRV: UART driver for the boot ROM, and the console the monitor talks over.
+// Two layers: uartx_* take a UARTx_t* and work on any instance, uart_* are UART0-only wrappers.
+// Transmit and receive are polled, not interrupt-driven, so the ROM needs no UART vector.
+// double_to_str and double_to_str_exp do their own rounding and digit extraction in software;
+// -flto drops them, and every other unreached routine here, from the ROM image.
 #include <myshkin.h>
 #include <uart.h>
 
@@ -45,8 +48,6 @@ void	uartx_putuib16(UARTx_t* UARTx, uint16_t nu);
 void	uartx_putuib32(UARTx_t* UARTx, uint32_t nu);
 void	uartx_putf(UARTx_t* UARTx, double val, uint8_t num_decimal_digits);
 void	uartx_pute(UARTx_t* UARTx, double val, uint8_t num_decimal_digits);
-
-
 
 
 /** Function Declarations for UART0 **/

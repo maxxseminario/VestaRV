@@ -115,8 +115,15 @@ its rows from the catalog against the resolved config, runs the matching
 `-DCORE_ENABLE_TRAPCSR` image set, and passes **157 / 157** (2026-09-12).
 No shipped configuration selects the `shorch` row any more: it needs
 `cqAfeStubs` true with an orchestrator, and the AFE/EIS stub bank is off on the
-tape-out chip. `config/mcu_hart.json` is the only configuration that still
+tape-out chip. `config/asic_default.json` is the only configuration that still
 carries the stub bank, and it is a one-hart generation vehicle.
+
+The stage directory follows `chipName`, so the 2026-09-12 rename moves the two
+starting points' stages: `make verify CONFIG=config/asic_default.json` now
+stages `verify_asic_default/` (was `verify_mcu_hart/`, chipName `MCU_hart`) and
+`CONFIG=config/fpga_default.json` stages `verify_fpga_default/` (was
+`verify_fpga/`, chipName `FPGA`). Neither name reaches an entity: the emitted
+top is `entity MCU` in every configuration.
 
 `xcelium/riscv_test/behavioral_mp/` is a **fast smoke, not the regression**: it
 compiles the same generated tape-out RTL but has no polarity gate and runs the
@@ -136,7 +143,7 @@ takes the Castalia default, and since 2026-09-12 the full set of defaults IS
 `config/castalia.json`, the tape-out chip** (owner decision: one default
 silicon chip). A configuration that wants something else has to say so: the
 four rows below that predate the promotion each pin the ten peripheral knobs it
-moved, with a `_peripheralsPinNote` saying why. The knobs (authoritative list: `_CONFIG_SCHEMA` in `python/generate.py`, also
+moved (see "Configuration notes" at the end of this section). The knobs (authoritative list: `_CONFIG_SCHEMA` in `python/generate.py`, also
 documented in the generated TRM's "Chip Configuration" section):
 
 | Key | Meaning |
@@ -154,7 +161,7 @@ documented in the generated TRM's "Chip Configuration" section):
 | `peripherals.uart1` | `false` = drop the second UART (slot 5 dead, vectors 52–54 reserved, TX1/RX1 pins revert to plain GPIO) |
 | `peripherals.spi1` | `false` = drop the second SPI (slot 3 dead, vectors 11–12 reserved, CS1/MISO1/MOSI1/SCK1 pins revert to plain GPIO) |
 | `peripherals.timer1` | `false` = drop the second TIMER (slot 7 dead, vectors 22–27 reserved, T1CMP\*/T1CAP\* pins revert to plain GPIO) |
-| `package.model` | Package model name defined in `generate.py` (`_PACKAGE_MODELS`: `myshkin-qfn44`, `castalia-quad-qfn64`, `castalia-lqfp100`). **Default since 2026-08-16: `castalia-lqfp100`** — the LQFP-100 large pinout (14 × 14 mm, 100 pins), moved there as the pad-side half of the `debug.enable` flip because it is the only model that bonds the JTAG TAP. It also bonds the sixteen electrode pads, which is half of what gates the TRM's Analog Front-End chapter (the other half is the orchestrator shape: `numHarts = 5` with `orchestrator = true`). `config/castalia4.json` and `argus.json` pin `myshkin-qfn44` (they are not that chip; see their `_packageNote`), and `argus_debug.json` pins `castalia-lqfp100` provisionally, to reach the JTAG balls. |
+| `package.model` | Package model name defined in `generate.py` (`_PACKAGE_MODELS`: `myshkin-qfn44`, `castalia-quad-qfn64`, `castalia-lqfp100`). **Default since 2026-08-16: `castalia-lqfp100`** — the LQFP-100 large pinout (14 × 14 mm, 100 pins), moved there as the pad-side half of the `debug.enable` flip because it is the only model that bonds the JTAG TAP. It also bonds the sixteen electrode pads, which is half of what gates the TRM's Analog Front-End chapter (the other half is the orchestrator shape: `numHarts = 5` with `orchestrator = true`). `config/asic_default.json`, `fpga_default.json`, `argus.json` and `argus_course.json` pin `myshkin-qfn44` (they are not that chip), and `argus_debug.json` pins `castalia-lqfp100` provisionally, to reach the JTAG balls. |
 | `package.preliminary` | `false` = suppress the TRM package-section "Preliminary" banner |
 
 Every build also writes `config/ChipConfig.resolved.json` (all knobs plus the derived
@@ -171,8 +178,9 @@ reserved gaps (the numbering is frozen), and its pins revert to plain GPIO. Work
 configurations live in `config/`: `castalia.json` (the tape-out chip, and the
 generator's built-in defaults, so it now states only `chipName`),
 `castalia_b.json` (the same chip with hart 0's ISA turned all the way up),
-`argus.json` (the 18-hart Argus chip), `mcu_hart.json` (the single-hart signoff
-vehicle) and `fpga.json` (the FPGA bring-up cut).
+`argus.json` (the 18-hart Argus chip), `asic_default.json` (the minimal ASIC
+starting point, and the single-hart signoff vehicle it grew out of) and
+`fpga_default.json` (the FPGA starting point).
 
 Generation produces the complete Technical Reference Manual for exactly the generated
 configuration: the feature list, peripheral chapters (intro LaTeX snippets + register
@@ -193,6 +201,75 @@ python3 svg2pdf.py <figure-name-without-extension>   # needs soffice + ghostscri
 The script also resolves the literal LaTeX macros (`\bitfield{...}`, `\textoverline{...}`, …)
 embedded in the SVG text labels, which only rendered correctly under inkscape's LaTeX-export
 flow and otherwise appear as raw macro source in the figure.
+
+### Configuration notes
+
+Facts that change what a configuration file must say. The authority is
+`_CONFIG_SCHEMA` and the checks in `python/generate.py`.
+
+- **Leading-underscore keys are free-form comments.** `_validateChipConfig` skips them, so
+  they never reach the resolved record; every other key must be a schema key with a passing
+  value.
+- **A missing key takes the Castalia default, so anything a row wants differently must be
+  pinned.** The non-Castalia rows pin `orchestrator`, `debug.enable`, `package.model` and the
+  peripheral set for that reason alone, not because those values ever changed.
+- **`chipName` is documentation only.** The emitted top is `entity MCU` in every
+  configuration; the name reaches the TRM title page, the generated file headers and the
+  Xcelium verify stage directory.
+- **At `numHarts` 1, pin `orchestrator` false.** With it true, hart 0 is emitted as
+  `orch_tile` and there are no harts 1..N-1, so the design contains no `hart_tile` at all.
+  It also keeps the memory map at v1 (SH_AW 15), emits no TCM apertures, and leaves extended
+  flash at 0x20000 where the boot ROM expects it.
+- **At `numHarts` 1, `isa.minimalTiles` is RTL-inert but not cosmetic.** It feeds only the
+  `TILE_ENABLE_*` constants that harts 1..N-1 read, and that loop emits nothing; set it false
+  so the generated map and the TRM do not describe a tile ISA no hart on the chip has.
+- **`peripherals.cqAfeStubs` and `peripherals.qspi` both decode page-0 slot 12.** Setting
+  both raises; a row that keeps the AFE stub bank must pin `qspi` false.
+- **`debug.enable` true needs a package that bonds the JTAG TAP.**
+  `_checkDebugTransportBonded` is a hard error otherwise, and `myshkin-qfn44` bonds none, so
+  a debug-on row must wear `castalia-lqfp100`.
+- **`package.model` gates the TRM Analog Front-End chapter.** The chapter needs an
+  electrode-bonding package and the five-hart orchestrator shape; `AfeSystemDiagram` asserts
+  that shape, so an electrode-bonding package on any other chip fails the build rather than
+  shipping a wrong figure.
+- **`memory.romSize` and `memory.tcmSizePerHart` follow the macros, not the address space.**
+  `MCU.vhd` binds `RomAddrBits` to the 2048 x 32 `rom2k_hvt_pg` (8192 bytes) and
+  `hart_tile.vhd` asserts `RamSize` against `sram1p8k_hvt_pg` (8192 bytes); both asserts run
+  at elaboration. The Argus rows ask for a 16 KiB TCM and no longer elaborate.
+- **A `CONFIG=` build leaves `out/` on that chip, but never the tracked config pair.** Run
+  plain `make -C platform/common generate` afterwards to put `out/` back to Castalia;
+  `config/ChipConfig.resolved.json` and `config/PadRing.json` did not move (see "Generator
+  command line" below).
+
+### Generator command line
+
+`python/generate.py` takes two flags. `--config <file>` is the configuration, the same knob
+the Makefile spells `CONFIG=` and the hermetic bazel action passes as the environment
+variable `CHIP_CONFIG`; all three are honoured, and a run that sets both the flag and the
+variable to different files stops with an error rather than silently preferring one.
+`--out <dir>` is the output root. It defaults to the chip root, which is the layout every
+byte-compare gate grades, so the Makefile path is unchanged; pointed elsewhere it writes the
+same tree there and leaves the source tree untouched. Inputs (`hdl_templates/`, `latex/`,
+`config/rdl.json`) always come from the chip root. The two forms below emit byte-identical
+files:
+
+```bash
+make -C platform/common generate CONFIG=config/asic_default.json
+tools/bin/bazel run //:generate -- --config platform/common/config/asic_default.json --out /tmp/asic
+```
+
+Every run ends with one line naming where the RTL, headers, linker scripts, pad ring and TRM
+sources landed.
+
+**The resolved record and the pad ring follow the configuration, not the tree.** Both are
+written to `out/config/ChipConfig.resolved.json` and `out/config/PadRing.json` on every run.
+The tracked pair under `config/` is refreshed only by a default build (no `--config` and no
+`CHIP_CONFIG`) or when the bytes would not change, so a `CONFIG=` build no longer dirties the
+working tree and no restoring run is needed. Read `out/config/` for the chip that was just
+built and `config/` for the default chip; `make show`, `make verify`, `check_intro_names.py`
+and `check_configurator_sync.py` take the first, while `tools/randgen` and `tools/cosim`
+deliberately take the second.
+
 
 ---
 
