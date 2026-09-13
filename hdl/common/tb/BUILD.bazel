@@ -1,10 +1,7 @@
-# Testbench-side host tools and the VHDL testbench sources.
-#
-# NOTE FOR //hdl:vhdl_sources OWNERS.
-# Creating this BUILD file makes hdl/common/tb its own bazel package, so the
-# glob in //hdl:vhdl_sources no longer descends into it.
-# The :tb_vhdl_sources filegroup below re-exports exactly what that glob used
-# to pick up here, so //hdl:vhdl_sources should add it to its srcs.
+# VestaRV: testbench-side host tools and the VHDL testbench sources.
+# This BUILD file makes hdl/common/tb its own bazel package, so the glob in
+# //hdl:vhdl_sources no longer descends into it. The :tb_vhdl_sources filegroup below
+# re-exports exactly what that glob used to pick up, and //hdl:vhdl_sources lists it in srcs.
 
 load("@rules_cc//cc:defs.bzl", "cc_binary")
 load("@rules_python//python:defs.bzl", "py_test")
@@ -28,18 +25,13 @@ exports_files([
     "gen_fpu_vectors.sh",
 ])
 
-# ---------------------------------------------------------------------------
 # FPU reference vector generator.
-#
-# gen_fpu_vectors.sh builds this with a NATIVE x86-64 gcc and documents the
-# binding reference discipline (gatekeeper correction C4): SSE single
-# precision with -msse2 -mfpmath=sse, x87 FORBIDDEN, glibc fmaf for the fused
-# multiply-add family, fesetround / fetestexcept for rounding and IEEE flags.
-# Under bazel the compiler is the registered hermetic zig (clang) toolchain
-# targeting linux_amd64_gnu.2.17, which is NOT the same C library and not the
-# same compiler front end as the reference. See the loud comment on
-# :fpu_vectors_generated below before trusting its output.
-# ---------------------------------------------------------------------------
+# gen_fpu_vectors.sh builds this with a native x86-64 gcc under a binding reference
+# discipline: SSE single precision with -msse2 -mfpmath=sse, x87 forbidden, glibc fmaf for
+# the fused multiply-add family, fesetround and fetestexcept for rounding and IEEE flags.
+# Under bazel the compiler is the hermetic zig (clang) toolchain targeting
+# linux_amd64_gnu.2.17, which is neither the same C library nor the same front end. Read the
+# warning on :fpu_vectors_generated below before trusting its output.
 cc_binary(
     name = "fpu_vec_gen",
     srcs = ["fpu_vec_gen.c"],
@@ -53,19 +45,14 @@ cc_binary(
     linkopts = ["-lm"],
 )
 
-# ---------------------------------------------------------------------------
-# WARNING -- THIS IS NOT A DROP-IN REPLACEMENT FOR gen_fpu_vectors.sh.
-#
-# There is no committed fpu_vectors.txt anywhere in the tree (fpu_tb.vhd reads
-# it through the VECFILE generic and the file is produced on demand), so there
-# is no golden artifact this rule can be proven byte-identical against, and
-# this host has no native gcc to cross-generate one with.
-# The reference discipline above is a statement about a specific libm and a
-# specific compiler; until a run of gen_fpu_vectors.sh under the intended
-# native toolchain has been diffed against this output, the shell script stays
-# authoritative and this target is a convenience only.
-# Do NOT wire it into a signoff flow on the strength of "bazel built it".
-# ---------------------------------------------------------------------------
+# This is not a drop-in replacement for gen_fpu_vectors.sh. No fpu_vectors.txt is committed
+# anywhere in the tree, since fpu_tb.vhd reads it through the VECFILE generic and the file is
+# produced on demand, so there is no golden artifact this rule can be proven identical
+# against, and this host has no native gcc to cross-generate one with. The reference
+# discipline above is a statement about a specific libm and a specific compiler: until a run
+# of gen_fpu_vectors.sh under the intended native toolchain has been diffed against this
+# output, the shell script stays authoritative and this target is a convenience. Do not wire
+# it into a signoff flow.
 genrule(
     name = "fpu_vectors_generated",
     outs = ["fpu_vectors.generated.txt"],
@@ -73,9 +60,8 @@ genrule(
     tools = [":fpu_vec_gen"],
 )
 
-# Self-check of the generator itself, which is what can be proven here: the
-# emitted file is deterministic (the xorshift RNG is fixed-seeded) and every
-# line matches the fixed-width record format fpu_tb.vhd parses.
+# Self-check of the generator: the emitted file is deterministic, because the xorshift RNG is
+# fixed-seeded, and every line matches the fixed-width record format fpu_tb.vhd parses.
 py_test(
     name = "fpu_vectors_format_test",
     size = "small",
@@ -85,25 +71,16 @@ py_test(
     main = "fpu_vectors_format_test.py",
 )
 
-# ---------------------------------------------------------------------------
-# Unit benches ported from the untracked xcelium/mp_test runners to GHDL.
-#
-# Only benches whose ENTIRE source closure is tracked VHDL are ported. The two
-# below are the smallest such closures; the runner for dbg_iface is deliberately
-# absent, because that bench instantiates ARM_IP_RAM, a vendor macro that is not
-# in this repository.
-#
-# tcm_port was absent for the same reason and NO LONGER IS. It is now
-# //opensource_sim/mcu:tcm_port_tb, and it lives in that package rather than
-# beside its siblings here because the tracked stand-in for the vendor macro
-# (mem_macros_sim.vhd) and the source list that reaches hart_tile both live
-# there. What that eight-day gap cost is written on the target.
-#
-# The xcelium runners compile with -V200X and grep the log for the scoreboard
-# banner. GHDL analyzes both benches clean under --std=08 -fsynopsys, so the
-# targets use the tree-wide 2008 settings, and pass_pattern reproduces the
-# banner grep exactly rather than trusting the exit code alone.
-# ---------------------------------------------------------------------------
+# Unit benches ported from the untracked xcelium/mp_test runners to GHDL. A bench is ported
+# only when its entire source closure is tracked VHDL. dbg_iface is absent because it
+# instantiates ARM_IP_RAM, a vendor macro not in this repository. tcm_port lives at
+# //opensource_sim/mcu:tcm_port_tb instead of here, because the tracked stand-in for the
+# vendor macro (mem_macros_sim.vhd) and the source list that reaches hart_tile are both in
+# that package.
+# The xcelium runners compile with -V200X and grep the log for the scoreboard banner. GHDL
+# analyzes both benches clean under --std=08 -fsynopsys, so the targets use the tree-wide
+# 2008 settings and pass_pattern reproduces the banner grep rather than trusting the exit
+# code alone.
 
 # The RTL these benches bind lives in the //hdl package, whose source files are
 # not exported; //hdl:vhdl_sources is the public handle.
@@ -181,16 +158,14 @@ ghdl_test(
     tags = ["ghdl"],
 )
 
-# The Debug Module register-level bench: abstractauto (0x18) and the dmstatus
-# havereset lifecycle, graded against a shared-window RAM model and a
-# token-protocol hart model that stand in for the rest of the chip.
-#
-# It carries its own seen-to-fail record.  Against the pre-abstractauto RTL the
-# same file fails 19 of its 48 checks, and each of the four subtle behaviours
-# is separated from its neighbours by a control check that passes in BOTH
-# builds (B2 for "the trigger is the register and not the access", C3 for "the
-# two progbuf bits are armed separately", E1a/E2 for "cmderr suppresses the
-# re-issue", G3/G5c for "havereset is per hart").
+# The Debug Module register-level bench: abstractauto (0x18) and the dmstatus havereset
+# lifecycle, graded against a shared-window RAM model and a token-protocol hart model that
+# stand in for the rest of the chip.
+# It carries its own seen-to-fail record: against the pre-abstractauto RTL the same file
+# fails 19 of its 48 checks, and each of the four subtle behaviours is separated from its
+# neighbours by a control check that passes in both builds (B2 for "the trigger is the
+# register and not the access", C3 for "the two progbuf bits are armed separately", E1a and
+# E2 for "cmderr suppresses the re-issue", G3 and G5c for "havereset is per hart").
 ghdl_test(
     name = "dbg_module_tb",
     size = "small",
@@ -204,26 +179,20 @@ ghdl_test(
     tags = ["ghdl"],
 )
 
-# The JTAG debug transport bench: TAP state-machine scans on tck/tms/tdi
-# (IDCODE, dtmcs, BYPASS, the 41-bit dmi DR) against a bench-written DMI slave
-# model, with tck and mclk at an INCOMMENSURATE ratio (37 ns against 10 ns) so
-# the four-phase toggle handshake is not exercised at one fixed edge phase.
-#
-# 104 checks in one run.  It carries its own seen-to-fail record, measured by
-# mutating the DUT in a scratch copy (report P3):
+# The JTAG debug transport bench: TAP state-machine scans on tck, tms and tdi (IDCODE,
+# dtmcs, BYPASS, the 41-bit dmi DR) against a bench-written DMI slave model, with tck and
+# mclk at an incommensurate ratio, 37 ns against 10 ns, so the four-phase toggle handshake is
+# not exercised at one fixed edge phase. 104 checks in one run.
+# Seen-to-fail record, measured by mutating the DUT in a scratch copy:
 #   * rsp_tgl held instead of toggled in M_RSP: 35 checks fail, from E1 on.
-#   * the request-side synchroniser bypassed (req_s2 driven from req_tgl):
-#     D10 and J3b fail on the crossing latency, and nothing else does.  That
-#     pair is the ONLY instrument here that can see a missing sync stage --
-#     removing a stage changes no value, only latency, so an event-driven
-#     simulation is blind to it unless the latency itself is asserted.
-#   * the response-side synchroniser bypassed: NOT caught, and the bench does
-#     not claim to.  The response chain's depth is not observable at the
-#     ports; it shows up only as a shift in when a capture stops reading BUSY,
-#     which is not a bound worth pinning.
-#
-# STRICT_TRSTN_GUARD selects which contract section H grades; see the bench
-# header and the jtag_dtm_trstn_guard_strict_tb target below.
+#   * the request-side synchroniser bypassed (req_s2 driven from req_tgl): D10 and J3b fail
+#     on the crossing latency, and nothing else does. That pair is the only instrument here
+#     that can see a missing sync stage, because removing a stage changes no value, only
+#     latency, and an event-driven simulation is blind to it unless the latency is asserted.
+#   * the response-side synchroniser bypassed: not caught, and the bench does not claim to.
+#     The response chain's depth is not observable at the ports.
+# STRICT_TRSTN_GUARD selects which contract section H grades; see the bench header and the
+# jtag_dtm_trstn_guard_strict_tb target below.
 ghdl_test(
     name = "jtag_dtm_tb",
     size = "small",
@@ -237,22 +206,17 @@ ghdl_test(
     tags = ["ghdl"],
 )
 
-# OPEN DEFECT P3-1, held as a MANUAL target so it is out of the wildcard suite
-# and cannot be mistaken for a regression somebody else introduced.
-#
-# jtag_dtm.vhd:~470 gates the mclk edge detect on `trstn_guard(2)`, a REGISTERED
-# function of trstn_s2.  trstn and req_tgl both fall at the TRSTn edge and both
-# cross on DEPTH-2 chains, so trstn_s2 and req_s2 change on the SAME mclk edge:
-# the guard still reads high on the very edge that detects the toggle TRSTn
-# manufactured, and one unqualified op = "00" request at address 0 escapes to
-# the Debug Module.  Measured, not inferred -- the default target pins the
-# escape's bound (one request, zeroed payload), this one states the contract
-# the RTL's own comment claims and is RED until the guard is fixed.
-#
-# The fix is one line, and with it applied this target runs GREEN (measured):
+# Open defect P3-1, held as a manual target so it is out of the wildcard suite and cannot be
+# mistaken for a regression somebody else introduced.
+# jtag_dtm.vhd gates the mclk edge detect on trstn_guard(2), a registered function of
+# trstn_s2. trstn and req_tgl both fall at the TRSTn edge and both cross on depth-2 chains,
+# so trstn_s2 and req_s2 change on the same mclk edge: the guard still reads high on the edge
+# that detects the toggle TRSTn manufactured, and one unqualified op = "00" request at
+# address 0 escapes to the Debug Module. The default target pins the escape's bound, one
+# request with a zeroed payload; this one states the contract the RTL's own comment claims
+# and is red until the guard is fixed. The fix is one line, and with it this target is green:
 #   if rst_guard(2) = '1' and trstn_s2 = '1' and trstn_guard(2) = '1'
 #      and (req_s2 /= req_s3) then
-#
 #   tools/bin/bazel test //hdl/common/tb:jtag_dtm_trstn_guard_strict_tb
 ghdl_test(
     name = "jtag_dtm_trstn_guard_strict_tb",
@@ -271,8 +235,7 @@ ghdl_test(
     ],
 )
 
-# ---------------------------------------------------------------------------
-# The rest of the single-file-closure benches, ported 2026-09-05.
+# The rest of the single-file-closure benches.
 #
 # Same criterion as the three above: a bench is ported when its ENTIRE source
 # closure is tracked VHDL in this repository, with no vendor macro and no
@@ -280,30 +243,28 @@ ghdl_test(
 # NPU_pack_tb and the SPI flash bench, all of which reach a vendor RAM/ROM
 # macro, a pad cell or an .rcf.
 #
-# What this closes, measured against the last evidence each bench had before
-# today (report 08a, tables 1 and 3):
-#   pwr_ctrl_tb   xcelium 2026-07-24 at NHARTS=4, T_SEQ=2, T_RAIL=8 only. The
+# What this closes, measured against the last evidence each bench had before it:
+#   pwr_ctrl_tb   xcelium at NHARTS=4, T_SEQ=2, T_RAIL=8 only. The
 #                 chip instantiates NHARTS=5, T_SEQ=4, T_RAIL=256 (MCU.vhd:3030)
 #                 and that shape had NEVER been run; it failed 12 checks on the
 #                 bench's fixed poll budget until the guard was scaled.
-#   irq_router_tb xcelium 2026-07-22, five shapes, none of them NHARTS=5, MW=3,
+#   irq_router_tb xcelium, five shapes, none of them NHARTS=5, MW=3,
 #                 NUM_SRCS=125, the shape that needs four enable words.
-#   irq_sys_tb    xcelium 2026-07-12, compiled from the pre-restructure
+#   irq_sys_tb    xcelium, compiled from the pre-restructure
 #                 hdl/MCU_MP path that no longer exists.
-#   arb_lat_tb    xcelium 2026-07-06 at N_MASTERS=4; the arbiter ships with
+#   arb_lat_tb    xcelium at N_MASTERS=4; the arbiter ships with
 #                 N=6 (MCU.vhd:2627).
-#   SYSTEM_tb     last hdl/common run 2026-07-16, before PGEN_mem widened to
+#   SYSTEM_tb     last hdl/common run predates PGEN_mem widening to
 #                 7 bits; the xcelium peripheral suite compiles the FROZEN
 #                 hdl/myshkin copies of SYSTEM/I2C/SPI and their benches, which
 #                 differ from hdl/common by 227/213/52 lines, so these five
 #                 targets are the first standing proof of the castalia RTL.
-#   I2C_tb        no standalone run on record at all before 2026-09-05.
+#   I2C_tb        no standalone run on record at all.
 #
 # The generics are the SHIPPED shapes, not the fast ones. The xcelium runners
 # keep the multi-shape sweeps (pwr_ctrl 4/18, irq_router five shapes, arb_lat
 # N_DELAY 0/1/2 and the BREAK_MODE negative controls); this tier proves the one
 # shape the chip actually contains, on every commit, without a license.
-# ---------------------------------------------------------------------------
 
 vhdl_source_set(
     name = "pwr_ctrl_rtl",
@@ -355,7 +316,7 @@ vhdl_source_set(
 # behavioural clock cells the peripheral instantiates, then the peripheral's
 # generated register package, then the peripheral. The package carries the word
 # offsets, field ranges, resets and implemented-bit masks the .rdl describes
-# (report R8a); every one of the twenty-two is listed here whether or not its
+#; every one of the twenty-two is listed here whether or not its
 # entity has adopted it yet, because a package no entity `use`s costs one
 # analysis and nothing else, and a wave that adopts one then has no BUILD file
 # to edit.
@@ -376,7 +337,7 @@ vhdl_source_set(
     pool = ["//hdl:vhdl_sources"],
 )
 
-# The reusable CDC synchroniser and its unit bench (report R13). Its closure is
+# The reusable CDC synchroniser and its unit bench. Its closure is
 # one file: sync.vhd uses nothing but ieee.std_logic_1164, which is what lets it
 # be instantiated from any clock domain in the tree without dragging a package
 # in behind it.
@@ -386,7 +347,7 @@ vhdl_source_set(
     pool = ["//hdl:vhdl_sources"],
 )
 
-# The shared peripheral register file and its unit bench (report R12a). The
+# The shared peripheral register file and its unit bench. The
 # bench needs nothing but constants.vhd, because periph_regs has no datapath:
 # every table it decodes with is a generic.
 vhdl_source_set(
@@ -640,7 +601,7 @@ vhdl_source_set(
 
 # EVFAB is analysed and elaborated by //opensource_sim/mcu:mcu_elaborate but is
 # instantiated in no tracked configuration, so its register file had no oracle
-# until this bench (report R12e). Scope: the register file plus one path through
+# until this bench. Scope: the register file plus one path through
 # the crossbar; see the header of EVFAB_tb.vhd.
 ghdl_test(
     name = "EVFAB_tb",
@@ -734,7 +695,6 @@ ghdl_test(
     tags = ["ghdl"],
 )
 
-# ---------------------------------------------------------------------------
 # TIMER_tb and GPIO_tb carry a DELIBERATE negative control as their last check
 # (TIMER_tb.vhd:508, GPIO_tb.vhd:~350), so a passing run ends with the
 # scoreboard reporting exactly one failure. Both benches grade that themselves
@@ -747,7 +707,6 @@ ghdl_test(
 # "ALL CHECKS PASSED" would also do here, and which grepping the absence of
 # "CHECK(S) FAILED" would NOT, because the scoreboard summary prints that line
 # on every passing run.
-# ---------------------------------------------------------------------------
 ghdl_test(
     name = "TIMER_tb",
     size = "small",
@@ -776,9 +735,8 @@ ghdl_test(
     tags = ["ghdl"],
 )
 
-# ---------------------------------------------------------------------------
-# The four Xcelium-only peripheral benches, ported to GHDL 2026-09-11 (report
-# R12c) as the oracle for the periph_regs migration of TRNG, PWM, OneWire and
+# The four Xcelium-only peripheral benches, ported to GHDL as the oracle for the
+# periph_regs migration of TRNG, PWM, OneWire and
 # I2CTarget. Same criterion as the block above: every file in the closure is
 # tracked VHDL, with no vendor macro and no generated image.
 #
@@ -788,7 +746,6 @@ ghdl_test(
 # TRNG_tb and I2CTarget_tb each end with a deliberate negative control, so a
 # passing run reports exactly one failure and the pass_pattern is that bench's
 # own banner rather than "ALL CHECKS PASSED"; PWM_tb and OneWire_tb have none.
-# ---------------------------------------------------------------------------
 ghdl_test(
     name = "TRNG_tb",
     size = "small",
@@ -853,9 +810,8 @@ ghdl_test(
     tags = ["ghdl"],
 )
 
-# ---------------------------------------------------------------------------
 # QSPI, I3C and RTC: the three benches ported for the periph_regs wave-2
-# migration (report R12b). Same criterion as every target above -- the entire
+# migration. Same criterion as every target above -- the entire
 # source closure is tracked VHDL. Each bench carries its own deliberate
 # negative control as its last check, so a passing run ends with the scoreboard
 # reporting exactly one failure and the pass_pattern is the bench's own banner,
@@ -866,7 +822,6 @@ ghdl_test(
 # three. It is not the only one any more: these three targets are the oracle
 # the migration is graded against, and each was run GREEN on the unmigrated
 # RTL first.
-# ---------------------------------------------------------------------------
 vhdl_source_set(
     name = "qspi_rtl",
     paths = [
@@ -950,9 +905,8 @@ ghdl_test(
     tags = ["ghdl"],
 )
 
-# ---------------------------------------------------------------------------
 # DMA and NFC: two more Xcelium-only peripheral benches ported to GHDL
-# 2026-09-11 (report R12d), as the oracle for their periph_regs migration. Every
+# as the oracle for their periph_regs migration. Every
 # file in either closure is tracked VHDL, with no vendor macro and no generated
 # image, which is the same criterion the blocks above were admitted under.
 #
@@ -965,7 +919,6 @@ ghdl_test(
 # needs hdl/common/sim/ARM_IP_RAM.vhd and a working directory holding
 # verification/npu/conv_vectors. NPU_conv_tb does run that way, and did, but it
 # is not a target until those vectors can be placed at the runfiles root.
-# ---------------------------------------------------------------------------
 vhdl_source_set(
     name = "dma_rtl",
     paths = [
@@ -989,6 +942,39 @@ vhdl_source_set(
         "hdl/common/periph/NFC.vhd",
     ],
     pool = ["//hdl:vhdl_sources"],
+)
+
+# The DMA as the fifth master on the fabric: one ordered set, so constants is
+# analysed once ahead of every unit that uses it.
+vhdl_source_set(
+    name = "dma_arb_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/sync.vhd",
+        "hdl/common/commune/CRC16.vhd",
+        "hdl/common/periph_regs.vhd",
+        "hdl/common/mp_arbiter.vhd",
+        "hdl/common/resv_unit.vhd",
+        "hdl/common/regs/vhdl/mutex_bank_regs_pkg.vhd",
+        "hdl/common/mutex_bank.vhd",
+        "hdl/common/regs/vhdl/dma_regs_pkg.vhd",
+        "hdl/common/periph/DMA.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+ghdl_test(
+    name = "dma_arb_tb",
+    size = "small",
+    srcs = [
+        ":dma_arb_rtl",
+        "arb_lat_tb.vhd",
+        "dma_arb_tb.vhd",
+    ],
+    entity = "dma_arb_tb",
+    pass_pattern = "ALL CHECKS PASSED",
+    sim_timeout_s = 600,
+    tags = ["ghdl"],
 )
 
 ghdl_test(
