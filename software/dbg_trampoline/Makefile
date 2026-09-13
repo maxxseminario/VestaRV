@@ -17,7 +17,14 @@
 # agree -- the trampoline's `jal x0, _start + 4*W_ABST_INDEX` is the coupling.
 # =============================================================================
 PREFIX  ?= riscv-none-elf-
-ARCH    ?= -march=rv32imac -mabi=ilp32
+# rv32iac, not rv32imac: the Debug Module plants this page for WHICHEVER hart
+# it halts, and harts 1..N-1 are the hardened hart_tile macro at
+# derived.hartClasses[tile].isaString = rv32iac (no M, no Zb). A wider -march
+# here only lets gas accept an instruction a tile traps as illegal. The page is
+# hand-written assembly, so the string changes nothing that is emitted today;
+# it closes the door. Graded on the linked ELF by
+# //software/testtools:tile_isa_test.
+ARCH    ?= -march=rv32iac -mabi=ilp32
 TRAMP_WORDS ?= 40
 
 all: bin/dbg_trampoline.words

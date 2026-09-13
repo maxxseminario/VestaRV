@@ -36,6 +36,20 @@ if _cfgPath:
 		_CHIP_CONFIG = json.load(_f)
 	print('[generate] loaded chip configuration from ' + _cfgPath)
 
+# The path RECORDED in config/ChipConfig.resolved.json and in the web bundle.
+# Not _cfgPath: that is absolute, so two generations of one configuration in two
+# staged trees write two different bytes and a byte-compare of the two trees
+# fails on a path that says nothing about the chip. Record it relative to the
+# chip root when it is inside it (the shipped configurations all are, giving
+# `config/<name>.json`), and fall back to the bare file name when it is not --
+# a name is what every reader of this field actually wants, and neither form
+# carries the machine it was generated on.
+_cfgRecord = None
+if _cfgPath:
+	_cfgRel = os.path.relpath(os.path.abspath(_cfgPath),
+		os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')))
+	_cfgRecord = _cfgRel if not _cfgRel.startswith('..') else os.path.basename(_cfgPath)
+
 # ---------------------------------------------------------------------------
 # OVERLAY (2026-09-12). A chip whose blocks cannot live in the public tree
 # names an out-of-tree directory that contributes extra configurations,
@@ -3605,6 +3619,12 @@ if _bondsElectrodes and cqAfeStubsPresent and orchestrator and numHarts == 5:
 	m.CheckDocSubSlotBlocks()
 
 
+# The per-hart-class ISA table is web_export's, not a second copy here. Importing
+# it is the point: chip_data.js, this record, the TRM and the README then all
+# render one function's output. Imported at the point of use rather than at the
+# top of the file because web_export is otherwise a pure output-side module.
+import web_export as _webExport
+
 # ---------------------------------------------------------------------------
 # THE unified configuration record. One dict holds every knob the CONFIG=
 # schema accepts plus everything derived from them; it is (a) attached to the
@@ -3620,7 +3640,7 @@ _resolvedConfig = [
 	('_comment', 'Resolved chip configuration — written by make chip (platform/common/python/generate.py). '
 		+ 'Inputs follow the CONFIG= JSON schema (docs/chip_configurator.html emits it); '
 		+ 'everything under "derived" is computed, not configurable.'),
-	('configFile', _cfgPath if _cfgPath else None),
+	('configFile', _cfgRecord),
 	('chipName', m.AsicName),
 	('numHarts', numHarts),
 	# CPR3/R1: the orchestrator knob. Dumped so verify_stage.py (cell list +
@@ -3673,6 +3693,19 @@ _resolvedConfig = [
 	('package', [('model', packageModel), ('preliminary', packagePreliminary)]),
 	('derived', [
 		('isaString', _isaString()),
+		# THE ASYMMETRIC-ISA TABLE (isa.minimalTiles). Imported, not re-derived:
+		# web_export.hartClasses() is the one authority, and this record, the
+		# chip_data.js bundle, the TRM's configuration chapter and the repository
+		# README all read it, so none of the four can drift from the RTL this
+		# build emitted. One row per hart class that exists; a configuration with
+		# no minimal tiles (argus, mcu_hart, fpga) degenerates to a single row.
+		('hartClasses', _webExport.hartClasses({
+			'numHarts': numHarts,
+			'orchestrator': orchestrator,
+			'isa': _isa,
+			'priv': _priv,
+			'debug': _debug,
+		})),
 		('sharedWindowAddrWidth', shAw),
 		('sharedRamBanks', _sharedRamBanks),
 		('flashBaseAddress', _hx(flashBase)),

@@ -1587,6 +1587,55 @@ class LatexUserGuide():
 			s += row
 		s = s[:-3] + '\\\\\n\\hline\n\\end{longtable}\n'
 
+		# ------------------------------------------------------------------
+		# Per-hart-class ISA (asymmetric ISA, isa.minimalTiles).
+		#
+		# Rendered from derived.hartClasses, which generate.py takes straight
+		# from web_export.hartClasses(): the same rows the chip_data.js bundle
+		# and the repository README carry, so the manual cannot describe an
+		# asymmetry the build did not emit. One row per class that exists, so a
+		# configuration whose tiles are not minimal (or a one-hart chip) prints
+		# a single row and the text below still reads correctly.
+		# ------------------------------------------------------------------
+		classes = list(drv.get('hartClasses') or [])
+		if classes:
+			s += '\n% Generated: derived.hartClasses (web_export.hartClasses), the asymmetric-ISA table\n'
+			s += '\\begin{longtable}[c]{ l l l p{5.4cm} }\n'
+			s += ('\\caption{Per-hart-class ISA of this build. Each row is a hart class the '
+				'generator emitted; the ISA string is what that class advertises in its '
+				'read-only \\register{misa} CSR. Only M and Zb differ between classes '
+				'(the generated \\texttt{TILE\\_ENABLE\\_MUL}, \\texttt{TILE\\_ENABLE\\_DIV} and '
+				'\\texttt{TILE\\_ENABLE\\_BITMANIP} constants gate them); A, C, the Z-series '
+				'extensions and the whole privilege set reach '
+				'every hart. Code that more than one class executes must be built for the '
+				'narrowest row.} \\label{t:hart-class-isa} \\\\\n')
+			s += ('\\hline \\textbf{Hart class} & \\textbf{Harts} & \\textbf{ISA string} & '
+				'\\textbf{Privilege features} \\\\ \\hline \\endfirsthead\n')
+			s += ('\\hline \\textbf{Hart class} & \\textbf{Harts} & \\textbf{ISA string} & '
+				'\\textbf{Privilege features} \\\\ \\hline \\endhead\n')
+			s += '\\hline \\endfoot \\hline \\endlastfoot\n'
+			rowColored = False
+			for hc in classes:
+				row = (fmttex(str(hc.get('name'))) + ' (' + fmttex(str(hc.get('implementation'))) + ')'
+					+ ' & \\texttt{' + fmttex(str(hc.get('harts'))) + '}'
+					+ ' & \\texttt{' + fmttex(str(hc.get('isaString'))) + '}'
+					+ ' & ' + fmttex(', '.join(hc.get('priv') or [])) + ' \\\\\n')
+				if rowColored:
+					row = '\\rowcolor{tablehighlightcolor} ' + row
+				rowColored = not rowColored
+				s += row
+			s = s[:-3] + '\\\\\n\\hline\n\\end{longtable}\n\n'
+			narrow = classes[-1]
+			s += ('Every image more than one hart executes is built for the narrowest row, '
+				'\\texttt{' + fmttex(str(narrow.get('isaString'))) + '}: the boot ROM all '
+				+ str(self.Gen.NumHarts) + ' harts fetch at reset, the debug entry '
+				'trampoline the Debug Module plants for whichever hart it halts, and any '
+				'library linked into more than one image. A wider \\texttt{-march} on one of '
+				'those lets the assembler emit an instruction a tile traps as illegal, so the '
+				'build flags are pinned to this string and graded on the linked ELF by '
+				'\\texttt{//software/testtools:tile\\_isa\\_test}. Images that run on hart 0 '
+				'alone keep the full ISA.\n\n')
+
 		with open(self.IncludeDirectory + '/ChipConfigurationTable.tex', 'w') as f:
 			f.write(s)
 		return

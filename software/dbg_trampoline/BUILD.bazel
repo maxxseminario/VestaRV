@@ -28,7 +28,17 @@ genrule(
     name = "dbg_trampoline_elf",
     srcs = ["dbg_trampoline.S"],
     outs = ["dbg_trampoline.elf"],
-    cmd = PRELUDE + '"$$CC" -march=rv32imac -mabi=ilp32 -nostdlib -nostartfiles ' +
+    # rv32iac, not rv32imac. The Debug Module plants this page for WHICHEVER
+    # hart it halts, and MCU.vhd gives every hart_tile instance
+    # DEBUG_ENTRY_ADDR => x"00010780" with ENABLE_DEBUG => CORE_ENABLE_DEBUG, so
+    # a tile is a hart that executes it. The tiles are rv32iac
+    # (derived.hartClasses in config/ChipConfig.resolved.json), and a wider
+    # -march here only lets gas accept an instruction they trap as illegal.
+    # Byte-identical output today (the page is hand-written assembly and uses
+    # no M encoding); the point is that it cannot stop being.
+    # Kept in step with software/dbg_trampoline/Makefile, and graded on the
+    # linked ELF by //software/testtools:tile_isa_test.
+    cmd = PRELUDE + '"$$CC" -march=rv32iac -mabi=ilp32 -nostdlib -nostartfiles ' +
           '-Wl,-Ttext=0x00010780 -o "$@" "$<"\n',
     tools = FIRMWARE_TOOLS,
 )

@@ -140,6 +140,105 @@ def _libraryTailVectorsCount(cfg):
 	return high
 
 
+# ---------------------------------------------------------------------------
+# THE PER-HART-CLASS ISA RECORD (asymmetric ISA, isa.minimalTiles).
+#
+# ONE authority for a fact that is published in four places: the resolved-config
+# dump, this bundle, the TRM's configuration chapter and the repository README.
+# generate.py imports hartClasses() rather than re-deriving it, so the manual and
+# the README cannot disagree with the RTL the same build emitted.
+#
+# WHAT THE ASYMMETRY ACTUALLY IS, read off the generator rather than assumed:
+# ChipGenerator.py emits TILE_ENABLE_MUL / TILE_ENABLE_DIV / TILE_ENABLE_BITMANIP
+# as `ENABLE_<X> and not MINIMAL_TILES`, and MCU.vhd hands those three, and only
+# those three, to the hart_tile instances it emits for harts 1..N-1. Every other
+# generic a tile takes is the CORE_ENABLE_* the orchestrator takes. So:
+#   * M (mul + div) and Zb are the WHOLE difference,
+#   * A and C are never dropped (the tiles run the shared-fabric LR/SC + AMO
+#     locking, and C is decode-only),
+#   * the Z-series extensions and the entire privilege set reach the tiles
+#     unchanged,
+#   * at numHarts < 2, or with minimalTiles off, there is no tile class at all
+#     and the table degenerates to one row.
+# ---------------------------------------------------------------------------
+def _privFeatures(cfg):
+	"""The privilege-architecture feature list, in the order the TRM prints it.
+
+	Identical on every hart class by construction (see the block comment above):
+	MCU.vhd hands the tiles CORE_ENABLE_TRAPCSR / CORE_ENABLE_UMODE /
+	CORE_ENABLE_PMP / CORE_ENABLE_DEBUG. The column exists so the table states
+	that, rather than leaving a reader to infer it."""
+	priv = cfg.get('priv') or {}
+	dbg = cfg.get('debug') or {}
+	out = ['M-mode']
+	if priv.get('trapCsr'):
+		out.append('trap CSRs')
+	if priv.get('umode'):
+		out.append('U-mode')
+	if priv.get('pmp'):
+		out.append('PMP (' + str(int(priv.get('pmpEntries') or 0)) + ' entries)')
+	if dbg.get('enable'):
+		out.append('debug')
+	return out
+
+
+def _tileIsa(isa):
+	"""The isa{} the hardened tiles are built with: the chip's, minus M and Zb.
+
+	Mirrors ChipGenerator.py's TILE_ENABLE_* expressions exactly. Returns the
+	SAME dict object contents as the input when the tiles are not minimal."""
+	if not isa.get('minimalTiles'):
+		return dict(isa)
+	out = dict(isa)
+	out['mul'] = False
+	out['div'] = False
+	out['bitmanip'] = False
+	return out
+
+
+def hartClasses(cfg):
+	"""Per-hart-class ISA rows for a resolved-shape config dict.
+
+	One row per class that exists in the built chip: [orchestrator/hart 0, tile]
+	when the tiles are minimal and there is more than one hart, otherwise a
+	single row covering every hart."""
+	isa = cfg['isa']
+	numHarts = int(cfg['numHarts'])
+	orch = bool(cfg.get('orchestrator'))
+	priv = _privFeatures(cfg)
+	minimal = bool(isa.get('minimalTiles')) and numHarts > 1
+	if not minimal:
+		return [{
+			'name': 'Orchestrator' if orch else 'Core',
+			'harts': '0' if numHarts == 1 else '0-' + str(numHarts - 1),
+			'hartCount': numHarts,
+			'isaString': _isaString(isa),
+			'priv': priv,
+			'implementation': 'Soft core' if orch else 'Core',
+			'note': 'Symmetric: every hart takes the full chip ISA (CORE_ENABLE_*)',
+		}]
+	return [
+		{
+			'name': 'Orchestrator' if orch else 'Hart 0',
+			'harts': '0',
+			'hartCount': 1,
+			'isaString': _isaString(isa),
+			'priv': priv,
+			'implementation': 'Soft core' if orch else 'Soft hart',
+			'note': 'The full chip ISA (CORE_ENABLE_*)',
+		},
+		{
+			'name': 'Tile',
+			'harts': '1-' + str(numHarts - 1),
+			'hartCount': numHarts - 1,
+			'isaString': _isaString(_tileIsa(isa)),
+			'priv': priv,
+			'implementation': 'Hardened hart_tile macro',
+			'note': 'M and Zb dropped (TILE_ENABLE_*); A and C kept',
+		},
+	]
+
+
 def _derived(cfg):
 	"""Derived geometry for a resolved-shape config dict (numHarts / isa{} /
 	memory{}). Keys + hex formatting match generate.py's _resolvedConfig
@@ -162,6 +261,9 @@ def _derived(cfg):
 	mtimecmpSlot = mtimeSlot + 4
 	return {
 		'isaString': _isaString(cfg['isa']),
+		# The asymmetric-ISA table (isa.minimalTiles). One row unless the tiles
+		# are minimal; see the block comment on hartClasses() above.
+		'hartClasses': hartClasses(cfg),
 		'sharedWindowAddrWidth': shAw,
 		'sharedRamBanks': banks,
 		'flashBaseAddress': _hx(flash),
@@ -299,10 +401,12 @@ def buildWebData(gen):
 		'isa': resolved['isa'],
 		'memory': resolved['memory'],
 		'peripherals': resolved['peripherals'],	# digperiphs #4: RTC grows vectorsCount 114 -> 115
+		'priv': resolved.get('priv', {}),	# hartClasses' privilege column
+		'debug': resolved.get('debug', {}),	# hartClasses' privilege column
 	})
 	for k in ('sharedWindowAddrWidth', 'sharedRamBanks', 'flashBaseAddress',
 			'sharedRamEndAddress', 'tcmWindowAddresses', 'isaString', 'vectorsCount',
-			'clintMsipVector', 'clintMtipVector'):
+			'clintMsipVector', 'clintMtipVector', 'hartClasses'):
 		if k in authoritative and mine[k] != authoritative[k]:
 			raise Exception('web_export._derived() disagrees with generate.py on "%s": %r vs %r'
 				% (k, mine[k], authoritative[k]))
