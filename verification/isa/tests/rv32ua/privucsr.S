@@ -1,59 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# privucsr.S   (P2 U-mode — the PRIVILEGED-ACCESS POISON SWEEP)
-#-----------------------------------------------------------------------------
-# ON-ONLY DIRECTED TEST (needs a trapCsr+umode build). privumode proves the
-# privilege ROUND TRIP; this file proves the U-mode DECODE GATE in maindec —
-# every privileged thing a U-mode program can reach must take the
-# illegal-instruction trap (mcause 2) at its OWN pc, per
-# ~/work/chip_docs/castalia/priv_arch/p0_specs.md §3 / §3.1:
-#
-#   csr_addr(9:8) /= "00"   ONE comparator covering every machine (0x3xx/0xBxx/
-#                           0xFxx) and custom (0x7C0 mtrapctl) CSR — reads AND
-#                           writes.                    [negctrl (b) p2_privgate]
-#   MRET                    M-mode only
-#   iret / extinguish / ignite   the three CUSTOM Vesta insns are PRIVILEGED
-#                           (they drive the legacy irq_handler handshake and the
-#                           sleep state directly) — the whole custom opcode traps
-#   WFI with mstatus.TW=1   the trap-on-wait rule, a DECODE illegal
-#                                                      [negctrl (c) p2_twignore]
-#   mcounteren gating       cycle/time/instret/hpmcounter3-4 trap in U unless the
-#                           matching enable bit is set; with the bit set the read
-#                           SUCCEEDS
-#
-# THE PROTOCOL. U-mode cannot read mcause/mepc (that is the point), so the
-# M-mode handler does the verifying: it requires mcause 2 and mepc == s0 (the
-# poison's own address, published by the U code just before executing it),
-# increments the trap counter s3, then skips the 4-byte poison (mepc+4) and
-# MRETs back into U. The U code carries its OWN expected count in s11 and
-# compares s3 against it after every poison, so a poison that FAILS TO TRAP is
-# caught IMMEDIATELY, in U, by a bounded compare-and-branch — never by a hang.
-# A U-mode ECALL (mcause 8) is the "give me M-mode back" request: the handler
-# leaves the trap with `jr s9` into the M-mode flow instead of MRETing.
-#
-# BOUNDEDNESS OF THE WFI POISON. Before the TW phase the test arms mie.MSIE and
-# raises CLINT msip[0], so (mip and mie) /= 0 holds. If TW were IGNORED (the
-# p2_twignore seed) the WFI would be legal, enter SLEEPING, and wake IMMEDIATELY
-# on that pending source (mstatus.MIE stays 0, so nothing is delivered) — it
-# resumes at WFI+4, lands on the count check, and FAILs. It can never hang.
-#
-# REGISTER CONTRACT (standard mode pushes NOTHING; M and U share the regfile):
-#   s0   the poison's own address — published by the U code, checked as mepc
-#   s3   poison-trap counter (handler increments; U and M both read it)
-#   s5   rdcycle      result from the ENABLED-counter phase
-#   s6   hpmcounter3  result from the ENABLED-counter phase
-#   s7   trap-count snapshot around the must-NOT-trap counter reads
-#   s8   CLINT msip[hart 0] address
-#   s9   M-mode continuation address (handler `jr s9` on a U ECALL)
-#   s11  the U code's EXPECTED trap count
-#   t3/t5/t6  handler scratch;  t4  CHECK ID at every comparison
-#
-# BUILD-TIME DISPATCH: ON iff BOTH -DCORE_ENABLE_TRAPCSR and -DCORE_ENABLE_UMODE
-# are appended to RISCV_GCC_OPTS on a staged trapCsr+umode build. privucsr is
-# deliberately NOT in the default behavioral_mp runner array, so the #else arm
-# must never execute.
-#*****************************************************************************
+# VestaRV: U-mode privileged-access poison sweep
+# ON-ONLY, needing a trapCsr and umode build. privumode proves the privilege ROUND TRIP; this file proves the U-mode DECODE GATE in maindec: every privileged thing a U-mode program can reach must take the illegal-instruction trap, mcause 2, at its own PC. The subjects are the csr_addr(9:8) /= "00" comparator, which is ONE comparator covering every machine CSR in 0x3xx, 0xBxx and 0xFxx and the custom 0x7C0 mtrapctl, for reads and writes alike; MRET, which is M-mode only; iret, extinguish and ignite, the three custom Vesta instructions, which are PRIVILEGED because they drive the legacy irq_handler handshake and the sleep state directly, so the whole custom opcode traps; WFI with mstatus.TW set, a decode illegal; and the mcounteren gating, where cycle, time, instret and hpmcounter3-4 trap in U unless the matching enable bit is set and succeed when it is.
+# THE PROTOCOL, since U-mode cannot read mcause or mepc, which is the point: the M-mode handler does the verifying. It requires mcause 2 and mepc == s0, the poison's own address published by the U code just before executing it, increments the trap counter s3, then skips the 4-byte poison and MRETs back into U. The U code carries its OWN expected count in s11 and compares s3 after every poison, so a poison that FAILS TO TRAP is caught immediately in U by a bounded compare and branch, never by a hang. A U-mode ECALL is the "give me M-mode back" request, and the handler leaves the trap with `jr s9` into the M flow rather than MRETing.
+# THE WFI POISON IS BOUNDED BY CONSTRUCTION: before the TW phase the test arms mie.MSIE and raises CLINT msip[0], so (mip and mie) is nonzero. If TW were ignored the WFI would be legal, enter SLEEPING and wake immediately on that pending source, since mstatus.MIE stays 0 so nothing is delivered, resuming at WFI+4, landing on the count check and failing. It can never hang.
+# REGISTER CONTRACT, standard mode pushing nothing and M and U sharing the register file: s0 the poison's own address, published by the U code and checked as mepc; s3 the poison-trap counter, read by both U and M; s5 the rdcycle result from the enabled-counter phase; s6 the hpmcounter3 result; s7 the trap-count snapshot around the must-not-trap counter reads; s8 the CLINT msip[hart 0] address; s9 the M-mode continuation on a U ECALL; s11 the U code's expected trap count; t3, t5 and t6 handler scratch; t4 the CHECK ID at every comparison.
+# BUILD-TIME DISPATCH: assembled only with both -DCORE_ENABLE_TRAPCSR and -DCORE_ENABLE_UMODE on a staged build; this file is deliberately not in the default runner array, so the #else arm must never execute.
 
 #include "riscv_test.h"
 #include "test_macros.h"

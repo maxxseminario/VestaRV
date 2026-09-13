@@ -1,26 +1,10 @@
 #!/usr/bin/python3.6
-"""d5_rbb_client.py -- the D5 bridge's proof client.
+"""VestaRV: the debug bridge's proof client, speaking OpenOCD's remote_bitbang protocol.
 
-Speaks the OpenOCD `remote_bitbang` byte protocol, in the SAME ORDER OpenOCD
-emits it (low-phase pin-set carrying TMS/TDI, then 'R', then high-phase
-pin-set), so the phase this exercises is the phase OpenOCD will exercise.
-
-Two modes, and the second one is a required bar rather than a convenience:
-
-  IDCODE   (default) -- tap-reset, shift the 32-bit IDCODE, compare.
-             A one-phase-late sample returns the whole stream SHIFTED BY ONE
-             BIT, which looks structured and reads as an RTL fault, so on a
-             mismatch this prints expect>>1 and names the bridge.
-
-  --provoke -- ask for TDO bytes the bridge has been told to withhold
-             (D5_NOFLUSH=1) and then block on a reply that can never arrive.
-             From the outside this is INDISTINGUISHABLE from a benign
-             wait-for-debugger; the only discriminator is `pending_out` inside
-             the bridge. d5_spec 2.9 as amended by R-D5-2 requires the
-             DEADLOCK verdict to be SEEN TO FIRE, and this is how.
-
-  d5_rbb_client.py <portfile> <expected-idcode-hex>
-  d5_rbb_client.py <portfile> --provoke
+Emits the byte protocol in OpenOCD's own order (low-phase pin-set, 'R', high-phase), so the
+phase exercised is the phase OpenOCD exercises. IDCODE mode compares the shifted 32 bits and,
+on a mismatch, prints expect>>1, because a one-phase-late sample shifts the whole stream by
+one bit and reads as an RTL fault. --provoke makes the DEADLOCK verdict fire and be seen.
 """
 import socket, sys, time, os
 

@@ -1,70 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shnpu.S  (M7d; M12 single-ROM boot rework)
-#-----------------------------------------------------------------------------
-# HART-GENERIC shared-NPU test — the M7d signature test, reworked for the
-# M11 memory map (ALL peripherals are shared now; the private page is gone).
-#
-# M12: tiles are NO LONGER preloaded. Hart 0 stages this TCM image once and
-# launches harts 1-3 into tile_entry through the bootrom loader (mp_boot.h);
-# each tile then parks on the token. The token ring (0x10220) is unchanged.
-#
-# M7d moved the NPU's REGISTER bus onto the mp_arbiter; M11 put it back at
-# its original address:
-#     NPU = 0x4A00 (slot 10)   (NPUCR/IVSAR/WVSAR/OVSAR at +0/4/8/C)
-# M11 also promoted the DATA PATH: the vectors live in the SHARED NPU
-# staging RAM at 0xC000-0xFFFF (hart 0's retired private RAM1 — same
-# addresses, now an arbiter slave). ANY hart can stage vectors, configure,
-# start the accelerator and poll NPUCR.THINK for completion. hart 0 no
-# longer sleeps during a THINK (the sleep protected its un-stallable
-# private-RAM1 port; shared accesses have arbiter back-pressure) — the
-# contract is: NEVER touch 0xC000-0xFFFF while a THINK may be active, poll
-# NPUCR bit 16 first (the in-NPU port mux owns the RAM during the run).
-#
-# RTL FIXES THIS TEST GUARDS (see plan doc M7d):
-#  * NPU.vhd's staging-RAM port mux switches on NPUTHINK REGISTERED on mclk
-#    (NpuMuxSel) — a clean-cycle handover of the RAM port.
-#  * The NPU's MMR read is COMBINATIONAL (collapses when CEN deasserts) and
-#    its CEN was HARDWIRED asserted on the old gated bus — the bridge gives
-#    it the real one-cycle strobe and registers the readback (I2C rule).
-#
-# Network under test: 1 input, 1 neuron, no bias, no activation (pure
-# pass-through MAC) => OUT = X * W exactly.
-#   Fixed-point formats (MCU generics): X = sfixed(0,-24), W/OUT = sfixed(7,-24)
-#   X @0xC100 = 0x00800000 (0.5)     W @0xC104 = 0x02000000 (2.0)
-#   OUT = 0x01000000 (1.0) -> written by the NPU to the staging RAM
-# Run 1 (hart 1): OVSAR=0x42 -> 0xC108. Run 2 (hart 3, after hart 2
-# retargets OVSAR=0x43): -> 0xC10C. Hart 0 verifies BOTH words afterward —
-# the end-to-end proof that a tile-hart-started NPU really computed into the
-# shared staging RAM, twice.
-#
-# Staging-RAM vector addresses (word index = (addr-0xC000)/4): clear of the
-# bootrom's residual stack words at the very top of the staging RAM
-# (0xFF00+, the unrebuilt M11 bootrom still stacks at 0xFFFC via the
-# arbiter) and all image data.
-#
-# Shared words (>= 0x10220, clear of all earlier tests' words):
-#     TOKEN    = 0x10220          whose turn (shram zero-init => hart 0)
-#     DONE[h]  = 0x10230 + 4*h    0x4E900000+h after hart h's part
-# Argus A3: TOKEN sits below the DONE base, so the NHARTS-sized DONE array
-# (N=18: 0x10234..0x10274, < 0x10500) can't overrun it. NOTE (see report):
-# harts 1/2/3 have DISTINCT roles and harts >= 4 fall into hart 1's role
-# (reconfigure + npu_run to OUT1); N=18 semantics UNVERIFIED (and NPU is dropped
-# in Argus anyway) — manual review. N=4 behaviour is unchanged.
-# (TD scratch at 0x10260/64 -- 0x10240-0x1025C is the shlock band, ledger rule; next free 0x10268)
-#
-# IRQ LEG (digperiphs, 2026-07-22): NPU think-done = irq_router source 120
-# (IRQB_NPU0_TD; npu_irq_spec.md). NPUSR @0x4A10 bit0 THINKDONE (sticky W1C,
-# set once per THINK completion); NPUCR bit19 TDIE gates a registered level
-# -> source 120 -> meip -> env MEIP_DISPATCHER -> IVT slot 120 -> plain-ret
-# handler -> CLAIM/COMPLETE, exactly like wdma.S (119) / wrtc.S (114). Runs
-# on hart 0 ONLY, after the existing polling proof above, before RVTEST_PASS
-# — hart 1-3 behavior is unchanged. A THIRD output word (OV3, 0xC110) keeps
-# this run's completion unambiguous from the OUT1/OUT2 proof already checked.
-#     TD_FLAG = 0x10260   (ISR exactly-once counter)
-#     TD_ISVC = 0x10264   (handler's masked INSVCX readback)
-#*****************************************************************************
+# VestaRV: shared NPU test
+# The NPU register bus is at 0x4A00 (NPUCR/IVSAR/WVSAR/OVSAR at +0/4/8/C) and its data path lives in the SHARED staging RAM at 0xC000-0xFFFF, so any hart can stage vectors, configure, start the accelerator and poll NPUCR.THINK. THE CONTRACT IS: NEVER TOUCH 0xC000-0xFFFF WHILE A THINK MAY BE ACTIVE, poll NPUCR bit 16 first, because the in-NPU port mux owns that RAM for the duration of the run.
+# The test guards two RTL properties: the staging-RAM port mux switches on NPUTHINK registered on mclk, giving a clean-cycle handover, and the NPU's MMR read is COMBINATIONAL and collapses when CEN deasserts, so the bridge must give it a real one-cycle strobe and register the readback.
+# Network under test: 1 input, 1 neuron, no bias, no activation, so OUT = X * W exactly. X is sfixed(0,-24) and W and OUT are sfixed(7,-24). X at 0xC100 = 0x00800000 (0.5), W at 0xC104 = 0x02000000 (2.0), OUT = 0x01000000 (1.0). Run 1 writes OVSAR = 0x42 -> 0xC108, run 2 writes 0x43 -> 0xC10C, and hart 0 verifies both words afterwards. The vector addresses must stay clear of the residual stack words at the top of the staging RAM (0xFF00 and above).
+# Shared words: TOKEN = 0x10220 (zero-init, so hart 0 goes first), DONE[h] = 0x10230 + 4*h (0x4E900000 + h), TD_FLAG = 0x10260 (ISR exactly-once counter) and TD_ISVC = 0x10264 (the handler's masked INSVCX readback). TOKEN sits below the DONE base so the NHARTS-sized array cannot overrun it; N=18 tops at 0x10274.
+# The IRQ leg runs on hart 0 only, after the polling proof: NPUSR at 0x4A10 bit 0 THINKDONE is sticky W1C, NPUCR bit 19 TDIE gates a registered level onto irq_router source 120, which reaches meip, the env MEIP_DISPATCHER and IVT slot 120. A third output word at 0xC110 keeps this run's completion unambiguous from the two already checked.
+# Harts 1, 2 and 3 have DISTINCT roles and harts 4 and above fall into hart 1's role, so the N=18 semantics of this test are unverified.
 
 #include "riscv_test.h"
 #include "test_macros.h"

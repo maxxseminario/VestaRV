@@ -1,19 +1,9 @@
 #!/usr/bin/env python3
-# check_riscv_tb_vhd.py — riscv_tb.vhd drop-in checker (Argus A3, tb-generation)
-#
-# Compares the generated out/hdl/riscv_tb.vhd (from tb_vhd.py) against the
-# hand-written RTL hdl/common/tb/riscv_tb.vhd. Like check_mcu_vhd.py the bar is
-# BYTE-IDENTICAL apart from the generated-file comment header, so the default
-# mode strips the leading comment block (and following blanks) from both files
-# then requires an exact match. Exit 0 = drop-in compatible (proves the tb
-# generator is a no-op at numHarts=4).
-#
-# --structural relaxes to whitespace-normalized, comment-stripped tokens (a
-# diagnostic aid, NOT the drop-in bar).
-#
-# Usage (from platform/common/):
-#   python3 python/check_riscv_tb_vhd.py [--structural] [generated.vhd] [rtl.vhd]
-#
+# VestaRV: riscv_tb.vhd drop-in checker.
+# Compares the generated out/hdl/riscv_tb.vhd against hdl/common/tb/riscv_tb.vhd. As in
+# check_mcu_vhd.py the bar is byte-identical apart from the generated-file comment header,
+# which proves the testbench generator is a no-op at numHarts=4. --structural relaxes to
+# whitespace-normalized, comment-stripped tokens, a diagnostic aid and not the bar.
 # Python 3.6 compatible.
 
 import difflib
@@ -22,10 +12,9 @@ import sys
 
 
 def stripHeader(lines):
-	'''Remove the leading comment block and following blank lines.
-
-	Both VHDL comment styles are recognized: the generated header is a
-	/* ... */ block, older masters wrote a run of -- lines.'''
+	'''Remove the leading comment block and the blank lines after it. Both VHDL comment styles are
+	recognized: the generated header is a /* ... */ block, older masters wrote a run of -- lines.
+	'''
 	i = 0
 	inBlock = False
 	while i < len(lines):

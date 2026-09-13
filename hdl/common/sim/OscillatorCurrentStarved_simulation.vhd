@@ -1,5 +1,5 @@
--- Simulation-only behavioral models of the current-starved ring oscillator and the identical DCO wrapper.
--- The real cells are analog macros, so these stand in for them during behavioral runs and must never be synthesized.
+-- VestaRV: behavioural current-starved ring oscillator and DCO
+-- Models the ring oscillator and the identical DCO wrapper. Simulation only: the real cells are analog macros and this file must never be synthesized.
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.std_logic_arith.all;

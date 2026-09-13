@@ -1,11 +1,9 @@
 #!/bin/bash
-# run_extoff.sh — STRIPPED-BUILD negative controls for the core-features work
-# (configurable ENABLE_MUL/DIV/ATOMICS/COMPRESSED/BITMANIP generics).
-#
-# ./stripped_hdl/{MCU.vhd,MemoryMap.vhd} are a `make chip` product generated
-# with EVERY extension disabled (CORE_ENABLE_* all false). To refresh them,
-# generate against an all-false config (the isa.* knobs live in _CONFIG_SCHEMA;
-# the old sed-the-generator recipe is obsolete since the _isa[...] rework):
+# VestaRV: stripped-build negative controls for the configurable ENABLE_MUL,
+# ENABLE_DIV, ENABLE_ATOMICS, ENABLE_COMPRESSED and ENABLE_BITMANIP generics.
+# ./stripped_hdl/{MCU.vhd,MemoryMap.vhd} are a `make chip` product generated with
+# every extension disabled. To refresh them, generate against an all-false config
+# (the isa.* knobs live in _CONFIG_SCHEMA):
 #   cd platform/common
 #   cat > /tmp/stripped_cfg.json <<'EOF'
 #   {"isa": {"mul": false, "div": false, "atomics": false,
@@ -13,19 +11,14 @@
 #   EOF
 #   CHIP_CONFIG=/tmp/stripped_cfg.json make chip
 #   cp out/hdl/{MCU,MemoryMap}.vhd <here>/stripped_hdl/
-#   make chip   # restore the default all-on out/ + resolved config
+#   make chip   # restore the default all-on out/ and resolved config
 #
-# Expected verdicts on the stripped build:
-#   extprobe                          -> PASS      (base RV32I + misa work;
-#                                                   also proves the rv32i
-#                                                   bootrom boots this chip)
-#   extmul/extdiv/extamo/extrvc/extzb -> TRAP_OK   (the disabled instruction
-#                                                   took the illegal-instr
-#                                                   trap; watched via
-#                                                   trap_watch.tcl instead of
-#                                                   the 100 ms tb watchdog)
-# Anything else (SURVIVED / UNEXPECTED_PASS / TIMEOUT / FAIL) is a broken
-# gating path. Compile/elab mechanics mirror behavioral_mp/xrun_parallel.sh.
+# On the stripped build extprobe must PASS, which also proves the rv32i bootrom
+# boots this chip, and every poison must reach TRAP_OK, meaning the disabled
+# instruction took the illegal-instruction trap. trap_watch.tcl reads that verdict
+# off hart 0 rather than waiting out the 100 ms testbench watchdog. SURVIVED,
+# UNEXPECTED_PASS, TIMEOUT and FAIL all mean a broken gating path. The compile and
+# elaborate mechanics mirror behavioral_mp/xrun_parallel.sh.
 
 source ~/vestarv/cdspaths.sh
 set -u
@@ -51,9 +44,9 @@ POISON_RCFS=(
     "../rcf/xxrv32ua-p-extzbkx.rcf"   # X3 Zbkx OFF poison: xperm8 must trap illegal
     "../rcf/rv32ua-p-extzbkrsv.rcf"   # X3 reserved 001/0x698 (BINVI-shamt24) must trap w/o Zbs
     "../rcf/xxxrv32ua-p-casill.rcf"   # X2 Zacas: amocas.d is illegal on EVERY build
-                                      # (P0 2026-07-28: was "xrv32ua-p-casill.rcf",
-                                      #  20 chars -- no such file and it broke the
-                                      #  fixed 29-char TEST_FILE contract)
+                                      # Padded to the fixed 29-character
+                                      # TEST_FILE width; a 20-character name
+                                      # names no file and breaks the contract.
     "../rcf/rv32ua-p-extzicboz.rcf"   # X3 Zicboz OFF poison: cbo.zero must trap illegal
     "../rcf/xxrv32ua-p-cbozill.rcf"   # X3 Zicboz: cbo.clean is illegal on EVERY build
     "../rcf/xxrv32ua-p-extzcmp.rcf"   # X3 Zcmp OFF poison: cm.push must trap illegal
@@ -62,10 +55,10 @@ POISON_RCFS=(
     "../rcf/xxrv32ua-p-extzkne.rcf"   # X3 Zkne OFF poison: aes32esmi must trap illegal
     "../rcf/xxrv32ua-p-extzknd.rcf"   # X3 Zknd OFF poison: aes32dsmi must trap illegal
     "../rcf/xxrv32ua-p-extzknh.rcf"   # X3 Zknh OFF poison: sha256sig0 must trap illegal
-    # X4 Zfinx OFF poisons: every FP encoding class must trap illegal when
-    # ENABLE_ZFINX is off (the core dead-ends the first illegal insn, so each
-    # encoding class needs its own image). flw/fsw/fmv.w.x/fmv.x.w have NO Zfinx
-    # form and must trap on EVERY build.
+    # Zfinx OFF poisons: every FP encoding class must trap illegal while
+    # ENABLE_ZFINX is off. The core dead-ends on the first illegal instruction,
+    # so each encoding class needs its own image. flw, fsw, fmv.w.x and fmv.x.w
+    # have no Zfinx form and must trap on every build.
     "../rcf/xxxrv32ua-p-zfopfp.rcf"   # X4 OP-FP 0x53 (fadd.s) must trap illegal
     "../rcf/xxxxrv32ua-p-zffma.rcf"   # X4 FMADD 0x43 must trap illegal
     "../rcf/xxxxrv32ua-p-zffms.rcf"   # X4 FMSUB 0x47 must trap illegal
@@ -78,10 +71,10 @@ POISON_RCFS=(
     "../rcf/xrv32ua-p-zffflags.rcf"   # X4 fflags CSR (0x001) must trap illegal
     "../rcf/xxxxrv32ua-p-zffrm.rcf"   # X4 frm CSR (0x002) must trap illegal
     "../rcf/xxxrv32ua-p-zffcsr.rcf"   # X4 fcsr CSR (0x003) must trap illegal
-    # P0 privprobe OFF poisons (2026-07-28): every p0_specs.md 2.1 trap CSR
-    # address plus MRET/ECALL/EBREAK/WFI must trap illegal while ENABLE_TRAPCSR
-    # is off (= every build today). One trap per image -- TRAP_STATE is
-    # terminal, so a single image can only ever prove ONE encoding illegal.
+    # privprobe OFF poisons: every p0_specs.md 2.1 trap CSR address, plus MRET,
+    # ECALL, EBREAK and WFI, must trap illegal while ENABLE_TRAPCSR is off, which
+    # is every build today. One trap per image: TRAP_STATE is terminal, so an
+    # image can only ever prove one encoding illegal.
     "../rcf/xxrv32ua-p-privmst.rcf"   # P1 mstatus  (0x300) must trap illegal
     "../rcf/xrv32ua-p-privmsth.rcf"   # P1 mstatush (0x310) must trap illegal
     "../rcf/xrv32ua-p-privmtvc.rcf"   # P1 mtvec    (0x305) must trap illegal
@@ -148,7 +141,7 @@ done
 echo "=== [4/4] simulate ==="
 FAILS=0
 
-# Positive control: extprobe must PASS through the normal harness.
+# Positive control: extprobe must pass through the normal harness.
 entity=$(snap_name "$PROBE_RCF")
 xmsim "work.${entity}:behavioral" -input ../../disable_x_warnings.tcl -input batch_run.tcl \
     -licqueue -LOGFILE "$LOG_PATH/${entity}.log" > /dev/null 2>&1

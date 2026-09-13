@@ -1,5 +1,4 @@
-X1 Zawrs negative control — "never wake on reservation invalidation"
-=====================================================================
+VestaRV: X1 Zawrs negative control, "never wake on reservation invalidation"
 
 SEED: x1_zawrs_seed.patch removes the reservation-kill term from the Zawrs wake
 condition in hdl/common/vesta/vesta.vhd:

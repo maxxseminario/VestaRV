@@ -1,19 +1,9 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# aes32d.S   (X3 Zknd directed per-op test: aes32dsi / aes32dsmi, 2026-07-17)
-#-----------------------------------------------------------------------------
-# ON-POLARITY ONLY suite (rv32uzknd, built with -DCORE_ENABLE_ZKN). Directed
-# known-answer checks for the two AES decrypt ops across all four byte-selects
-# (bs 0..3) plus a rd==rs1 accumulate alias. Expected values from a host golden
-# model that mirrors alu.vhd aes32_datapath() exactly.
-#
-#   aes32dsi  rd,rs1,rs2,bs : rd = rs1 XOR rol(zext(invSBOX(byte bs of rs2)),8*bs)
-#   aes32dsmi rd,rs1,rs2,bs : rd = rs1 XOR rol(invMixCol(invSBOX(byte bs)),8*bs)
-#
-# gas 13.2 has no aes32* mnemonic; explicit `.insn' R-type (OP 0x33, funct3=0,
-# funct7=(bs<<5)|fn5, fn5 dsi=0x15 dsmi=0x17).
-#*****************************************************************************
+# VestaRV: Zknd AES decrypt per-operation test
+# ON-POLARITY ONLY, built with -DCORE_ENABLE_ZKN. Directed known-answer checks for the two AES decrypt operations across all four byte selects plus a rd == rs1 accumulate alias. Expected values come from a host golden model that mirrors the ALU's AES datapath exactly.
+# The semantics: `aes32dsi rd,rs1,rs2,bs` gives rd = rs1 XOR rol(zext(invSBOX(byte bs of rs2)), 8*bs), and `aes32dsmi` gives rd = rs1 XOR rol(invMixCol(invSBOX(byte bs)), 8*bs).
+# gas 13.2 has no aes32* mnemonic, so each is an explicit `.insn` R-type with OP 0x33, funct3 = 0 and funct7 = (bs << 5) | fn5, where fn5 is 0x15 for dsi and 0x17 for dsmi.
 
 #include "riscv_test.h"
 #include "test_macros.h"

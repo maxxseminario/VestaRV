@@ -1,28 +1,10 @@
 #!/usr/bin/env python3
-"""gen_wnpuconv_golden.py -- THROWAWAY golden-value generator for the
-wnpuconv.S firmware smoke (npu_conv_design.md S6, digperiphs P4.1).
+"""VestaRV: golden values for the wnpuconv.S firmware smoke test.
 
-NOT part of the frozen D9 bench pipeline (gen_conv_vectors.py/conv_vectors/) --
-this is a standalone helper that reuses the SAME validated npu_fixed.py
-arithmetic core (mac_step/int_to_sfixed, the exact fixed_pkg_c round-half-
-to-even + saturate replica) to compute the exact expected Q7.24 outputs for
-the ONE case wnpuconv.S exercises on real MCU/silicon generics
-(X_M=0, W_M=7, Y_M=7, N=24, RHO=2):
-
-    K=4  Cin=2  Cout=2  Lout=4  S=1  D=1  BEN=1  AEN=0  MODE=1 (conv)
-    L = (Lout-1)*S + (K-1)*D + 1 = 7
-
-Run with /usr/bin/python3 (NEVER `python3 -c` -- this machine's default
-python3 is the aoj_cal wrapper, which re-evaluates its arguments and STRIPS
-QUOTES).
-
-Prints (in order): the predicted-cycle formula check, the input/weight
-tables (decimal + 32-bit two's-complement hex, ready to paste into
-`li`/immediate constants in wnpuconv.S), the 8 flat expected outputs
-(f*Lout+j order, decimal + hex), and a per-MAC-step rounding trace for
-EVERY output that reports whether the fixed_pkg resize step actually added
-+1 (a real round-up, not a bit that happened to already be exact) -- the
-task's "must not be a case where rounding never actually fires" bar.
+A standalone helper reusing npu_fixed.py's arithmetic core for the one CONV case wnpuconv.S
+exercises at the silicon generics: K=4, Cin=2, Cout=2, Lout=4, S=1, D=1, BEN=1, AEN=0, so
+L=7. The per-MAC-step trace reports whether the resize actually added +1, so the case is
+known to exercise rounding. Run with /usr/bin/python3, which does not strip quotes.
 """
 import os
 import sys
@@ -48,13 +30,11 @@ print("Generics: X_M=%d W_M=%d Y_M=%d N=%d RHO=%d" % (X_M, W_M, Y_M, N_BITS, RHO
 print("Case: K=%d Cin=%d Cout=%d Lout=%d S=%d D=%d BEN=%d AEN=%d  L=%d  T=%d cycles"
       % (K, CIN, COUT, LOUT, S, D, BEN, AEN, L, T_CYCLES))
 
-# ---------------------------------------------------------------------------
 # Distinctive Q0.24 inputs / Q7.24 weights -- magnitudes ~1e5-1e6 (raw units;
 # real value = raw / 2**24, so these sit around 0.006 .. 0.06 in real terms,
 # well inside Q0.24's [-1,1) and Q7.24's +-128 range) so per-step rounding is
 # genuinely exercised (a raw product whose low 24 discarded bits are exactly
 # zero would prove nothing -- verified below).
-# ---------------------------------------------------------------------------
 inputs = {
     0: [200000, -350000, 725003, -140007, 999999, -50021, 615003],
     1: [-275000, 400001, -125007, 333333, -800001, 275005, -60003],

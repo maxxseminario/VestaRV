@@ -1,25 +1,10 @@
 #!/usr/bin/env python3
-"""Guard the frozen mask-ROM link environment against silent drift.
+"""VestaRV: guard the frozen mask-ROM link environment against silent drift.
 
-tools/build/linker-scripts/{memory.x,periph.x,*_START.txt,*_SIZE.txt} are NOT a
-convenience copy of generator output.
-They are the link environment the taped-out rom2k_hvt_pg plate was compiled
-from, and software/bootrom_mp links against them by path.
-The chip generator emits its own current set under
-platform/common/out/linker-scripts/, and the two have diverged as the chip
-changed underneath the plate.
-
-That divergence is expected, but it must never grow in silence.
-This check recomputes it and compares it to a reviewed baseline, so the next
-time the chip memory map moves the build says so instead of leaving a stale
-file with a comment on it.
-
-Plain runner, no test framework: exit 0 passes, non zero fails.
-That is the repository convention for python tests here.
-
-Usage:
-  check_plate_link_env.py --baseline FILE --file NAME TRACKED GENERATED ...
-  check_plate_link_env.py --update   ... same arguments, rewrites the baseline
+tools/build/linker-scripts/ is the environment the taped-out rom2k_hvt_pg plate was compiled
+from and bootrom_mp links against by path, not a copy of generator output. It has diverged
+from the generator's current set, which is expected; this recomputes the divergence and
+compares it against a reviewed baseline, so the next memory-map move is announced. Exit 0 passes.
 """
 
 import argparse

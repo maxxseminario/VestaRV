@@ -1,42 +1,10 @@
 #!/usr/bin/env python3
-"""rdl_cheader_regs.py -- the firmware-facing register headers, from the chip
-addrmap, through STOCK PeakRDL-cheader.
+"""VestaRV: the firmware-facing register headers, from the chip addrmap through PeakRDL-cheader.
 
-    software/include/regs/<block>_regs.h   one per peripheral BLOCK: the field
-                                           masks, shifts, widths and reset
-                                           values, the enumerated values, and
-                                           the packed struct overlay of the
-                                           block's registers
-    software/include/regs/castalia_regs.h  the umbrella: every block header, one
-                                           base address and one typed pointer
-                                           per INSTANCE, and the interrupt vector
-
-    tools/bin/bazel run //platform/common/python:rdl_regs_headers
-
-WHAT THIS IS NOT. It is not a replacement for MemoryMap.h, which the chip
-generator emits and which R5 owns. MemoryMap.h is address-major -- one
-<INST><REG>_ADDRESS per register, plus the <FIELD>_MASK/_LSB defines the
-existing firmware is written against. These headers are type-major: a struct per
-peripheral and a pointer per instance, which is what lets firmware write
-    UART0_REGS->UARTxCR = ...
-instead of computing an address. The two describe the same chip, and
-//platform/common:regs_headers_vs_memorymap_test is the gate that says so: every
-base and every register address in these headers equals MemoryMap.h's.
-
-WHY THE BLOCK HEADERS ARE EXPORTED PER BLOCK AND NOT PER INSTANCE. A block's
-field geometry is identical in every instance; only the base address and the two
-per-instance reset generics (GPIO's RstValPx*, I2C's default_SAD) differ. The
-reset macros PeakRDL emits are therefore the BLOCK's, and castalia_regs.h carries
-the per-instance overrides as <INST><REG>_RESET where the top addrmap assigns
-one. Exporting per instance would multiply 359 registers by 34 instances for two
-peripherals' worth of difference.
-
-STOCK EXPORTER, ONE ADDITION. PeakRDL-cheader does not emit SystemRDL `encode`
-members, so the enumerated values -- TIMER's DIV_1..DIV_32768, SPI's SPIDL_*,
-SPI's clock-divider select -- would be lost. They are appended by _enumLines() under
-a banner that says they are this repo's addition, in the exporter's own
-<REGTYPE>__<FIELD>__<MEMBER> spelling. Everything else in those files is stock
-output and is not touched.
+Emits software/include/regs/<block>_regs.h per peripheral block and castalia_regs.h as the
+umbrella. These are type-major (a struct per block, a pointer per instance) where MemoryMap.h
+is address-major; regs_headers_vs_memorymap_test gates that the two agree. Stock exporter
+plus one addition: _enumLines() appends the SystemRDL `encode` members PeakRDL drops.
 """
 
 import argparse
@@ -124,11 +92,10 @@ def _enumLines(root):
 
 
 def _splice(text, extra, banner):
-    """Put `extra` inside the extern "C" block, and `banner` at the top.
-
-    The anchor is the CLOSING `#ifdef __cplusplus`, the one that shuts the
-    extern "C" the exporter opens, so the addition sits with the rest of the
-    header's content and not after it."""
+    """Put `extra` inside the extern "C" block and `banner` at the top. The anchor is the closing
+    `#ifdef __cplusplus`, the one that shuts the extern "C" the exporter opens, so the addition
+    sits with the header's content rather than after it.
+    """
     if extra:
         at = text.rfind('#ifdef __cplusplus')
         if at < 0:

@@ -1,5 +1,4 @@
-X3 Zknd/Zkne AES-32 negative controls
-=====================================
+VestaRV: X3 Zknd/Zkne AES-32 negative controls
 Two seeds, applied against the FIXED X3-Stage-B AES tree, each RE-INTRODUCES a
 specific AES datapath bug that the AES-128 FIPS-197 KAT (and the directed
 per-op tests) detect. Both seeds are DORMANT on the default build (ENABLE_ZKN

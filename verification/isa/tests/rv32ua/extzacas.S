@@ -1,30 +1,9 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extzacas.S   (X2 Zacas ext-probe, 2026-07-17)
-#-----------------------------------------------------------------------------
-# Build-time dispatch on CORE_ENABLE_ZACAS (extprobe_template.S convention —
-# the macro is supplied EXPLICITLY via -DCORE_ENABLE_ZACAS when staging the ON
-# polarity, NEVER auto-derived from a make-chip header or platform/common/out/
-# state; the two build-order traps in that header apply verbatim).
-#
-#   ON  (#ifdef CORE_ENABLE_ZACAS): execute real amocas.w encodings and CHECK
-#       the architectural results -> PASS. Functional matrix: both compare
-#       outcomes + aliasing spot-checks (rd==rs1, rd==rs2). Sub-word amocas.b/.h
-#       are additionally gated on CORE_ENABLE_ZABHA (they ride Zabha's lane
-#       machinery and are legal ONLY when both extensions are built).
-#
-#   OFF (#else): the amocas.w encoding executed UNCONDITIONALLY. On a build
-#       without Zacas the encoding MUST take the illegal-instruction trap
-#       (funct5 whitelist: amocas.w is a RESERVED word AMO funct5 when Zacas is
-#       off). run_extoff.sh + trap_watch.tcl report TRAP_OK; executing PAST it
-#       -> FAIL. Wired ONLY into behavioral_mp_stripped/run_extoff.sh (the
-#       a0-watch runner would hang on the terminal TRAP_STATE).
-#
-# gas 13.2 has no amocas mnemonic / no `zacas' -march (verified at X2 bring-up),
-# so every CAS is an explicit `.insn' R-type (funct5=00101, funct7=0x14):
-#     .insn r 0x2f, funct3, 0x14, rd, rs1_base, rs2_val
-#*****************************************************************************
+# VestaRV: Zacas extension probe
+# BUILD-TIME DISPATCH on CORE_ENABLE_ZACAS, supplied EXPLICITLY with -DCORE_ENABLE_ZACAS when staging the ON polarity and never auto-derived from a generated header or build output. With it defined, the real amocas.w encodings execute and their results are checked across both compare outcomes plus the aliasing cases rd == rs1 and rd == rs2. THE SUB-WORD FORMS amocas.b AND amocas.h ARE ADDITIONALLY GATED ON CORE_ENABLE_ZABHA, because they ride Zabha's lane machinery and are legal only when both extensions are built.
+# Without the macro the amocas.w encoding executes unconditionally and must take the illegal-instruction trap, since amocas.w is a reserved word-AMO funct5 when Zacas is off; run_extoff.sh with trap_watch.tcl reports TRAP_OK, and executing past it is a FAIL. IT IS WIRED ONLY INTO behavioral_mp_stripped/run_extoff.sh, because the a0-watch runner would hang on the terminal TRAP_STATE.
+# gas 13.2 has no amocas mnemonic and no `zacas` -march token, so every CAS is an explicit `.insn` R-type with funct5 = 00101 and funct7 = 0x14: `.insn r 0x2f, funct3, 0x14, rd, rs1_base, rs2_val`.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,4 +1,4 @@
-# GHDL toolchain wiring for the open-source simulation tier.
+# VestaRV: GHDL toolchain wiring for the open-source simulation tier.
 #
 # The patch below is referenced from MODULE.bazel's single_version_override for
 # the ghdl module, so it has to be an exported source file of a real package.
@@ -21,9 +21,7 @@ alias(
     actual = "@ghdl//:vhdl_libs_v08",
 )
 
-# ---------------------------------------------------------------------------
 # The synthesizability gate and its frozen census
-# ---------------------------------------------------------------------------
 
 # Three roles in one script (run / gate / freeze), so the raw-netlist parser
 # has exactly one definition.  It is a build TOOL for ghdl_synth_test's synth
@@ -107,9 +105,7 @@ py_binary(
     main = "synth_census.py",
 )
 
-# ---------------------------------------------------------------------------
 # The coverage gate: no RTL file may dodge the census
-# ---------------------------------------------------------------------------
 
 # Every VHDL file under hdl/, one path per line, for the same reason
 # //tools/ci:vhdl_source_manifest exists: $(SRCS) expanded into an args list is

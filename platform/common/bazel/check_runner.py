@@ -1,26 +1,10 @@
 #!/usr/bin/env python3
-"""Run one of the generator's check_* scripts as a bazel test.
+"""VestaRV: run one of the generator's check_* scripts as a bazel test.
 
-The checks come in two shapes and this runner covers both:
-
-  * Explicit-argument checks (check_mcu_vhd, check_memorymap_vhd,
-    check_riscv_tb_vhd, check_memorymap_h, splice_web_data --check). They take
-    every path on the command line, so they only need the runfiles tree and,
-    for the C-compile check, an absolute RISCV_CC.
-
-  * Layout-derived checks (check_intro_names, check_configurator_sync). They
-    derive the repo root from their own __file__ and then read config/,
-    out/web/ and docs/ at fixed relative paths. Their inputs are GENERATED and
-    therefore live at different paths in bazel-out, so this runner stages the
-    pieces into a scratch tree under TEST_TMPDIR that has the layout the script
-    expects, and runs the script from there. Nothing is patched and the source
-    tree is never written to.
-
-Path tokens: an argument or environment value written as `abs:<path>` is
-resolved against the runfiles root and made absolute; `stage:<path>` is
-resolved against the staged tree. Bare arguments are passed through untouched
-(the test's working directory is the runfiles root, so plain runfiles-relative
-paths already work).
+Explicit-argument checks take every path on the command line and need only the runfiles tree.
+Layout-derived checks resolve the repo root from their own __file__ and read fixed relative
+paths, so this stages the generated pieces into a scratch tree under TEST_TMPDIR with that
+layout. `abs:<path>` resolves against the runfiles root, `stage:<path>` against the staged tree.
 """
 
 import argparse

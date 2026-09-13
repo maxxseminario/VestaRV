@@ -1,5 +1,4 @@
-X3 Stage-D red-team (D2) — Zcmt cm.jt/cm.jalt LINK boundary (index 31<->32)
-==========================================================================
+VestaRV: X3 Stage-D red-team (D2), Zcmt cm.jt/cm.jalt LINK boundary (index 31<->32)
 DELIVERABLE D (seed 2): a distinct failure mode with a PROVEN detector gap.
 For Zcmt the index value ALONE selects the mnemonic: index<32 = cm.jt (no link),
 index>=32 = cm.jalt (links ra=PC+2). shcmt.S formerly tested only index=3 and

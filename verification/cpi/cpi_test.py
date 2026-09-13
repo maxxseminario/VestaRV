@@ -1,22 +1,10 @@
 #!/usr/bin/env python3
-"""Run one CPI image under vesta_cpi_tb and assert its counts against expected.json.
+"""VestaRV: run one CPI image under vesta_cpi_tb and assert its counts against expected.json.
 
-The verdict is an EXACT match on all four counters (whole-program cycles and
-retired instructions, and the same pair over the setStats() kernel window),
-not a tolerance. The simulation is deterministic: the same RTL, the same
-image and the same testbench produce the same counts every time, so any
-difference is a real change in what the core does, and a tolerance would only
-hide small ones.
-
-Everything is hermetic. The simulator is @ghdl//:ghdl with its pre-analyzed
-VHDL-2008 std/ieee libraries, the RTL comes from //hdl:vhdl_sources through a
-vhdl_source_set, and the image was built by //verification/cpi's genrules on
-the pinned @xpack_riscv_gcc toolchain. The host contributes the Python
-interpreter and nothing else.
-
-Analysis order is load bearing (three conflicting `regfile` entities in the
-tree, two `ClkGate` entities), so the source list arrives as an ordered argv
-tail rather than as a filegroup.
+The verdict is an exact match on all four counters, not a tolerance: the simulation is
+deterministic, so any difference is a real change in what the core does. Hermetic, the host
+contributing only the Python interpreter. Analysis order is load bearing (conflicting regfile
+and ClkGate entities), so the source list arrives as an ordered argv tail.
 """
 
 import argparse

@@ -1,15 +1,16 @@
+// VestaRV: I2C slave driver interface
+// Every call returns a non-negative result or a negative I2C_SLAVE_* error code; the i2cx_* forms take an I2Cx_t* and the bare i2c_* forms act on I2C0.
+
 #pragma once
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/** Includes **/
 #include <MemoryMap.h>
 
 
 
-/** Defines **/
 #define I2C_SLAVE_GOOD					(0)
 #define I2C_SLAVE_RECEIVER				(0)
 #define I2C_SLAVE_TRANSMITTER			(1)
@@ -32,7 +33,6 @@ int8_t i2cx_slave_tx_byte(I2Cx_t* I2Cx, uint8_t tx_data);
 
 
 
-/** External Function Declarations **/
 int8_t i2c_slave_init(uint8_t this_slave_address);
 uint8_t i2c_has_slave_been_addressed();
 uint8_t i2c_slave_get_mode();

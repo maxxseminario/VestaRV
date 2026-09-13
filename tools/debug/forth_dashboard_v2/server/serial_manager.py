@@ -1,26 +1,9 @@
-"""The serial core: one owner thread, one command queue, prompt-driven framing.
+"""VestaRV: the serial core, one owner thread, one command queue, prompt-driven framing.
 
-Design (per the WP2 contract):
-
-* ONE background thread owns the transport.  Nothing else ever reads or writes
-  it.  REST handlers and the WS terminal both enqueue a request and await a
-  concurrent.futures.Future -> transactions never interleave.
-* Framing is driven by the chip's echo + '>' prompt, NOT by sleeps.  The chip
-  echoes every byte it receives; getLine() prints "\n>" whenever it wants input.
-  A text transaction therefore is:  write "cmd\n"  ->  read back the echo of
-  exactly those bytes  ->  read output until '>' (the prompt).  Because ASCII/
-  decimal/hex output never contains '>', and the echo (which may hold the Forth
-  word '>') is consumed first by exact byte count, the '>' we stop on is always
-  the prompt.
-* Binary reads (mr mode 1) can contain a 0x3E ('>') byte, so they are gated on a
-  length-counted read (read_exact), never a prompt scan -- see memops.py.  Such
-  transactions supply their own runner via submit_interaction().
-* Explicit state machine, auto-reconnect with capped backoff, and an unsolicited
-  output channel (bytes that arrive when no transaction is active, e.g. a reset
-  banner) routed to listeners.
-
-No time.sleep() is used anywhere in the serial path: blocking waits are the
-port read timeout, queue.get(timeout=...), and stop-event waits.
+One background thread owns the transport; callers enqueue and await a Future, so transactions
+never interleave. A text transaction writes the command, reads back its echo by exact byte
+count, then reads until the '>' prompt, which is unambiguous because output never contains it.
+Binary reads can contain 0x3E and use a length-counted read instead. No time.sleep() anywhere.
 """
 
 import enum
@@ -33,7 +16,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from server import forth
 
-# Tunables -------------------------------------------------------------------
+# Tunables
 IDLE_POLL = 0.05          # how long queue.get blocks while waiting for work (s)
 IDLE_READ = 0.05          # how long an idle transport read blocks (s)
 FILL_SLICE = 0.25         # max single blocking read inside a transaction (s)
@@ -62,9 +45,7 @@ class TransportError(Exception):
     """The underlying port failed (unplugged, closed, OS error)."""
 
 
-# ---------------------------------------------------------------------------
 # Transports
-# ---------------------------------------------------------------------------
 
 class RealSerial:
     """pyserial-backed transport.  pyserial is imported lazily on first use."""
@@ -113,15 +94,11 @@ class RealSerial:
             pass
 
 
-# ---------------------------------------------------------------------------
 # Framing channel (exclusive to the owner thread for the life of one txn)
-# ---------------------------------------------------------------------------
 
 class Channel:
-    """Deadline-bounded framing helpers over a transport.
-
-    All reads honour a single absolute deadline; when it passes they raise
-    TransactionTimeout.  Leftover bytes past a marker are retained for the next
+    """Deadline-bounded framing helpers over a transport. All reads honour a single absolute deadline
+    and raise TransactionTimeout when it passes; bytes left past a marker are retained for the next
     read within the same transaction.
     """
 
@@ -164,9 +141,7 @@ class Channel:
         self._t.write(data)
 
 
-# ---------------------------------------------------------------------------
 # Requests
-# ---------------------------------------------------------------------------
 
 class _Request:
     __slots__ = ("run", "future", "tx_label", "timeout", "retries")
@@ -192,9 +167,7 @@ def _text_runner(command: str) -> Callable[[Channel], str]:
     return run
 
 
-# ---------------------------------------------------------------------------
 # Serial manager
-# ---------------------------------------------------------------------------
 
 class SerialManager:
     """Owns the transport thread, the command queue, and the state machine."""
@@ -226,7 +199,7 @@ class SerialManager:
         self._thread = threading.Thread(
             target=self._run, name="serial-owner", daemon=True)
 
-    # -- lifecycle ---------------------------------------------------------
+    # -- lifecycle
 
     def start(self) -> None:
         self._thread.start()
@@ -240,7 +213,7 @@ class SerialManager:
             self._transport.close()
             self._transport = None
 
-    # -- listener plumbing -------------------------------------------------
+    # -- listener plumbing
 
     def add_listener(self, fn: Callable[[dict], None]) -> None:
         self._listeners.append(fn)
@@ -257,7 +230,7 @@ class SerialManager:
             except Exception:  # noqa: BLE001 - a bad listener must not break serial
                 pass
 
-    # -- public control ----------------------------------------------------
+    # -- public control
 
     def connect(self, port: Optional[str] = None,
                 baud: Optional[int] = None) -> None:
@@ -295,7 +268,7 @@ class SerialManager:
         self._queue.put(req)
         return future
 
-    # -- status ------------------------------------------------------------
+    # -- status
 
     @property
     def state(self) -> ConnectionState:
@@ -326,7 +299,7 @@ class SerialManager:
             "error": self._last_error,
         }
 
-    # -- owner thread ------------------------------------------------------
+    # -- owner thread
 
     def _run(self) -> None:
         while not self._stop.is_set():
@@ -455,13 +428,9 @@ class SerialManager:
         self._set_state(ConnectionState.UNRESPONSIVE)
 
     def _resync(self) -> bool:
-        """Recover synchronisation after a timeout.
-
-        (1) Drain stale input until the line is quiet (bounded repeated short
-        reads, stopping on the first empty read).  (2) Write a lone "\\n" to
-        elicit a fresh getLine() prompt.  (3) Read until the prompt with a short
-        deadline.  Returns True if the prompt was reached, False otherwise (the
-        caller must then fail fast).  Propagates TransportError if the port dies.
+        """Recover synchronisation after a timeout: drain stale input until the line is quiet, write a
+        lone newline to elicit a fresh prompt, then read until the prompt with a short deadline.
+        Returns whether the prompt was reached, and propagates TransportError if the port dies.
         """
         for _ in range(RESYNC_MAX_DRAIN):
             if not self._transport.read(4096, RESYNC_QUIET_READ):
@@ -495,7 +464,7 @@ class SerialManager:
             self._emit("rx", text)
             self._note_banner(text)
 
-    # -- helpers -----------------------------------------------------------
+    # -- helpers
 
     def _note_banner(self, text: str) -> None:
         if not text:
@@ -540,9 +509,7 @@ def _display(result: Any) -> str:
     return repr(result)
 
 
-# ---------------------------------------------------------------------------
 # Port discovery
-# ---------------------------------------------------------------------------
 
 def list_ports() -> List[Dict[str, str]]:
     """Return candidate serial ports as [{device, description}, ...]."""

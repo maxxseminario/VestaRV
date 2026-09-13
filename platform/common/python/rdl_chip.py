@@ -1,25 +1,10 @@
 #!/usr/bin/env python3
-"""rdl_chip.py -- the WHOLE-CHIP artifacts, emitted from the top addrmap.
+"""VestaRV: the whole-chip artifacts, emitted from the top addrmap.
 
-rdl_emit.py works one peripheral TEMPLATE at a time, which is the right unit for
-a chapter's register tables and for a header fragment. Two artifacts are not
-per-template: the TRM's flat register index (the appendix) and MemoryMap.h's
-per-INSTANCE address defines. Both need the instance names and base addresses,
-and the only place those are written down in SystemRDL is
-hdl/common/regs/rdl/castalia_penta_wound.rdl.
-
-So this walks that addrmap, binds each instance to the .rdl block its
-vesta_peripheral names, and emits:
-
-    PeripheralAndRegistersList-rdl.tex   the register index, through rdl_latex's
-                                         borrowed LatexUserGuide methods, so the
-                                         table is the same shape as the one
-                                         GeneratePeripheralAndRegistersList emits
-    MemoryMap_rdl.h                      one <REG>_ADDRESS per instance register
-                                         in the tracked header's convention, plus
-                                         rdl_cheader's per-template fragment
-
-    rdl_chip.py --top <file.rdl> --out <dir> [--config <rdl.json>]
+The TRM's flat register index and MemoryMap.h's per-instance address defines are not
+per-template: they need instance names and base addresses, which SystemRDL states only in the
+top .rdl. This walks that addrmap, binds each instance to the block its vesta_peripheral names,
+and emits PeripheralAndRegistersList-rdl.tex and MemoryMap_rdl.h.
 """
 
 import argparse
@@ -41,11 +26,10 @@ DEFAULT_TOP = os.path.join(rdl_model.RDL_DIR, 'castalia_penta_wound.rdl')
 
 
 class _InstanceBlock(object):
-    """An RdlBlock for ONE elaborated instance, so the register templates carry
-       that instance's reset values. The .rdl block a peripheral is described by
-       is per TEMPLATE and resets everything the way the RTL's generic defaults
-       do; the per-instance values (GPIO's RstValPx*, I2C's default_SAD) are
-       dynamic assignments in the top addrmap and only exist after elaboration."""
+    """An RdlBlock for one elaborated instance, so its register templates carry that instance's reset
+    values. A peripheral's .rdl block is per template and resets everything as the RTL's generic
+    defaults do; the per-instance values are dynamic assignments that exist only after elaboration.
+    """
 
     def __init__(self, node, template):
         self.Node = node

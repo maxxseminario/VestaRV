@@ -1,24 +1,9 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# zbk.S   (X3 Stage B directed test: Zbkb + Zbkx + Zbkc, 2026-07-17)
-#-----------------------------------------------------------------------------
-# Single-hart, purely combinational ALU directed test with KNOWN-ANSWER vectors
-# for every new scalar-crypto bit-manip op:
-#   Zbkb: pack packh brev8 zip unzip
-#   Zbkx: xperm8 xperm4  (incl. out-of-range index -> 0 lanes)
-#   Zbkc: clmul clmulh   (OR-gated onto the existing Zbc datapath)
-#
-# BOTH-POLARITY (shzabha convention): the OFF build is the DEFAULT build (none of
-# CORE_ENABLE_ZBK* defined) and degrades to a trivially-passing arm so the suite
-# stays green; the ON build is produced by EXPLICITLY appending
-# -DCORE_ENABLE_ZBKB -DCORE_ENABLE_ZBKX -DCORE_ENABLE_ZBKC (mirrors the RTL
-# generics set true in MemoryMap.vhd). gas 13.2 has no zbk* mnemonics, so every
-# op is emitted with a raw `.insn` encoding under the base -march.
-#
-# Pass = 0xCAFEBABE in a0.  CORE_ENABLE_ZBK* come from the build -D flags, never
-# an include.
-#*****************************************************************************
+# VestaRV: scalar-crypto bit-manipulation directed test
+# Single-hart, purely combinational, with known-answer vectors for Zbkb (pack, packh, brev8, zip, unzip), Zbkx (xperm8, xperm4, including an out-of-range index giving zero lanes) and Zbkc (clmul, clmulh, OR-gated onto the existing Zbc datapath).
+# BOTH POLARITIES: the OFF build is the DEFAULT, with none of CORE_ENABLE_ZBK* defined, and degrades to a trivially passing arm so the suite stays green; the ON build is produced by explicitly appending -DCORE_ENABLE_ZBKB -DCORE_ENABLE_ZBKX -DCORE_ENABLE_ZBKC, mirroring the RTL generics. Those come from the build flags, never from an include.
+# gas 13.2 has no zbk* mnemonics, so every operation is emitted as a raw `.insn` encoding under the base -march. Pass is 0xCAFEBABE in a0.
 
 #include "riscv_test.h"
 #include "test_macros.h"

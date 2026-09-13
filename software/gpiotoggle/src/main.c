@@ -1,12 +1,6 @@
-/*
- * gpiotoggle - Manually toggle P3.0 (T0CMP0 pad) from a tight CPU loop.
- *
- * Uses the auto-generated platform header (platform/myshkin/gcc/lib/include/
- * MemoryMap.h, produced by platform/myshkin/python/generate.py). Note that what
- * the chip exposes externally as "P3.x" is driven by the HDL entity
- * named GPIO2 (slot 8, base 0x4800) -- see hdl/myshkin/MCU.vhd line ~855.
- * So GPIO2->* in this file refers to the P3 pads, and pin 0 is T0CMP0.
- */
+// VestaRV: gpiotoggle demo application
+// Toggles P3.0 (the T0CMP0 pad) from a tight CPU loop, through the generated MemoryMap.h.
+// The pads labelled P3.x are driven by the HDL entity GPIO2 (slot 8, base 0x4800), so GPIO2 here means the P3 pads and pin 0 is T0CMP0.
 
 #include "MemoryMap.h"
 

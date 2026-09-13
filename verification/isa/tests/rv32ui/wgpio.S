@@ -1,27 +1,9 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# wgpio.S  (wound-config firmware smoke — FW-2)
-#-----------------------------------------------------------------------------
-# GPIO4 @0x6300 / GPIO5 @0x6400 firmware-synthesized-edge IRQ delivery for the
-# HIGHEST source IDs, proving the 4th per-hart enable word (HhENX). Single-hart
-# directed (hart 0; tiles parked).
-#
-# No external stimulus: pads idle LOW (prt5_in/prt6_in = tb '0', riscv_tb:291-2).
-# The IES-flip idiom (GPIO.vhd:159,176-185): with prt_in=0, write PxIE=1 FIRST
-# (glitch-free ICG latches En while ClkIn=0), then write PxIES=1 ->
-# clk_if_comb = prt_in xor PxIES goes 0->1 -> rising edge -> PxIF set (PxIE=1)
-# -> irq <= PxIF (level). Clear via PxIF W1C (clr_if pulse, GPIO.vhd:281,304).
-#
-# Vectors proven:  98 = GPIO4 B0 (P5.0)  ·  113 = GPIO5 B7 (P6.7)  — the
-# corners of HhENX (source 98 -> bit 2, source 113 -> bit 17). PEND/INSVC RO
-# words cover 0-95 only, so delivery is proven by handler DONE flags ONLY.
-#
-# Idiom is validated behaviorally FIRST on an unrouted pin (GPIO4 B1) before the
-# routed IRQ arms rely on it.  GPIO is pure-mclk (no SYS_CLK_CR needed).
-#
-# GPIO reg offsets (RegSlotPx*): PxIF +24(0x18) PxIES +28(0x1C) PxIE +32(0x20).
-#*****************************************************************************
+# VestaRV: GPIO interrupt delivery for the highest source IDs
+# Hart 0 only, tiles parked. GPIO4 at 0x6300 and GPIO5 at 0x6400 deliver firmware-synthesized edges, which proves the FOURTH per-hart enable word HhENX. The vectors are 98, GPIO4 bit 0, and 113, GPIO5 bit 7, the CORNERS of that word at bits 2 and 17. The pending and in-service read-only words cover sources 0 to 95 only, SO DELIVERY IS PROVEN BY HANDLER DONE FLAGS ALONE.
+# THERE IS NO EXTERNAL STIMULUS: the pads idle LOW in the testbench, and the edge comes from the IES flip. With the input at 0, write PxIE = 1 FIRST, because the glitch-free clock gate latches the enable while its clock input is low, and then write PxIES = 1, which makes the combinational edge signal, the input exclusive-ORed with PxIES, go 0 to 1; that rising edge sets PxIF, which with PxIE set drives the level interrupt. It is cleared by writing 1 to PxIF.
+# The idiom is validated behaviourally FIRST on an unrouted pin before the routed interrupt arms rely on it. GPIO is pure mclk, so no SYS_CLK_CR write is needed. Register offsets: PxIF at +0x18, PxIES at +0x1C and PxIE at +0x20.
 
 #include "riscv_test.h"
 #include "test_macros.h"

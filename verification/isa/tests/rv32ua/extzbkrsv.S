@@ -1,25 +1,9 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extzbkrsv.S   (X3 Stage B Zbkb reserved-encoding trap probe, 2026-07-17)
-#-----------------------------------------------------------------------------
-# PURE POISON (always executes; no #ifdef). The OP-IMM encoding funct3=001,
-# imm12=0x698 (== BINVI rd,rs1,24, a Zbs encoding) must take the illegal-
-# instruction trap on ANY build without the Zbs (BITMANIP) extension.
-#
-# This is the exact encoding the Stage-B1 decode bug wrongly admitted: an early
-# is_zbkb_shared_i clause matched funct3=001 (instead of the correct funct3=101)
-# on imm12=REV8_IMM12=0x698, so on a ZBKB-on build it was decoded valid even
-# though it is NOT a Zbkb instruction (real rev8 is funct3=101). The fix makes
-# is_zbkb_shared_i match ONLY funct3=101, so this encoding is again ZBKB-
-# independent and falls to the SRL/SLL-group illegal path -> trap.
-#
-# Verified via the trap_watch harness (behavioral_mp_stripped/run_extoff.sh):
-#   * all-off stripped build (Zbs off, ZBKB off) -> TRAP_OK
-#   * ZBKB-on / BITMANIP-off build               -> TRAP_OK (the fix's target)
-# Wired into POISON_RCFS, not the a0-watch 118-suite (a terminal trap would hang
-# the a0 watchdog).
-#*****************************************************************************
+# VestaRV: Zbkb reserved-encoding trap probe
+# PURE POISON, always executed with no ifdef. The OP-IMM encoding with funct3 = 001 and imm12 = 0x698, which is `binvi rd, rs1, 24`, a Zbs encoding, must take the illegal-instruction trap on ANY build without Zbs.
+# THIS IS THE EXACT ENCODING A DECODE BUG WRONGLY ADMITTED: an early is_zbkb_shared_i clause matched funct3 = 001 instead of the correct 101 on imm12 = REV8_IMM12 = 0x698, so on a Zbkb-on build it decoded valid even though real rev8 is funct3 = 101. With is_zbkb_shared_i matching only funct3 = 101 the encoding is Zbkb-independent again and falls to the SRL/SLL-group illegal path.
+# Verified under the trap_watch harness on both the all-off stripped build and the Zbkb-on, BITMANIP-off build. It is wired into POISON_RCFS and not the a0-watch suite, where a terminal trap would hang the watchdog.
 
 #include "riscv_test.h"
 #include "test_macros.h"

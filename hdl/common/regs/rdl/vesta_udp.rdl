@@ -1,17 +1,6 @@
-// =============================================================================
-// vesta_udp.rdl: the user-defined properties every VestaRV .rdl description uses.
-//
-// SystemRDL says everything about a register that a generic tool needs. It does
-// not say the two things this repo's emitters need on top: the exact access code
-// the generator's BitField model uses, and whether a field's enumeration members
-// carry emitted names or are documentation only. Both are carried here rather
-// than inferred, because inference is where a register description silently
-// changes meaning.
-//
-// `vesta_access` is REDUNDANT BY DESIGN. platform/common/python/rdl_model.py
-// re-derives it from sw/hw/onwrite/singlepulse and REFUSES to compile a file
-// where the two disagree, so the code cannot drift away from the semantics.
-// =============================================================================
+// VestaRV: the user-defined properties every VestaRV .rdl description uses
+// SystemRDL says everything about a register that a generic tool needs. It does not say the two things this repo's emitters need on top: the exact access code the generator's BitField model uses, and whether a field's enumeration members carry emitted names or are documentation only. Both are carried here rather than inferred, because inference is where a register description silently changes meaning.
+// `vesta_access` is REDUNDANT BY DESIGN: platform/common/python/rdl_model.py re-derives it from sw/hw/onwrite/singlepulse and REFUSES to compile a file where the two disagree, so the code cannot drift away from the semantics.
 
 `ifndef VESTA_UDP_RDL
 `define VESTA_UDP_RDL
@@ -53,20 +42,8 @@ property vesta_word_base {
     component = addrmap;
 };
 
-// =============================================================================
-// PARAMETERISED BLOCKS (report R7, 2026-09-10). Four blocks -- CLINT, MUTEX,
-// IRQROUTER and PWRCTRL -- size their register SET and their FIELD GEOMETRY off
-// the configuration (numHarts, numMutexes, the arbiter master width masterW(),
-// vectorsCount). They are written as SystemRDL components with parameters and
-// register arrays, and elaborated by rdl_model with the generator's own values.
-// SystemRDL carries the structure; the four properties below carry the three
-// things it has no syntax for.
-//
-// They apply ONLY inside an addrmap that sets `vesta_indexed = true`, so no
-// other description's prose can be touched by the {expression} rendering. A
-// block that does not set it is loaded exactly as before, character for
-// character.
-// =============================================================================
+// Parameterised blocks. CLINT, MUTEX, IRQROUTER and PWRCTRL size their register SET and their FIELD GEOMETRY off the configuration (numHarts, numMutexes, the arbiter master width masterW(), vectorsCount). They are written as SystemRDL components with parameters and register arrays, and elaborated by rdl_model with the generator's own values; SystemRDL carries the structure and the four properties below carry the three things it has no syntax for.
+// They apply ONLY inside an addrmap that sets `vesta_indexed = true`, so no other description's prose can be touched by the {expression} rendering. A block that does not set it is loaded exactly as before, character for character.
 
 // Opt in to {expression} rendering of this block's names and descriptions.
 property vesta_indexed {

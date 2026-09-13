@@ -1,4 +1,4 @@
-"""
+"""VestaRV: peripheral configuration with bit-level definitions for the control registers.
 Enhanced Peripheral Configuration with Bitfield Definitions
 Includes detailed bit-level information for all control registers
 """
@@ -925,16 +925,7 @@ BITFIELDS['DSADC_SR'] = BITFIELDS['POTENTIOSTAT_SR']
 
 
 def get_bitfields(peripheral, register):
-    """
-    Get bitfield definitions for a register
-    
-    Args:
-        peripheral: Peripheral name (e.g., 'SPI0', 'GPIO0')
-        register: Register name (e.g., 'CR', 'POUT')
-    
-    Returns:
-        Dictionary of bitfields or None if not found
-    """
+    """The bitfield definitions of one peripheral register, or None if not found."""
     # Create a generic register name (remove instance number)
     generic_peripheral = peripheral.rstrip('0123456789')
     key = f"{generic_peripheral}_{register}"
@@ -943,16 +934,7 @@ def get_bitfields(peripheral, register):
 
 
 def extract_bitfield(reg_value, bitfield_info):
-    """
-    Extract a bitfield value from a register value
-    
-    Args:
-        reg_value: Full register value
-        bitfield_info: Bitfield info dict with 'bits' and 'width'
-    
-    Returns:
-        Extracted bitfield value
-    """
+    """Extract a bitfield value from a full register value, given a bitfield info dict."""
     bits = bitfield_info['bits']
     width = bitfield_info['width']
     
@@ -968,17 +950,7 @@ def extract_bitfield(reg_value, bitfield_info):
 
 
 def insert_bitfield(reg_value, bitfield_info, field_value):
-    """
-    Insert a bitfield value into a register value
-    
-    Args:
-        reg_value: Current register value
-        bitfield_info: Bitfield info dict with 'bits' and 'width'
-        field_value: New value for the bitfield
-    
-    Returns:
-        Updated register value
-    """
+    """Insert a bitfield value into a register value, given a bitfield info dict."""
     bits = bitfield_info['bits']
     width = bitfield_info['width']
     

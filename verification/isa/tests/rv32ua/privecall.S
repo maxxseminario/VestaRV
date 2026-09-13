@@ -1,49 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# privecall.S   (P1 standard M-mode trap DELIVERY — exceptions + MRET)
-#-----------------------------------------------------------------------------
-# ON-ONLY DIRECTED TEST. privcsr proves the CSR FILE; this file proves the
-# DELIVERY hardware in vesta's FSM (states MTRAP_SV -> MTRAP_JUMP, and the MRET
-# arm MTRAP_RET) against the frozen cause table in
-# ~/work/chip_docs/castalia/priv_arch/p0_specs.md 2.2:
-#
-#   ECALL from M          -> mcause 11, mtval 0, mepc = the ECALL's OWN pc
-#   EBREAK                -> mcause  3, mtval 0, mepc = its own pc
-#   illegal instruction   -> mcause  2, mtval = the faulting 32-bit encoding
-#   MRET                  -> pc <- mepc, MIE <- MPIE, MPIE <- 1
-#   trap entry            -> MPIE <- MIE, MIE <- 0   (the mstatus stack push)
-#
-# Sequence: arm mtvec FIRST, then opt into standard delivery (mtrapctl.LEGACY=0
-# — the D1 coexistence bit, which RESETS to 1 so an ON chip still runs the whole
-# legacy suite untouched). Two full ECALL round trips run back to back: the
-# second one is the proof that the MPIE/MIE stack RE-ARMS (a MRET that forgets
-# to restore MIE from MPIE leaves MIE=0, so the second entry pushes MPIE=0 and
-# the post-MRET mstatus never returns to 0x1888 — that is negative control (a),
-# verification/isa/negctrl/p1_mpierestore_seed.patch).
-#
-# Every failure path is a compare-and-branch into RVTEST_FAIL, never a watchdog
-# hang: the bounded checks are value comparisons, and the trap counter s3 makes
-# "no trap was delivered at all" a bounded FAIL too.
-#
-# REGISTER CONTRACT (this file's handler does NOT save/restore — standard mode
-# pushes NOTHING, by design: a U-mode sp is untrusted, software uses mscratch):
-#   s0  expected mepc for the trap under test
-#   s1  resume witness (written by the instruction at mepc+4)
-#   s2  handler address
-#   s3  trap counter (handler increments; the main flow checks it)
-#   s4  mcause captured in the handler
-#   s5  mepc   captured in the handler
-#   s6  mstatus captured INSIDE the trap (the pushed state)
-#   s7  mtval  captured in the handler
-#   t5  handler scratch (never live across a trap in the main flow)
-#   t4  CHECK ID at every comparison — a FAIL is localisable from a0/t4 alone
-#
-# BUILD-TIME DISPATCH (privcsr / extjvt idiom): ON iff -DCORE_ENABLE_TRAPCSR is
-# appended to RISCV_GCC_OPTS on a staged trapCsr build. The #else arm FAILs
-# immediately and loudly — privecall is deliberately NOT in the default
-# behavioral_mp runner array, so that arm must never execute.
-#*****************************************************************************
+# VestaRV: standard M-mode trap delivery, exceptions and MRET
+# ON-ONLY, the exception half of the delivery proof; privirq is the interrupt half. It exercises vesta's FSM states MTRAP_SV, MTRAP_JUMP and MTRAP_RET against the frozen cause table: ECALL from M gives mcause 11, mtval 0 and mepc = the ECALL's own PC; EBREAK gives mcause 3, mtval 0 and mepc = its own PC; an illegal instruction gives mcause 2 and mtval = the faulting 32-bit encoding; MRET sets pc to mepc, MIE to MPIE and MPIE to 1; and trap entry pushes MPIE from MIE and clears MIE.
+# ORDER MATTERS: arm mtvec FIRST, then opt into standard delivery by clearing mtrapctl.LEGACY, which RESETS TO 1 so an ON chip still runs the whole legacy suite untouched. TWO FULL ECALL ROUND TRIPS RUN BACK TO BACK, and the second is the proof that the MPIE and MIE stack re-arms: an MRET that forgets to restore MIE from MPIE leaves MIE clear, so the second entry pushes MPIE = 0 and the post-MRET mstatus never returns to 0x1888.
+# Every failure path is a compare and branch into RVTEST_FAIL rather than a watchdog hang, and the trap counter s3 makes "no trap was delivered at all" a bounded failure too.
+# REGISTER CONTRACT, and this file's handler deliberately does NOT save or restore, because standard mode pushes nothing: a U-mode sp is untrusted and software uses mscratch. s0 is the expected mepc for the trap under test, s1 the resume witness written by the instruction at mepc+4, s2 the handler address, s3 the trap counter, s4 mcause, s5 mepc, s6 the mstatus captured INSIDE the trap, s7 mtval, t5 handler scratch never live across a trap in the main flow, and t4 the CHECK ID at every comparison.
+# BUILD-TIME DISPATCH: assembled only with -DCORE_ENABLE_TRAPCSR on a staged trapCsr build; the #else arm fails immediately and loudly, and this file is deliberately not in the default runner array.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,55 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shwfi.S  (M5b; M12 single-ROM boot rework)
-#-----------------------------------------------------------------------------
-# HART-GENERIC real-CLINT IPI + sleep/wake test — the M5b signature test.
-#
-# M12: tiles are NO LONGER preloaded. Hart 0 stages this TCM image once and
-# launches each tile into tile_entry through the bootrom loader — the FIRST
-# msip[h] is consumed by the ROM loader (the launch). The tile then advertises
-# READY and extinguishes; hart 0's SECOND msip[h] is the real test IPI, taken
-# by the tile's OWN msip ISR (slot 83, copied into its TCM). So the launch and
-# the wake are two successive msips per tile.
-#
-# Supersedes nothing: shboot.S (soft-CLINT poll-parking) stays. THIS test
-# parks harts 1-3 with the vesta SLEEP instruction (extinguish: clk_cpu gated
-# OFF) and wakes them with a REAL hardware IPI — hart 0 writes CLINT msip[h];
-# the level IRQ enters the tile's irq_vector at slot IRQB_CLINT_MSIP (83, the
-# only enabled slot besides mtip), the mclk-domain irq_handler un-gates the
-# sleeping core, the ISR clears the msip level, ignites (clears sleep_cpu so
-# iret resumes MAINLINE instead of falling back to sleep), and the woken hart
-# reports DONE.
-#
-# CLINT (shared window, all harts reach it through the arbiter):
-#     MSIP[h]     = 0x5000 + 4*h    (bit 0; level IRQ to hart h)
-# Shared words (>= 0x10150, clear of all earlier tests' words):
-#     READY[h]    = 0x10150 + 4*h            0x4EAD0000+h before hart h sleeps
-#     DONE[h]     = 0x10150 + 4*NHARTS + 4*h 0xD00E0000+h after hart h wakes
-# Argus A3: the DONE base is placed AFTER the NHARTS-sized READY array so it
-# can't overrun it at N=18 (N=4: DONE base 0x10160, unchanged; N=18: 0x10198,
-# READY 0x10154..0x10194, DONE 0x1019C..0x101DC, all < 0x10500).
-#
-# RACE NOTE (why sleep-after-READY is safe): the arbiter SERIALIZES the
-# window. Hart 0 can only observe READY[h] after hart h's store completed,
-# and the IPI needs at least one MORE full shared transaction after that
-# observation; hart h executes extinguish (private, unstallable) on the very
-# next instruction after its store releases. So msip[h] can never arrive
-# before hart h is asleep.
-#
-# Hart 0 (SPI boot) per hart 1..3 IN TURN: LAUNCH the tile (loader row + first
-# msip), bounded-wait READY[h], verify DONE[h]==0 (really parked, asleep),
-# write msip[h]=1 (the test IPI), bounded-wait DONE[h], verify msip[h]==0 (the
-# tile's ISR ran and cleared it). All three -> RVTEST_PASS.
-#
-# IVT: the env's DEFINE_IVT (inside RVTEST_CODE_BEGIN) emits slots 0-82; we
-# extend the SAME .ivt section with slots 83 (msip -> ISR) and 84 (mtip ->
-# FAIL: mtimecmp resets all-ones, it must never fire here).
-#
-# ISR contract in this core: hardware pushes ONLY the return PC (at sp-4,
-# IRQ_SV) — registers are the ISR's job, and sp MUST be valid before any IRQ
-# can fire (set to top of the private TCM at entry, before the first IPI).
-#*****************************************************************************
+# VestaRV: CLINT IPI sleep and wake test
+# Harts 1..N-1 park with the vesta SLEEP instruction (extinguish, clk_cpu gated off) and are woken by a REAL hardware IPI: hart 0 writes CLINT msip[h] = 0x5000 + 4*h, the level IRQ enters the tile's vector at slot IRQB_CLINT_MSIP (83, the only enabled slot besides mtip), the mclk-domain irq_handler un-gates the sleeping core, and the ISR clears the msip level and ignites, so iret resumes MAINLINE instead of falling back to sleep.
+# THERE ARE TWO SUCCESSIVE msips PER TILE: the first is consumed by the ROM loader as the launch, and the second is the test IPI taken by the tile's own slot-83 ISR. Between them the tile advertises READY and extinguishes.
+# Shared words: READY[h] = 0x10150 + 4*h (0x4EAD0000 + h, before hart h sleeps), DONE[h] = 0x10150 + 4*NHARTS + 4*h (0xD00E0000 + h, after it wakes). DONE is placed after the NHARTS-sized READY array so it cannot be overrun; at N=18 DONE runs 0x1019C..0x101DC, below the loader rows at 0x10500.
+# SLEEP-AFTER-READY IS SAFE BY CONSTRUCTION: the arbiter serialises the window, so hart 0 can only observe READY[h] after hart h's store completed, and the IPI needs at least one more full shared transaction after that observation, while hart h executes the private, unstallable extinguish on its very next instruction.
+# Hart 0, per tile in turn: launch it, wait for READY[h], require DONE[h] == 0 so the tile really is parked, write msip[h] = 1, wait for DONE[h], and require msip[h] == 0 so the ISR really ran and cleared it.
+# The env's DEFINE_IVT emits slots 0-82; this file extends the SAME .ivt section with slot 83 for msip and slot 84 for mtip, which routes to FAIL because mtimecmp resets all-ones and must never fire here. Hardware pushes ONLY the return PC at sp-4, so registers are the ISR's job and sp MUST be valid before any IRQ can fire.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,34 +1,10 @@
 #!/usr/bin/env python3
-"""rdl_model.py -- compile a VestaRV .rdl description into the generator's own
-register objects.
+"""VestaRV: compile a .rdl description into the generator's own register objects.
 
-This is the whole of the SystemRDL integration. Every emitter in this repo
-(rdl_latex, rdl_cheader, rdl_vhdl, rdl_configurator) consumes RegisterTemplate /
-BitField objects, exactly as LatexUserGuide.py and ChipGenerator.py already do,
-so an .rdl description reaches the TRM, the C header, the RTL package and the
-configurator through code that is already proven rather than through four new
-formatters. The consequence is that a peripheral moved onto SystemRDL emits
-byte-identical output, which is what //platform/common:rdl_vs_generator_test
-asserts.
-
-Since report R5 this is not only a cross-check but THE SOURCE: generate.py builds
-eighteen of the twenty-two peripheral templates by calling registerTemplatesFor()
-and carries no register data of its own for them. config/rdl.json's registerSource
-field says which, and why the other four are still hand-written.
-
-Two properties are not inferred from SystemRDL semantics but read from
-hdl/common/regs/rdl/vesta_udp.rdl:
-
-  vesta_access        the generator's access code (rw, r, rw1, w1, ...). It is
-                      re-derived here from sw/hw/onwrite/singlepulse and a
-                      mismatch is an error, so the redundancy cannot rot.
-  vesta_named_values  whether the field's enum member identifiers are emitted as
-                      value-description names (and therefore become C macros).
-
-Reserved bits are NOT written in SystemRDL -- they are simply absent. The
-generator requires every bit of a register to belong to a BitField, so the gaps
-are filled here with `unused=True` fields, which is also the check that an .rdl
-register is fully specified.
+Every emitter consumes RegisterTemplate and BitField objects, so an .rdl description reaches
+the TRM, the C header, the RTL package and the configurator through proven code. Two
+properties are read from vesta_udp.rdl rather than inferred: vesta_access, re-derived here
+so the redundancy cannot rot, and vesta_named_values. Reserved gaps are filled unused=True.
 """
 
 import ast
@@ -46,7 +22,7 @@ RDL_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
     'hdl', 'common', 'regs', 'rdl')
 
-# OVERLAY (2026-09-12). An out-of-tree overlay mirrors the repository layout, so
+# OVERLAY. An out-of-tree overlay mirrors the repository layout, so
 # its register descriptions sit at <overlay>/hdl/common/regs/rdl and its extra
 # registry rows at <overlay>/platform/common/config/rdl.json. Both are searched
 # AFTER the tree's own -- a fallback, never an override -- and both are empty
@@ -82,7 +58,7 @@ _ACCESS_FROM_RDL = {
     ('w', 'r', None, True): 'w1',
     ('w', 'r', None, False): 'w',
     ('w', 'na', None, False): 'w',
-    # --- added by the 20-block sweep (R2, 2026-09-10) -------------------------
+    # added by the 20-block sweep (R2)
     # A plain read/write register the HARDWARE ALSO WRITES. The generator has no
     # separate code for it -- it is still 'rw' to software -- but hw=r would be
     # a lie about GPIO's PxOUT (the event fabric's task_outset/task_outclr write
@@ -115,13 +91,9 @@ _RESERVED_RE = 'RESERVED'
 
 
 def _rdlAccess(field):
-    """(sw, hw, onwrite, onread, singlepulse) as SystemRDL spells them.
-
-       The generator access code below collapses this tuple: `rw` is the answer
-       for hw=r, hw=na AND hw=rw, and `rw1` for woclr, woset and wot alike. That
-       is right for a published access column and wrong for a decode, which has
-       to know which side owns the flop and which direction a written 1 acts in.
-       The tuple is carried on the BitField as RdlAccess so an emitter can ask.
+    """(sw, hw, onwrite, onread, singlepulse) as SystemRDL spells them. The generator's access code
+    collapses this tuple, which is right for a published access column and wrong for a decode, so
+    it is carried on the BitField as RdlAccess for an emitter to ask.
     """
     onwrite = field.get_property('onwrite')
     onread = field.get_property('onread')
@@ -145,8 +117,7 @@ def _accessCode(field):
     return _ACCESS_FROM_RDL[key]
 
 
-# ---------------------------------------------------------------------------
-# PARAMETERISED BLOCKS (report R7). Four blocks -- CLINT, MUTEX, IRQROUTER and
+# PARAMETERISED BLOCKS. Four blocks -- CLINT, MUTEX, IRQROUTER and
 # PWRCTRL -- size their register SET and their FIELD GEOMETRY off the
 # configuration, so they are written as SystemRDL components with parameters and
 # register arrays and elaborated here with the generator's own values. SystemRDL
@@ -165,7 +136,6 @@ def _accessCode(field):
 # other eighteen descriptions are loaded character for character as before --
 # which matters, because their prose contains braces of its own ({SRC,DST,LEN},
 # "{4,8}", "{seconds, subsecond}").
-# ---------------------------------------------------------------------------
 
 _BRACE_RE = re.compile(r'\{([^{}]+)\}')
 
@@ -173,10 +143,10 @@ _EXPR_FUNCS = {'min': min, 'max': max}
 
 
 def _evalExpr(expr, scope, where):
-    """One {expression}: integer arithmetic over the block's parameters and `i`.
-
-       Deliberately not eval(): an AST walk over a fixed node set, so a
-       description cannot reach anything but the numbers it is given."""
+    """One {expression}: integer arithmetic over the block's parameters and `i`. Deliberately not
+    eval(): an AST walk over a fixed node set, so a description cannot reach anything but the
+    numbers it is given.
+    """
     try:
         tree = ast.parse(expr.strip(), mode='eval')
     except SyntaxError:
@@ -273,21 +243,9 @@ def _live(node):
 
 
 def _valueDescriptions(field, scope=None, where=None):
-    """The generator's (value, description, name) tuples for an encoded field.
-
-    These are assigned to BitField.ValueDescriptions DIRECTLY rather than passed
-    to the constructor, because the constructor's third tuple element is a name
-    SUFFIX that it concatenates onto the field name: handing it a finished name
-    such as SPIDL_8 produces SPIDLSPIDL_8. The .rdl enum member identifier is the
-    emitted name, whole, exactly as vesta_udp.rdl's vesta_named_values says --
-    unless the member sets SystemRDL's own `name` property, which a
-    parameterised block uses to render the index into it (MTXOWN{i}_FREE).
-
-    A parameterised block may then APPEND a run of value descriptions whose
-    count is a parameter (vesta_values_*), which is the only way to enumerate
-    "one owner marker per hart" for a field that is 4 bits wide here and 6 on
-    argus: a SystemRDL enum is a static type whose member values must fit the
-    field, and the compiler rejects the widest one on the narrowest field.
+    """The generator's (value, description, name) tuples for an encoded field, assigned to
+    BitField.ValueDescriptions directly because the constructor's third element is a name suffix
+    it concatenates. A parameterised block may append a run whose count is a parameter.
     """
     named = bool(field.get_property('vesta_named_values'))
     out = []
@@ -336,14 +294,9 @@ def _fillReserved(rt, size, claimed):
 
 
 def _registerNodes(node):
-    """Every register of one addrmap, arrays unrolled and regfiles flattened.
-
-       A regfile is how a block whose registers INTERLEAVE on a stride is
-       written: CLINT's MTIMECMPnL/H are one 8-byte pair per hart, and two
-       interleaved REGISTER arrays are rejected outright ("Instance 'MTIMECMPH'
-       at offset +0x34:0x5B overlaps with 'MTIMECMPL'"). The generator's map is
-       flat, so the hierarchy is flattened back out here. No unparameterised
-       block uses a regfile, so this yields exactly what node.registers() did.
+    """Every register of one addrmap, arrays unrolled and regfiles flattened. A regfile is how a
+    block whose registers interleave on a stride is written, since two interleaved register arrays
+    are rejected outright; the generator's map is flat, so the hierarchy is flattened back out.
     """
     from systemrdl.node import RegNode
     return [n for n in node.descendants(unroll=True) if isinstance(n, RegNode)]
@@ -450,15 +403,9 @@ class RdlBlock(object):
 
 
 def compileFiles(paths, top=None, incdirs=None, parameters=None, defines=None):
-    """Compile .rdl files and return the RdlBlock for `top` (or every addrmap
-       that names a vesta_peripheral, when `top` is None).
-
-       `parameters` are SystemRDL component parameter overrides applied at
-       ELABORATION (numHarts, numMutexes, masterW(), vectorsCount ...).
-       `defines` are preprocessor symbols applied at COMPILE, for the two things
-       a parameter cannot do: instantiate a register conditionally and choose
-       between two descriptions. Every guard is written so that NO defines is
-       the default five-hart chip, which is what the block's own gates grade.
+    """Compile .rdl files and return the RdlBlock for `top`, or every addrmap naming a
+    vesta_peripheral when top is None. `parameters` override components at elaboration, `defines`
+    are compile-time symbols; every guard is written so that no defines is the default chip.
     """
     from systemrdl import RDLCompiler
     from systemrdl.messages import MessagePrinter
@@ -496,15 +443,10 @@ def compileFiles(paths, top=None, incdirs=None, parameters=None, defines=None):
 
 
 def loadBlock(fileName, top, parameters=None, defines=None):
-    """The RdlBlock of one tracked description, by file name and addrmap name.
-
-       `parameters` / `defines` elaborate a PARAMETERISED block (CLINT, MUTEX,
-       IRQROUTER, PWRCTRL) for the configuration in hand; omitting both gives
-       the block's own defaults, which are the five-hart chip.
-
-       Memoised on all four, because generate.py asks for one peripheral at a
-       time and the gates ask repeatedly, and a SystemRDL compile is the
-       expensive part of both."""
+    """The RdlBlock of one tracked description, by file name and addrmap name. `parameters` and
+    `defines` elaborate a parameterised block for the configuration in hand; omitting both gives
+    its own defaults. Memoised on all four, because a SystemRDL compile is the expensive part.
+    """
     key = (fileName, top,
            tuple(sorted((parameters or {}).items())),
            tuple(sorted((defines or {}).items())))
@@ -528,13 +470,10 @@ _COMPILE_CACHE = {}
 
 
 def loadConfig(path=None):
-    """rdl.json, with the overlay's registry rows merged in.
-
-       THE one reader of the registry, because there were two and an overlay
-       that reached only one of them emitted a block's header but left it out of
-       the chip umbrella. The overlay's names are its own namespace; a collision
-       with a public block is a mistake on the overlay's side and stops the
-       build here rather than silently shadowing one."""
+    """rdl.json, with the overlay's registry rows merged in. The one reader of the registry, because
+    there were two and an overlay reaching only one emitted a block's header but left it out of
+    the umbrella. A name collision with a public block stops the build rather than shadowing one.
+    """
     path = path or CONFIG_PATH
     with open(path) as f:
         cfg = json.load(f)
@@ -553,11 +492,9 @@ def loadConfig(path=None):
 
 
 def blocks(configPath=None):
-    """[{file, top, peripheral, registerSource, name}] for every rdl:true entry.
-
-       Read from rdl.json rather than restated here: a second list is a second
-       place to forget a peripheral, which is the defect this whole toolchain
-       exists to remove."""
+    """[{file, top, peripheral, registerSource, name}] for every rdl:true entry, read from rdl.json
+    rather than restated here: a second list is a second place to forget a peripheral.
+    """
     path = configPath or CONFIG_PATH
     if path not in _BLOCKS_CACHE:
         cfg = loadConfig(path)
@@ -581,15 +518,10 @@ def loadAll(configPath=None):
 
 def registerTemplatesFor(peripheralTemplateName, sources=None, configPath=None,
                         parameters=None, defines=None):
-    """Every register template of one peripheral, from every block that feeds it,
-       slot-ordered -- the shape generate.py's PeripheralTemplate carries.
-
-       `sources` restricts the blocks to the named .rdl files, which is how a
-       peripheral whose register file is assembled CONDITIONALLY is built.
-
-       `parameters` / `defines` are the configuration a PARAMETERISED block is
-       elaborated for -- generate.py passes its OWN numHarts, numMutexes,
-       masterW() and vectorsCount, the same numbers it hands the RTL."""
+    """Every register template of one peripheral, from every block that feeds it, slot-ordered.
+    `sources` restricts the blocks to the named .rdl files, which is how a conditionally assembled
+    register file is built; `parameters` and `defines` are the configuration to elaborate for.
+    """
     out = []
     for b in blocks(configPath):
         if b['peripheral'] != peripheralTemplateName:

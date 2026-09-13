@@ -1,10 +1,8 @@
-"""JSON-file-backed macro store (named Forth snippet library, feature F9).
+"""VestaRV: the JSON-file-backed macro store, a named Forth snippet library.
 
-A macro is {name, commands: [str, ...], description} (Fable ruling 6).
-Persistence is a single JSON file (data/macros.json by default); the store
-tolerates the file being absent (empty library) and writes atomically.  No
-serial access here -- running a macro is the API layer enqueuing each command
-line through the serial manager like any other command.
+A macro is {name, commands: [str, ...], description}, persisted to one JSON file
+(data/macros.json by default), written atomically, with an absent file read as an empty
+library. No serial access here: running a macro is the API layer enqueuing each command line.
 """
 
 import json
@@ -25,7 +23,7 @@ class MacroStore:
         self._macros = {}  # type: Dict[str, Dict[str, Any]]
         self._load()
 
-    # -- persistence -------------------------------------------------------
+    # -- persistence
 
     def _load(self) -> None:
         if not os.path.exists(self._path):
@@ -51,7 +49,7 @@ class MacroStore:
             json.dump({"macros": list(self._macros.values())}, handle, indent=2)
         os.replace(tmp, self._path)
 
-    # -- CRUD --------------------------------------------------------------
+    # -- CRUD
 
     def list(self) -> List[Dict[str, Any]]:
         with self._lock:

@@ -1,87 +1,14 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# privrt2.S   (P2 RED TEAM — PRIVILEGE-STATE INTEGRITY + the mcounteren surface)
-#-----------------------------------------------------------------------------
-# ON-ONLY DIRECTED TEST (needs a trapCsr+umode build).  Companion to privrt1
-# (which owns the trap-entry side-effect class); this file owns the state
-# machine around `priv` and the counter-access surface, filling the holes the
-# P2 test set leaves open:
-#
-#   PHASE A — MPP IS PUSHED FROM THE LIVE PRIVILEGE, NOT LEFT ALONE.
-#       csr_unit's trap-entry arm is `mst_mpp <= priv_m & priv_m`.  A trap
-#       taken IN M must therefore OVERWRITE a previously-staged MPP=00 with
-#       11.  Nothing in privumode/privucsr pins that direction: they only ever
-#       trap from U (where the push happens to agree with the staged value).
-#       The seed p2rt_mppush pins it from the other side.
-#       This is also the spec's "an inner trap destroys the outer mstatus" —
-#       software must save it — recorded here as a property, not a bug.
-#
-#   PHASE B — AN INTERRUPT DELIVERED TO A U-MODE HART.
-#       COMPLETELY UNCOVERED before this file: privirq takes msip in M only.
-#       Proven here: mcause = 0x80000003, the PUSHED mstatus carries MPP=00
-#       (the interrupted privilege was U) and MPIE=1 (U was running with
-#       MIE=1), the handler MRETs and U RESUMES.  mepc is a resume PC, so it
-#       is checked as a RANGE inside the U block rather than an exact word —
-#       the interrupt is taken at whichever U instruction retires first.
-#
-#   PHASE C — THE csr_addr(9:8) COMPARATOR vs A FULLY-OPEN mcounteren.
-#       With mcounteren = 0x1F every USER view that EXISTS (cycle/instret/
-#       hpmcounter3-4 and their h-forms — EIGHT reads since DD11-N1, see the
-#       note below) must read in U, while the MACHINE
-#       views of the same counters (0xB00 mcycle, 0xB80 mcycleh) and
-#       mcountinhibit (0x320) must still trap.  That is the one comparator
-#       doing its job with the counter gate wide open — the exact combination
-#       no other test reaches.  hpmcounter5 / hpmcounter5h (0xC05 / 0xC85) are
-#       the CONTRACT-SILENT ruling in maindec: mcounteren bits 5-31 are WARL 0,
-#       so those addresses can NEVER be enabled and must trap even at 0x1F.
-#
-#   PHASE D — mcounteren BIT INDEPENDENCE.
-#       privucsr proves CY+HPM3 together (with TM off).  Here TM and HPM4 are
-#       written TOGETHER while CY/IR/HPM3 stay off, then IR alone: across the
-#       two files each of the four bits that still GATES anything is shown to
-#       gate its own CSR and only its own.  TM(1) gates nothing since DD11-N1
-#       and is carried here only to prove that setting it changes nothing.
-#
-#   DD11-N1 AMENDMENT (2026-08-06) — WHY FOUR READS MOVED FROM MUST-RETIRE TO
-#   MUST-TRAP.  time (0xC01) and timeh (0xC81) are no longer KNOWN CSRs in ANY
-#   build of either chip: maindec's csr_addr_valid dropped them, because no
-#   real time source is wired to the core and reading zero was a wrong answer
-#   to a legal question.  They now raise illegal-instruction BEFORE the
-#   mcounteren gate is consulted, so they trap in M and U alike and at EVERY
-#   value of mcounteren.TM.  This file demanded they RETIRE in two legs (the
-#   all-ten leg of PHASE C at mcounteren = 0x1F, and the TM = 1 leg of PHASE
-#   D1); both are now must-TRAP legs, which is strictly MORE coverage — the
-#   TM = 1 leg is the only place in the tree proving that an ENABLED
-#   mcounteren.TM does not rescue 0xC01/0xC81.  Trap counts moved with them
-#   (PHASE C 5 -> 7, PHASE D1 3 -> 5).
-#       Consequence for the red-team seeds, recorded rather than silently
-#       inherited: `negctrl/p2rt_ucnttm_seed.patch` mutated the very
-#       ucnt_denied TM term that DD11-N1 deleted.  That seed no longer
-#       applies (its context line is gone) and its check-71 observable is no
-#       longer reachable through mcounteren at all.  The patch is kept as
-#       historical repro material; do not expect it to apply.
-#
-# EVERY failure path is a bounded compare-and-branch into RVTEST_FAIL: the U
-# code carries its own expected trap count in s11 and re-checks it after each
-# poison, so "a poison that failed to trap" is caught IN U, immediately.
-#
-# REGISTER CONTRACT (standard mode pushes NOTHING; M and U share the regfile):
-#   s0  the poison's own address — published by the U code, checked as mepc
-#   s1  U-mode witness word;  s2  handler address
-#   s3  trap counter (handler increments)
-#   s4  mcause captured in the handler;  s5  mepc captured in the handler
-#   s6  mstatus captured INSIDE the trap (the PUSHED state)
-#   s7  trap-count snapshot around must-NOT-trap reads
-#   s8  CLINT msip[hart 0] (0x5000)
-#   s9  M-mode continuation address (handler `jr s9` on a U ECALL)
-#   s11 the U code's EXPECTED trap count
-#   t4  CHECK ID at every comparison
-#
-# BUILD-TIME DISPATCH: ON iff BOTH -DCORE_ENABLE_TRAPCSR and -DCORE_ENABLE_UMODE
-# are appended to RISCV_GCC_OPTS.  privrt2 is deliberately NOT in the default
-# behavioral_mp runner array, so the #else arm must never execute.
-#*****************************************************************************
+# VestaRV: red team, privilege-state integrity and the mcounteren surface
+# ON-ONLY, needing a trapCsr and umode build. Companion to privrt1, which owns the trap-entry side-effect class; this file owns the state machine around priv and the counter-access surface. Every failure path is a bounded compare and branch, and the U code carries its own expected trap count in s11 and re-checks it after each poison, so a poison that failed to trap is caught in U immediately.
+# PHASE A: MPP IS PUSHED FROM THE LIVE PRIVILEGE, NOT LEFT ALONE. csr_unit's trap-entry arm sets mst_mpp from priv_m, so a trap taken IN M must overwrite a previously staged MPP = 00 with 11. Nothing else pins that direction, because the other tests only ever trap from U, where the push happens to agree with the staged value. This is also the spec's "an inner trap destroys the outer mstatus", so software must save it.
+# PHASE B: AN INTERRUPT DELIVERED TO A U-MODE HART, uncovered before this file, since privirq takes msip in M only. It proves mcause = 0x80000003, that the PUSHED mstatus carries MPP = 00 because the interrupted privilege was U and MPIE = 1 because U was running with MIE set, and that the handler MRETs and U resumes. mepc is a resume PC, so it is checked as a RANGE inside the U block rather than an exact word, since the interrupt is taken at whichever U instruction retires first.
+# PHASE C: the csr_addr(9:8) comparator against a fully open mcounteren. With mcounteren = 0x1F every USER view that exists, cycle, instret, hpmcounter3 and hpmcounter4 with their h-forms, must read in U, while the MACHINE views of the same counters, 0xB00 mcycle and 0xB80 mcycleh, and mcountinhibit at 0x320 must still trap. hpmcounter5 and hpmcounter5h are the contract-silent case: mcounteren bits 5-31 are WARL 0, so those addresses can never be enabled and must trap even at 0x1F.
+# PHASE D: mcounteren bit independence. TM and HPM4 are written together while CY, IR and HPM3 stay off, then IR alone, so across this file and privucsr each bit that still gates anything is shown to gate its own CSR and only its own. TM GATES NOTHING NOW and is carried only to prove that setting it changes nothing.
+# time (0xC01) and timeh (0xC81) ARE NO LONGER KNOWN CSRs IN ANY BUILD: maindec's csr_addr_valid dropped them, because no real time source is wired to the core and reading zero was a wrong answer to a legal question. They raise illegal-instruction BEFORE the mcounteren gate is consulted, so they trap in M and U alike at every value of mcounteren.TM, and the TM = 1 leg here is the only place in the tree proving that an enabled mcounteren.TM does not rescue them.
+# REGISTER CONTRACT, standard mode pushing nothing and M and U sharing the register file: s0 the poison's own address, published by the U code and checked as mepc; s1 the U-mode witness word; s2 the handler address; s3 the trap counter; s4 mcause; s5 mepc; s6 the mstatus captured INSIDE the trap; s7 the trap-count snapshot around must-not-trap reads; s8 CLINT msip[hart 0] at 0x5000; s9 the M-mode continuation on a U ECALL; s11 the U code's expected trap count; t4 the CHECK ID at every comparison.
+# BUILD-TIME DISPATCH: assembled only with both -DCORE_ENABLE_TRAPCSR and -DCORE_ENABLE_UMODE; this file is deliberately not in the default runner array.
 
 #include "riscv_test.h"
 #include "test_macros.h"

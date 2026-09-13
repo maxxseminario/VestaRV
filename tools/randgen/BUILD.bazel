@@ -1,3 +1,5 @@
+# VestaRV: the constrained-random instruction-stream generator and its self-tests.
+
 load("@rules_python//python:defs.bzl", "py_binary", "py_library", "py_test")
 
 package(default_visibility = ["//visibility:public"])
@@ -54,29 +56,16 @@ py_binary(
 #     //verification/isa:scalar_macros is that filegroup; staging it also
 #     materialises verification/isa/ so the '..' path resolves.
 #
-# THE k3s01 PIN WAS ADJUDICATED 2026-08-23: BENIGN CONFIG DRIFT, RE-RECORDED.
-# The campaign was recorded 2026-08-03 at 5a0cc19 against config digest
-# 9ca2e20fb3d2 (priv=(none) harts=4). Two later default flips moved it to
-# 1ffadbaf4c85:
-#   * 52130ac (2026-08-04) K7 item 1 -- priv.trapCsr false -> true, which also
-#     turns image_defines into ["-DCORE_ENABLE_TRAPCSR"],
-#   * e9ece88 / 1af1953 (2026-08-14/15) Castalia Penta -- numHarts 4 -> 5.
-# (isa.minimalTiles, also set by 1af1953, is NOT in oracle_isa._REQUIRED_ISA,
-# so it reaches neither the knob line nor the digest.)
+# THE CAMPAIGN PINS ARE RE-RECORDED WHEN A DEFAULT KNOB FLIP MOVES THE CONFIG
+# DIGEST, AND ONLY AFTER THE DRIFT IS MEASURED BENIGN. The check is: rebuild all
+# six streams with the current generator against the OLD resolved config and
+# require every recorded hash byte for byte, then diff old-config against
+# new-config output and require the only moved line to be the `# config :`
+# reproduction comment. Neither numHarts nor trapCsr reaches an emitter, so a
+# flip of either moves the digest and nothing else.
 #
-# Measured before re-recording, which is what makes this benign rather than
-# assumed: rebuilding all six streams with the CURRENT generator against the
-# 2026-08-03 resolved config reproduces all six recorded hashes byte for byte,
-# and diffing old-config against new-config output moves exactly ONE line in
-# each of the eight tracked default-config .S files -- the `# config :`
-# reproduction comment. No instruction, no class count, no total, no blocked
-# class and no required amendment moved. Neither numHarts nor trapCsr reaches
-# an emitter (numHarts appears only in identity/digest/manifest; trapCsr is
-# oracle verdict B and only adds itself to knobs_on_without_emitter).
-#
-# The recorded "one failure" was itself an artefact: the eq() sat inside the
-# per-stream loop, so it aborted on k3s01 and hid that all six had moved. The
-# test now diagnoses the config digest first and lists every moved stream, and
+# The test diagnoses the config digest first and lists every moved stream, because
+# an eq() inside the per-stream loop aborts on the first and hides the rest, and
 # both arms were seen to fail before the tag came off.
 py_test(
     name = "test_randgen",

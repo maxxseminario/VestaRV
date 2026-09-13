@@ -1,114 +1,14 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# dbgtrpmp.S   (D-series, D4 -- the trampoline plant, observed IN BAND)
-#-----------------------------------------------------------------------------
-# BLIND-AUTHORED 2026-08-07 against d4_spec.md sections 1/3/6 (FROZEN
-# 2026-08-07) by an agent that has not seen and will never see the D4
-# implementation.  Committed polarity (R-K5-8): CORRECT RTL = PASS.
-#
-# NEEDS A HARNESS.  This image is one half of an instrument; the other half is
-# a tcl debugger.  Run it as:
-#     ./xrun_dbg_verify.sh verify_castaliadebug ../rcf/xxxxrv32ua-p-dbgtrpmp.rcf dbg_tramp.tcl
-#   and likewise with dbg_trpact.tcl / dbg_trprep.tcl / dbg_trpheal.tcl /
-#   dbg_trpsess.tcl.  Run WITHOUT a harness it fails on 0x0D260004 (nobody ever
-#   released it), which is the correct answer: there was no debugger.
-#
-# WHAT IT CLAIMS, ARCHITECTURALLY, AND WHY THE CLAIM IS CONTENT-FREE
-#   The harness can peek RAM cells; this image cannot, and that is the point.
-#   Everything below is a hart executing loads and stores through mp_arbiter,
-#   so a page that reads correct here reads correct to the machine.
-#
-#   The image POISONS the 40-word trampoline slot on command (0x5EAD0000 --
-#   see below for why that value), and its final verdict is:
-#
-#       at release, NONE of the 40 words still holds the poison, and NONE of
-#       them is zero, and the seven-word page TAIL (words 57..63) still holds
-#       the mark this image wrote before any debugger existed.
-#
-#   That claim names no instruction.  It does not know, and must not know,
-#   what the trampoline contains -- d4_spec 2 makes the built .words file the
-#   single content oracle and gives it to a checker, and a test that hard-coded
-#   one trampoline word would become a THIRD source of truth for the same 40
-#   words.  What the claim does say is: something overwrote my poison at
-#   0x10780-0x1081F with non-zero words, and it was not me, and it did not walk
-#   past word 39.  On a chip whose Debug Module plants the trampoline that is
-#   true; at 286921d, where nothing plants it, the poison is still sitting
-#   there and this image FAILS with 0x0D260010.
-#
-# WHY 0x5EAD0000 AND NOT 0xDEADC0DE
-#   A poisoned entry page is FETCHED by a halted hart.  0xDEADC0DE has
-#   bits[1:0] = 10, a legal compressed opcode, so a poisoned page could decode
-#   as real compressed instructions and let a debug-mode hart execute garbage
-#   -- stores anywhere, jumps anywhere.  0x5EAD0000's low halfword is 0x0000,
-#   the canonical illegal compressed encoding, so the very first halfword
-#   fetched traps; the upper half is never reached.  It is also distinguishable
-#   from an untouched (zero) word, which 0x00000000 would not be, and its bit
-#   31 is clear so it can be published into a1-a3 on a FAIL path without
-#   tripping the periph_tb_pkg img() overflow.
-#
-# VERDICT (a0 = 0xCAFEBABE pass / 0xDEADBEEF fail; a1 = diagnosis):
-#   0x0D260001  the claimed shared band did not read back zero after clearing
-#   0x0D260002  base-ISA sanity failed (the arithmetic below is wrong)
-#   0x0D260003  the page TAIL mark did not read back after hart 0 wrote it
-#               (a2 = tail word index) -- write-before-read on the CODE-ONLY
-#               half of the entry page, discharged in band, not inherited
-#   0x0D260004  the harness never released this image (SH_REL never arrived).
-#               Run without a debugger, this is the expected answer.
-#   0x0D260005  the victim tile never started (SH_RAN never advanced)
-#   0x0D260006  the agent tile never started (SH_DIAG never armed)
-#   0x0D260010  at release, N of the 40 entry-page words STILL HOLD THE POISON
-#               (a2 = N).  THE HEADLINE FAILURE: nothing planted the page.
-#   0x0D260011  at release, N of the 40 words are ZERO (a2 = N).  A page that
-#               nobody ever wrote, or a plant that wrote zeros.
-#   0x0D260012  the page TAIL was damaged (a2 = tail word index).  A plant
-#               that walked past word 39.
-#
-# NEGATIVE CONTROL.  Build with -DDBGTRP_NC_NOPOISON and the image never
-# poisons on command; the final scan then measures a page nobody has attacked.
-# On a D4 chip it still passes (the plant fills it anyway); on 286921d it fails
-# 0x0D260011 instead of 0x0D260010, which distinguishes "the poison persisted"
-# from "the page was never written by anyone".  The two arms together are what
-# make 0x0D260010 mean what it says: the poison really did land, and it really
-# did survive.
-#
-# N-AGNOSTIC.  Two tiles are launched by number (1 and 2) and hart 3 is
-# DELIBERATELY LEFT PARKED IN THE BOOT ROM -- dbg_trpsess.tcl halts it to prove
-# the no-force session works against a ROM-parked tile as well as a running
-# one (d4_spec 3, "both tile states").  No word is indexed by hartid, so the
-# layout is identical at N=4 and N=18; at N=18 harts 3..17 are all parked.
-#
-# SHARED WORDS CLAIMED -- the D-series debug acceptance band 0x10050-0x1007C
-#   (CLAUDE.md; 12 words), REUSED with this file's meanings.  Safe for the
-#   shdma/wdma reason: one image per sim, and the D-series debug instruments
-#   never coexist.  Claim and use are the same document (the F-ID2-1 lesson):
-#     0x10050  PHASE   hart 0 progress
-#     0x10054  READY   image -> harness: both tiles are demonstrably running
-#     0x10058  CMD     harness -> image: 1 poison, 2 scan, 3 corrupt word ARG
-#     0x1005C  ARG     harness -> image: the command argument
-#     0x10060  SEQ     harness -> image: sequence number; a NEW value is the
-#                      command edge.  An ordering, never a delay.
-#     0x10064  ACK     image -> harness: echoes SEQ when the command is done
-#     0x10068  CHK     image -> harness: rotate-xor hash of the 40 page words,
-#                      computed by a RUNNING hart's own loads
-#     0x1006C  W0      image -> harness: page word 0, as the hart read it
-#     0x10070  W39     image -> harness: page word 39, as the hart read it
-#     0x10074  RAN     the victim tile's liveness counter
-#     0x10078  REL     harness -> image: release to the final verdict
-#     0x1007C  DIAG    the agent tile's arming mark, then failure diagnosis
-#
-#   THE HARNESS MUST NOT FORCE ANY BAND WORD BEFORE READY.  hart 0 clears all
-#   twelve and reads them back at entry; a word forced before that check reads
-#   back non-zero and the image fails 0x0D260001 for a harness's reason.
-#
-# ALSO TOUCHED, and NOT a new claim: the debug program page 0x10680-0x1087F is
-#   already claimed in CLAUDE.md.  This image writes only inside it: the 40
-#   trampoline words 0x10780-0x1081F (poison/corrupt/scan) and the seven-word
-#   tail 0x10864-0x1087C (the mark).  It never touches 0x10680-0x1077F (the DM's
-#   data/progbuf/FLAGS words) or 0x10820-0x10860 (the DM's abstract area and
-#   epilogue).  The tail is OUTSIDE the bootrom zero range, so hart 0 writes it
-#   and reads it back before anything else may read it.
-#*****************************************************************************
+# VestaRV: the debug trampoline plant, observed in band
+# NEEDS A HARNESS: it is one half of an instrument, the other half being a tcl debugger. Run it as `./xrun_dbg_verify.sh verify_castaliadebug ../rcf/xxxxrv32ua-p-dbgtrpmp.rcf dbg_tramp.tcl`, and likewise for the other dbg_trp*.tcl profiles. Run WITHOUT a harness it fails with 0x0D260004, nobody having released it, which is the correct answer: there was no debugger.
+# THE CLAIM IS DELIBERATELY CONTENT-FREE. The harness can peek RAM cells and this image cannot, which is the point: everything here is a hart executing loads and stores through mp_arbiter, so a page that reads correct here reads correct to the machine. The image poisons the 40-word trampoline slot on command and its verdict is that at release NONE of the 40 words still holds the poison, NONE is zero, and the seven-word page TAIL still holds the mark this image wrote before any debugger existed. THAT NAMES NO INSTRUCTION, and must not: the built .words file is the single content oracle and belongs to a checker, so a test that hard-coded a trampoline word would become a third source of truth for the same 40 words. What it does say is that something overwrote the poison with nonzero words, that it was not this image, and that it did not walk past word 39.
+# THE POISON IS 0x5EAD0000, NOT 0xDEADC0DE, and the choice is load-bearing: a poisoned entry page is FETCHED by a halted hart, and 0xDEADC0DE has bits [1:0] = 10, a legal compressed opcode, so a poisoned page could decode as real compressed instructions and let a debug-mode hart execute garbage. 0x5EAD0000's low halfword is 0x0000, the canonical illegal compressed encoding, so the very first halfword fetched traps and the upper half is never reached. It is also distinguishable from an untouched zero word, which 0x00000000 would not be, and its bit 31 is clear so it can be published into a1 through a3 on a failure path without tripping the testbench's image-value overflow check.
+# Verdicts: a0 = 0xCAFEBABE passes, 0xDEADBEEF fails with a1 the diagnosis. 0x0D260001 the claimed shared band did not read back zero after clearing; 0x0D260002 base-ISA sanity failed; 0x0D260003 the page TAIL mark did not read back after hart 0 wrote it, which discharges write-before-read on the code-only half of the entry page in band; 0x0D260004 the harness never released the image, the expected answer with no debugger; 0x0D260005 the victim tile never started; 0x0D260006 the agent tile never started; 0x0D260010 N of the 40 words STILL HOLD THE POISON, the headline failure meaning nothing planted the page; 0x0D260011 N of the 40 words are ZERO, so the page was never written or the plant wrote zeros; 0x0D260012 the page TAIL was damaged, so a plant walked past word 39.
+# NEGATIVE CONTROL -DDBGTRP_NC_NOPOISON never poisons on command, so the final scan measures a page nobody has attacked: on a chip that plants the page it still passes, and on one that does not it fails with the zero code rather than the poison code, which distinguishes "the poison persisted" from "the page was never written by anyone". The two arms together are what make the poison code mean what it says.
+# N-agnostic: two tiles are launched by number and hart 3 is DELIBERATELY LEFT PARKED IN THE BOOT ROM, so one of the harness profiles can halt it and prove the no-force session works against a ROM-parked tile as well as a running one. No word is indexed by hartid.
+# Shared words, the D-series debug acceptance band 0x10050-0x1007C reused with this file's meanings under the one-image-per-sim rule: 0x10050 PHASE, 0x10054 READY, 0x10058 CMD (1 poison, 2 scan, 3 corrupt word ARG), 0x1005C ARG, 0x10060 SEQ, where a NEW value is the command edge and never a delay, 0x10064 ACK echoing SEQ when the command is done, 0x10068 CHK, a rotate-xor hash of the 40 page words computed by a running hart's own loads, 0x1006C W0 and 0x10070 W39 as the hart read them, 0x10074 RAN the victim's liveness counter, 0x10078 REL, 0x1007C DIAG. THE HARNESS MUST NOT FORCE ANY BAND WORD BEFORE READY: hart 0 clears all twelve and reads them back at entry, and a word forced before that check reads back nonzero and fails the image for a harness's reason.
+# Also touched, and not a new claim: the debug program page 0x10680-0x1087F. This image writes only the 40 trampoline words 0x10780-0x1081F and the seven-word tail 0x10864-0x1087C, and NEVER touches 0x10680-0x1077F, the DM's data, progbuf and FLAGS words, or 0x10820-0x10860, its abstract area and epilogue. The tail is outside the bootrom zero range, so hart 0 writes it and reads it back before anything else may read it.
 
 #include "riscv_test.h"
 #include "test_macros.h"

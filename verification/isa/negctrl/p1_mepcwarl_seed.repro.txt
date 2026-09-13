@@ -1,5 +1,4 @@
-P1 trap-CSR file negative control — seeded-bug repro (Agent A, 2026-07-28)
-==========================================================================
+VestaRV: P1 trap-CSR file negative control, seeded-bug repro
 
 Seed: p1_mepcwarl_seed.patch DROPS the mepc bit-0 WARL mask in
 hdl/common/vesta/csr_unit.vhd — mepc_r widens to (31 downto 0), the CSR write

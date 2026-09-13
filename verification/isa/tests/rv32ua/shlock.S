@@ -1,53 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shlock.S  (M7c — LOCKING: the advisory-lock signature test;
-#            M12 single-ROM boot rework; Argus A3 N-hart journal rework)
-#-----------------------------------------------------------------------------
-# M12: tiles are NO LONGER preloaded. Hart 0 stages this TCM image once and
-# launches all tiles 1..NHARTS-1 into tile_entry through the bootrom loader
-# (mp_boot.h); each tile then parks on the test's OWN GO gate until hart 0 has
-# configured UART1, exactly as before.
-#-----------------------------------------------------------------------------
-# ADVISORY SOFTWARE LOCKS for shared-peripheral SESSIONS. Register-level
-# atomicity is free (whole-txn arbiter grant); session-level ownership is an
-# ADVISORY LOCK WORD in shared RAM taken with the shspin LR/SC pattern
-# (hartid-scaled backoff + bounded retry — M4c/M5a rules).
-#
-# ALL harts contend for UART1 (0x4500) sessions: each hart commits 4 sessions,
-# each session = acquire the lock, transmit a 4-byte message with the full
-# per-byte UTCIF flag dance, journal every byte in shared RAM at a lock-protected
-# global index (JIDX), re-check OWNER, release. The tb has no UART receiver, so
-# ATOMICITY IS PROVEN VIA THE JOURNAL: hart 0 requires JIDX == 16*NHARTS and
-# every 4-aligned journal group to be ONE hart's 4 consecutive bytes
-# (word = 0x40 + hartid*16 + i), with per-hart session counts EXACTLY 4 each.
-# Any interleaved session shears a group or collides on JIDX.
-#
-# ARGUS A3 N-HART JOURNAL REWORK (user decision 2026-07-10): the 4-hart-hard
-# journal machinery is parameterized. (a) JIDX target = 16*NHARTS; (b) the
-# journal (64*NHARTS bytes) MOVED to 0x11000 — above the bootrom loader rows
-# (0x10500..) which an 18-hart journal would have collided with — and is
-# write-before-read (self-zeroed, no bootrom zeroing needed); (c) the packed
-# 32-bit per-hart counter (0x04040404, only 4 harts) is replaced by a per-hart
-# COUNTS[] array in shared RAM (hart 0 zeroes it, tallies each group, then
-# requires every COUNTS[h] == 4); (d) the acquire budget scales 4096*NHARTS
-# (= 16384 at N=4, identical; more contenders at N=18 = longer honest waits).
-# Verified passing at N=4 AND N=18.
-#
-# UART1's baud core is smclk-domain => hart 0 writes SYS_CLK_CR=0 FIRST
-# (bootrom parks SMCLK on LFXT — M6 rule), configures BR/CR with readbacks,
-# then opens the starting gate (GO). No token ring — the LOCK is the only
-# serializer; contention is the point.
-#
-# Shared words (control block < 0x10500; journal/counts above the loader rows):
-#     LOCK     = 0x10240          0 free / hartid+1 held (advisory)
-#     OWNER    = 0x10244          holder re-checks before release
-#     GO       = 0x10248          0x600D10CC after hart 0's UART1 config
-#     JIDX     = 0x1024C          journal entry index (must end 16*NHARTS)
-#     DONE[h]  = 0x10250 + 4*h    0x10CC0000+h after hart h's 4 sessions
-#     JOURNAL  = 0x11000          16*NHARTS words, one per transmitted byte
-#     COUNTS   = 0x11800          NHARTS words, hart 0's per-hart session tally
-#*****************************************************************************
+# VestaRV: advisory software locks for shared-peripheral sessions
+# Register-level atomicity is free, since the arbiter grants whole transactions, but SESSION-level ownership is an ADVISORY LOCK WORD in shared RAM, taken with the LR/SC spin pattern using hartid-scaled backoff and a bounded retry. All harts contend for UART1 sessions at 0x4500: each hart commits 4 sessions, and a session acquires the lock, transmits a 4-byte message with the full per-byte UTCIF flag dance, journals every byte at a lock-protected global index, re-checks the owner and releases.
+# THE TB HAS NO UART RECEIVER, SO ATOMICITY IS PROVEN VIA THE JOURNAL: hart 0 requires JIDX to end at 16*NHARTS and every 4-aligned journal group to be ONE hart's four consecutive bytes, with per-hart session counts of exactly 4. Any interleaved session shears a group or collides on the index.
+# The journal machinery is parameterised in NHARTS rather than hard-coded for four harts: the target index is 16*NHARTS; the journal is 64*NHARTS bytes and sits ABOVE the boot ROM loader rows, which an 18-hart journal would otherwise collide with, and is write-before-read so no bootrom zeroing is needed; the per-hart session tally is an array rather than a packed 32-bit word; and the acquire budget scales as 4096*NHARTS, so more contenders simply wait longer.
+# UART1's baud core is smclk-domain, so hart 0 writes SYS_CLK_CR = 0 FIRST, because the boot ROM parks SMCLK on LFXT, then configures BR and CR with readbacks before opening the gate. There is no token ring: the LOCK is the only serialiser and contention is the point.
+# Shared words, with the control block below 0x10500 and the journal and counts above the loader rows: LOCK = 0x10240, 0 free or hartid + 1 held; OWNER = 0x10244, re-checked before release; GO = 0x10248; JIDX = 0x1024C; DONE[h] = 0x10250 + 4*h; JOURNAL = 0x11000, 16*NHARTS words, one per transmitted byte; COUNTS = 0x11800, NHARTS words.
 
 #include "riscv_test.h"
 #include "test_macros.h"

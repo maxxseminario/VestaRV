@@ -1,7 +1,7 @@
-# Myshkin-2025-11 Implementation Makefile
-# Chip-specific build and flash operations
+# VestaRV: build, flash and RAM-upload operations for the Myshkin-2025-11 part.
+# `make <target> <program>` takes the program name as a bare goal, so every
+# unmatched goal is absorbed by the catch-all rule below.
 
-# Paths
 REPO_ROOT = ../../..
 FLASH_PROG = $(REPO_ROOT)/tools/flash_programmer/forthprog.py
 RAM_PROG   = $(REPO_ROOT)/tools/flash_programmer/forthram.py
@@ -10,12 +10,12 @@ FORTHRUN   = $(REPO_ROOT)/tools/flash_programmer/forthrun.py
 CHIP_NAME = myshkin-2025-11
 BOARD_NAME = MyshkinDevBoard
 
-# Entry point used by `make run*` (forthram.py `call0` target).
-# Override on the command line, e.g.  make run-rcf blinky RAM_ENTRY=0x8000
+# Entry point for `make run*`, the forthram.py call0 target. Override on the
+# command line: make run-rcf blinky RAM_ENTRY=0x8000
 RAM_ENTRY = 0x0000814c
 
-# Optional UART transcript log for `make run*`. Set to a path or to "auto"
-# to get ./forthram-<timestamp>.log. Example:
+# UART transcript log for `make run*`: a path, or "auto" for
+# ./forthram-<timestamp>.log.
 #   make run-rcf blinky LOG=auto
 #   make run-rcf blinky LOG=/tmp/blinky.log
 LOG =
@@ -25,8 +25,8 @@ else
     LOG_ARG = --log $(LOG)
 endif
 
-# Upload method for `make run*`: "mw" (default, fast binary stream) or
-# "poke" (slow per-word `!` writes; robust when the ROM UART drops bytes).
+# Upload method for `make run*`: "mw", the default fast binary stream, or "poke",
+# slow per-word `!` writes that survive a ROM UART dropping bytes.
 #   make run-rcf blinky METHOD=poke
 METHOD =
 ifeq ($(METHOD),)
@@ -35,11 +35,10 @@ else
     METHOD_ARG = --method $(METHOD)
 endif
 
-# Per-word readback + repair after upload. Off by default (matches the
-# pre-existing behavior of the bare `run` target). Set VERIFY=1 to enable:
+# Per-word readback and repair after upload, off by default:
 #   make run slowblink METHOD=poke VERIFY=1
-# Verify works by reading each 32-bit word back via plain Forth `<addr> @ .`
-# and comparing to the expected value, re-poking any mismatches.
+# It reads each 32-bit word back with plain Forth `<addr> @ .`, compares it to the
+# expected value and re-pokes any mismatch.
 VERIFY ?=
 ifneq ($(strip $(VERIFY)),)
     VERIFY_ARG = --verify
@@ -47,13 +46,13 @@ else
     VERIFY_ARG =
 endif
 
-# Get program name from command line arguments
+# The program name arrives as a bare make goal.
 PROGRAM = $(filter-out $@,$(MAKECMDGOALS))
 ifeq ($(PROGRAM),)
     PROGRAM = blinky
 endif
 
-# Construct hex file path (if PROGRAM doesn't already contain .hex)
+# A PROGRAM that already names a .hex is used as the path directly.
 ifeq (,$(findstring .hex,$(PROGRAM)))
     HEX_FILE = $(REPO_ROOT)/software/$(PROGRAM)/bin/$(PROGRAM).hex
     RCF_FILE = $(REPO_ROOT)/software/$(PROGRAM)/rcf/xxxxxxxxxxxxblinky.rcf
@@ -62,12 +61,11 @@ else
     RCF_FILE = $(PROGRAM)
 endif
 
-# Python
 PYTHON = python3
 
 .PHONY: help flash flash-verify flash-rcf flash-rcf-verify run run-verify run-rcf run-rcf-verify forth-script forth-script-rcf forth-run forth-run-file clean clean-% build-%
 
-# Catch-all for program names
+# Absorb the bare program-name goals.
 %:
 	@:
 
@@ -125,10 +123,10 @@ flash-rcf-verify:
 		--board $(BOARD_NAME) \
 		--verify
 
-# --- RAM upload + execute via Forth (bypasses SPI flash boot path) ----------
-# Uses forthram.py to upload the program directly into RAM over the Forth UART
-# and jump to $(RAM_ENTRY) via the `call0` opcode. Useful on silicon where the
-# SPI-flash boot path is broken.
+# RAM upload and execute over Forth, bypassing the SPI flash boot path.
+# forthram.py uploads the program into RAM over the Forth UART and jumps to
+# $(RAM_ENTRY) with the call0 opcode. This is the path that still works on
+# silicon whose SPI-flash boot is broken.
 
 run:
 	@echo "Uploading $(HEX_FILE) to RAM and jumping to $(RAM_ENTRY)..."
@@ -164,9 +162,9 @@ run-rcf-verify:
 		--verify \
 		$(METHOD_ARG) $(LOG_ARG)
 
-# --- Offline: convert program file to Forth !/call0 script ---------------
-# Produces <program>.forth in the program's software dir that can be pasted /
-# streamed into the rv4th ROM REPL to load the program into RAM and jump to it.
+# Offline conversion of a program file to a Forth !/call0 script. Writes
+# <program>.forth into the program's software directory, ready to paste or stream
+# into the rv4th ROM REPL to load the program into RAM and jump to it.
 FORTH_SCRIPT_DIR = $(REPO_ROOT)/software/$(PROGRAM)/forth
 FORTH_SCRIPT     = $(FORTH_SCRIPT_DIR)/$(PROGRAM).forth
 
@@ -186,12 +184,10 @@ forth-script-rcf:
 		--header \
 		-o $(FORTH_SCRIPT)
 
-# --- Stream a *.forth script to the chip over UART ------------------------
-# Uses forthrun.py, which mirrors rv4th_terminal.py's transport (serial port,
-# optional boot-mode / reset GPIOs) but reads commands from a file instead
-# of the keyboard. Skips blank lines and '\' comments.
-#
-# Extra knobs:
+# Stream a .forth script to the chip over UART. forthrun.py mirrors
+# rv4th_terminal.py's transport, the serial port plus optional boot-mode and reset
+# GPIOs, but reads commands from a file rather than the keyboard, skipping blank
+# lines and '\' comments. Knobs:
 #   FORTH_FILE      path to the script (default: $(FORTH_SCRIPT))
 #   FORTH_PORT      serial device        (default: /dev/ttyAMA0)
 #   FORTH_BAUD      baud rate            (default: 115200)

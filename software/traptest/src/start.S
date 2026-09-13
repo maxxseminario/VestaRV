@@ -1,7 +1,5 @@
-/*
- * traptest - Startup Assembly
- * Minimal: jump straight to main, which executes an illegal instruction.
- */
+# VestaRV: traptest startup code
+# Jumps straight to main, which executes an illegal instruction.
 
 .section .program_start, "ax"
 .global __start_RAM_program__

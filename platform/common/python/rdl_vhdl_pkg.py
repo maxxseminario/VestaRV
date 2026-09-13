@@ -1,31 +1,10 @@
 #!/usr/bin/env python3
-"""rdl_vhdl_pkg.py -- emit the TRACKED VHDL register packages, level 2.
+"""VestaRV: emit the tracked VHDL register packages, one per block in rdl_vhdl.RTL_PACKAGES.
 
-One file per block, listed in rdl_vhdl.RTL_PACKAGES, under
-hdl/common/regs/vhdl/. They are TRACKED generated sources, not build outputs: Genus, Xcelium and GHDL
-all read the RTL tree directly, so a package the RTL `use`s has to be a file in
-that tree. The gate that keeps a tracked generated file honest is
-//platform/common:rdl_vhdl_pkg_test, which regenerates each in a temp directory
-and diffs; regenerate with
-
-    tools/bin/bazel run //platform/common:rdl_vhdl_pkgs
-
-What makes adopting them inert, and how that is proved:
-
-  * the scalar constants are the .rdl's own offsets, field ranges and resets,
-    and //platform/common:rdl_vs_vhdl_<periph>_test grades the .rdl against the
-    decode;
-  * the aggregate section (rdl_vhdl._aggregateLines) re-declares an adopting
-    entity's array type and IMPL / RSTVAL tables under those exact identifiers,
-    so the entity deletes a declaration block and gains a context clause, and
-    not one assignment in its body moves;
-  * //platform/common:rdl_pkg_vs_legacy_test holds every emitted value against
-    the hand-written constants as they stood before the migration, transcribed
-    verbatim. That is the leg of the argument that is NOT circular: the other
-    two both run through the .rdl.
-
-Usage:
-    rdl_vhdl_pkg.py [--out <repo root>] [--check]
+They are tracked generated sources under hdl/common/regs/vhdl/, not build outputs: Genus,
+Xcelium and GHDL read the RTL tree directly. rdl_vhdl_pkg_test regenerates and diffs each.
+The aggregate section re-declares an adopting entity's array type and IMPL/RSTVAL tables under
+the same identifiers, so adoption moves no assignment. Usage: [--out <root>] [--check].
 """
 
 import argparse

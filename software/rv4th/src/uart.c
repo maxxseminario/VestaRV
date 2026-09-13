@@ -1,4 +1,6 @@
-/** Includes **/
+// VestaRV: polled UART driver for the rv4th application
+// Every call blocks until the UART has taken or produced the byte. double_to_str falls back to the exponential form outside the range the fixed-point path can hold.
+
 #include <MemoryMap.h>
 #include <uart.h>
 

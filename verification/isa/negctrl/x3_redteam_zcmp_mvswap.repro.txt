@@ -1,5 +1,4 @@
-X3 Stage-D red-team (D1) — Zcmp cm.mvsa01 / cm.mva01s DIRECTION swap
-===================================================================
+VestaRV: X3 Stage-D red-team (D1), Zcmp cm.mvsa01 / cm.mva01s DIRECTION swap
 DELIVERABLE D (seed 1): a distinct failure mode NOT among the implementers'
 negative controls — swapping the DIRECTION of the two Zcmp register-move ops.
   cm.mvsa01 r1s',r2s' : a0 -> r1s', a1 -> r2s'  (arg regs INTO s-regs)

@@ -1,5 +1,4 @@
-P3 PMP CSR-bank negative control — seeded-bug repro (Agent A, 2026-07-29)
-=========================================================================
+VestaRV: P3 PMP CSR-bank negative control, seeded-bug repro
 
 ONE committed seed for the P3 CSR-bank half (pmpcfg/pmpaddr storage, WARL and
 LOCK semantics in csr_unit.vhd). It is RTL-ONLY (no image rebuild between
@@ -20,9 +19,7 @@ xcelium/mp_test/run_pmp_unit.sh (the bench's P4a/P4b priority pair and its
 P3 NAPOT 8 B / 16 B / 4 KB / all-ones size sweep are built for exactly them),
 and (b) needs the check integration to exist at all.
 
-----------------------------------------------------------------------------
 p3_lockwrite_seed.patch — hdl/common/vesta/csr_unit.vhd
-----------------------------------------------------------------------------
 Makes `pmp_locked()` return false unconditionally. That function's ONLY
 consumers are the sixteen per-byte lock filters in the four CSR_PMPCFG write
 arms, so the seed drops EXACTLY the "a locked entry's cfg byte is
@@ -41,17 +38,13 @@ locked-byte immutability AND the per-byte filtering: a whole-word lock would
 read 0x00890B9B, a missing lock 0x00000000). Seeded it reads 0x00000000 and
 the bounded `bne` fires at t4 = 38.
 
-----------------------------------------------------------------------------
 Proven results (ON build, CORE_ENABLE_TRAPCSR = UMODE = PMP = true, 16 entries)
-----------------------------------------------------------------------------
   clean RTL                    -> TEST PASSED - ../rcf/rv32ua-p-privpmpcs.rcf
   + p3_lockwrite_seed.patch    -> TEST FAILED - ../rcf/rv32ua-p-privpmpcs.rcf
                                   (t4 = 38, a0 = 0xDEADBEEF)
   reverted                     -> TEST PASSED - ../rcf/rv32ua-p-privpmpcs.rcf
 
-----------------------------------------------------------------------------
 Exact repro (from the repo root; privpmpcs is an ON-ONLY test)
-----------------------------------------------------------------------------
 The ON hardware is a `make chip` product, not a hand edit. The test arms are
 selected by the phase-standard EXPLICIT-APPEND dispatch (all three -D flags
 appended to RISCV_GCC_OPTS, never auto-derived from a header).
@@ -102,9 +95,7 @@ appended to RISCV_GCC_OPTS, never auto-derived from a header).
   cd platform/common/python && python3 generate.py && cd ../../..
   cd verification/isa && rm -rf build/ && make rv32ua-flash
 
-----------------------------------------------------------------------------
 Companion unit proof (no image, no Cadence test build — seconds to run)
-----------------------------------------------------------------------------
   ./xcelium/mp_test/run_pmp_unit.sh        # expect: ALL CHECKS PASSED
 
   87 checks over THREE DUT shapes in one bench (ENABLE_PMP=true/16 entries,

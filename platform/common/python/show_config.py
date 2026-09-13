@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
-'''Print a summary of the current resolved chip configuration.
+'''VestaRV: print a summary of the current resolved chip configuration.
 
-Reads the unified-config artifacts written by `make chip` / `make generate`:
-  config/ChipConfig.resolved.json  — every knob + the derived geometry
-  config/PadRing.json              — the derived pad ring
-  config/MemoryMap.json            — the instantiated peripheral set
-
-This is a FILE on purpose: this machine's default python3 is Calibre's aoj_cal
-wrapper, which re-evals `python3 -c` arguments and strips quotes (see the
-repo CLAUDE.md) — never fold this back into an inline -c one-liner.
+Reads the artifacts `make generate` writes: ChipConfig.resolved.json (every knob and the
+derived geometry), PadRing.json and config/MemoryMap.json. The first two come from
+out/config/ when it holds them, which is the record of the last build whatever its CONFIG,
+and from the tracked config/ pair otherwise. A script file on purpose, never an inline
+python3 -c: this host's default python3 strips quotes.
 '''
 
 import json, os, sys
@@ -16,11 +13,11 @@ import json, os, sys
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 def load(name):
-	path = os.path.join(root, 'config', name)
-	if not os.path.isfile(path):
-		return None
-	with open(path) as f:
-		return json.load(f)
+	for path in (os.path.join(root, 'out', 'config', name), os.path.join(root, 'config', name)):
+		if os.path.isfile(path):
+			with open(path) as f:
+				return json.load(f)
+	return None
 
 rc = load('ChipConfig.resolved.json')
 pad = load('PadRing.json')
@@ -31,7 +28,7 @@ print('Chip Configuration (resolved by make chip)')
 print('==========================================')
 if rc is None:
 	print('')
-	print('config/ChipConfig.resolved.json not found — run `make generate` first.')
+	print('ChipConfig.resolved.json not found: run `make generate` first.')
 	sys.exit(1)
 
 drv = rc.get('derived', {})
@@ -74,7 +71,7 @@ if mm is not None:
 if pad is not None:
 	pk = pad.get('package', {})
 	print('')
-	print('Pad ring (derived from the package model — config/PadRing.json):')
+	print('Pad ring (derived from the package model; PadRing.json):')
 	print('  ' + str(pk.get('type')) + '-' + str(pk.get('pinCount')) + ', '
 		+ str(pk.get('dimensions', ['?', '?'])[0]) + 'x' + str(pk.get('dimensions', ['?', '?'])[1])
 		+ ' ' + str(pk.get('units')) + ', ' + str(pk.get('pinPitch')) + ' ' + str(pk.get('units')) + ' pitch')

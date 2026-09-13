@@ -1,17 +1,17 @@
-/** Includes **/
+// VestaRV: boot ROM SPI driver
+// SPI0 only. spi_transfer is full duplex and blocking: it writes the transmit word, polls SPITCIF, then returns the received word.
+
 // #include <MemoryMap.h>
 #include <myshkin.h>
 
 
 
-/** Function Declarations **/
 void spi_init(uint8_t spi_mode, uint8_t data_length);
 void spi_setDataLength(uint8_t data_length);
 uint32_t spi_transfer(uint32_t data);
 
 
 
-/** Function Definitions **/
 void spi_init(uint8_t spi_mode, uint8_t data_length)
 {
 	// Initializes the SPI0 peripheral

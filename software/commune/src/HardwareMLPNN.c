@@ -1,4 +1,6 @@
-/** Includes **/
+// VestaRV: NPU (hardware MLP) driver
+// Layer buffers must live in NN0SRAM: the NPU addresses that window only. Arithmetic is Qx.15 with saturation, and ISR_NN0 signals layer completion.
+
 #include <MemoryMap.h>
 #include <irq.h>
 #include <HardwareMLPNN.h>
@@ -10,7 +12,6 @@ RVISR(IRQ_NN0_VECTOR, ISR_NN0)
 
 
 
-/** Defines **/
 
 
 
@@ -32,7 +33,6 @@ static uint8_t doArraysOverlap(uint32_t start_address1, uint32_t lengthBytes1, u
 
 
 
-/** Function Definitions **/
 int8_t check_mlpnn_layer(uint16_t numInputs, uint16_t numOutputs, uint8_t useBiasTerms, Q0_15 *inputVector, uint8_t *weightsMatrix, Q0_15 *outputVector)
 {
 	/*

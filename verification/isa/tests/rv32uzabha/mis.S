@@ -1,22 +1,8 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# mis.S      (X2 Zabha — misaligned halfword AMO behaviour)
-#-----------------------------------------------------------------------------
-# SPEC-vs-CORE NOTE (flagged in the X2 self-report): the Zabha spec says a
-# misaligned halfword AMO raises a store/AMO-address-misaligned exception. THIS
-# core has NO data-address-misalignment exception and NO mcause/mtval CSRs — and
-# WORD AMOs likewise do not trap on misalignment. "Misaligned exactly like word
-# AMOs" therefore means NON-TRAPPING here: the sub-word datapath rounds down to
-# the containing half (lane select keys on address bit 1 only, exactly like
-# SH/LH/word-AMO), so a naturally-aligned software contract holds and a
-# misaligned access is benign (no trap, no hang, no cross-half corruption).
-#
-# This test proves that observable behaviour: an amoadd.h at offset 1 (bit0=1,
-# bit1=0) accesses HALF0 just like offset 0, and an amoadd.h at offset 3 accesses
-# HALF1 just like offset 2 — no hang, the other half stays intact.
-# ON-POLARITY ONLY. Encodings via `.insn`.
-#*****************************************************************************
+# VestaRV: misaligned halfword AMO behaviour
+# SPEC AGAINST CORE: the Zabha spec says a misaligned halfword AMO raises a store or AMO address-misaligned exception. THIS CORE HAS NO DATA-ADDRESS-MISALIGNMENT EXCEPTION and no mcause or mtval CSRs, and word AMOs likewise do not trap on misalignment, so "misaligned exactly like word AMOs" means NON-TRAPPING here: the sub-word datapath rounds down to the containing half, with the lane select keying on address bit 1 only, exactly as SH, LH and word AMOs do, so a naturally aligned software contract holds and a misaligned access is benign, with no trap, no hang and no cross-half corruption.
+# This test proves that observable behaviour: an amoadd.h at offset 1 accesses half 0 just like offset 0, and one at offset 3 accesses half 1 just like offset 2, with no hang and the other half intact. ON-POLARITY ONLY, with the encodings written as `.insn`.
 
 #include "riscv_test.h"
 #include "test_macros.h"

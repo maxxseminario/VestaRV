@@ -1,4 +1,4 @@
-% HAND-WRITTEN fragment -- placed by Adc.tex.
+% VestaRV: hand-written TRM fragment, placed by Adc.tex.
 %
 % Every number here comes from the tables of this section (tab_adc_transfer,
 % tab_adc_corners, tab_adc_power). Re-read them from those tables if the run is
@@ -8,20 +8,20 @@
 % castalia/tb_anatop_pixel_adc (schematic view SARADCTB, maestro view), POST-
 % EXTRACTION netlist of the ADC macro.
 %
-% 2026-08-25 CORRECTIONS, from ~/chips/castalia/simruns/adcchar_20260825/README.md:
-%  - S3: the shipped stimulus simstim/adc/adc_clk_gated.pwl holds the convert
-%    phase statically high (one falling edge where the macro needs ten; it
-%    advances one bit trial per falling edge), so READY asserts every 4.600 us
-%    (measured 8.552 / 13.152 / 17.752 us), i.e. 217.4 kSa/s, not 869.6 kSa/s.
-%    adcchar_stim.py --mode burst puts ten 20 MHz pulses in the same 500 ns
-%    window: READY at 5.076 us and every 1.150 us after, IDENTICAL codes
-%    (0.5 V -> 37, 1.0 -> 351, 1.5 -> 666, 2.0 -> 980).  Stimulus defect, not a
-%    converter defect; the generating line is commented out at SARADC.vhd:260.
-%  - S3: "third conversion" was wrong for the archived adc_dc run -- t_stop
-%    8.65 us, t_probe 8.56 us, so only the FIRST conversion had completed.
+% Corrections carried by ~/chips/castalia/simruns/adcchar_20260825/README.md:
+%  - S3: the shipped stimulus simstim/adc/adc_clk_gated.pwl holds the convert phase
+%    statically high (one falling edge where the macro needs ten; it advances one bit
+%    trial per falling edge), so READY asserts every 4.600 us (measured 8.552 / 13.152
+%    / 17.752 us), i.e. 217.4 kSa/s, not 869.6 kSa/s. adcchar_stim.py --mode burst puts
+%    ten 20 MHz pulses in the same 500 ns window: READY at 5.076 us and every 1.150 us
+%    after, with identical codes (0.5 V -> 37, 1.0 -> 351, 1.5 -> 666, 2.0 -> 980).
+%    A stimulus defect, not a converter defect; the generating line is commented out at
+%    SARADC.vhd:260.
+%  - S3: in the archived adc_dc run t_stop is 8.65 us and t_probe 8.56 us, so only the
+%    first conversion had completed.
 %  - S2/S4: five corners (corners/corner_table.txt) and 100 MC samples
-%    (mc/mc_results.txt) now exist; the coverage sentence is rewritten.
-%  - New Maestro view `maestro_char` of the same cell carries both tests;
+%    (mc/mc_results.txt) exist.
+%  - Maestro view `maestro_char` of the same cell carries both tests;
 %    maestro/GUI_STEPS.md has the opening instructions.
 %
 % Device dimensions are proprietary: no W/L and no absolute capacitance is

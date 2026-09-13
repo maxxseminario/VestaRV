@@ -1,4 +1,4 @@
-"""
+"""VestaRV: the Forth dashboard's Dash app instance and chip interface.
 Dash App Configuration
 Creates the app instance and initializes the Myshkin chip interface
 """

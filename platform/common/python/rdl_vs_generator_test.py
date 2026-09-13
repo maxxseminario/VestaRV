@@ -1,37 +1,10 @@
 #!/usr/bin/env python3
-"""rdl_vs_generator_test.py -- the .rdl descriptions and the register map the
-generation emitted describe the same registers.
+"""VestaRV: the .rdl descriptions and the emitted register map describe the same registers.
 
-WHAT THIS GATE MEANS NOW (report R5). Eighteen of the twenty-two peripherals no
-longer carry a register table in generate.py at all: their templates are BUILT
-from the .rdl by rdl_model, so for those this is a SELF-CONSISTENCY check --
-description -> loader -> PeripheralTemplate -> Register/BitField checking ->
-per-instance reset assignment -> config/MemoryMap.json -> back -- and it catches
-a loader or emitter that mangles what the description says, not a second author.
-For the four that remain hand-written (CLINT, MUTEX, IRQROUTER, PWRCTRL, whose
-register SET and field geometry are functions of numHarts / numMutexes / the
-arbiter master width / vectorsCount, which SystemRDL cannot express) it is still
-the original cross-check between two independent statements of the same map.
-test_rdl_sourced_peripherals_carry_no_generator_table is what keeps that split
-honest: a peripheral cannot be flagged "rdl" and still hold a table. For every peripheral flagged `rdl: true` in
-platform/common/config/rdl.json it compares the compiled .rdl against the
-generator's emitted `config/MemoryMap.json` -- the slot map, and then everything
-else the map carries:
-
-    register   name, byte offset, word slot, width, reset value
-    field      name, MSB, LSB, access code, reset value, reserved-or-not
-    prose      register description, field description, value descriptions
-
-so a divergence in either direction is named, not merely counted. The MemoryMap
-side is the artifact of a REAL generation, not a re-import of generate.py, which
-means the gate also covers the Register/BitField checking that generation runs.
-
-The LaTeX emitter is checked the same way, and harder: for the pilot the .rdl's
-TRM register tables must be byte-identical to the ones the generation emitted
-into PeripheralSections.tex. That is the claim "the chapter builds unchanged".
-
-Paths come from argv so the Bazel test can point at bazel-out artifacts:
-    rdl_vs_generator_test.py <MemoryMap.json> <rdl.json> [PeripheralSections.tex]
+For a peripheral flagged rdl:true this compares the compiled .rdl against a real generation's
+config/MemoryMap.json: slot map, then register, field and prose, naming divergence in either
+direction. Most peripherals are built from the .rdl, so for them this is self-consistency;
+the four whose geometry depends on numHarts and friends stay hand-written and independent.
 """
 
 import json
@@ -64,20 +37,10 @@ def _load(path):
 
 
 def _templateRegisters(mm, templateName, registerPrefix=None):
-    """The generator's registers for one peripheral TEMPLATE, name-templatised.
-
-       MemoryMap.json holds INSTANCES (UART0, AFE0); the .rdl is per template, so
-       the instance index is mapped back out of the register names.
-
-       THE REGISTER PREFIX IS NOT THE PERIPHERAL NAME. GPIOx's registers are
-       spelled Px* (P0IN, P1IN) and TIMERx's are TIMx* (TIM0CR), so stripping
-       `templateName[:-1] + idx` off the front finds nothing and the register
-       keeps its instance digit -- which then never matches the .rdl. The prefix
-       comes from rdl.json's registerPrefix, the same string generate.py gives
-       the PeripheralTemplate; a peripheral that declares none is single-instance
-       and carries no index to strip. (Extended by the 20-block sweep, R2
-       2026-09-10; before that only UARTx / AFEx / SPIx-shaped names worked,
-       because there the two prefixes happen to be equal.)"""
+    """The generator's registers for one peripheral template, name-templatised. MemoryMap.json holds
+    instances while the .rdl is per template, and the register prefix is not the peripheral name,
+    so the index is stripped using rdl.json's registerPrefix.
+    """
     out = None
     prefix = registerPrefix if registerPrefix else templateName
     for p in mm['Peripherals']:
@@ -120,7 +83,7 @@ class RdlVsGeneratorTest(unittest.TestCase):
         cls.flags = rdl_emit.memoryMapped(rdl_emit.loadFlags(RDL_CONFIG))
         if not cls.flags:
             raise Exception('no peripheral is flagged rdl:true in ' + RDL_CONFIG)
-        # PER-INSTANCE RESET VALUES (2026-09-10). A .rdl BLOCK file describes the
+        # PER-INSTANCE RESET VALUES. A .rdl BLOCK file describes the
         # peripheral the way its RTL generics default, and two peripherals reset a
         # register differently per instance because the value arrives as a generic:
         # GPIO's RstValPx{OUT,DIR,SEL,REN,AFS} and I2C's default_SAD. Those live as
@@ -177,14 +140,10 @@ class RdlVsGeneratorTest(unittest.TestCase):
                                  % (periph, name, rdlSlots[name], genSlots[name]))
 
     def test_registers_and_fields_match_in_full(self):
-        """EVERY divergence, not the first.
-
-           This gate is the list of doc-side corrections a peripheral's .rdl
-           implies, and a list that stops at its first entry is not one: the
-           first `.rdl reset 0xFFFFFFFF, generator reset 0x0` on CLINT hides the
-           nine that follow it and the eleven other blocks behind them. So the
-           comparison accumulates and the assertion is made once, with the whole
-           list in the message."""
+        """Every divergence, not the first. This gate is the list of doc-side corrections a peripheral's
+        .rdl implies, and a list that stops at its first entry is not one, so the comparison
+        accumulates and the assertion is made once with the whole list in the message.
+        """
         bad = []
         for periph, blocks in sorted(self._blocksByPeripheral().items()):
             inst, regs = self._regs(periph, blocks)
@@ -239,16 +198,10 @@ class RdlVsGeneratorTest(unittest.TestCase):
         return out
 
     def test_rdl_sourced_peripherals_carry_no_generator_table(self):
-        """config/rdl.json's registerSource and generate.py agree, both ways.
-
-           The claim this whole wave makes is that a register is written down
-           ONCE. It is checkable textually: a peripheral whose rdl.json entry
-           says registerSource "rdl" must be loaded by a _rdlRegisters() call in
-           generate.py and must have no RegisterTemplate of its own left there,
-           and a peripheral generate.py loads from SystemRDL must be flagged.
-           Without this, deleting the flag or re-adding a table would go
-           unnoticed: both halves would simply describe the same registers
-           again, which is exactly the state this replaces."""
+        """config/rdl.json's registerSource and generate.py agree, both ways: a peripheral flagged "rdl"
+        must be loaded by a _rdlRegisters() call and keep no RegisterTemplate of its own, and one
+        generate.py loads from SystemRDL must be flagged. Otherwise both halves describe the registers.
+        """
         if not os.path.isfile(GENERATE_PY):
             self.skipTest('generate.py not given')
         with open(GENERATE_PY) as f:

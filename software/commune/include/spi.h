@@ -1,16 +1,17 @@
+// VestaRV: SPI driver interface
+// The spix_* forms take an SPIx_t*; the bare spi_* forms act on SPI0. SPIMODE0..3 encode the (CPOL, CPHA) pair.
+
 #pragma once
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/** Includes **/
 // #include <MemoryMap.h>
 #include <myshkin.h>
 
 
 
-/** Defines **/
 #define SPIMODE0	(0)
 #define SPIMODE1	(SPICPHA)
 #define SPIMODE2	(SPICPOL)
@@ -25,7 +26,6 @@ uint32_t spix_transfer(SPIx_t* SPIx, uint32_t data);
 
 
 
-/** External Function Declarations **/
 void spi_init(uint8_t spi_mode, uint8_t data_length);
 void spi_setDataLength(uint8_t data_length);
 uint32_t spi_transfer(uint32_t data);

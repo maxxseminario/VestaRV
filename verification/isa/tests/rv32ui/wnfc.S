@@ -1,26 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# wnfc.S  (wound-config firmware smoke — FW-2)
-#-----------------------------------------------------------------------------
-# NFC0 @0x6200 register + AFS-routing + enable-word plumbing smoke. NO IRQ:
-# the NFC protocol engine is clock-dead in sim (nfc0_rf_clk = tb '0', no
-# carrier — MCU.vhd:3786), so it can raise no interrupt. Single-hart directed.
-#
-# Proves, beyond wperiph's single CR read:
-#  * CR   reset AUTOREAD[12]=1 (0x1000)
-#  * SR   reset STATE[11:8]=OFF (=0); whole SR reads 0 at reset
-#  * UID  (0x6208) 32-bit write/readback
-#  * CFG  (0x620C) reset 0x000044 (ATQA), then write/readback (masked 23:0)
-#  * TIM  (0x6210) reset 0x088004D4 (SUBCDIV/ETU/FDT real grid), then write/readback
-#  * TXCTL(0x6220) firmware-response path write/readback (masked 9:0; INERT MVP)
-#  * P6AFS (0x642C) reset = P6.0 -> AF1 (0x1) — NFC rf_clk routing default
-#  * HhENU bits 30/31 (NFC 94/95) + HhENX bits 0/1 (NFC 96/97) write/readback
-#    — proves the 4th per-hart enable word (HhENX) and the U/X straddle plumbing
-#    WITHOUT expecting delivery (PEND/INSVC RO words cover 0-95 only).
-#
-# SMCLK RULE: the bus/CDC ref is SMCLK-domain; write SYS_CLK_CR=0 first.
-#*****************************************************************************
+# VestaRV: NFC0 register, pin-routing and enable-word smoke
+# Hart 0 only. NFC0 sits at 0x6200. THERE IS NO INTERRUPT LEG, because the NFC protocol engine is clock-dead in simulation, its RF clock being tied low with no carrier, so it can raise nothing.
+# It proves, beyond a single control-register read: CR's reset AUTOREAD bit; SR's reset state field reading OFF, with the whole register reading 0; a 32-bit write and readback of UID at 0x6208; CFG at 0x620C resetting to its ATQA value and then write and readback masked to bits 23:0; TIM at 0x6210 resetting to the real sub-carrier, ETU and frame-delay grid and then write and readback; TXCTL at 0x6220 write and readback masked to bits 9:0, the firmware-response path, which is inert in this version; and the pin alternate-function register resetting so the RF clock pin selects AF1.
+# It also writes and reads back HhENU bits 30 and 31 and HhENX bits 0 and 1, the NFC sources 94 to 97, WHICH PROVES THE FOURTH PER-HART ENABLE WORD AND THE STRADDLE ACROSS THE TWO WORDS WITHOUT EXPECTING DELIVERY, since the pending and in-service read-only words cover sources 0 to 95 only.
+# SMCLK RULE: the bus and CDC reference is smclk-domain, so SYS_CLK_CR must be zeroed first.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,10 +1,11 @@
-/** Includes **/
+// VestaRV: millisecond and microsecond timebase
+// One TIMERx instance, selected by TIMING_LIB_USE_TIMER_NUMBER, free-runs off HFXT; micros() and millis() scale its count, so HFXT_FREQUENCY must match the board.
+
 #include <MemoryMap.h>
 #include <irq.h>
 
 
 
-/** Defines **/
 #ifndef TIMING_LIB_USE_TIMER_NUMBER
 	#define TIMING_LIB_USE_TIMER_NUMBER	1
 #endif	// #ifndef TIMING_USE_TIMER_NUMBER
@@ -34,7 +35,6 @@ static uint8_t timing_lib_is_initialized = 0;
 
 
 
-/** Function Declarations **/
 void timing_init();
 uint8_t get_timing_lib_is_initialized();
 uint32_t micros();
@@ -48,7 +48,6 @@ RVISR(IRQ_TIMERx_TIMING_VECTOR, ISR_TIMERx_TIMING)
 
 
 
-/** Function Definitions **/
 void timing_init()
 {
 	// Initializes the timer and ISR to enable the micros(), millis(), and delay() functions

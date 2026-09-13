@@ -1,63 +1,24 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extzcb.S   (ISA extension program, X1 Zcb, 2026-07-17)
-#-----------------------------------------------------------------------------
-# Zcb (additional compressed instructions) adaptive probe. Copied from
-# extprobe_template.S and specialised for Zcb.
-#
-# WHY BUILD-TIME (#ifdef) DISPATCH, NOT RUNTIME misa DISPATCH:
-#   Zcb has NO misa bit (C is already advertised), so the misa-branch idiom of
-#   extmul.S/extrvc.S cannot tell whether the chip was built with Zcb. And this
-#   core DEAD-ENDS an illegal instruction in TRAP_STATE (pc frozen, trap_flag
-#   high, next_state<=TRAP_STATE forever — vesta.vhd) with NO software trap
-#   recovery, so a "try-execute-and-recover" runtime probe is impossible too.
-#   Therefore dispatch at BUILD TIME on CORE_ENABLE_ZCB:
-#     ON  build  -> execute every Zcb encoding and CHECK the architectural
-#                   result -> RVTEST_PASS.
-#     OFF build  -> base-ISA sanity + RVTEST_PASS. The pass/fail runner CANNOT
-#                   observe a dead-end trap as PASS, so the OFF arm must take a
-#                   non-trapping path here to keep the DEFAULT (Zcb-off) suite
-#                   green. The genuine "Zcb-off => illegal-instruction trap"
-#                   behavior is proven separately by running THIS image built
-#                   ON (Zcb encodings present) against the Zcb-OFF RTL under
-#                   trap_watch.tcl (see the X1-zcb self-report / negctrl notes).
-#
-# HOW CORE_ENABLE_ZCB IS SET (and why NOT via #include "MemoryMap.h"):
-#   The template dispatches on `#define CORE_ENABLE_ZCB` from the generated
-#   Castalia MemoryMap.h. But the DEFAULT rv32ua compile line resolves
-#   "MemoryMap.h" to the FROZEN Myshkin header, which #includes <bits.h> (NOT on
-#   the ISA-test include path) and so fatally fails to preprocess. Rather than
-#   wire a config-dependent, out/-coupled include path into the SHARED rv32ua
-#   compile_template, this probe dispatches on the CORE_ENABLE_ZCB macro
-#   directly (no #include):
-#     OFF build:  riscv-none-elf-gcc -march=rv32imac ...            (macro unset)
-#     ON  build:  riscv-none-elf-gcc -march=rv32imac ... -DCORE_ENABLE_ZCB
-#   The default `make rv32ua-flash` builds the OFF arm (green); the X1-zcb ON
-#   image + negative control were built by adding ONLY -DCORE_ENABLE_ZCB to the
-#   otherwise-identical compile line (the shared Makefile was NOT modified).
-#
-#   All Zcb encodings are hand-emitted with .2byte (the toolchain's gas 13.2.0
-#   has no Zcb mnemonics / no `_zcb` march), so the file assembles under the
-#   suite base march. Whole-file norvc keeps every OTHER instruction 32-bit; the
-#   only 16-bit words in the image are the Zcb probes below.
-#
-#   Exact 16-bit encodings transcribed from riscv-opcodes rv_zcb + the ratified
-#   Zc* v1.0 spec, cross-checked by assembling the 32-bit base ops:
-#     c.lbu rd',u(rs1') 100 000 rs1' u6 u5 rd'  00   (uimm[1]=i5, uimm[0]=i6)
-#     c.lhu rd',u(rs1') 100 001 rs1'  0 u5 rd'  00   (uimm[1]=i5, uimm[0]=0)
-#     c.lh  rd',u(rs1') 100 001 rs1'  1 u5 rd'  00
-#     c.sb  rs2',u(rs1')100 010 rs1' u6 u5 rs2' 00
-#     c.sh  rs2',u(rs1')100 011 rs1'  0 u5 rs2' 00
-#     c.zext.b rd'      100 111 rd'  11 000 01
-#     c.sext.b rd'      100 111 rd'  11 001 01   (Zbb)
-#     c.zext.h rd'      100 111 rd'  11 010 01   (Zbb)
-#     c.sext.h rd'      100 111 rd'  11 011 01   (Zbb)
-#     c.not    rd'      100 111 rd'  11 101 01
-#     c.mul rd',rs2'    100 111 rd'  10 rs2' 01  (Zmmul/M)
-#   Registers used are all in x8-x15 (compressed rd'/rs1'/rs2' range):
-#     s0=x8 a2=x12 a3=x13 a4=x14 a5=x15.
-#*****************************************************************************
+# VestaRV: Zcb extension probe
+# BUILD-TIME DISPATCH, not runtime misa dispatch, because Zcb HAS NO misa BIT, C being advertised already, and because this core DEAD-ENDS an illegal instruction in TRAP_STATE with the PC frozen and no software trap recovery, so a try-and-recover runtime probe is impossible. With CORE_ENABLE_ZCB defined every Zcb encoding executes and its architectural result is checked; without it the file does base-ISA sanity and passes, because the pass/fail runner cannot observe a dead-end trap as a pass and the default Zcb-off suite must stay green. The genuine "Zcb off means illegal-instruction trap" behaviour is proven separately by running THIS image built ON against Zcb-OFF RTL under trap_watch.tcl.
+# THE MACRO IS PASSED DIRECTLY, NEVER THROUGH #include "MemoryMap.h": on the default rv32ua compile line that name resolves to the frozen Myshkin header, which includes <bits.h>, not on the ISA-test include path, and fails to preprocess. So the OFF build is the plain compile line and the ON build adds only -DCORE_ENABLE_ZCB, with the shared Makefile unmodified.
+# All Zcb encodings are hand-emitted with .2byte, since gas 13.2 has no Zcb mnemonics and no `_zcb` march, so the file assembles under the suite base -march. Whole-file norvc keeps every other instruction 32-bit, and the only 16-bit words in the image are the probes below.
+
+# The 16-bit encodings, transcribed from riscv-opcodes rv_zcb and the ratified Zc* v1.0
+# spec and cross-checked by assembling the 32-bit base operations:
+#   c.lbu  rd',u(rs1')   100 000 rs1' u6 u5 rd'  00   (uimm[1] = i5, uimm[0] = i6)
+#   c.lhu  rd',u(rs1')   100 001 rs1'  0 u5 rd'  00   (uimm[1] = i5, uimm[0] = 0)
+#   c.lh   rd',u(rs1')   100 001 rs1'  1 u5 rd'  00
+#   c.sb   rs2',u(rs1')  100 010 rs1' u6 u5 rs2' 00
+#   c.sh   rs2',u(rs1')  100 011 rs1'  0 u5 rs2' 00
+#   c.zext.b rd'         100 111 rd'  11 000 01
+#   c.sext.b rd'         100 111 rd'  11 001 01   (Zbb)
+#   c.zext.h rd'         100 111 rd'  11 010 01   (Zbb)
+#   c.sext.h rd'         100 111 rd'  11 011 01   (Zbb)
+#   c.not    rd'         100 111 rd'  11 101 01
+#   c.mul  rd',rs2'      100 111 rd'  10 rs2' 01  (Zmmul/M)
+# Every register used is in x8-x15, the compressed rd'/rs1'/rs2' range: s0, a2, a3, a4, a5.
 
 #include "riscv_test.h"
 #include "test_macros.h"

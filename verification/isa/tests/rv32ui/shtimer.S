@@ -1,55 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shtimer.S  (M7b; M12 single-ROM boot rework; Argus A3 claim-based rework)
-#-----------------------------------------------------------------------------
-# HART-GENERIC shared TIMER0/1 + GPIO2/3 test — the M7b signature test.
-#
-# M12: tiles are NO LONGER preloaded. Hart 0 stages this TCM image once and
-# launches all tiles 1..NHARTS-1 into tile_entry through the bootrom loader
-# (mp_boot.h); each tile then parks on the GO gate.
-#
-# M7b moved TIMER0/TIMER1/GPIO2/GPIO3 off hart 0's private peripheral bus and
-# onto the mp_arbiter in the 0x4x00 page (M11 map: peripherals at their legacy
-# addresses — GPIO1 0x4100, TIMER0 0x4600, TIMER1 0x4700, GPIO2 0x4800,
-# GPIO3 0x4D00). The old private windows read zeros.
-#
-# ARGUS A3 CLAIM-BASED OWNERSHIP (user decision 2026-07-10): instead of a fixed
-# hartid->role dispatch (which stranded harts >= 4 at N=18), the four peripheral
-# "dances" are a POOL of claimable roles. Any hart may atomically CLAIM a free
-# role through the HW mutex bank (0x6000, 1-insn acquire); the winner owns that
-# peripheral EXCLUSIVELY for the whole test (the mutex is never released), runs
-# its dance once, and records ROLEDONE[i]. Harts that find every role taken just
-# park. With NHARTS >= NROLES claimers the mutex bank guarantees all four roles
-# run EXACTLY once regardless of which hart wins what — a deterministic,
-# N-agnostic pass condition. (Teaches: 1-insn mutex claim = exclusive
-# peripheral ownership.) Verified passing at N=4 AND N=18.
-#
-#   Role 0 = TIMER0 dance   Role 1 = TIMER1 dance
-#   Role 2 = GPIO2  dance   Role 3 = GPIO3  dance   (mutex i guards role i)
-#
-# Hart 0 (always-on supervisor) first does the reset-value proofs + SMCLK/GPIO
-# config that MUST precede any dance, opens GO, then JOINS the claiming (it may
-# or may not win a role — at N=4 it wins the one the 3 tiles leave; at N=18 the
-# fast tiles usually take all four and hart 0 just adjudicates). Finally it
-# waits every tile's DONE and verifies all four ROLEDONE words.
-#
-# Timer dance (clock source = MCLK, no divider): CR reads 0 at reset; CMP0
-# write/readback; enable; bounded-poll VAL until it counts past the first
-# sample (glitch-free mux needs a few edges — hence SYS_CLK_CR=0 first); CMP0
-# match sets SR bit0; SR write-1 clears it; disable freezes VAL. Polls bounded
-# 20000 (inside the 100ms watchdog). GPIO dance: OUT/OUTS/OUTC/OUTT/IES
-# semantics with PxDIR left 0 (inputs; pads never driven).
-#
-# Shared words (>= 0x101C0, clear of earlier tests' words, all < 0x10500):
-#     GO            = 0x101C0            0x71600000 after hart 0 opens the gate
-#     DONE[h]       = 0x101C4 + 4*h      0x71E40000+h after hart h finishes
-#                                        (h = 0..NHARTS-1; hart 0 writes DONE[0])
-#     ROLEDONE[i]   = 0x101C4 + 4*NHARTS + 4*i   0x71D00000+i after role i runs
-#   (mutex bank 0x6000+4*i provides the atomic claim; nothing in shared RAM)
-# The ROLEDONE array sits at DONE_BASE + 4*NHARTS so the NHARTS-sized DONE array
-# can't overrun it (N=18: DONE 0x101C4..0x10208, ROLEDONE 0x1020C..0x10218).
-#*****************************************************************************
+# VestaRV: shared TIMER0/TIMER1 and GPIO2/GPIO3 test
+# The four blocks sit on the mp_arbiter at their legacy addresses (GPIO1 0x4100, TIMER0 0x4600, TIMER1 0x4700, GPIO2 0x4800, GPIO3 0x4D00); the old private windows read zeros.
+# CLAIM-BASED OWNERSHIP: the four dances are a POOL of claimable roles rather than a fixed hartid-to-role map, which strands harts at large N. Any hart atomically claims a free role through the HW mutex bank at 0x6000 with a one-instruction acquire; the winner owns that peripheral exclusively for the whole test, never releases the mutex, runs its dance once and records ROLEDONE[i]. Harts that find every role taken park. With NHARTS >= NROLES claimers all four roles run exactly once whichever hart wins what. Role 0 is TIMER0, role 1 TIMER1, role 2 GPIO2 and role 3 GPIO3, with mutex i guarding role i.
+# Hart 0 does the reset-value proofs and the SMCLK and GPIO configuration that MUST precede any dance, opens GO, then joins the claiming, and finally waits on every tile's DONE and verifies all four ROLEDONE words.
+# Timer dance, clock source MCLK with no divider: CR reads 0 at reset, CMP0 write and readback, enable, then a bounded poll of VAL until it counts past the first sample, because the glitch-free mux needs a few edges after SYS_CLK_CR = 0; then the CMP0 match sets SR bit 0, a write-1 clears it, and disable freezes VAL. The GPIO dance exercises OUT/OUTS/OUTC/OUTT/IES with PxDIR left 0, so the pads are never driven. Polls are bounded at 20000, inside the 100 ms watchdog.
+# Shared words, all below 0x10500: GO = 0x101C0, DONE[h] = 0x101C4 + 4*h for h = 0..NHARTS-1 including hart 0, ROLEDONE[i] = 0x101C4 + 4*NHARTS + 4*i. ROLEDONE follows the NHARTS-sized DONE array so it cannot be overrun; at N=18 DONE runs 0x101C4..0x10208 and ROLEDONE 0x1020C..0x10218.
 
 #include "riscv_test.h"
 #include "test_macros.h"

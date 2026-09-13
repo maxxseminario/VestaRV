@@ -1,6 +1,5 @@
-/* FPGA stand-in for the boot ROM macro, built to infer a block RAM initialized from the boot ROM image.
-   The simulation model in hdl/common/sim/ARM_IP_ROM.vhd loads its array from a process that runs at time zero, which synthesis cannot do, and it hardcodes an absolute path to the image.
-   This version loads the same .rcf file from a constant initializer, which Vivado evaluates during elaboration, and takes the path as a generic so the image can move without editing RTL. */
+-- VestaRV: FPGA stand-in for the boot ROM macro, built to infer a block RAM initialized from the boot ROM image
+-- The simulation model in hdl/common/sim/ARM_IP_ROM.vhd loads its array from a process that runs at time zero, which synthesis cannot do, and hardcodes an absolute path. This version loads the same .rcf file from a constant initializer, which Vivado evaluates during elaboration, and takes the path as a generic.
 
 library ieee;
 use ieee.std_logic_1164.all;

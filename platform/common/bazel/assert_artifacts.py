@@ -1,16 +1,10 @@
 #!/usr/bin/env python3
-"""Assert a generated artifact set is present, non-empty and well-formed.
+"""VestaRV: assert a generated artifact set is present, non-empty and well-formed.
 
-Used for the configurations that have no identity gate against tracked RTL
-(Argus): the bar there is that the configuration still GENERATES, and that the
-machine-readable outputs still parse. Anything ending in .json is json-loaded,
-so a truncated or half-written file fails here rather than three agents later.
-
-Every path is runfiles-relative; the test's working directory is the runfiles
-root. A path ending in '/' is treated as a directory that must exist and be
-non-empty.
-
-Usage: assert_artifacts.py <path>...
+For configurations with no identity gate against tracked RTL, where the bar is that the
+configuration still generates and its machine-readable outputs still parse; anything ending
+in .json is json-loaded. Paths are runfiles-relative, and one ending in '/' must be a
+non-empty directory. Usage: assert_artifacts.py <path>...
 """
 
 import json

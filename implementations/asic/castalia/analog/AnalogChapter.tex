@@ -1,23 +1,13 @@
-% =====================================================================
-% Castalia -- analog chapter of the Technical Reference Manual.
-%
-% This file is HAND-WRITTEN and belongs to this implementation, not to the
-% shared platform sources: every chip built from the VestaRV platform gets the
-% same digital chapters, but the analog content is per-silicon. A chip whose
-% analog differs supplies its own implementations/asic/<chip>/analog/ directory
-% and nothing else in the TRM changes.
-%
-% The generator (platform/common/python/LatexUserGuide.py, CopyAnalogChapter)
-% copies this directory to latex/TRM/include/analog/ at `make chip` time, and
-% the master template inputs it if it is present. So:
-%   - paths here are relative to latex/TRM/  (i.e. include/analog/...)
-%   - a chip with no analog/ directory simply gets no analog chapter
-%
+% VestaRV: Castalia analog chapter of the TRM, hand-written.
+% Analog content is per-silicon, so this chapter belongs to the implementation and
+% not to the shared platform sources; a chip supplies its own
+% implementations/asic/<chip>/analog/ and nothing else in the TRM changes.
+% LatexUserGuide.CopyAnalogChapter copies this directory to latex/TRM/include/analog/
+% at `make chip` time, so paths here are relative to latex/TRM/ (include/analog/...),
+% and a chip with no analog/ directory gets no analog chapter.
 % The per-block characterisation files (fig_*.tex, tab_*.tex, data/*.dat and the
-% BiasGenCascWideSwing.tex master) are GENERATED from Maestro simulation results
-% by platform/common/tools/maestro2tex -- do not hand-edit them, edit the config
-% and regenerate. This chapter file is the hand-written frame around them.
-% =====================================================================
+% BiasGenCascWideSwing.tex master) are generated from Maestro results by
+% platform/common/tools/maestro2tex: edit its config and regenerate, never the file.
 
 \section{Analog Circuitry} \label{s:analog}
 
@@ -27,11 +17,10 @@ blocks themselves and reports their simulated performance; the memory-mapped
 registers through which software reaches them are documented with the
 peripherals\ifcqanalog{} in Section~\ref{ss:cqanalog-regs}, a placeholder map until
 the analog IP is integrated\fi.
-% \ifcqanalog guard added 2026-09-05: ss:cqanalog-regs lives in the generated
-% CqAnalog chapter, which the master template inputs only under \ifcqanalog. A
-% config that ships the analog IP with cqAfeStubs false (penta_wound_afe.json)
-% renders this chapter without that one, and the bare \ref was then undefined,
-% which the new trm-lint gate turns into a build failure.
+% ss:cqanalog-regs lives in the generated CqAnalog chapter, which the master template
+% inputs only under \ifcqanalog. A config that ships the analog IP with cqAfeStubs
+% false (penta_wound_afe.json) renders this chapter without that one, so an unguarded
+% \ref is undefined and trm-lint turns that into a build failure.
 
 Unless stated otherwise, every figure and table in this chapter is taken from
 schematic-level simulation of the block's own testbench (pre-layout, with no
@@ -110,24 +99,17 @@ throughout. Design
 targets, where quoted alongside a measurement, are stated in the block section that
 reports the measurement.
 
-% =====================================================================
-% THE PINNED-PASSIVE CAVEAT. HAND-WRITTEN, and the single authored place where
-% this defect is explained: every affected caption points here in one clause
-% ("pinned-passive caveat, page~\pageref{p:pinned-passives}") rather than
-% restating it. Source: ~/vestarv/docs/afe_rev2_corner_audit.html and the runs
-% archived in ~/chips/castalia/simruns/cornaudit_20260825/ (README.md S3 for the
-% headline table, results_tables.txt for the four measured tables, corner_scan.txt
-% for the sweep over every setup). Caught twice independently before that audit:
-% simruns/bgladder_20260825 (the bias generator, which is why
-% tab_biasgen_dcop_free exists) and simruns/eiscorner_20260825 S2.5 (the
-% impedance campaign, which is why note_eis_intro.tex already carried a
-% section-scoped version -- now reduced to a pointer plus its own numbers).
-% NOTHING HERE IS A RE-MEASUREMENT of a published table: the affected numbers
-% stand in the chapter exactly as they were, marked as a lower bound. Re-running
-% them is the owner's decision.
-% Model section and kit file names are named here, unlike everywhere else in the
-% chapter, because the recommendation is only actionable if the names are exact.
-% =====================================================================
+% The pinned-passive caveat, and the single authored place where this defect is
+% explained: every affected caption points here in one clause ("pinned-passive caveat,
+% page~\pageref{p:pinned-passives}") rather than restating it. Source:
+% ~/vestarv/docs/afe_rev2_corner_audit.html and ~/chips/castalia/simruns/
+% cornaudit_20260825/ (README.md S3 the headline table, results_tables.txt the four
+% measured tables, corner_scan.txt the sweep over every setup); also caught in
+% simruns/bgladder_20260825 (why tab_biasgen_dcop_free exists) and
+% simruns/eiscorner_20260825 S2.5 (why note_eis_intro.tex carries its own numbers).
+% Nothing here re-measures a published table: the affected numbers stand as they were,
+% marked as a lower bound. Model section and kit file names are exact here, unlike
+% elsewhere in the chapter, because the recommendation is only actionable that way.
 
 \paragraph{The pinned-passive caveat.}\label{p:pinned-passives}
 The corner set that serves this chapter moves the sixteen transistor model rows
@@ -197,20 +179,18 @@ variation is bounded by neither the corner set nor the Monte Carlo today; the
 \SI{22}{\pico\farad} compensation capacitor of Section~\ref{ss:ampab} is the
 device that makes that matter.
 
-% ---------------------------------------------------------------------
 % Generated block sections. Each is produced by tools/maestro2tex from a
 % Maestro run; see that tool's README for how to regenerate or add one.
 % Keep a block after whatever it depends on: the amplifier section quotes the
 % bias rails that the bias generator section defines, and refers to it by \ref.
-% ---------------------------------------------------------------------
 
 \input{include/analog/note_models.tex}
 \input{include/analog/sch_models_cell.tex}
 \input{include/analog/sch_models_electrode.tex}
 
-% Nonlinear (Butler-Volmer + diffusion) electrode model, used for cyclic
-% voltammetry. Hand-written like the linear models above: it is a simulation
-% model shared by the benches, not a block, so it sits with them.
+% Nonlinear (Butler-Volmer + diffusion) electrode model, used for cyclic voltammetry.
+% Hand-written like the linear models above: a simulation model shared by the benches,
+% not a block, so it sits with them.
 \FloatBarrier
 \input{include/analog/note_electrode_intro.tex}
 \input{include/analog/tab_electrode_params.tex}
@@ -226,16 +206,16 @@ device that makes that matter.
 \input{include/analog/note_electrode_refs.tex}
 \FloatBarrier
 
-% Each block master is followed by a HAND-WRITTEN note_meas_*.tex: the register
-% settings that observe that block on a real die through the analog test bus or
-% the converter's own input multiplexer. They live outside the masters because
-% the masters are maestro2tex output and are overwritten on every regeneration.
+% Each block master is followed by a hand-written note_meas_*.tex: the register
+% settings that observe that block on a real die through the analog test bus or the
+% converter's own input multiplexer. They live outside the masters because the masters
+% are maestro2tex output and are overwritten on every regeneration.
 
 \input{include/analog/BiasGenCascWideSwing.tex}
-% Start-up verification, 2026-08-25. HAND-WRITTEN: it comes from a bench built
-% after the maestro2tex config was frozen (castalia/tb_anatop_bg_startup, one
-% test bg_su, 101 corners), so it is input here rather than from the generated
-% master. Source ~/chips/castalia/simruns/bgladder_20260825/README.md, Task A.
+% Start-up verification, hand-written: it comes from a bench built after the
+% maestro2tex config was frozen (castalia/tb_anatop_bg_startup, one test bg_su, 101
+% corners), so it is input here rather than from the generated master. Source
+% ~/chips/castalia/simruns/bgladder_20260825/README.md, Task A.
 \input{include/analog/note_biasgen_startup.tex}
 \input{include/analog/note_meas_biasgen.tex}
 \input{include/analog/AmpAB.tex}
@@ -243,35 +223,29 @@ device that makes that matter.
 \input{include/analog/Pixel.tex}
 \input{include/analog/note_meas_pixel.tex}
 
-% Assembled channel -- HAND-WRITTEN throughout (no maestro2tex config behind it;
-% the numbers come from the pre-tapeout verification of the assembled cell,
+% Assembled channel, hand-written throughout (no maestro2tex config; the numbers come
+% from the pre-tapeout verification of the assembled cell,
 % ~/vestarv/docs/afe_rev2_pixel_verify.html, and its runs under
-% ~/chips/castalia/simruns/). Placed immediately after the pixel
-% section because it is the same channel with every ideal source replaced by
-% silicon, and reads as a diff against it.
-% RE-BASELINED 2026-08-24 against ~/chips/castalia/simruns/rebase_20260824 --
-% the owner edited the cell (two unity-gain multiplexer buffers added, both
-% reference-DAC supply regulators deleted, A1's compensation pair made real MIM
-% devices, four amplifier devices moved onto the mismatch-enabled wrappers) and
-% the whole characterisation was re-run: dc, a 24-point stability grid, noise,
-% power, five corners, a 200-sample Monte Carlo and a multiplexer-disturbance
-% study.  NOT repeated on the new OA, and flagged in the fragments that use
-% them: the staircase voltammetry run, the five-corner stability run, and the
-% Monte Carlo attribution/ablation and stability runs.
-% =====================================================================
-% ASSEMBLED-CHANNEL SECTION -- COMMENTED OUT 2026-08-26, OWNER'S EXPLICIT
-% INSTRUCTION, to shorten the chapter.  COMMENTED OUT, NOT DELETED: every
-% fragment below is still on disk in this directory, unedited, with its own
-% provenance header, and restoring the section is uncommenting these fourteen
-% \input lines.  Removed with it: the "Assembled channel" and "Input
-% multiplexer" rows of the coverage table above, the multiplexer clause of the
-% pinned-passive paragraph, and the labels ss:pixtop, sss:pixtop-*,
-% tab:pixtop-* and fig:pixtop-*.  Four sentences elsewhere in the chapter were
-% rewritten so they no longer reference those labels: the extracted-netlist
+% ~/chips/castalia/simruns/). It belongs immediately after the pixel section: the same
+% channel with every ideal source replaced by silicon, read as a diff against it.
+% The characterisation is re-baselined against ~/chips/castalia/simruns/rebase_20260824
+% (dc, a 24-point stability grid, noise, power, five corners, a 200-sample Monte Carlo
+% and a multiplexer-disturbance study) after the cell gained two unity-gain multiplexer
+% buffers, lost both reference-DAC supply regulators, got real MIM devices for A1's
+% compensation pair and moved four amplifier devices onto mismatch-enabled wrappers.
+% Three runs were not repeated on the new OA and are flagged in the fragments that use
+% them: the staircase voltammetry run, the five-corner stability run, and the Monte
+% Carlo attribution/ablation and stability runs.
+%
+% The section is commented out, not deleted, to keep the chapter short. Every fragment
+% below is on disk with its own provenance header, and restoring the section is
+% uncommenting these fourteen \input lines plus the "Assembled channel" and "Input
+% multiplexer" rows of the coverage table, the multiplexer clause of the pinned-passive
+% paragraph, and the labels ss:pixtop, sss:pixtop-*, tab:pixtop-* and fig:pixtop-*.
+% Four sentences elsewhere no longer reference those labels: the extracted-netlist
 % sentence and the blocks-documented paragraph above, note_adc_intro's Coverage
-% paragraph (now pointing at ss:eis, which splices the same extracted macro),
-% and note_calibration's Residual paragraph (the ref dropped; the sentence
-% stands without it).
+% paragraph (pointing at ss:eis, which splices the same extracted macro), and
+% note_calibration's Residual paragraph.
 %
 % \FloatBarrier
 % \input{include/analog/note_pixtop_intro.tex}
@@ -308,54 +282,30 @@ device that makes that matter.
 % \input{include/analog/note_pixtop_open.tex}
 % \input{include/analog/note_meas_pixtop.tex}
 % \FloatBarrier
-% ===================== end of the commented-out section =====================
+% End of the commented-out assembled-channel section.
 \FloatBarrier
 
-% Impedance spectroscopy -- HAND-WRITTEN throughout, from
-% ~/chips/castalia/simruns/eisdemo_20260825/README.md and the run data beside it
-% (campaign of 2026-08-25: 30 AC runs, 24 fixed-ratio runs, 17 real-DAC
-% transients, an extracted-converter probe, and the bench cell
-% castalia/tb_anatop_eisdemo whose four Maestro tests verify headlessly at 13/13
-% specs), plus ~/chips/castalia/simruns/eiscorner_20260825/README.md (the same
-% bench and extractor with a corner/temperature axis added: 210 corner AC runs,
-% 42 corner band-edge runs, 24 runs with the poly and mimcap cornered too, eight
-% 200-sample Monte Carlo runs, and eis_ac over seven corners at 35/35 specs).
-% Placed here, as a subsection of its own immediately after the
-% assembled channel, because it is a measurement MODE of that channel -- it adds
-% no hardware -- while spanning the reference DAC, both amplifiers, the
-% programmable feedback resistor, the converter and the firmware demodulator.
-% The placement argument in full is at the head of note_eis_intro.tex.
-% CUT BY ~85 % on 2026-08-26, OWNER'S EXPLICIT INSTRUCTION: "a few paragraphs
-% and a few figures, not a subsection tree".  Three prose fragments survive and
-% carry no subsubsection; four are no longer input and stay on disk, unedited,
-% with their own provenance headers -- note_eis_coverage.tex,
-% note_eis_excitation.tex, note_eis_open.tex and the figure fig_eis_error.tex,
-% plus fig_eis_settling.tex, which note_eis_rules.tex no longer inputs.  Each
-% surviving fragment's header records what left it and which run holds it.
-% Nothing measured is lost: the campaigns are ~/chips/castalia/simruns/
-% {eisdemo,eiscorner}_20260825, eisdeep_20260826 and eisfigs2_20260826, and the
-% narrative is ~/vestarv/docs/afe_rev2_eis_lite.html.
-% CUT AGAIN on 2026-08-26 to ABOUT TWO PAGES, OWNER'S EXPLICIT INSTRUCTION.
-% Two prose fragments and two figures now: note_eis_intro (which inputs
-% fig_eis_nyquist) and note_eis_accuracy (which inputs fig_eis_codelevel).
-% 2026-08-27, OWNER'S EXPLICIT INSTRUCTION: the code-level figure became the
-% TABLE tab_eis_codelevel; note_eis_accuracy inputs that instead, and
-% fig_eis_codelevel.tex joins the list of fragments left on disk un-input.
-% Newly no longer input, and left ON DISK UNEDITED like the four above:
-% note_eis_rules.tex (the firmware-rules paragraph -- its \input line was here)
-% and fig_eis_mccal.tex (the wafer-calibration histogram, whose \input line and
-% arguing paragraph were in note_eis_accuracy).  Restoring either is putting an
-% \input back.  What left the rendered prose with them, and which run holds it,
-% is recorded in the headers of note_eis_intro.tex and note_eis_accuracy.tex.
-% No cross-reference elsewhere in the chapter breaks: the only \ref into the
-% removed material was note_eis_accuracy's own pointer to fig:eis-mccal, which
-% went with the paragraph that carried it.  The coverage table's Monte Carlo
-% tick for the impedance row still stands on a reported sigma -- the 11.1 % of
-% note_eis_intro's pinned-passive paragraph, now the section's only wafer
-% number.  Three sentences inside the section were rewritten to survive the
-% cut; see the two fragment headers.  The figure kept over the histogram
-% is the Nyquist: it is the only picture of what the mode produces, and the
-% histogram's argument left the prose with the wafer-calibration paragraph.
+% Impedance spectroscopy, hand-written throughout from
+% ~/chips/castalia/simruns/eisdemo_20260825/README.md and the run data beside it (30 AC
+% runs, 24 fixed-ratio runs, 17 real-DAC transients, an extracted-converter probe, and
+% the bench cell castalia/tb_anatop_eisdemo, whose four Maestro tests verify headlessly
+% at 13/13 specs), plus eiscorner_20260825/README.md (the same bench and extractor with
+% a corner and temperature axis: 210 corner AC runs, 42 corner band-edge runs, 24 runs
+% with the poly and mimcap cornered too, eight 200-sample Monte Carlo runs, and eis_ac
+% over seven corners at 35/35 specs).
+% It is a subsection rather than a block section because it is a measurement mode of
+% the assembled channel and adds no hardware, while spanning the reference DAC, both
+% amplifiers, the programmable feedback resistor, the converter and the firmware
+% demodulator.
+% The section is two prose fragments and the inline table tab_eis_codelevel.
+% note_eis_{coverage,excitation,open,rules}.tex and
+% fig_eis_{error,settling,mccal,nyquist,codelevel}.tex stay on disk un-input, each with
+% its own provenance header; restoring one is putting an \input back. No \ref
+% elsewhere in the chapter reaches them. The coverage table's Monte Carlo tick for the
+% impedance row stands on the sigma = 11.1 % of note_eis_intro's pinned-passive
+% paragraph, the section's only wafer number. Campaigns:
+% ~/chips/castalia/simruns/{eisdemo,eiscorner}_20260825, eisdeep_20260826 and
+% eisfigs2_20260826; narrative ~/vestarv/docs/afe_rev2_eis_lite.html.
 \input{include/analog/note_eis_intro.tex}
 \input{include/analog/note_eis_accuracy.tex}
 \input{include/analog/note_eis_firmware.tex}
@@ -368,50 +318,40 @@ device that makes that matter.
 \input{include/analog/DacR2R12.tex}
 \input{include/analog/note_meas_dacr2r12.tex}
 
-% Four-channel macro -- HAND-WRITTEN (no maestro2tex config; the numbers are
-% read from the executed psf of four transient Maestro tests by
-% skill/quad_eval.py).  ADDED 2026-09-05, from the F13 build wave.  Placed last
-% among the measured sections and before the calibration section because it is
-% the assembly of every block above it, and because the calibration section
-% refers to per-channel constants that only mean something once the channels
-% are shown to be independent.  Runs ~/chips/castalia/simruns/quad_20260905/,
-% wrapper netlist and CDL ~/chips/castalia/simarchive/anatop_quad/.
+% Four-channel macro, hand-written (no maestro2tex config; the numbers are read from
+% the executed psf of four transient Maestro tests by skill/quad_eval.py). It is last
+% among the measured sections and before the calibration section: it assembles every
+% block above it, and the calibration section refers to per-channel constants that only
+% mean something once the channels are shown to be independent. Runs
+% ~/chips/castalia/simruns/quad_20260905/, wrapper netlist and CDL
+% ~/chips/castalia/simarchive/anatop_quad/.
 \FloatBarrier
 \input{include/analog/note_quad_tb09.tex}
 
-% ---------------------------------------------------------------------
-% Per-chip calibration. HAND-WRITTEN, and last on purpose: it is a system
-% statement built on every block section above and refers to all of them by
-% \ref, so it must follow them. Only the programmable knobs live here; the
-% measurements themselves are in the note_meas_*.tex fragments above.
-% Documents design intent only -- no calibration has been run.
-% ---------------------------------------------------------------------
+% Per-chip calibration, hand-written and last: a system statement built on every block
+% section above and referring to all of them by \ref, so it must follow them. Only the
+% programmable knobs live here; the measurements are in the note_meas_*.tex fragments.
+% Design intent only, no calibration has been run.
 \FloatBarrier
 \input{include/analog/note_calibration.tex}
 \FloatBarrier
 
-% ===========================================================================
-% ORPHANS -- the fragments in this directory that no \input reaches (D-18,
-% 2026-09-05). 227 .tex files here, 193 reachable from this file, 34 not. They
-% are kept, unedited, with their own provenance headers; restoring any of them
-% is putting an \input back. Recompute with a transitive \input walk from this
-% file, not by eye.
+% Orphans: the fragments in this directory that no \input reaches. 227 .tex files
+% here, 193 reachable from this file, 34 not. They are kept with their own provenance
+% headers, and restoring one is putting an \input back. Recompute the list with a
+% transitive \input walk from this file, not by eye.
 %
-%   Assembled channel, 17 (cut 2026-08-26, see the commented-out block above):
+%   Assembled channel, 17 (the commented-out block above):
 %     note_pixtop_{intro,potential,zero,cv,adc,mux,comp,noise,power,mc,open}
 %     tab_pixtop_{summary,mc}  fig_pixtop_{cv,noise,mc}  note_meas_pixtop
-%   Impedance spectroscopy, 9 (cut 2026-08-26/27, see the block above):
-%     note_eis_{coverage,excitation,open,rules}
-%     fig_eis_{error,settling,mccal,nyquist,codelevel}
-%     fig_eis_codelevel was replaced by tab_eis_codelevel on 2026-08-27.
-%     fig_eis_nyquist is NOT input either, so the comment above that says the
-%     Nyquist figure was the one kept is stale: the section renders no figure.
-%   Build helpers, 7: preview_{Adc,AmpAB,BiasGenCascWideSwing,DacR2R12,
-%     Electrode,Pixel,TiaRprog} -- standalone wrappers for compiling one block
-%     section on its own; never part of the manual.
+%   Impedance spectroscopy, 9: note_eis_{coverage,excitation,open,rules} and
+%     fig_eis_{error,settling,mccal,nyquist,codelevel}. tab_eis_codelevel replaced
+%     fig_eis_codelevel, and the section renders no figure at all.
+%   Build helpers, 7: preview_{Adc,AmpAB,BiasGenCascWideSwing,DacR2R12,Electrode,
+%     Pixel,TiaRprog} -- standalone wrappers for compiling one block section on its
+%     own; never part of the manual.
 %   Unused schematic, 1: sch_tb_slew (the slew bench, never written up).
 %
-% Nothing here is superseded by a rewrite: every number in these fragments is
-% still traceable to the run named in its header. They are out of the manual
-% because the owner shortened the chapter, not because they are wrong.
-% ===========================================================================
+% Nothing here is superseded: every number in these fragments is still traceable to the
+% run named in its header. They are out of the manual because the chapter was
+% shortened, not because they are wrong.

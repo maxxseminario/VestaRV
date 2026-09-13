@@ -1,36 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# irqctx.S
-#-----------------------------------------------------------------------------
-# Hart-0 directed test of the HARDWARE IRQ context save/restore contract,
-# using a CLINT msip self-IPI as the interrupt source (runs against the
-# default shmem_mp contention tiles like shclint).
-#
-# The vesta core's contract (IRQ_SV / IRQ_REST states):
-#   entry: mem[sp-4] <= return PC (pc_next), THEN sp <= sp-4
-#          -> the ISR sees the saved PC at 0(sp) at entry
-#   iret:  PC <= mem[sp] (RE-READ FROM RAM), sp <= sp+4
-#
-# Checks:
-#   1. SAVE-TO-RAM: the push slot (0xFFEC) is pre-poisoned; after the IRQ it
-#      must hold a PC inside the triggering spin loop, and the SAME value the
-#      ISR captured from 0(sp)+its-frame. The word AT sp (0xBFF0) keeps its
-#      poison -- hardware wrote only mem[sp-4].
-#   2. SP DISCIPLINE: the ISR records its entry sp; it must be exactly
-#      0xBFF0-4. After iret, main-line sp must be back to 0xBFF0.
-#   3. REGISTER TRANSPARENCY: 27 GPRs (all but sp and the spin loop's
-#      s3/t0/t6) hold per-register patterns across the whole IRQ round trip
-#      -- hardware saves ONLY the PC, and the ISR's own save/restore of what
-#      it touches must be invisible.
-#   4. RESTORE-FROM-RAM: on a second IPI the ISR OVERWRITES the stacked PC
-#      with redirect_target; iret must land there (a core that returns via
-#      an internal latch instead of re-reading mem[sp] stays in the wait
-#      loop and fails on the bounded budget).
-#
-# ISR contract as ever: clear the LEVEL before iret; bounded budgets must
-# trip inside the 100ms tb watchdog (20000 iters, shclint precedent).
-#*****************************************************************************
+# VestaRV: hardware IRQ context save and restore contract
+# Hart 0 only, driven by a CLINT msip self-IPI; the default shmem_mp tiles contend on the shared window throughout.
+# The core's contract: on entry mem[sp-4] <= the return PC and THEN sp <= sp-4, so the ISR sees the saved PC at 0(sp); on iret PC <= mem[sp], RE-READ FROM RAM, and sp <= sp+4.
+# Checks, in order: the push slot 0xFFEC holds a PC inside the triggering spin loop and the word at sp (0xBFF0) keeps its poison, since hardware wrote only mem[sp-4]; the ISR's entry sp is exactly 0xBFF0-4 and main-line sp is back to 0xBFF0 after iret; 27 GPRs (all but sp and the spin loop's s3/t0/t6) keep per-register patterns across the round trip, because hardware saves only the PC; and on a second IPI the ISR overwrites the stacked PC with redirect_target, so a core that returns from an internal latch instead of re-reading mem[sp] stays in the wait loop and fails on the bounded budget.
+# ISR contract: clear the LEVEL before iret. Bounded budgets are 20000 iterations, which trips inside the 100 ms tb watchdog.
 
 #include "riscv_test.h"
 #include "test_macros.h"

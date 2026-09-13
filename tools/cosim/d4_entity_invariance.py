@@ -1,35 +1,10 @@
 #!/usr/bin/env python3.6
-# VestaRV: the D4 FAIL-SAFE clause, mechanised.
+# VestaRV: the debug_module entity interface is frozen at its baseline.
 #
-# BLIND-AUTHORED 2026-08-07 against d4_spec.md 1.6 (FROZEN) by an agent that
-# has not seen and will never see the D4 implementation.
-#
-#   /usr/bin/python3.6 tools/cosim/d4_entity_invariance.py
-#
-#   rc 0  the debug_module entity's generic and port name lists are EXACTLY
-#         the D3 baseline (pinned below at d-series 286921d)
-#   rc 1  a name was added, removed or renamed -- each one quoted
-#   rc 2  the entity block could not be parsed at all
-#
-# THE CLAUSE.  d4_spec 1.6: "the plant adds NO new entity ports and NO generics
-# (the table is internal).  If the implementer finds a generator/emission touch
-# necessary after all: STOP-AND-REPORT."  That is a STOP condition, and a stop
-# condition that is only checked by reading a diff gets missed exactly once.
-#
-# WHY A NAME LIST AND NOT AN md5 OF THE BLOCK.  The implementer is expected to
-# edit debug_module.vhd extensively -- a 40-word constant table, a new
-# sequencer state, a plant-done latch, and per d4_spec 4 a rewritten comment
-# block.  An md5 of the whole entity would fire on a comment and would then be
-# ignored, which is worse than not checking.  What d4_spec 1.6 actually freezes
-# is the INTERFACE: generic names, port names, and each port's direction.  A
-# widened vector or a changed default is deliberately NOT policed here -- it
-# would be caught by the knob-OFF bit-identity pins, and I1
-# (check_entity_defaults.py) already owns the fail-safe-default question.
-#
-# Method note (rule 4): this script's own parse is validated against a KNOWN
-# NONZERO on every run -- it re-parses a deliberately mutated copy of the
-# entity in memory and requires itself to notice.  A parser that silently
-# matched nothing would otherwise report "0 differences" forever.
+# The plant adds no entity ports and no generics; the table is internal. A name list rather than
+# an md5 of the block, because the architecture changes extensively and an md5 firing on a
+# comment would be ignored. Frozen: generic names, port names, each port's direction. Its own
+# parse is validated every run against a mutated in-memory copy it must notice.
 from __future__ import print_function
 import os
 import re

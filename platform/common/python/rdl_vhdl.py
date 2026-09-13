@@ -1,37 +1,10 @@
 #!/usr/bin/env python3
-"""rdl_vhdl.py -- a VHDL package of one .rdl block's offsets, field ranges and
-reset constants.
+"""VestaRV: a VHDL package of one .rdl block's offsets, field ranges and reset constants.
 
-The package a peripheral could `use` WITHOUT CHANGING BEHAVIOUR. A peripheral
-that declares its word offsets, its implemented-bit masks and its reset tables as
-file-local constants keeps a single-file closure for its bench. This package emits
-exactly those constants under exactly those meanings, so adopting it is a one-line
-`use work.<block>_regs_pkg.all;` plus deleting the local copies -- and the
-constants it emits are checked against the local ones by
-//platform/common:rdl_vs_vhdl_<periph>_test, so the swap is provably inert.
-
-Level 2 (2026-09-10): the packages the RTL actually `use`s are TRACKED, under
-hdl/common/regs/vhdl/. RTL_PACKAGES below is the table that drives it;
-//platform/common:rdl_vhdl_pkg_test regenerates each and fails if the tracked file
-differs by one byte, and //platform/common:rdl_pkg_vs_legacy_test compares every
-emitted value against the hand-written constants as they stood before the
-migration.
-
-What is emitted per register:
-    <REG>_WORD    natural, the word offset inside the peripheral's sub-slot
-    <REG>_ADDR    natural, the byte offset
-    <REG>_RESET   std_logic_vector, the reset word
-    <REG>_IMPL    std_logic_vector, the software-writable storage mask
-and per field:
-    <FIELD>_MSB / <FIELD>_LSB   natural
-    <FIELD>_RESET               std_logic_vector of the field's own width
-
-`_IMPL` is the mask of bits that hold a software-written flop: a field counts
-when software may READ AND write it (`sw = rw`) and hardware does not drive it
-(`hw = r` or `hw = na`). A write-only field (`sw = w`) is a command, not a
-register, and holds nothing whatever its width; see `storageMask` below. That is
-the definition the RTL uses for its IMPL tables, which is why the two agree bit
-for bit.
+Emits <REG>_WORD/_ADDR/_RESET/_IMPL and <FIELD>_MSB/_LSB/_RESET so a peripheral can drop its
+file-local copies with a one-line `use`. _IMPL is the mask of bits holding a software-written
+flop: sw=rw and hw in {r, na}; a write-only field is a command and holds nothing. RTL_PACKAGES
+drives the tracked packages under hdl/common/regs/vhdl/, regenerated and byte-compared by test.
 """
 
 import os
@@ -53,7 +26,7 @@ _HW_OWNED_ACCESS = ('rw0', 'rw1')
 # ("Field 'EVFCHTRIG' marked as 'singlepulse' shall have width of 1"), so width
 # cannot be what decides. The peripheral consumes the field through wr_pulse
 # where the description is `singlepulse`, and through wr_hit / wr_strobe plus the
-# raw bus wdata where it is wider. Owner decision, 2026-09-11.
+# raw bus wdata where it is wider. Owner decision.
 _WRITE_ONLY_ACCESS = ('w', 'w0', 'w1')
 
 
@@ -78,7 +51,6 @@ def _isSinglePulse(bf):
     return bf.Accessibility == 'w1'
 
 
-# ---------------------------------------------------------------------------
 # The TRACKED packages, and the aggregate section that lets the RTL adopt them
 # without touching its body.
 #
@@ -98,10 +70,8 @@ def _isSinglePulse(bf):
 #              W_* (absolute, what the bus decodes) -- one identifier per meaning.
 #
 # No block in the public tree needs the aggregate section today.
-# ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# THE 22-PERIPHERAL WAVE (report R8a, 2026-09-11).
+# THE 22-PERIPHERAL WAVE.
 #
 # Every peripheral gets a tracked package, whether or not its RTL has adopted it
 # yet: a package no entity `use`s is inert in every flow, and emitting all of
@@ -121,7 +91,6 @@ def _isSinglePulse(bf):
 # The half the intersection drops is not lost: `variants` is also the list
 # _checkRegfileFn grades _REGFILE_FN's table recipes against, and those tables
 # are emitted as FUNCTIONS of the same generics. See _REGFILE_FN below.
-# ---------------------------------------------------------------------------
 
 
 def _clintVariants():
@@ -151,7 +120,7 @@ def _pwrVariants():
 
 
 RTL_PACKAGES = (
-    # --- the memory-map-package convention -------------------------------
+    # the memory-map-package convention
     # These six read their word offsets from work.MemoryMap's RegSlot* /
     # MmrAddr* constants. Their package re-declares the SAME identifiers, so
     # adoption swaps the context clause instead of adding one: an entity that
@@ -218,7 +187,7 @@ RTL_PACKAGES = (
         'migrated': True,
         'replacesMemoryMap': True,
     },
-    # GPIO was parked until 2026-09-11 (report R12e). Its ENTITY PORTS are
+    # GPIO was parked until late in the migration. Its ENTITY PORTS are
     # NUM_AFS * num_pins wide, and NUM_AFS used to be the work.MemoryMap constant
     # GPIO_NUM_AFS, so GPIO.vhd could not drop that context clause -- and the
     # memory-map package also publishes a <FIELD>_MSB / <FIELD>_LSB pair for every
@@ -236,7 +205,7 @@ RTL_PACKAGES = (
         'periph': 'gpio',
         'migrated': True,
     },
-    # --- the local-SLOT_ convention --------------------------------------
+    # the local-SLOT_ convention
     {
         'package': 'qspi_regs_pkg',
         'file': 'hdl/common/regs/vhdl/qspi_regs_pkg.vhd',
@@ -318,10 +287,10 @@ RTL_PACKAGES = (
         'periph': 'evfab',
         'migrated': True,
     },
-    # --- decodes with no named slot constants ----------------------------
+    # decodes with no named slot constants
     # DMA, CLINT and MUTEX decode a bare integer word index, so there is no
     # local constant to delete and adoption is a body edit. DMA took that edit
-    # (report R12d) and now `use`s its package, as do CLINT and MUTEX (report P4).
+    # and now `use`s its package, as do CLINT and MUTEX.
     {
         'package': 'dma_regs_pkg',
         'file': 'hdl/common/regs/vhdl/dma_regs_pkg.vhd',
@@ -331,7 +300,7 @@ RTL_PACKAGES = (
         'periph': 'dma',
         'migrated': True,
     },
-    # --- the four configuration-dependent blocks -------------------------
+    # the four configuration-dependent blocks
     {
         'package': 'clint_regs_pkg',
         'file': 'hdl/common/regs/vhdl/clint_regs_pkg.vhd',
@@ -378,7 +347,7 @@ RTL_PACKAGES = (
         'variants': _pwrVariants(),
         'variantNote': 'NHARTS 1, 5, 8, 9, 18, 32 (the PWRSR word count is ceil(NHARTS/8))',
     },
-    # --- not a memory-mapped peripheral ----------------------------------
+    # not a memory-mapped peripheral
     # debug_module.vhd decodes DMI addresses as 7-bit vectors (A_DATA0 ...), not
     # word offsets, and rdl.json marks it registerSource "none". The package is
     # emitted for completeness and has no adoption path; see the report.
@@ -411,7 +380,6 @@ for _spec in RTL_PACKAGES:
         _AGGREGATE[_spec['top']] = _spec['aggregate']
 
 
-# ---------------------------------------------------------------------------
 # THE DECODE IDENTIFIERS, per block.
 #
 # _AGGREGATE above covers blocks that declare an array type and two tables
@@ -428,7 +396,6 @@ for _spec in RTL_PACKAGES:
 #                  described without inventing constants it does not have.
 #   absent         the decode uses bare integers (CLINT, MUTEX, DMA) or is not
 #                  memory mapped (debug_module); scalar constants only.
-# ---------------------------------------------------------------------------
 
 _SYSTEM_RTL_SPELLING = {
     'SYSCLKCR': 'RegSlotSYS_CLK_CR',
@@ -602,8 +569,7 @@ def _aggregateLines(block):
     return L
 
 
-# ---------------------------------------------------------------------------
-# THE periph_regs TABLES (report R12a, 2026-09-11).
+# THE periph_regs TABLES.
 #
 # hdl/common/periph_regs.vhd is the house bus protocol written once: a
 # peripheral instantiates it with one row per word and keeps only its datapath.
@@ -631,7 +597,6 @@ def _aggregateLines(block):
 # declares only `subtype reg_arr_t is word_array(0 to NWORDS-1)`, a constrained
 # subtype of it, so a table from one package and a port of another are the same
 # base type.
-# ---------------------------------------------------------------------------
 
 _REGFILE = ('uart', 'spi', 'timer', 'i2c', 'npu', 'gpio', 'qspi', 'i3c', 'nfc',
             'rtc', 'pwm', 'onewire', 'trng', 'i2ctarget', 'dma', 'system', 'evfab')
@@ -649,12 +614,10 @@ _REGFILE_SKIP = {
 
 
 def _rdlMasks(rt):
-    """The periph_regs masks of one register, from the UNCOLLAPSED SystemRDL
-       tuple rdl_model carries on each BitField.
-
-       The generator access code cannot be used here: it spells hw=r, hw=na and
-       hw=rw all `rw`, and woclr, woset and wot all `rw1`, and a decode has to
-       know which side owns the flop and which direction a written 1 acts in."""
+    """The periph_regs masks of one register, from the uncollapsed SystemRDL tuple rdl_model carries
+    on each BitField. The generator access code cannot be used: it spells hw r, na and rw all
+    `rw`, and a decode has to know which side owns the flop and which way a written 1 acts.
+    """
     out = {'W1C': 0, 'WOSET': 0, 'WOT': 0, 'PULSE': 0, 'RCLR': 0, 'HWOWN': 0}
     for bf in rt.BitFields:
         if bf.Unused:
@@ -712,12 +675,10 @@ def _reservedRow(word):
 
 
 def _regfileLines(block, pkgSpec=None):
-    """NWORDS, reg_arr_t and the eight tables periph_regs is generic in.
-
-       One row per WORD from the first register's slot to the last, not one row
-       per register: a block with gaps in its slots (SYSTEM, EVFAB) gets an
-       all-zero `_reserved_<word>` row for each, which periph_regs decodes as a
-       word that stores nothing, reads 0 and takes no hook."""
+    """NWORDS, reg_arr_t and the eight tables periph_regs is generic in. One row per word from the
+    first register's slot to the last, not one per register, so a block with gaps gets an all-zero
+    _reserved_<word> row that periph_regs decodes as storing nothing and taking no hook.
+    """
     if block.Name in _REGFILE_SKIP:
         why = _REGFILE_SKIP[block.Name]
         return (['    -- No periph_regs table section: ' + why[0]]
@@ -785,8 +746,7 @@ def _regfileLines(block, pkgSpec=None):
     return L
 
 
-# ---------------------------------------------------------------------------
-# THE CONFIGURATION-DEPENDENT TABLES (report P4, 2026-09-12).
+# THE CONFIGURATION-DEPENDENT TABLES.
 #
 # CLINT, MUTEX and PWRCTRL have a register SET that is a function of a generic,
 # so their rows cannot be a constant aggregate. They are emitted as FUNCTIONS of
@@ -818,7 +778,6 @@ def _regfileLines(block, pkgSpec=None):
 # 516-520, so its window is 521 words wide, and periph_regs decodes a 64-word
 # slot (MABPart is 6 bits, and `WORD_BASE + NWORDS <= 64` is an elaboration
 # assertion). No table can be handed to the module, at any hart count.
-# ---------------------------------------------------------------------------
 
 # A row value: either a constant this package emits for one register, or an
 # expression over the function's arguments.
@@ -976,12 +935,10 @@ def _recipeRows(spec, block, params):
 
 
 def _checkRegfileFn(name, spec, pkgSpec):
-    """The recipe against the description, at every shipped configuration.
-
-       This is the whole argument that a hand-written layout recipe is safe: it
-       is graded against the .rdl at each configuration //platform/common's
-       rdl_vs_vhdl_<block>_test already elaborates, so a recipe that drifts
-       fails the emission before it can reach a package."""
+    """The recipe against the description, at every shipped configuration. This is the whole argument
+    that a hand-written layout recipe is safe: it is graded against the .rdl at each configuration
+    the per-block test already elaborates, so a drifted recipe fails the emission.
+    """
     import rdl_model
     variants = list(pkgSpec.get('variants') or ())
     if not variants:
@@ -1140,11 +1097,10 @@ def _slv(value, width):
 
 
 def _registerGroups(block):
-    """One (headerComment, [(constantName, line), ...]) per register.
-
-       Grouped rather than flat because the variant intersection below drops
-       whole registers at some configurations, and a register header comment
-       with nothing under it is worse than no comment."""
+    """One (headerComment, [(constantName, line), ...]) per register. Grouped rather than flat because
+    the variant intersection drops whole registers at some configurations, and a register header
+    comment with nothing under it is worse than no comment.
+    """
     regNames = set(rt.NameTemplate for rt in block.RegisterTemplates)
     groups = []
     for rt in block.RegisterTemplates:
@@ -1192,15 +1148,10 @@ def _bodyLines(block, pkgSpec=None):
 
 
 def _intersect(groups, tail, variantBodies):
-    """Keep only what every listed configuration emits identically.
-
-       A configuration-dependent block (CLINT, MUTEX, IRQROUTER, PWRCTRL) has a
-       register set and, in places, a field geometry that is a function of a
-       generic. Rather than curate by hand which of its constants are safe to
-       publish, the package is emitted at every shipped configuration and the
-       result is the intersection: a constant survives only where its name AND
-       its text are the same everywhere. What is dropped stays a generic in the
-       entity, which is where a configuration-dependent number belongs."""
+    """Keep only what every listed configuration emits identically. A configuration-dependent block's
+    register set and geometry are functions of a generic, so the package is emitted at every
+    shipped configuration and a constant survives only where its name and text agree everywhere.
+    """
     common = None
     for vgroups, vtail in variantBodies:
         here = {}

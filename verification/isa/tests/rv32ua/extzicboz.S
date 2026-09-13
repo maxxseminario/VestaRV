@@ -1,43 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extzicboz.S   (X3 Zicboz ext-probe, 2026-07-17)
-#-----------------------------------------------------------------------------
-# Build-time dispatch on CORE_ENABLE_ZICBOZ (extprobe_template.S convention —
-# the macro is supplied EXPLICITLY via -DCORE_ENABLE_ZICBOZ when staging the ON
-# polarity, NEVER auto-derived from a make-chip header or platform/common/out/
-# state; the two build-order traps in that header apply verbatim).
-#
-#   ON  (#ifdef CORE_ENABLE_ZICBOZ): execute a real cbo.zero on a poisoned
-#       64-byte block and CHECK the architectural result -> PASS. Asserts all 16
-#       words == 0 AND the words immediately BEFORE and AFTER the block are
-#       untouched (the boundary guard).
-#
-#   OFF (#else): the cbo.zero encoding executed UNCONDITIONALLY. On a build
-#       without Zicboz the encoding MUST take the illegal-instruction trap (the
-#       FENCE/MISC-MEM funct3=010 imm=0x004 encoding is reserved when Zicboz is
-#       off). run_extoff.sh + trap_watch.tcl report TRAP_OK; executing PAST it
-#       -> FAIL. Wired ONLY into behavioral_mp_stripped/run_extoff.sh (the
-#       a0-watch runner would hang on the terminal TRAP_STATE).
-#
-# The illegal-SIBLING assertion (cbo.clean/flush/inval always trap) lives in the
-# companion terminal-trap poison cbozill.S (run under trap_watch on EVERY build)
-# — this core's illegal-instruction trap is TERMINAL (TRAP_STATE self-loops,
-# trap_flag high), so an in-test recoverable "cbo.clean traps" check is not
-# possible; cbozill.S is the faithful realization (mirrors X2's casill.S).
-#
-# CORRECTED 2026-08-03 (K2b amendment 2), MEASURED. This header used to claim
-# "gas 13.2 has no `zicboz' -march / no cbo.zero mnemonic". That is FALSE on this
-# toolchain: gas 2.41 accepts both `-march=rv32imac_zicsr_zicboz' and
-# `.option arch, +zicboz', assembles `cbo.zero (a1)' to 0x0045a00f, and refuses
-# the mnemonic without the extension ("extension `zicboz' required").
-# The explicit `.insn' below is KEPT, and deliberately: it is march-INDEPENDENT,
-# so ONE source serves both polarities (the OFF arm must emit the encoding on a
-# build whose -march has no zicboz) and no per-polarity -march is needed.
-# It encodes the identical word -- objdump on this file's ON build shows
-# `0045a00f' at the CBO_ZERO site, the same word the mnemonic produces.
-# cbo.zero rs1  ==  .insn i 0x0f (MISC-MEM), funct3=0x2, rd=x0, rs1, imm=0x004.
-#*****************************************************************************
+# VestaRV: Zicboz extension probe
+# BUILD-TIME DISPATCH on CORE_ENABLE_ZICBOZ, supplied EXPLICITLY with -DCORE_ENABLE_ZICBOZ when staging the ON polarity and never auto-derived from a generated header or build output. With it defined a real cbo.zero runs on a poisoned 64-byte block and all 16 words must read 0 while the words immediately BEFORE and AFTER the block are untouched, which is the boundary guard.
+# Without it the cbo.zero encoding executes unconditionally and must take the illegal-instruction trap, since the MISC-MEM funct3 = 010, imm = 0x004 encoding is reserved when Zicboz is off; run_extoff.sh with trap_watch.tcl reports TRAP_OK, and executing past it is a FAIL. IT IS WIRED ONLY INTO behavioral_mp_stripped/run_extoff.sh, because the a0-watch runner would hang on the terminal TRAP_STATE.
+# The illegal-sibling assertion, that cbo.clean, cbo.flush and cbo.inval always trap, lives in the companion terminal-trap poison cbozill.S, run under trap_watch on every build: this core's illegal-instruction trap is TERMINAL, so a recoverable in-test check is not possible.
+# gas 2.41 DOES accept `-march=..._zicboz` and `.option arch, +zicboz` and assembles `cbo.zero (a1)` to 0x0045a00f. THE EXPLICIT `.insn` IS KEPT DELIBERATELY, because it is march-independent, so one source serves both polarities and the OFF arm can emit the encoding on a build whose -march has no zicboz. It encodes the identical word: cbo.zero rs1 is `.insn i 0x0f, 0x2, x0, rs1, 0x004`.
 
 #include "riscv_test.h"
 #include "test_macros.h"

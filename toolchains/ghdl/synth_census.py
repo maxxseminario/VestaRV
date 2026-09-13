@@ -1,61 +1,10 @@
 #!/usr/bin/env python3
-"""synth_census.py -- the hermetic GHDL synthesizability gate and its census.
+"""VestaRV: the hermetic GHDL synthesizability gate and its census.
 
-WHAT THIS IS FOR.
----------------------------------------------------------------------------
-The simulation tier proves the RTL BEHAVES.  Nothing in the open-source tier
-proved it was still SYNTHESIZABLE, so a `wait` statement in a process, an
-incomplete `if` that infers a latch, or a constant index that walks off the
-end of an array all reached Genus before anything went red.  Genus needs a
-license, runs for minutes, and is not on every commit.
-
-`ghdl --synth` is already in the toolchain, costs well under a second per
-block, and refuses exactly those three mistakes.  This script drives it and
-turns its netlist into a frozen census, so a silent doubling of a register
-bank is as visible as an outright error.
-
-THE THREE SUBCOMMANDS.
----------------------------------------------------------------------------
-  run     analyze + synthesize one entity, write netlist / census / log.
-          This is the BUILD ACTION of //toolchains/ghdl:defs.bzl%ghdl_synth_test.
-          It exits 0 even when GHDL fails: the failure is recorded in the
-          census as status="error" so the TEST reports it with the log
-          attached, rather than the build breaking with no artifacts kept.
-          A non-zero exit here means the script itself could not run.
-  gate    read one census, decide PASS or FAIL.  The test binary.
-  freeze  compare every census against toolchains/ghdl/synth_census.json,
-          or, with --update, rewrite it.  The frozen-table py_test.
-
-WHY THE LATCH RULE IS SHAPED THE WAY IT IS.
----------------------------------------------------------------------------
-GHDL 6.0.0 has NO --latches=off.  `--latches` is an opt-in that ALLOWS
-latches; without it an inferred latch is a hard error naming the net
-("latch infered for net %n (use --latches)", netlists-inference.adb:971).
-The default is therefore already the strict setting we want.
-
-But three RTL clock cells legitimately contain a latch -- ClkGate's ClkSync,
-and the PreICG / ClockMuxGlitchFree pair -- and without --latches those
-blocks cannot be synthesized at all, which would cost the gate every
-peripheral that gates a clock.  So `run` always passes --latches and the
-LATCH POLICY MOVES INTO THE CENSUS: a latch is fatal unless the module that
-contains it matches one of the target's allow_latches patterns.  The two
-settings are equivalent for a block with an empty allowlist and strictly
-better for one with a clock gate in it.
-
-Patterns match the SYNTHESIS module name, which GHDL forms as
-"<entity>_B<architecture>" plus a generic/hash suffix, all lowercased --
-"clkgate_Bbehavioral", "clockmuxglitchfree_Bbehavioral_4_2_0".  Match with
-fnmatch so the generic suffix does not have to be spelled out.
-
-THE HIERARCHICAL COUNT, AND WHY A FLAT GREP IS WRONG.
----------------------------------------------------------------------------
-GHDL emits ONE module body per distinct (entity, architecture, generic set).
-A module instantiated five times appears in the netlist once.  Report R14c
-measured this on DMA: a flat sum over the raw netlist gives 1000 flop bits,
-but sync_Brtl_4_2 is instantiated five times and only counted once, so the
-true total is 1000 + 4 x 8 = 1032.  This script walks the instance graph from
-the top module and multiplies, and records both numbers so the discrepancy
-stays visible.
+Subcommands run (synthesize one entity; exits 0 even on a GHDL failure, recording
+status=error in the census), gate (PASS/FAIL a census) and freeze (against synth_census.json).
+GHDL has no --latches=off, so run always passes --latches and a latch is fatal unless the
+target's allow_latches fnmatches the lowercased `<entity>_B<architecture>` module name.
 """
 
 import argparse
@@ -68,7 +17,6 @@ import subprocess
 import sys
 import tempfile
 
-# ---------------------------------------------------------------------------
 # Raw-netlist parsing
 #
 # `ghdl --synth --out=raw` emits a flat list of module bodies nested inside a
@@ -88,7 +36,6 @@ import tempfile
 # instance of another module is `:= \<module>{i<id>}`, and the same instance
 # can appear on several lines when more than one of its outputs is named, so
 # instances are counted as DISTINCT ids.
-# ---------------------------------------------------------------------------
 
 _MODULE = re.compile(r"^  module \{m\d+\} (\S+)\s*$")
 _FLOP = re.compile(r"\$q\{n\d+(?:w(\d+))?\}\s*:=\s*\$(i?a?dff)\{i(\d+)\}")
@@ -112,11 +59,9 @@ class Module(object):
 
 
 def parse_netlist(path):
-    """Every module body in a raw netlist, with its own (non-recursive) counts.
-
-    Returns (ordered list of Module, name of the top module).  The top module
-    is the FIRST one declared: GHDL puts the synthesized entity there and the
-    submodules it reached after it.
+    """Every module body in a raw netlist with its own non-recursive counts, as (modules, top). The
+    top module is the first declared: GHDL puts the synthesized entity there and the submodules it
+    reached after it.
     """
     modules = []
     by_name = {}
@@ -167,11 +112,9 @@ def parse_netlist(path):
 
 
 def rollup(modules, by_name, top):
-    """Multiply each module's own counts by how many times it is instantiated.
-
-    A module reached through more than one path is counted once per path, which
-    is what a hierarchical cell count means.  The walk is depth-first over a
-    DAG (a synthesis netlist cannot be cyclic), memoized on the module name.
+    """Multiply each module's own counts by how many times it is instantiated, which is what a
+    hierarchical cell count means. Depth-first over a DAG, a synthesis netlist being acyclic, and
+    memoized on the module name.
     """
     multiplicity = collections.Counter()
 
@@ -204,7 +147,6 @@ def rollup(modules, by_name, top):
     return total, flat, rows
 
 
-# ---------------------------------------------------------------------------
 # What counts as fatal in the GHDL log
 #
 # GHDL's synth diagnostics carry a warning class in brackets.  Three of them
@@ -235,7 +177,6 @@ def rollup(modules, by_name, top):
 #   -Whide, -Wdelayed-checks, -Wshared, -Wspecs, and the
 #   "ieee library directory ... not found" line, which is GHDL looking for a
 #                  system install it does not need because -P is supplied.
-# ---------------------------------------------------------------------------
 
 FATAL_WARNING_CLASSES = ("-Wruntime-error",)
 
@@ -267,9 +208,7 @@ def fatal_lines(log_text):
     return out
 
 
-# ---------------------------------------------------------------------------
 # run
-# ---------------------------------------------------------------------------
 
 def cmd_run(args):
     workdir = tempfile.mkdtemp(prefix="ghdl_synth_")
@@ -356,9 +295,7 @@ def cmd_run(args):
     return 0
 
 
-# ---------------------------------------------------------------------------
 # gate
-# ---------------------------------------------------------------------------
 
 def cmd_gate(args):
     census = json.load(open(data_path(args.census)))
@@ -397,9 +334,7 @@ def cmd_gate(args):
     return 0
 
 
-# ---------------------------------------------------------------------------
 # freeze
-# ---------------------------------------------------------------------------
 
 FROZEN_HEADER = {
     "_comment": [
@@ -423,13 +358,9 @@ FROZEN_HEADER = {
 
 
 def runfiles_root():
-    """Where data dependencies live.
-
-    A py_test runs with its working directory AT the runfiles root, so a
-    $(rootpath) argument resolves as-is.  `bazel run` does not: it sets the
-    working directory to the workspace so the binary can write there, and the
-    same argument then names nothing.  Both are handled by trying the working
-    directory first and the runfiles root second.
+    """Where data dependencies live. A py_test runs with its working directory at the runfiles root,
+    so a $(rootpath) argument resolves as-is; `bazel run` sets it to the workspace instead. Both
+    are handled by trying the working directory first and the runfiles root second.
     """
     for var in ("RUNFILES_DIR", "TEST_SRCDIR"):
         base = os.environ.get(var)

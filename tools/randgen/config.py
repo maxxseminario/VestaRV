@@ -1,20 +1,10 @@
 #!/usr/bin/python3.6
-"""config.py -- the K3 generator's view of a RESOLVED chip configuration.
+"""VestaRV: the random generator's view of a resolved chip configuration.
 
-The refusal is NOT reimplemented here.  `tools/cosim/oracle_isa.py` already
-carries the measured argument for why a SPARSE config must be an error rather
-than a set of Falses -- it was found by running that CLI on a second input, and
-reading missing keys as False derived `rv32i_zicsr_zicntr_zicboz` for a chip
-that has M, A, C and all of Zb.  Reusing it here means there is ONE place that
-knows what "resolved" means, not two that can drift.
-
-Consequence worth stating: the generator therefore INHERITS oracle_isa's
-refusals, including `div=true, mul=false` (no Spike lever, R-DK1 excludes it)
-and `zawrs=true, atomics=false` (the RTL gates wrs on ZAWRS *and* ATOMICS while
-Spike gates it on `_zawrs` alone).  A config the reference cannot be asked
-about is a config K3 must not generate for.
-
-Python 3.6 compatible.
+The refusal of a sparse config is not reimplemented here: tools/cosim/oracle_isa.py owns what
+`resolved` means, so there is one place that knows rather than two that can drift. The
+generator therefore inherits its refusals, including div without mul and zawrs without
+atomics: a config the reference cannot be asked about is one this must not generate for.
 """
 
 import hashlib
@@ -40,15 +30,9 @@ class ConfigError(Exception):
 
 
 class ResolvedConfig(object):
-    """A resolved config plus everything K3 needs to name it in a report line.
-
-    R-DK5: "A finding without its reproduction line (seed + config + generator
-    version) is not a finding."  `identity` below IS the config half of that
-    line: a stable, human-readable string plus a digest over the exact knob set
-    the generator consumed.  It deliberately does NOT digest the whole file --
-    `chipName`, package and geometry keys move for reasons that cannot change a
-    single emitted instruction, and a digest that moves for those would make
-    every reproduction line look stale.
+    """A resolved config plus everything needed to name it in a report line. `identity` is a stable
+    human-readable string plus a digest over the exact knob set the generator consumed, not the
+    whole file, since chipName and geometry move without changing an emitted instruction.
     """
 
     KEYS_ISA = tuple(sorted(oracle_isa._REQUIRED_ISA))
@@ -78,7 +62,7 @@ class ResolvedConfig(object):
                 'this configuration cannot be lockstepped, so K3 will not '
                 'generate for it: %s' % e)
 
-    # -- identity ---------------------------------------------------------
+    # -- identity
     def knob_line(self):
         on_isa = [k for k in self.KEYS_ISA if self.isa.get(k)]
         on_priv = [k for k in self.KEYS_PRIV if self.priv.get(k)]
@@ -102,11 +86,9 @@ class ResolvedConfig(object):
         return '%s [%s] cfg=%s' % (self.chip, self.knob_line(), self.digest())
 
     def image_defines(self):
-        """The `-DCORE_ENABLE_*` list images for this config must carry.
-
-        Imported from verify_stage rather than recomputed: K2/G3 made that the
-        single source of the software half of the polarity pair, and a second
-        copy here is a second thing to drift.
+        """The -DCORE_ENABLE_* list images for this config must carry, imported from verify_stage rather
+        than recomputed: that is the single source of the software half of the polarity pair, and a
+        second copy is a second thing to drift.
         """
         pc = os.path.join(_REPO, 'platform', 'common', 'python')
         if pc not in sys.path:

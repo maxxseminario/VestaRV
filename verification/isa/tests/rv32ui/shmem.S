@@ -1,18 +1,8 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shmem.S  (M3c.3)
-#-----------------------------------------------------------------------------
-# Directed test for the MCU_MP shared-RAM window at 0x10000 (region 4), which is
-# served through mp_arbiter on the free-running mclk. Every access to 0x10000
-# exercises the core's mem_ready stall path: request -> (arbiter grant, 3-cycle
-# transaction) -> data return -> release. Distinct from the private RAM path.
-#
-# Writes patterns to two shared-window words, reads them back, and checks value
-# + isolation (writing one word must not disturb the other). M4a added sub-word
-# coverage: sb/sh through the arbiter byte lanes + lb/lbu/lhu extraction from
-# the returned word. PASS => a0=CAFEBABE.
-#*****************************************************************************
+# VestaRV: directed test for the shared-RAM window
+# The shared window at 0x10000 is served through mp_arbiter on the free-running mclk, so every access exercises the core's mem_ready stall path: request, arbiter grant, a three-cycle transaction, data return and release. That is a distinct path from private RAM.
+# It writes patterns to two shared words, reads them back and checks both the values and the isolation, since writing one word must not disturb the other, and it covers sub-word access, sb and sh through the arbiter byte lanes with lb, lbu and lhu extraction from the returned word.
 
 #include "riscv_test.h"
 #include "test_macros.h"

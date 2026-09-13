@@ -1,7 +1,7 @@
-% 1-Wire chapter. Section order is the per-peripheral template enforced by
+% VestaRV: 1-Wire chapter of the TRM.
+% Section order is the per-peripheral template enforced by
 % python/check_intro_names.py (Overview / Functional description / Interrupts
-% and events / Programming / Usage notes). Restructured 2026-09-05; the prose
-% is unchanged apart from the headings it now sits under.
+% and events / Programming / Usage notes).
 \section{Overview}
 
 The 1-Wire master (\peripheral{OWx}) is a Dallas/Maxim 1-Wire link-layer controller for the cheap-sensor ecosystem (DS18B20-class thermometers, iButton / DS24xx ROM-ID chips). It runs the five microsecond-scale bus primitives in hardware (reset+presence, write-bit, read-bit, write-byte, read-byte) off a programmable time base, and leaves the higher-level ROM search and CRC-8 to firmware over those primitives. It is master-only and supports both standard and overdrive speeds. The whole engine runs on the free-running fabric clock (MCLK); the single open-drain DQ pin is sampled through a two-flop synchronizer, so no flip-flop is ever clocked by the bus pin. The main features are listed below:

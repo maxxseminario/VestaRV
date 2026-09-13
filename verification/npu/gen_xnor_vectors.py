@@ -1,51 +1,10 @@
 #!/usr/bin/env python3
-"""gen_xnor_vectors.py -- golden-vector generator for the NPU XNOR/popcount
-binary mode (digperiphs P4.2,
-`~/work/chip_docs/castalia/digperiphs/npu_family_spec.md` D6/D9/D17 --
-SPEC-FROZEN bit-level semantics; the file-format details below are marked
-PROVISIONAL and await the design doc).
+"""VestaRV: golden-vector generator for the NPU XNOR and popcount binary mode.
 
-XNOR is a NEW datapath (no MAC, no sigmoid -- D9): this file does NOT
-import npu_fixed.py (that library is the FPMac/FPSigmoid MLP/CONV/GEMM
-replica; nothing here reuses it). Everything is exact Python-integer
-bit/popcount arithmetic -- no floats anywhere, per house rule.
-
-Frozen semantics implemented (npu_family_spec.md D6/D9/D17):
-    K input bits (1..4096), N neurons (1..256). Packing LSB-first: bit i at
-    word bit (i mod 32), word (i >> 5). Activations: ceil(K/32) words at
-    IVSAR. Weights: neuron-major, neuron n's ceil(K/32) words at
-    WVSAR + n*ceil(K/32). Outputs: one word per neuron at OVSAR + n.
-
-    value_n = 2*popcount(XNOR(a, w_n)) - K, counting ONLY bits 0..K-1 -- the
-    last word is TAIL-MASKED when K mod 32 != 0 (unused tail bits may hold
-    ARBITRARY GARBAGE in the staged words; the model must be invariant to
-    it -- that is the entire point of D6's test-pattern correction).
-
-    Fires iff value_n >= THRESH (signed 32-bit). Output word: fires ->
-    +1.0 Q7.24 = 0x01000000; else -1.0 Q7.24 = 0xFF000000 (unsigned) /
-    -16777216 (signed) -- returned/written as the signed Python int, the
-    same "raw fixed-point word as a signed decimal" convention npu_fixed.py
-    and gen_conv_vectors.py already use.
-
-Golden-file interface (PROVISIONAL -- structure kept so a rename/reorder of
-the cfg header is a ONE-LINE change: edit the `CFG_FIELDS` list below):
-    npu_xnor_<case>_cfg.txt -- 6 scalars, one per line, in CFG_FIELDS order:
-                               K N THRESH IVSAR WVSAR OVSAR
-    npu_xnor_<case>_in.txt  -- ceil(K/32) lines: the packed activation words
-    npu_xnor_<case>_w.txt   -- N*ceil(K/32) lines, neuron-major (neuron n's
-                               words contiguous, in neuron order)
-    npu_xnor_<case>_exp.txt -- N lines, one expected output word per neuron
-    All data values are raw signed-decimal ints (conv idiom) -- no comment
-    lines in the data files themselves (matches gen_conv_vectors.py's
-    plain-numeric cfg/in/w/exp files byte-for-byte; the PROVISIONAL marker
-    and field order live here in this docstring/the CFG_FIELDS comment, not
-    inside the emitted data files, so a future testbench parser never has
-    to skip a comment line).
-
-Usage:
-    /usr/bin/python3 gen_xnor_vectors.py
-    (no arguments -- runs the self-tests, then regenerates every case into
-    ./xnor_vectors/)
+A new datapath with no MAC and no sigmoid, so nothing here imports npu_fixed.py; the
+arithmetic is exact Python integers. Packing is LSB-first, weights neuron-major, and the
+last word is tail-masked when K mod 32 is nonzero because staged tail bits hold garbage.
+value_n = 2*popcount(XNOR(a, w_n)) - K, fires at >= THRESH, output +/-1.0 in Q7.24.
 """
 import os
 import random
@@ -60,9 +19,7 @@ FIRE = 0x01000000         # +1.0 Q7.24
 NOT_FIRE = -16777216      # -1.0 Q7.24 (0xFF000000 as signed 32-bit two's complement)
 
 
-# ---------------------------------------------------------------------------
 # Core library: xnor_layer() and its bit-packing helpers.
-# ---------------------------------------------------------------------------
 def bits32(x):
     """Mask any Python int (positive or negative two's-complement) down to
     its low 32 bits, unsigned."""
@@ -104,18 +61,9 @@ def popcount_xnor(a_words, w_words, k):
 
 
 def xnor_layer(a_words, w_words_per_neuron, K, THRESH):
-    """THE library function (npu_family_spec.md D6/D9/D17).
-
-    a_words           : list of ceil(K/32) packed activation words (ints;
-                         unused tail bits of the last word may be garbage)
-    w_words_per_neuron: list of N entries, each a list of ceil(K/32) packed
-                         weight words for that neuron (same tail-garbage
-                         tolerance)
-    K                 : exact input bit count, 1..4096
-    THRESH            : signed 32-bit fire threshold
-
-    Returns a list of N output words (Python ints; FIRE or NOT_FIRE), tail
-    mask applied INSIDE (the caller never needs to pre-clean garbage).
+    """The library function: N output words from the packed activation words and per-neuron weight
+    words, for an exact input bit count K and a signed 32-bit threshold. The tail mask is applied
+    inside, so the caller never has to pre-clean garbage in the last word.
     """
     assert 1 <= K <= 4096, "K=%d out of the D17 scope (1..4096)" % K
     nw = nwords_for_k(K)
@@ -132,21 +80,18 @@ def xnor_layer(a_words, w_words_per_neuron, K, THRESH):
     return outputs
 
 
-# ---------------------------------------------------------------------------
 # Bit-packing / test-data-construction helpers (not part of the arithmetic
 # contract itself -- used to build deterministic, precisely-controlled
 # stimulus and by the self-tests below).
-# ---------------------------------------------------------------------------
 def unpack_bits(words, k):
     """LSB-first unpack: bit i (0..k-1) of the packed word list."""
     return [(bits32(words[i >> 5]) >> (i & 31)) & 1 for i in range(k)]
 
 
 def pack_bits(bit_list):
-    """LSB-first pack: inverse of unpack_bits. Any bit beyond the supplied
-    list's length (up to the word boundary) is left 0 -- i.e. tail bits are
-    clean by construction unless a caller deliberately dirties them
-    afterward (see with_tail_garbage)."""
+    """LSB-first pack, the inverse of unpack_bits. Any bit beyond the supplied list's length is left
+    0, so tail bits are clean unless a caller deliberately dirties them with with_tail_garbage.
+    """
     k = len(bit_list)
     nw = nwords_for_k(k) if k > 0 else 1
     words = [0] * nw
@@ -157,11 +102,10 @@ def pack_bits(bit_list):
 
 
 def with_tail_garbage(words, k, garbage):
-    """Return a COPY of `words` with the last word's UNCOUNTED (tail) bits
-    OR-ed in from `garbage` (any 32-bit pattern -- only the bits outside
-    tail_mask(k) are taken). The counted bits (0..k-1's share of the last
-    word) are preserved unchanged. No-op when k is an exact multiple of 32
-    (no tail bits exist)."""
+    """A copy of `words` with the last word's uncounted tail bits OR-ed in from `garbage`; only bits
+    outside tail_mask(k) are taken and the counted bits are unchanged. A no-op when k is an exact
+    multiple of 32.
+    """
     nw = nwords_for_k(k)
     mask_last = tail_mask(k)
     out = list(words)
@@ -172,34 +116,29 @@ def with_tail_garbage(words, k, garbage):
 
 
 def alt_bits(k):
-    """A simple, non-constant, fully deterministic K-bit pattern
-    (0,1,0,1,...) used as the canonical hand-constructed 'a' activation
-    vector. Deliberately NOT all-zero: XNOR(0, w) degenerates to NOT(w),
-    which would exercise only half of the XNOR truth table."""
+    """A deterministic alternating K-bit pattern, the canonical hand-constructed activation vector.
+    Deliberately not all-zero: XNOR(0, w) degenerates to NOT(w) and exercises half the truth table.
+    """
     return [i % 2 for i in range(k)]
 
 
 def agree_word(a_bits, num_agree):
-    """Pack a w-bit vector achieving EXACTLY `num_agree` XNOR agreements
-    against `a_bits` (LSB-first: positions 0..num_agree-1 match, the rest
-    are flipped -- so popcount(XNOR(pack(a_bits), this)) == num_agree
-    exactly, letting cases target an exact `value` by construction rather
-    than by search)."""
+    """Pack a w-bit vector achieving exactly num_agree XNOR agreements against a_bits, positions
+    0..num_agree-1 matching and the rest flipped, so a case can target an exact value by
+    construction rather than by search.
+    """
     k = len(a_bits)
     assert 0 <= num_agree <= k
     w_bits = [a_bits[i] if i < num_agree else (1 - a_bits[i]) for i in range(k)]
     return pack_bits(w_bits)
 
 
-# ---------------------------------------------------------------------------
 # Self-tests (run at script start, per task spec) -- these are the enforcement
 # of D6's test-pattern correction, not the case files themselves.
-# ---------------------------------------------------------------------------
 def test_tail_mask_invariance():
-    """1. Tail-mask invariance: same logical (counted-bit) vectors, two
-    DIFFERENT garbage fills in the tail bits of BOTH a and w's last words
-    -> identical xnor_layer outputs. K=40 and K=33 (single-bit tail, the
-    harshest mask)."""
+    """Tail-mask invariance: the same counted-bit vectors with two different garbage fills in the
+    tail bits of both a and w must give identical outputs. K=40 and K=33, the harshest mask.
+    """
     for K in (40, 33):
         a_bits = alt_bits(K)
         a_base = pack_bits(a_bits)
@@ -230,10 +169,9 @@ def test_tail_mask_invariance():
 
 
 def test_value_parity():
-    """2. Parity/lattice: value = 2*popcount - K always has the SAME
-    parity as K (trivially, since 2*popcount is always even) -- assert it
-    across random (K, a, w) triples, including odd/even K and multi-word
-    K."""
+    """Parity: value = 2*popcount - K always has the same parity as K, asserted across random
+    (K, a, w) triples including odd, even and multi-word K.
+    """
     rng = random.Random(4242)
     trials = 40
     for _ in range(trials):
@@ -252,11 +190,10 @@ def test_value_parity():
 
 
 def test_reversal_blindness():
-    """3. Reversal blindness demo (documentation-grade, D6 correction):
-    popcount(XNOR(a, w)) is INVARIANT under a uniform bit-reversal applied
-    to BOTH operands, for full-word K (no tail mask involved) -- this is
-    exactly why dense full-word vectors cannot catch a bit-order/endian
-    bug; the real discriminator is the tail-mask test above."""
+    """Reversal blindness: popcount(XNOR(a, w)) is invariant under a uniform bit reversal of both
+    operands at full-word K, which is why dense full-word vectors cannot catch a bit-order bug.
+    The real discriminator is the tail-mask test above.
+    """
     rng = random.Random(99)
     for K in (32, 64, 96, 128):
         nw = nwords_for_k(K)
@@ -288,21 +225,19 @@ def run_self_tests():
     print("=== self-tests: ALL PASS ===\n")
 
 
-# ---------------------------------------------------------------------------
 # PROVISIONAL cfg header (npu_family_spec.md D4/D9/D17 register-map delta;
 # NPUCFG1=THRESH, NPUCFG2[12:0]=K exact bit count -- the design doc pins
 # final field positions/names). Renaming or reordering the header is a
 # ONE-LINE change: edit this list (and the `values` dict key it maps to, if
 # renaming). Do NOT hardcode field order anywhere else.
-# ---------------------------------------------------------------------------
 CFG_FIELDS = ['K', 'N', 'THRESH', 'IVSAR', 'WVSAR', 'OVSAR']
 
 
 class AddrAlloc(object):
-    """Sequential, staggered (non-zero-based) word-address allocator over
-    the 4096-word staging RAM -- same idiom as gen_conv_vectors.py's
-    AddrAlloc: vary addresses across cases (not all zero-based) to catch
-    base-add bugs, and keep every case's regions non-overlapping."""
+    """Sequential staggered word-address allocator over the 4096-word staging RAM: addresses vary
+    across cases rather than all being zero-based, which catches base-add bugs, and every case's
+    regions stay non-overlapping.
+    """
 
     def __init__(self, start=64):
         self.cursor = start
@@ -333,10 +268,10 @@ CASES_MANIFEST = []  # (case, K, N, nwords, IVSAR, WVSAR, OVSAR, footprint, fire
 
 
 def emit_case(case, a_words, w_list, K, THRESH, note=""):
-    """Builds the four PROVISIONAL golden files for one case from already-
-    constructed (a_words, w_list) via xnor_layer -- no arithmetic here
-    beyond the one xnor_layer() call; this function only does address
-    allocation, file writing, and the manifest/print bookkeeping."""
+    """Build the four golden files for one case from already-constructed (a_words, w_list) via one
+    xnor_layer() call. No arithmetic here beyond that call: this only allocates addresses, writes
+    files and keeps the manifest bookkeeping.
+    """
     N = len(w_list)
     assert 1 <= N <= 256, "%s: N=%d out of the D17 scope (1..256)" % (case, N)
     nw = nwords_for_k(K)
@@ -381,11 +316,9 @@ def emit_case(case, a_words, w_list, K, THRESH, note=""):
     return outputs
 
 
-# ---------------------------------------------------------------------------
 # Case generators (task spec, "Cases" list -- all distinct per-neuron
 # weights and non-degenerate fire/not-fire mixes, enforced by emit_case's
 # own asserts above).
-# ---------------------------------------------------------------------------
 def gen_base():
     # base: K=64, N=8, THRESH=0. Eight neurons at distinct exact agreement
     # counts, alternating fire/miss (constructed, not searched).

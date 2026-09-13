@@ -1,66 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# casgrant.S   (K4 session 3 — the K4-L4 / D-2026-08-03-2 DISCRIMINATOR)
-#-----------------------------------------------------------------------------
-# WHAT THIS TEST IS FOR. K4 row B8 (`zacas`) measured that an `amocas.w` whose
-# compare FAILS emits a SECOND data-port READ record that the reference does
-# not model (ledger K4-L4, divergence D-2026-08-03-2). Two readings were
-# deliberately left unseparated:
-#   (a) a REAL extra bus transaction on the failed-compare path, or
-#   (b) a tracer artifact — a record emitted for a cycle in which no bus
-#       transaction was driven.
-# R-K4-2 (3) rules the named discriminator — DID THE ARBITER GRANT TWICE —
-# into K4. This test is that discriminator.
-#
-# WHY THE B8 CELLS CANNOT SETTLE IT: their CAS target is `0x8410`, which is the
-# hart's PRIVATE TCM. A private access never reaches `mp_arbiter`, so no
-# bus-level instrument can see it. This test aims every measured access at the
-# SHARED WINDOW instead.
-#
-# THE INSTRUMENT. `mhpmcounter4` with `mhpmevent4 = 2` counts "shared-bus
-# grants (one per completed txn)" — csr_unit.vhd's `hpm_fires`, fed by
-# `hpm_ev_stall <= not mem_ready`, and `mem_ready` can only rise after
-# hart_tile's `sh_ack_ok`, which can only rise after the ARBITER's `done`.
-# A counted grant is therefore an arbiter-COMPLETED shared transaction, not a
-# core-side intent. Requires ENABLE_ZIHPM as well as ENABLE_ZACAS, which is why
-# this row is CATALOG-tagged with BOTH knobs and appears only on a config that
-# sets both (`config/castalia_zihpm_zacas.json`).
-#
-# THE MEASUREMENT IS NOT ASSERTED — READ IT OFF THE TRACE. The test asserts
-# only (i) the three CONTROL deltas, whose values are structurally determined
-# and hold under BOTH hypotheses, and (ii) the architectural results of both
-# CAS forms. The two CAS deltas are left UNASSERTED on purpose: a test that
-# asserts the disputed number is a hypothesis-confirming gate, not an
-# instrument. Read `d_cas_ok` / `d_cas_fail` from the RTL trace — they are the
-# `R` records of the two `sub` retires, and they are ALSO stored to the TCM
-# result block at the end (visible as `M S` records) as a second readout.
-#
-#   d_null    (two adjacent csrr, nothing between)  expect 0   — the zero control
-#   d_lw      (one shared-window `lw`)              expect 1   — known-NONZERO
-#   d_sw      (one shared-window `sw`)              expect 1   — known-NONZERO
-#   d_cas_ok  (shared `amocas.w`, compare SUCCEEDS) MEASURED
-#   d_cas_fail(shared `amocas.w`, compare FAILS)    MEASURED  <-- THE ANSWER
-#
-#   d_cas_fail == d_lw   => ONE transaction  => reading (b), tracer artifact
-#   d_cas_fail == d_cas_ok (two)             => reading (a), a real second
-#                                               arbiter-completed transaction
-#
-# Method rule 4 (a method checked only against zero has not been checked) is
-# what the `lw`/`sw` legs are for; method rule 7 (never calibrate — find the
-# structurally determined edge) is why all five legs live in ONE run against
-# ONE counter rather than being compared across runs.
-#
-# SHARED-WINDOW WORD CLAIMED: 0x100A0, one word. Free at N=4 (shmem_mp/shcount
-# hammer tops out at 0x1009C; shboot's DONE array starts at 0x10120) and inside
-# the bootrom's 0x10000-0x107FF zero range, so it is zero before the first read.
-# This test is Castalia-only (N=4) by construction — its config sets no Argus
-# shape — and it runs in isolation like every other, so the N=18 overlap the
-# ledger rule warns about cannot occur here.
-#
-# gas 13.2 has no amocas mnemonic (see extzacas.S), so the CAS is an explicit
-# `.insn` R-type. rv32ua's -march has no zicsr, hence the `.option arch` push.
-#*****************************************************************************
+# VestaRV: amocas failed-compare arbiter-grant discriminator
+# An `amocas.w` whose compare FAILS emits a second data-port READ record the reference model does not predict. This test separates the two readings: a REAL extra bus transaction, or a tracer artifact recording a cycle in which no transaction was driven. Earlier measurements could not settle it because their CAS target was in private TCM, which never reaches mp_arbiter; every measured access here aims at the SHARED WINDOW.
+# THE INSTRUMENT is mhpmcounter4 with mhpmevent4 = 2, which counts shared-bus grants, one per completed transaction: csr_unit's hpm_fires is fed by `hpm_ev_stall <= not mem_ready`, and mem_ready can only rise after hart_tile's sh_ack_ok, which can only rise after the arbiter's done. A counted grant is therefore an arbiter-COMPLETED transaction, not a core-side intent. This needs ENABLE_ZIHPM as well as ENABLE_ZACAS, so the row is catalog-tagged with both and appears only on a configuration that sets both.
+# THE TWO CAS DELTAS ARE DELIBERATELY NOT ASSERTED. A test that asserts the disputed number is a hypothesis-confirming gate, not an instrument. The asserted legs are the three controls, whose values are structurally determined and hold under both hypotheses, plus the architectural results of both CAS forms. Read d_cas_ok and d_cas_fail off the RTL trace as the R records of the two `sub` retires; they are also stored to the TCM result block as a second readout.
+# d_null, two adjacent csrr with nothing between, expects 0 and is the zero control; d_lw, one shared-window load, expects 1; d_sw, one shared-window store, expects 1. Then d_cas_fail == d_lw means one transaction and the record is a tracer artifact, while d_cas_fail == d_cas_ok means a real second arbiter-completed transaction. The load and store legs exist because a method checked only against zero has not been checked, and all five legs live in ONE run against ONE counter rather than being compared across runs.
+# SHARED WORD CLAIMED: 0x100A0, one word, free at N=4 and inside the bootrom's 0x10000-0x107FF zero range, so it reads zero before the first access. This test is Castalia-only by construction.
+# gas 13.2 has no amocas mnemonic, so the CAS is an explicit `.insn` R-type, and rv32ua's -march has no zicsr, hence the `.option arch` push.
 
 #include "riscv_test.h"
 #include "test_macros.h"

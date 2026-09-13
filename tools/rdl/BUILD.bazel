@@ -1,4 +1,4 @@
-# The SystemRDL toolchain's pinned requirement files. Everything that imports
+# VestaRV: the SystemRDL toolchain's pinned requirement files.
 # systemrdl or peakrdl depends on @rdl_deps//... , which MODULE.bazel resolves
 # from requirements_lock.txt; these labels exist so the lock is a build input
 # and so a smoke target can prove the interpreter can import all three packages.

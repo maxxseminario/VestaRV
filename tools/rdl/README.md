@@ -326,7 +326,7 @@ peripheral. The last four — CLINT, MUTEX, IRQROUTER and PWRCTRL — followed t
 same day as parameterised components (report R7), deleting 225 more. The proof
 that neither changed anything is a before/after byte-diff across **all seven**
 configurations with a `chip_artifacts` target (`castalia`, `castalia_tapeout`,
-`argus`, `mcu_hart`, `fpga`; the `castalia_tapeout` family was folded into
+`argus`, `asic_default`, `fpga_default`; the `castalia_tapeout` family was folded into
 `castalia` on 2026-09-12, when the two became the same chip) of
 `config/MemoryMap.json`, `out/software/include/MemoryMap.h`, `out/hdl/MemoryMap.vhd`,
 `out/hdl/MCU.vhd` and the whole `latex/TRM/include` tree: identical, every file.

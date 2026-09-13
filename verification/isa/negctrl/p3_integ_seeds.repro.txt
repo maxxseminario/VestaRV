@@ -1,5 +1,4 @@
-P3 PMP CHECK-INTEGRATION negative controls — seeded-bug repro (P3 Agent B, 2026-07-29)
-=====================================================================================
+VestaRV: P3 PMP CHECK-INTEGRATION negative controls, seeded-bug repro
 
 FOUR committed seeds, one repro. All four are RTL-ONLY (no image rebuild
 between clean/seeded/reverted), and all four are caught by a bounded
@@ -17,9 +16,7 @@ Three of the four seed `hdl/common/vesta/pmp_unit.vhd`, which is Agent A's
 file and is NOT edited in the tree — the patches are applied transiently and
 reverted, exactly as the p2 seeds do for maindec/csr_unit.
 
-----------------------------------------------------------------------------
 (b) p3_postissue_seed.patch — hdl/common/vesta/vesta.vhd   [THE D5 CONTROL]
-----------------------------------------------------------------------------
 The word-aligned-32-bit EXECUTE arm's PMP data-fault branch keeps its check,
 keeps its trap, and keeps the correct cause/mtval/mepc — but sets
 `mem_access_instr <= '1'` instead of '0'. That single bit is the whole
@@ -40,9 +37,7 @@ performs the same claim-read. Clean, hart 1 reads 0 ("was free"). Seeded,
 hart 0's leaked read claimed the mutex and never released it, so hart 1 reads
 hart 0's marker (hartid + 1 = 1) and the bounded `bne t1, x0` fires.
 
-----------------------------------------------------------------------------
 (a) p3_priorder_seed.patch — hdl/common/vesta/pmp_unit.vhd
-----------------------------------------------------------------------------
 `pmp_check`'s entry walk loses its `and not hit` term, so the LAST (highest-
 numbered) matching entry overwrites the verdict — highest-wins instead of the
 frozen lowest-wins priority.
@@ -54,9 +49,7 @@ load from the fenced word does not fault at all — the U body's own bounded
 witness `bne s3, s11` (a trap must have been delivered) fires, records 40 in
 s1, and M FAILs with t4 = 40.
 
-----------------------------------------------------------------------------
 (c) p3_napotoff_seed.patch — hdl/common/vesta/pmp_unit.vhd
-----------------------------------------------------------------------------
 `napot_dontcare` returns `shift_right(p xor (p+1), 1)`: the don't-care mask is
 shifted one place, so every NAPOT region decodes ONE POWER OF TWO TOO SMALL
 (privpmp's 16-byte region shrinks to its low 8 bytes).
@@ -68,9 +61,7 @@ AFTER it (base+16) to be granted. A region that is too small releases base+12
 (CHECK 60 fires). The two-sided probe is deliberate — a one-sided one is
 blind to half the off-by-one directions.
 
-----------------------------------------------------------------------------
 (d) p3_lockmdeny_seed.patch — hdl/common/vesta/pmp_unit.vhd
-----------------------------------------------------------------------------
 The matched-entry rule loses its L qualifier (`priv_m = '1' and hit_cfg(7) =
 '0'` becomes `priv_m = '1'`), i.e. a LOCKED entry no longer enforces on
 M-mode — the exact escape the lock bit exists to prevent.
@@ -81,10 +72,8 @@ entry's range, then loads from it in M. Clean, that load faults (cause 5,
 mtval = 0x00010200). Seeded, it succeeds, no trap is delivered, and the
 bounded `bne s3, t3` fires at t4 = 83.
 
-----------------------------------------------------------------------------
 Proven results  (ON build: CORE_ENABLE_TRAPCSR = CORE_ENABLE_UMODE =
                  CORE_ENABLE_PMP = true, CORE_PMP_ENTRIES = 16)
-----------------------------------------------------------------------------
   clean RTL                    -> TEST PASSED - ../rcf/xxrv32ua-p-privpmp.rcf
   clean RTL                    -> TEST PASSED - ../rcf/rv32ua-p-privpmpmx.rcf
 
@@ -102,9 +91,7 @@ Proven results  (ON build: CORE_ENABLE_TRAPCSR = CORE_ENABLE_UMODE =
   + p3_lockmdeny_seed.patch    -> TEST FAILED (t4 = 83)   xxrv32ua-p-privpmp
   reverted                     -> TEST PASSED
 
-----------------------------------------------------------------------------
 Exact repro (from the repo root; privpmp/privpmpmx are ON-ONLY tests)
-----------------------------------------------------------------------------
 The ON hardware is a `make chip` product, not a hand edit. The test arms are
 selected by the phase-standard EXPLICIT-APPEND dispatch (all three -D flags
 appended to RISCV_GCC_OPTS, never auto-derived from a header).

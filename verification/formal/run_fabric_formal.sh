@@ -1,19 +1,12 @@
 #!/bin/sh
-# verification/formal/run_fabric_formal.sh
-# S4 (R-S4-3): the DIRECTED fabric bench -- mutex_bank claim/steal,
+# VestaRV: the directed fabric bench. Covers mutex_bank claim and steal,
 # resv_unit foreign-write kill, and the M8 grant-locked RMW window.
-#
-# MODE=props   (default) bind fabric_formal_props.psl   -- expect 0 fires
-# MODE=witness           bind fabric_formal_witness.psl -- expect EVERY
-#                        witness to fire at least once (non-vacuity).  A
-#                        witness is `assert never {trigger}`, so a "failure"
-#                        here is the SUCCESS signal; PSL `cover` was measured
-#                        decorative in this flow and is deliberately not used.
-#
-# NOT `set -u`: cdspaths.sh references a never-defined assuraPath and would
-# kill the shell before xrun runs, which is indistinguishable at the exit
-# code from a real property failure.  rc: 0 pass, 1 property failure,
-# 2 INFRASTRUCTURE (nothing compiled / nothing ran).
+# MODE=props (default) binds fabric_formal_props.psl and expects zero fires.
+# MODE=witness binds fabric_formal_witness.psl and expects every witness to fire
+# at least once; a witness is `assert never {trigger}`, so a fire is the success
+# signal. rc 0 pass, 1 property failure, 2 infrastructure. `set -u` is absent
+# because cdspaths.sh references a never-defined assuraPath and would kill the
+# shell before xrun runs.
 . ~/vestarv/cdspaths.sh >/dev/null 2>&1
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 HDL="$ROOT/hdl/common"

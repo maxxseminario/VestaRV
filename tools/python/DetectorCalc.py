@@ -1,21 +1,12 @@
 #!/usr/bin/env python3
+# VestaRV: detector pulse-current model for sizing the pulse-counter front end.
 
 import numpy as np
 
 class ProportionalTimeConstant():
-	'''
-	Represents a decaying exponential in the kth piece of the pulse current equation:
-	i_k(t) = (Q_k / tau_k) * exp(-t / tau_k)
-	where Q_k is the amount of charge deposited in this piece of the current pulse and tau_k is the time constant for this piece.
-	Note that the integral from t = 0 to infinity is equal to Q_k.
-	
-	This changes slightly when the rise time is accounted for. The equation becomes:
-	i_k(t) = (CurrentCoefficient / tau_k) * (exp(-t / tau_k) - exp(-t / tau_r))
-	where tau_r is the rise time and CurrentCoefficient is the coefficient that makes this piece of the current pulse produce the correct amount of charge despite the rise time.
-	Note that the integral is still Q_k if CurrentCoefficient is calculated correctly
-	The integral from 0 to t_f is thus: CurrentCoefficient * (1 + (tau_r/tau_k) * (exp(-t_f/tau_r) - 1) - exp(-t_f/tau_k))
-	
-	The "intensity" is defined as Q_k / tau_k
+	'''One decaying-exponential piece of the pulse current, i_k(t) = (Q_k / tau_k) * exp(-t / tau_k),
+	whose integral to infinity is Q_k. With a rise time tau_r the form becomes
+	(CurrentCoefficient / tau_k) * (exp(-t/tau_k) - exp(-t/tau_r)), still of integral Q_k.
 	'''
 	TimeConstant = None	# The time constant of the exponential (seconds)
 	ChargeProportion = None	# The coefficient that keeps the charge that this piece contributes equal to ChargeProportion despite the inclusion of the rise time
@@ -57,20 +48,14 @@ class Detector():
 		return
 	
 	def GammaToVisibleLight(self, energy_eV):
-		'''
-		Calculates the number of visible light photons produced by a scintillator of a given luminosity by an incident gamma ray
-		
-		Returns: NumVisiblePhotons, the number of visible light photons produced by the scintillator after the gamma ray strikes it (unitless)
+		'''The number of visible light photons a scintillator of a given luminosity produces from an
+		incident gamma ray (unitless).
 		'''
 		return energy_eV * self.Luminosity
 
 	def PmtAmplification(self, PmtGain, NumVisiblePhotons):
-		'''
-		Calculates the amount of charge produced from the number of visible light photons striking the photocathode of the PMT
-		
-		@PmtGain: Linear gain of electrons in the PMT from photocathode to anode (unitless, large)
-		
-		Returns: Charge, the charge produced by the PMT from the visible light photons (Coulombs)
+		'''The charge in coulombs produced from the visible light photons striking the photocathode,
+		given the PMT's linear photocathode-to-anode gain.
 		'''
 		NumElectrons = NumVisiblePhotons * self.OpticalCouplingEfficiency * self.QuantumEfficiency * PmtGain
 		q_e = 1.607e-19	# Elementary charge (Coulombs per electron)
@@ -78,25 +63,16 @@ class Detector():
 		return Charge
 		
 	def GammaToChargePmt(self, PmtGain, energy_eV):
-		'''
-		Calculates the amount of charge produced by a detector from an incident gamma ray energy
-		
-		@PmtGain: Linear gain of electrons in the PMT from photocathode to anode (unitless, large)
-		
-		Returns: Charge, the charge produced by the detector from the incident gamma ray (Coulombs)
+		'''The charge in coulombs a detector produces from an incident gamma ray energy, given the PMT's
+		linear photocathode-to-anode gain.
 		'''
 		NumVisiblePhotons = self.GammaToVisibleLight(energy_eV)
 		Charge = self.PmtAmplification(PmtGain, NumVisiblePhotons)
 		return Charge
 		
 	def ChargeIntegrationToVoltageCsa(self, Charge, Cfb):
-		'''
-		Calculates the voltage output of the CSA after it has integrated the incoming charge pulse
-		
-		@Charge: Total charge in the gamma pulse (Coulombs)
-		@Cfb: Capacitance of the feedback capacitor (Farads)
-		
-		Returns: CsaOutVoltage, the output voltage of the CSA
+		'''The CSA output voltage after integrating a charge pulse of `Charge` coulombs onto a feedback
+		capacitor of `Cfb` farads.
 		'''
 		return Charge / Cfb
 	

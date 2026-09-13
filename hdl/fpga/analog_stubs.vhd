@@ -1,6 +1,6 @@
-/* FPGA stand-ins for the analog macros the MCU instantiates at its top level.
-   None of these blocks has an FPGA counterpart, so each one is reduced to the smallest synthesizable behaviour that keeps the digital design running.
-   The simulation models in hdl/common/sim/ are not usable here: the oscillator drives a clock from wait-for-time statements, and the reset and filter models carry simulation-only wording that is worth restating in synthesis terms. */
+-- VestaRV: FPGA stand-ins for the analog macros the MCU instantiates at its top level
+-- None of these blocks has an FPGA counterpart, so each is reduced to the smallest synthesizable behaviour that keeps the digital design running.
+-- The simulation models in hdl/common/sim/ are not usable here: the oscillator drives its clock from wait-for statements.
 
 library ieee;
 use ieee.std_logic_1164.all;

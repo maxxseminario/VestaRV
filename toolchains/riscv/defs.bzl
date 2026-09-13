@@ -1,25 +1,9 @@
-"""Bare metal rv32 firmware rules built on the hermetic xPack riscv-none-elf toolchain.
+"""VestaRV: bare-metal rv32 firmware rules on the hermetic xPack riscv-none-elf toolchain.
 
-These macros replace the hand written makefiles under software/. Every step is
-a genrule that calls the same driver the makefile called, with the same flags
-in the same order, so the produced images stay byte comparable against the
-bench artifacts.
-
-The toolchain is not a registered cc_toolchain. The makefiles invoke the gcc
-driver directly and the firmware links against a hand written linker script,
-so a plain genrule reproduces the recipe with far less machinery.
-
-Include paths and -L directories are given as repository root relative
-directories, because that is where bazel places source files in the sandbox.
-
-Link flags are handed in as an ordered list rather than assembled by the
-macro, because library order is load bearing for a static link: the bootrom
-makefile puts -lgcc before the objects while other images put it after.
-These placeholders are expanded in each entry:
-  {march}     the -march= flag
-  {mabi}      the -mabi= flag, or the empty string when mabi is None
-  {ld_script} the linker script path in the sandbox
-  {map}       the declared .map output path
+Every step is a genrule calling the same driver with the same flags in the same order as the
+makefiles it replaces, so images stay byte comparable. Not a registered cc_toolchain. Include
+and -L paths are repository-root relative, which is where bazel places sources. Link flags are
+an ordered list because library order is load bearing: the bootrom puts -lgcc before objects.
 """
 
 load("@rules_python//python:defs.bzl", "py_test")
@@ -53,12 +37,9 @@ DEFAULT_LINK_FLAGS = [
 ]
 
 def flash_padded_name(stem, basename_len = 22):
-    """Returns the x padded flash image basename.
-
-    verification/isa/flash_prepend.sh renames each image so its basename is
-    exactly basename_len characters, padding with leading 'x'. The VHDL bench
-    reads TEST_FILE : string(1 to 29), which is "../rcf/" plus this name, so
-    the length is a hard contract rather than cosmetics.
+    """The x-padded flash image basename. flash_prepend.sh pads each image's basename to exactly
+    basename_len characters, and the VHDL bench reads TEST_FILE : string(1 to 29), which is
+    "../rcf/" plus this name, so the length is a hard contract rather than cosmetics.
     """
     base = stem + ".rcf"
     if len(base) > basename_len:
@@ -111,37 +92,9 @@ def rv32_firmware(
         flash_basename_len = 22,
         visibility = None,
         tags = []):
-    """Compiles, links and images one bare metal rv32 program.
-
-    Emits :NAME_elf, :NAME_bin, :NAME_hex, :NAME_dump, :NAME_rcf and, when
-    flash is True, :NAME_flashed_rcf carrying the SPI load/execute header.
-
-    Args:
-      name: target base name; also the output file stem.
-      srcs: sources in link order. The first entry must be the startup file,
-        because the linker script places the first input at the reset vector.
-      march: the -march string, for example "rv32i".
-      ld_script: label of the linker script.
-      pad_bytes: size of the zero filled image the RCF is cut from.
-      defines: preprocessor defines, without the -D.
-      copts: extra compile only flags, appended after the include flags.
-      mabi: the -mabi string, or None to leave the driver default.
-      hdrs: header files the sources include.
-      includes: repository root relative include directories.
-      ld_srcs: extra files the linker script pulls in, such as memory.x.
-      link_flags: ordered flags placed before the objects on the link line.
-      link_flags_post: ordered flags placed after the objects, for libraries
-        that must resolve against them.
-      gcc_inc: pass -I on the toolchain's own riscv-none-elf/include.
-      obj_suffix: suffix appended to each object file name.
-      dump_flags: objdump flags for the disassembly listing.
-      emit_hex: also emit the Intel hex image.
-      emit_map: declare a .map output; {map} then expands to its path.
-      rcf_name: output file name for the raw RCF, default NAME.rcf.
-      flash: also emit the flash headered image.
-      flash_basename_len: the padded basename contract length.
-      visibility: forwarded to every emitted target.
-      tags: forwarded to every emitted target.
+    """Compile, link and image one bare-metal rv32 program, emitting :NAME_elf, _bin, _hex, _dump,
+    _rcf and, when flash is True, _flashed_rcf. srcs are in link order and the first must be the
+    startup file; link_flags go before the objects and link_flags_post after them.
     """
     if pad_bytes % 4 != 0:
         fail("pad_bytes %d is not a multiple of 4" % pad_bytes)
@@ -263,27 +216,9 @@ rm -rf "$$OBJ_DIR"
         )
 
 def myshkin_app(name, srcs = None, hdrs = [], copts = [], visibility = None):
-    """One application from the blinky family: blinky and its five siblings.
-
-    The six makefiles under software/ are the same file with a different
-    TARGET, so they collapse to one macro.
-
-    Those makefiles carry a wildcard fallback: memory.x, periph.x and the
-    headers come from platform/myshkin/gcc/lib when that directory exists, and
-    from tools/build/linker-scripts when it does not. It does exist and it is
-    tracked, so only the platform branch has ever been taken. That branch is
-    hard coded here instead of replayed, because a build graph must not depend
-    on whether a directory happens to be present.
-
-    The makefiles also pass -I./include, but none of the six packages has an
-    include directory, so nothing is dropped by leaving it out.
-
-    Args:
-      name: the makefile TARGET, and the image stem.
-      srcs: sources in link order, default src/start.S then src/main.c.
-      hdrs: extra headers the sources include.
-      copts: extra compile only flags.
-      visibility: forwarded to every emitted target.
+    """One application from the blinky family, the six makefiles under software/ being the same file
+    with a different TARGET. Their wildcard fallback is hard coded to the platform branch here,
+    because a build graph must not depend on whether a directory happens to be present.
     """
     rv32_firmware(
         name = name,
@@ -312,15 +247,9 @@ def myshkin_app(name, srcs = None, hdrs = [], copts = [], visibility = None):
     )
 
 def firmware_image_test(name, image, golden):
-    """Locks a built firmware image against a tracked golden copy.
-
-    The goldens are plain text so a diff is readable in review, and they are
-    named .txt because *.rcf is gitignored repository wide.
-
-    Args:
-      name: test target name.
-      image: label of the generated image file.
-      golden: label of the tracked golden text file.
+    """Lock a built firmware image against a tracked golden copy. The goldens are plain text so a
+    diff is readable in review, and they are named .txt because *.rcf is gitignored repository
+    wide.
     """
     py_test(
         name = name,

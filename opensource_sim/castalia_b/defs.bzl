@@ -4,13 +4,13 @@ The RTL these lists name is not the tracked hdl/common/MCU.vhd. MCU.vhd and
 MemoryMap.vhd are GENERATED per configuration and the tracked pair is the
 default-knob Castalia; the CastaliaB pair comes out of
 //platform/common:chip_artifacts_castalia_b. So the spine is spliced rather
-than appended to, exactly as //opensource_sim/mcu_hart does it: MemoryMap.vhd
-is the SECOND file analyzed (everything below it reads the package) and MCU.vhd
-is the LAST.
+than appended to, exactly as //opensource_sim/asic_default does it:
+MemoryMap.vhd is the SECOND file analyzed (everything below it reads the
+package) and MCU.vhd is the LAST.
 
     HEAD  +  generated MemoryMap.vhd  +  MID  +  generated MCU.vhd
 
-Nothing is dropped from the shared spine here. mcu_hart drops
+Nothing is dropped from the shared spine here. asic_default drops
 hdl/common/periph/NPU.vhd because that configuration sets peripherals.npu
 false; CastaliaB leaves the NPU at its default true, so the file analyzes and
 is instantiated.

@@ -1,93 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# wxnpu.S  (wound-config firmware smoke -- digperiphs P4.2 Stage S5)
-#-----------------------------------------------------------------------------
-# NPU XNOR/popcount (MODE=2) firmware smoke, hart 0 only (single-hart
-# directed; tiles stay parked -- no MP_STAGE_IMAGE, no mp_boot.h; the SAME
-# majority w* precedent shape as wnpuconv.S/wtrng.S/wdma.S). Companion to
-# shnpu.S (the shared-NPU MLP + vector-120 IRQ-leg precedent) and wnpuconv.S
-# (the CONV1D firmware smoke this file mirrors structurally): proves the XNOR
-# datapath/sequencer (npu_xnor_design.md D1-D6) end-to-end through firmware,
-# exercising the SAME vector-120 think-done IRQ leg shnpu.S/wnpuconv.S both
-# take (mirrored EXACTLY: PENDX rider with the route OFF first -- deterministic,
-# no delivery race -- then enable ENX, INSVCX-in-handler rider, exactly-once,
-# negctrl-lite settle, un-route).
-#
-# Case (npu_xnor_design.md D10-S5's own suggested shape):
-#   K=40  N=4  THRESH=0  MODE=2 (xnor)  NPUBEN=0  NPUAEN=0 (D6 firmware
-#   contract -- GX2: NPUBEN must stay 0 in XNOR, the bias/GET_WEIGHT branch
-#   is not reused by this mode)
-#   NW = ceil(K/32) = 2 packed words/neuron (NPUNI = NW-1 = 1)
-#   K=40 is DELIBERATE (D3/GX1's tail-mask enforcement, D10-S5's own words):
-#   40 mod 32 = 8 -> tail_mask = 0xFF, so only the LOW 8 bits of each
-#   vector's word 1 are counted; bits [31:8] of word 1 (both the shared
-#   activation AND every neuron's weight) are UNUSED/garbage-eligible. This
-#   test stages ADVERSARIAL, nonzero garbage there -- computed by
-#   ~/vestarv/verification/npu/gen_wxnpu_golden.py to be load-bearing: an
-#   UNMASKED variant of the DUT (one that forgot D3's "mask the XNOR RESULT"
-#   rule and popcounted all 64 fetched bits before subtracting K) flips
-#   neurons 1 and 3's fire/no-fire decision relative to the correctly-masked
-#   golden result (see that script's "unmasked-differs proof" section) -- a
-#   DUT with an unmasked tail would FAIL this test, not silently pass it.
-#
-# Register interface (npu_xnor_design.md D5/D7 -- ZERO entity changes; the
-# SAME 8-word MMR bank wnpuconv.S exercises, per-mode reinterpretation only):
-#   NPUCR   0x4A00 (+0)   ACTF[25:23] MODE[22:20] TDIE[19] BEN[18] AEN[17]
-#                          THINK[16] NI[15:8]=NW-1 NN[7:0]=N-1
-#   IVSAR   0x4A04 (+4)   WVSAR 0x4A08 (+8)   OVSAR 0x4A0C (+C)  (12-bit
-#                          staging-RAM WORD indices)
-#   NPUSR   0x4A10 (+10)  bit0 THINKDONE, sticky W1C (M-series NPU IRQ leg)
-#   NPUCFG1 0x4A14 (+14)  XNOR reinterpretation (D5): full signed 32-bit
-#                          THRESH (conv reads this as S/D/L/Cin-1 packed)
-#   NPUCFG2 0x4A18 (+18)  XNOR reinterpretation (D5): exact K in bits[12:0]
-#                          (conv reads this as Lout[15:0])
-#   NPUCFG3 0x4A1C (+1C)  AS-BUILT: no storage, reads 0 (unchanged, D7)
-#   +0x20 (offset 8)      out of the 8-word decode ("when others"), reads 0
-# This test's L2 readback doubles as the same 4-bit MabMmrA decode smoke
-# wnpuconv.S's header documents (CFG3 + offset-8 both known-zero corners) --
-# the entity is untouched (D7), so the decode behaves identically per mode.
-#
-# Staging-RAM layout (word index = (addr-0xC000)/4), clear of shnpu's
-# 0xC100-0xC110 band and wnpuconv's 0xC400/0xC500/0xC600 bands:
-#   X_ADDR   = 0xC700 (word 0x1C0, IV_WORD): NW=2 words, the ONE shared
-#              activation vector (XNOR has no per-neuron activation -- every
-#              neuron XNORs against the same staged bits)
-#   W_ADDR   = 0xC740 (word 0x1D0, WV_WORD): N*NW = 8 words, neuron-major
-#              (neuron n's NW words contiguous, at WVSAR + n*NW)
-#   OUT_ADDR = 0xC780 (word 0x1E0, OV_WORD): N = 4 words, one per neuron
-#
-# Golden values: computed by ~/vestarv/verification/npu/gen_wxnpu_golden.py
-# (a throwaway script built entirely on the FROZEN D9 bench arithmetic
-# reused straight from verification/npu/gen_xnor_vectors.py's popcount_xnor/
-# xnor_layer -- no floats, no MAC, pure bit-exact integer popcount, per the
-# family's house rule). The four neurons land at values +20/-20/+10/-10
-# (agreement counts 30/10/25/15 against a deterministic alternating 40-bit
-# activation), a clean 2/4 fire mix well clear of THRESH=0 on the CORRECT
-# (masked) semantics; the adversarial tail garbage (neuron 3's weight tail
-# deliberately matches the activation's tail bit-for-bit, maximizing the
-# popcount inflation an unmasked DUT would see there) is what makes neurons
-# 1 and 3 flip to FIRE in the unmasked-bug simulation -- see that script's
-# output for the exact proof.
-#
-# Scratch: private TCM 0xA000/0xA004 (single-hart directed -- the wnpuconv/
-# wrtc/wow/wi2ct/wqspi/wgpio/wi3c/wtrng precedent; no shared-window word
-# needed, there is no second hart to rendezvous with).
-#   TD_FLAG = 0xA000   (ISR exactly-once counter)
-#   TD_ISVC = 0xA004   (handler's masked INSVCX readback)
-#
-# NPU is mclk-domain (like DMA0/TRNG0) -- NO SYS_CLK_CR write needed (that
-# rule is only for the smclk peripherals: UART/I2C/...).
-#
-# IVT gotcha (shnpu.S/wnpuconv.S precedent, unchanged for this test): this
-# test's .ivt extension also stops at slot 120 (same vector, NPU0_TD) --
-# WITHOUT parking slots 121-127 the trailing zero-run to the fixed
-# .text.init link address (0x8200) is only 7 zero words, one short of
-# flash_prepend.sh's GAP_MIN(8) region-split threshold, and gets silently
-# MERGED into one oversized segment (proven to corrupt the boot copy in
-# simulation -- see shnpu.S's header for the full forensics). Slots 121-127
-# are parked here for the same reason.
-#*****************************************************************************
+# VestaRV: NPU XNOR/popcount firmware smoke
+# Hart 0 only, tiles parked; MODE = 2, taking the same vector-120 think-done IRQ leg as the rest of the family in the same order (PENDX rider with the route OFF first, then enable ENX, INSVCX in the handler, exactly-once, negctrl-lite settle, un-route). Case: K = 40, N = 4, THRESH = 0, NPUBEN = 0 and NPUAEN = 0, since XNOR does not reuse the bias or GET_WEIGHT branch, and NW = ceil(K/32) = 2 packed words per neuron, so NPUNI = 1.
+# K = 40 IS DELIBERATE: 40 mod 32 = 8, so tail_mask = 0xFF and only the low 8 bits of each vector's word 1 are counted, leaving bits [31:8] of that word unused in both the shared activation and every neuron's weight. This test stages ADVERSARIAL nonzero garbage there, chosen so that a DUT which forgot to mask the XNOR RESULT and popcounted all 64 fetched bits flips neurons 1 and 3 from no-fire to fire. An unmasked tail therefore fails this test rather than silently passing it.
+# Register bank: NPUCR 0x4A00 = ACTF[25:23] MODE[22:20] TDIE[19] BEN[18] AEN[17] THINK[16] NI[15:8] = NW-1 NN[7:0] = N-1; IVSAR 0x4A04, WVSAR 0x4A08, OVSAR 0x4A0C are 12-bit staging-RAM WORD indices; NPUSR 0x4A10 bit 0 THINKDONE is sticky W1C; NPUCFG1 0x4A14 carries the full signed 32-bit THRESH under XNOR; NPUCFG2 0x4A18 carries the exact K in bits [12:0]; NPUCFG3 0x4A1C has no storage and reads 0; offset +0x20 is outside the 8-word decode and reads 0. The L2 readback of those two known-zero corners is the 4-bit MabMmrA decode smoke.
+# Staging RAM, word index = (addr - 0xC000)/4, clear of shnpu's 0xC100-0xC110 and wnpuconv's 0xC400/0xC500/0xC600 bands: X_ADDR 0xC700 holds NW = 2 words of the ONE shared activation vector, since XNOR has no per-neuron activation; W_ADDR 0xC740 holds N*NW = 8 words neuron-major, with neuron n's words at WVSAR + n*NW; OUT_ADDR 0xC780 holds N = 4 words, one per neuron.
+# Golden values come from verification/npu/gen_wxnpu_golden.py, built on the frozen bench arithmetic with no floats and no MAC, pure bit-exact integer popcount. The four neurons land at +20, -20, +10 and -10 from agreement counts of 30, 10, 25 and 15 against a deterministic alternating 40-bit activation, a clean two-of-four fire mix well clear of THRESH = 0 on the correct masked semantics.
+# Scratch lives in private TCM, TD_FLAG = 0xA000 and TD_ISVC = 0xA004. The NPU is mclk-domain, so no SYS_CLK_CR write is needed. IVT GOTCHA: this file's .ivt extension stops at slot 120, and slots 121-127 MUST stay parked, or the trailing zero run to the fixed .text.init link address 0x8200 is one word short of flash_prepend.sh's GAP_MIN of 8 and the regions merge into one oversized segment that corrupts the boot copy.
 
 #include "riscv_test.h"
 #include "test_macros.h"

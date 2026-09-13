@@ -1,23 +1,16 @@
 #!/usr/bin/env bash
-# run_isa.sh — build the riscv-tests ISA suites for the `vesta` core and run
-# each test through the pure-GHDL testbench (vesta_isa_tb.vhd), reporting
-# PASS/FAIL/TIMEOUT per test and a final summary.
-#
-#   Usage:  run_isa.sh [suite ...]
-#   Default suites: the 8 real vesta regression suites (see DEFAULT_SUITES).
-#
-#   Env:
-#     RISCV_PREFIX  gcc/objcopy prefix (default riscv-none-elf-)
-#     GHDL          ghdl binary       (default ghdl)
-#     TIMEOUT_S     per-test wall-clock timeout in seconds (default 120)
-#
-# All GHDL artifacts land in opensource_sim/isa/work/ (gitignored by another
-# agent) via --workdir, so the repo tree stays clean.
+# VestaRV: build the riscv-tests ISA suites for the vesta core and run each test
+# through the pure-GHDL testbench vesta_isa_tb.vhd, reporting PASS, FAIL or
+# TIMEOUT per test and then a summary.
+#   Usage: run_isa.sh [suite ...]   (default: the suites in DEFAULT_SUITES)
+#   RISCV_PREFIX  gcc/objcopy prefix (default riscv-none-elf-)
+#   GHDL          ghdl binary       (default ghdl)
+#   TIMEOUT_S     per-test wall-clock timeout in seconds (default 120)
+# --workdir puts every GHDL artifact under opensource_sim/isa/work/, which is
+# gitignored, so the repo tree stays clean.
 set -euo pipefail
 
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
+# Paths.
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$HERE/../.." && pwd)"
 ISA_DIR="$REPO_ROOT/verification/isa"
@@ -37,12 +30,10 @@ GHDL="${GHDL:-ghdl}"
 RISCV_PREFIX="${RISCV_PREFIX:-riscv-none-elf-}"
 TIMEOUT_S="${TIMEOUT_S:-90}"
 
-# ---------------------------------------------------------------------------
-# Curated analysis order. THIS LIST MUST STAY IN SYNC with
-# sky130/synth.sh and sky130/sim/Makefile (there are three conflicting
-# `regfile` entities in the tree — only regfile_sbirq.vhd is correct — and
-# ClkGate must come from hdl/common/sim/, not a synthesis stub).
-# ---------------------------------------------------------------------------
+# Curated analysis order. This list must stay in step with sky130/synth.sh and
+# sky130/sim/Makefile: the tree holds three conflicting `regfile` entities, of
+# which only regfile_sbirq.vhd is correct, and ClkGate must come from
+# hdl/common/sim/ rather than from a synthesis stub.
 SOURCES=(
     "$COMMON/constants.vhd"
     "$COMMON/MemoryMap.vhd"
@@ -84,8 +75,7 @@ SOURCES=(
 # already exercised by the rv32ua ext-probes + rv32uzf).
 DEFAULT_SUITES=(rv32ui rv32um rv32ua rv32uc rv32uzba rv32uzbb rv32uzbc rv32uzbs rv32uzf)
 
-# ---------------------------------------------------------------------------
-# X-series extension enablement.
+# Extension enablement.
 #
 # The vesta core (this tree) implements a stack of RISC-V Z-extensions behind
 # ENABLE_* generics that all DEFAULT TO FALSE (a minimal chip prunes them). The
@@ -119,8 +109,7 @@ CORE_ENABLE_DEFS=(
 # sources contain no CORE_ENABLE_* #ifdef).
 BASE_GCC_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles"
 
-# ---------------------------------------------------------------------------
-# SKIP list: <suite>/<plain-test-name>  =>  reason
+# SKIP list: <suite>/<plain-test-name> => reason
 #
 # TWO families of justified skips (every entry verified on THIS harness:
 # observed to FAIL/TIMEOUT, never PASS — and the reason confirmed in the .S):
@@ -151,9 +140,8 @@ BASE_GCC_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfil
 #     arm of every dispatchable extension IS run and PASSES — see CORE_ENABLE_DEFS
 #     above and the extz* / extjvt tests that are NOT skipped.
 #
-# The plain key is the test name with the "rvXX-p-" prefix and x-padding
-# stripped (see the `plain=` extraction in the run loop).
-# ---------------------------------------------------------------------------
+# The plain key is the test name with the "rvXX-p-" prefix and the x-padding
+# stripped; see the `plain=` extraction in the run loop.
 declare -A SKIP=(
     # rv32ui — peripheral MMIO / IRQ-routing / multi-hart system tests
     [rv32ui/shperiph]="shared SPI1(0x4300)+UART1(0x4500) via HW mutex bank(0x6000) — MCU peripherals, not bare-core"
@@ -218,15 +206,13 @@ declare -A SKIP=(
     [rv32ua/zfopfp]="Zfinx neg-control (fadd.s, OP-FP 0x53): Zfinx-ON -> executes then RVTEST_FAIL; trap-watch only"
 )
 
-# ---------------------------------------------------------------------------
-# Families (3) and (4), added 2026-08-21 when the bazel CI tier first triaged
-# the tests that landed AFTER this harness was written (~2026-07-19). Every
-# entry below was observed to FAIL or sim-timeout here, and verified (test
-# header + a marker scan for MMIO windows / mp_boot / mtvec-trap machinery)
-# to need capability this bare a0-sentinel TB does not have. None is a
-# bare-core regression. When a NEW test fails here, triage it the same way
-# before adding it — a bare-core-verifiable test that fails is a real bug,
-# and this table must never become where those hide.
+# Families (3) and (4) cover the tests that landed after this harness was written.
+# Every entry below was observed to FAIL or sim-timeout here, and verified from
+# the test header plus a marker scan for MMIO windows, mp_boot and mtvec-trap
+# machinery to need capability this bare a0-sentinel TB does not have. None is a
+# bare-core regression. Triage a new failure the same way before adding it: a
+# bare-core-verifiable test that fails is a real bug, and this table must never
+# become where those hide.
 #
 # (3) PRIVILEGED / TRAP / IRQ / DEBUG machinery: the v2.7.0 privileged
 #     architecture suite (priv*/pmprt*), the F-series IRQ_SV detectors
@@ -271,9 +257,7 @@ SKIP[rv32uc/rvc]="linked with link_shared.ld since b1c39da — code sits outside
 
 GHDL_FLAGS=(--std=08 -fsynopsys --workdir="$WORK")
 
-# ---------------------------------------------------------------------------
-# Tool checks
-# ---------------------------------------------------------------------------
+# Tool checks.
 need() {
     command -v "$1" >/dev/null 2>&1 || {
         echo "ERROR: '$1' not found on PATH." >&2
@@ -291,9 +275,7 @@ if [ -z "$ISA_BUILD_DIR" ]; then
     need make                   "Install make."
 fi
 
-# ---------------------------------------------------------------------------
-# Args
-# ---------------------------------------------------------------------------
+# Arguments.
 if [ "$#" -gt 0 ]; then
     SUITES=("$@")
 else
@@ -306,9 +288,7 @@ echo "    ghdl   : $($GHDL --version | head -1)"
 echo "    prefix : $RISCV_PREFIX"
 echo
 
-# ---------------------------------------------------------------------------
-# 1. Build the test images (skipped in prebuilt-image mode)
-# ---------------------------------------------------------------------------
+# 1. Build the test images. Prebuilt-image mode skips this.
 if [ -n "$ISA_BUILD_DIR" ]; then
     BUILD_ROOT="$ISA_BUILD_DIR"
     echo "--- using prebuilt images from $BUILD_ROOT (ISA_BUILD_DIR set; make skipped) ---"
@@ -328,26 +308,22 @@ else
     echo
 fi
 
-# ---------------------------------------------------------------------------
-# 2. Analyze RTL + TB into work/
-# ---------------------------------------------------------------------------
+# 2. Analyse the RTL and the testbench into work/.
 mkdir -p "$WORK"
 echo "--- analyzing ${#SOURCES[@]} VHDL files into work/ ---"
 for f in "${SOURCES[@]}"; do
     [ -f "$f" ] || { echo "ERROR: missing source $f" >&2; exit 1; }
     "$GHDL" -a "${GHDL_FLAGS[@]}" "$f"
 done
-# NOTE: no standalone `ghdl -e` — the RAM image is a signal initializer that
-# calls the textio loader at elaboration, so elaboration needs a real
-# -gTEST_FILE. GHDL's mcode backend elaborates+runs in a single `ghdl -r`
-# below, which is where each image is loaded; a bad/missing file therefore
-# surfaces as a clear assertion on that test's run.
+# There is no standalone `ghdl -e`: the RAM image is a signal initialiser that
+# calls the textio loader at elaboration, so elaboration needs a real -gTEST_FILE.
+# GHDL's mcode backend elaborates and runs in the single `ghdl -r` below, which is
+# where each image loads, so a bad or missing file surfaces as a clear assertion
+# on that test's run.
 echo "    analyze OK"
 echo
 
-# ---------------------------------------------------------------------------
-# 3. Run every built .rcf
-# ---------------------------------------------------------------------------
+# 3. Run every built .rcf.
 npass=0; ntotal=0; nskip=0
 declare -a FAILURES=()
 
@@ -413,9 +389,7 @@ for suite in "${SUITES[@]}"; do
     done
 done
 
-# ---------------------------------------------------------------------------
-# Summary
-# ---------------------------------------------------------------------------
+# Summary.
 echo
 echo "ISA RESULTS: $npass/$ntotal passed (skipped: $nskip)"
 if [ "${#FAILURES[@]}" -gt 0 ]; then

@@ -1,24 +1,5 @@
-#*****************************************************************************
-# SYSTEM_TESTBENCH_UPDATED.S
-#-----------------------------------------------------------------------------
-# Updated SYSTEM Peripheral testbench for RISC-V RV32IMC
-# Matches new SYSTEM peripheral implementation
-# Date: 2025-10-05
-#
-# Test Categories:
-# 1-5: Register Boundary Tests (5 tests)
-# 6-10: Clock Control Tests (5 tests)
-# 11-15: Clock Divider Tests (5 tests)
-# 16-20: Memory Power Control Tests (5 tests)
-# 21-25: Memory Access with Power Control Tests (5 tests)
-# 26-30: CRC State Tests (5 tests)
-# 31-40: IRQ Comprehensive Tests (10 tests)
-# 41-45: DCO Bias Tests (5 tests)
-# 46-55: Watchdog Comprehensive Tests (10 tests)
-# 56-60: Watchdog Counter Behavior Tests (5 tests)
-# 61-65: Global IRQ Control Tests (5 tests)
-# 66-70: Register Reset Behavior Tests (5 tests)
-#-----------------------------------------------------------------------------
+# VestaRV: SYSTEM peripheral test
+# Covers the register boundaries, clock select and divider, memory power control and access under it, CRC state, the IRQ enable and global-enable paths, DCO bias, the watchdog including its counter behaviour, and every reset value.
 
 #include "riscv_test.h"
 #include "test_macros.h"

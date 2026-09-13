@@ -1,31 +1,8 @@
-/*
- *  rv4th
- *
- *  forth-like interpreter for the msp430
- *
- *  Source originally from Mark Bauer, beginning life in the z80 and earlier.
- *  Nathan Schemm used and modified for use in his series of msp430-compatible
- *  processors.
- *
- *  This version by Dan White (2013).  Cleaned-up, expanded, and given
- *  capabilities to allow live re-configuration and directly calling user C
- *  functions.
- *
- *  * Used in Dan's "atoi" chip loaded from flash into RAM.
- *  * Fabbed in ROM as part of the Gharzai/Schmitz "piranha" imager chip.
- *  * Fabbed in ROM as part of the Schmitz/Gharzai "cheetah" chip.
- *  * Fabbed in ROM as part of the Schmitz/Murray "War Bonnet" chip.
- *
- *  If cpp symbol "MSP430" is not defined, it compiles to a version for testing
- *  on PC as a console program via the setup and main() in "test430.c".
- *
- * TODO ideas:
- *  - use enum/symbols for VM opcodes (?builtins tagged as negative numbers?)
- *
- */
+// VestaRV: rv4th Forth-like interpreter, application build
+// Descended from Mark Bauer's z80 interpreter by way of Nathan Schemm's MSP430 ports and Dan White's 2013 rewrite, which added live re-configuration and direct calls into user C functions.
+// Without the cpp symbol MSP430 it builds as a PC console program driven by the setup and main() in test430.c.
 
 
-/** Includes **/
 #include <MemoryMap.h>
 #include <rv4th.h>
 #include <uart.h>
@@ -35,7 +12,6 @@
 
 
 
-/** Defines **/
 #define MATH_STACK_SIZE 64	// * 4 bytes
 #define ADDR_STACK_SIZE 128	// * 4 bytes
 
@@ -61,11 +37,7 @@
 
 /** Global Variables **/
 
-/****************************************************************************
- *
- * Module-level global variables (in RAM)
- *
- ***************************************************************************/
+// Module-level global variables (in RAM)
 __attribute__ ((section(".noinit"))) int16_t xit;  // set to 1 to kill program
 __attribute__ ((section(".noinit"))) int16_t echo; // boolean: false -> no interactive echo/prompt
 
@@ -123,11 +95,7 @@ __attribute__ ((section(".noinit"))) uint8_t flash_is_initialized;	// A boolean 
 
 
 
-/****************************************************************************
- *
- * Module-level global constants (in ROM)
- *
- ***************************************************************************/
+// Module-level global constants (in ROM)
 
 // The order matches the execVM function and determines the opcode value.
 // NOTE: must end in a space !!!!
@@ -362,17 +330,12 @@ const int16_t progBi[] = { // address actually start at 10000
 
 
 
-/****************************************************************************
- *
- * Local function prototypes
- *
- * xFunc() are closely related to opcodes
- *
- * Note: push/pop and such may be candidates for making non-static (public)
- ***************************************************************************/
-/****************************************************************************
- * Stack implementation
- ***************************************************************************/
+// Local function prototypes
+//
+// xFunc() are closely related to opcodes
+//
+// Note: push/pop and such may be candidates for making non-static (public)
+// Stack implementation
 static void pushMathStack(int32_t n);
 static int32_t popMathStack();
 static void ndrop(int32_t n);
@@ -381,32 +344,24 @@ static void pushAddrStack(int32_t n);
 static int32_t popAddrStack();
 static void ndropAddr(int32_t n);
 
-/****************************************************************************
- * Line input handling
- ***************************************************************************/
+// Line input handling
 static char getKeyB(void);
 static void getLine(void);
 static char nextPrintableChar(void);
 static char skipStackComment(void);
 
-/****************************************************************************
- * Word buffer usage
- ***************************************************************************/
+// Word buffer usage
 static int16_t lookupToken(char *x, char *l);
 static void dfnFunc(void);
 static void getWordFunc(void);
 static void luFunc(void);
 static void numFunc(void);
 
-/****************************************************************************
- * Terminal output effects
- ***************************************************************************/
+// Terminal output effects
 static void listFunc(void);
 static void opcode2wordFunc(void);
 
-/****************************************************************************
- * Other helpers
- ***************************************************************************/
+// Other helpers
 static void execFunc(void);
 static void ifFunc(int16_t x);
 static void loopFunc(int16_t n);
@@ -422,14 +377,10 @@ static void memoryReadFunc(uint32_t start_address, uint32_t length, int32_t mode
 static void memoryEraseFunc(uint32_t start_address, uint32_t length);
 static void waveformAdcTestFunc(uint32_t totalCounts);
 
-/****************************************************************************
- * VM opcode execution
- ***************************************************************************/
+// VM opcode execution
 static void execVM(int16_t opcode);
 
-/****************************************************************************
- * Stack implementation
- ***************************************************************************/
+// Stack implementation
 #define TOS (*mathStackPtr)
 #define NOS (*(mathStackPtr + 1))
 #define STACK(n) (*(mathStackPtr + n))
@@ -496,9 +447,7 @@ void ndropAddr(int32_t n)
 }
 
 
-/****************************************************************************
- * Line input handling
- ***************************************************************************/
+// Line input handling
 char getKeyB(void)
 {
 	char c;
@@ -586,9 +535,7 @@ char skipStackComment(void)
 }
 
 
-/****************************************************************************
- * Word buffer usage
- ***************************************************************************/
+// Word buffer usage
 int16_t lookupToken(char *word, char *list)
 {
 	// looking for word in list
@@ -769,9 +716,7 @@ void numFunc(void)
 }
 
 
-/****************************************************************************
- * Terminal output effects
- ***************************************************************************/
+// Terminal output effects
 
 void listFunc(void)
 {
@@ -827,9 +772,7 @@ void opcode2wordFunc(void)
 }
 
 
-/****************************************************************************
- * Other helpers
- ***************************************************************************/
+// Other helpers
 void execFunc(void) {
 	int16_t opcode;
 
@@ -1307,11 +1250,7 @@ void waveformAdcTestFunc(uint32_t totalCounts)
 }
 
 
-/****************************************************************************
- *
- * VM opcode execution
- *
- ***************************************************************************/
+// VM opcode execution
 void execVM(int16_t opcode)
 {
 	int32_t i,j,k,m,n;
@@ -1860,11 +1799,7 @@ GCC_DIAG_ON(int-to-pointer-cast);
 
 
 
-/****************************************************************************
- *
- * Public functions
- *
- ***************************************************************************/
+// Public functions
 void rv4th_init()
 {
 	// Initialize the pointers to the buffers

@@ -1,11 +1,11 @@
-# TSMC 65 nm CMN65GP kit setup
+# VestaRV: Cadence and Mentor tool environment for the TSMC 65 nm CMN65GP kit.
+# Source before any Virtuoso, Genus, Innovus, Xcelium, Pegasus or Calibre run.
+# PATH order below is load bearing: the kit tools come before the system ones.
 
-# License files
 export LM_LICENSE_FILE=5280@poseidon:27020@poseidon:1717@poseidon
 export CDS_LIC_FILE=5280@poseidon
 export CDS_LIC_ONLY
 
-# Environment Variables
 export CADENCE_HOME=/opt/cadence
 export KIT_HOME=/opt/design_kits
 
@@ -14,7 +14,7 @@ export cdsPath=$VIRTUOSO_HOME/tools/bin:$VIRTUOSO_HOME/tools/dfII/bin
 export CDS_AUTO_64BIT=ALL
 export CDS_LOAD_ENV=CWDElseHome
 export CDS_Netlisting_Mode=Analog
-export OA_UNSUPPORTED_PLAT=linux_rhel60 # makes QRC work on OpenSuse, pretending as if it were RHEL 6.0
+export OA_UNSUPPORTED_PLAT=linux_rhel60 # QRC runs on OpenSUSE only if it is told it is RHEL 6.0
 
 # export PVS_HOME=$CADENCE_HOME/PVS201
 export PVS_HOME=/opt/cadence/PEGASUS221
@@ -56,18 +56,17 @@ export PATH=$cdsPath:$assuraPath:$qrcPath:$pvsPath:$spectrePath:$genusPath:$inno
 
 
 
-# Suppress warnings about using CentOS instead of Redhat in IC617, CCR 1739524.
+# IC617 warns about CentOS where it expects Red Hat (Cadence CCR 1739524).
 export W3264_NOWARN_UNSUPPORTED_CENTOS=1
 export W3264_NO_HOST_CHECK=1
 
-# Specify the explicit folder where the .simrc file is located. This ENV
-# variable overrides all others.  This is done since IC617 seemed to be
-# ignoring it if placed in the CWD.  This file specifies global nets needed for
-# CDL netlisting to work during LVS.
+# SIMRC names the directory holding .simrc and overrides every other search
+# path; IC617 ignores the file in the CWD. That .simrc declares the global nets
+# CDL netlisting needs for LVS.
 export SIMRC=ic
 
-# Set up multi-host simulation
+# Multi-host simulation.
 export LBS_CLUSTER_MASTER=poseidon
 
-# Debug ICRP ADE XL sweeps for during CentoS 7 migration
+# ADE XL sweep debug.
 #export AXL_PEJM_DEBUG=3

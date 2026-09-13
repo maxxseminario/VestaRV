@@ -1,19 +1,15 @@
 #!/bin/bash
-# Parallel rv32ui test runner — 4-step Xcelium flow:
-#   1. Generate a tiny VHDL wrapper entity per test (unique top-level name = unique snapshot)
-#   2. Compile all HDL + wrappers with xmvhdl/xmvlog (once)
-#   3. Elaborate each wrapper with xmelab (sequential, fast)
-#   4. Simulate all xmsim snapshots in parallel (throttled to MAX_PARALLEL licenses)
-#
-# Usage:
+# VestaRV: parallel ISA test runner. One VHDL wrapper entity per test gives each
+# test a unique top-level name and so a unique snapshot; the HDL and wrappers
+# compile once, each snapshot elaborates in sequence, and the simulations run in
+# parallel.
 #   ./xrun_parallel.sh
 #   MAX_PARALLEL=8 ./xrun_parallel.sh
-#
-# MAX_PARALLEL = number of simultaneous simulations. Each running xmsim checks
-# out one Xcelium_Single_Core license. The pool on poseidon has 40 such seats,
-# shared with all other users, so 40 is the hard ceiling; leave headroom if
-# others are simulating. Sims use -licqueue, so any that can't grab a seat wait
-# rather than fail. (Host has 128 cores / 251 GB, so licenses are the limit.)
+# MAX_PARALLEL is the number of simultaneous simulations. Each xmsim holds one
+# Xcelium_Single_Core license and the pool on poseidon has 40 seats shared with
+# every other user, so 40 is the ceiling and headroom is polite. The sims pass
+# -licqueue, so one that cannot get a seat waits instead of failing. The host has
+# 128 cores and 251 GB, so licenses are the limit, not the machine.
 
 source ~/vestarv/cdspaths.sh
 
@@ -92,7 +88,7 @@ TEST_FILES=(
     "../rca/xxxxxrv32ui-p-bgeu.rcf"
     "../rca/xxxxxrv32ui-p-jalr.rcf"
     "../rca/xxxxxxrv32ui-p-jal.rcf"
-    # rv32um — multiplication/division
+    # rv32um: multiplication and division.
     "../rca/xxxrv32um-p-mulhsu.rcf"
     "../rca/xxxxrv32um-p-mulhu.rcf"
     "../rca/xxxxxrv32um-p-divu.rcf"
@@ -101,13 +97,13 @@ TEST_FILES=(
     "../rca/xxxxxxrv32um-p-div.rcf"
     "../rca/xxxxxxrv32um-p-mul.rcf"
     "../rca/xxxxxxrv32um-p-rem.rcf"
-    # rv32uc — compressed (C extension)
+    # rv32uc: the compressed extension.
     "../rca/xxxxxxrv32uc-p-rvc.rcf"
-    # rv32uzba — bitmanip address generation (Zba)
+    # rv32uzba: bitmanip address generation.
     "../rca/xrv32uzba-p-sh1add.rcf"
     "../rca/xrv32uzba-p-sh2add.rcf"
     "../rca/xrv32uzba-p-sh3add.rcf"
-    # rv32uzbb — bitmanip basic (Zbb)
+    # rv32uzbb: basic bitmanip.
     "../rca/xrv32uzbb-p-sext_b.rcf"
     "../rca/xrv32uzbb-p-sext_h.rcf"
     "../rca/xrv32uzbb-p-zext_h.rcf"
@@ -126,11 +122,11 @@ TEST_FILES=(
     "../rca/xxxxrv32uzbb-p-orn.rcf"
     "../rca/xxxxrv32uzbb-p-rol.rcf"
     "../rca/xxxxrv32uzbb-p-ror.rcf"
-    # rv32uzbc — carry-less multiply (Zbc)
+    # rv32uzbc: carry-less multiply.
     "../rca/xrv32uzbc-p-clmulh.rcf"
     "../rca/xrv32uzbc-p-clmulr.rcf"
     "../rca/xxrv32uzbc-p-clmul.rcf"
-    # rv32uzbs — single-bit (Zbs)
+    # rv32uzbs: single-bit operations.
     "../rca/xxrv32uzbs-p-bclri.rcf"
     "../rca/xxrv32uzbs-p-bexti.rcf"
     "../rca/xxrv32uzbs-p-binvi.rcf"
@@ -139,9 +135,9 @@ TEST_FILES=(
     "../rca/xxxrv32uzbs-p-bext.rcf"
     "../rca/xxxrv32uzbs-p-binv.rcf"
     "../rca/xxxrv32uzbs-p-bset.rcf"
-    # core-features (ENABLE_* generics): misa + per-extension adaptive probes.
-    # On this full build every one PASSES; the same images double as the
-    # stripped-build trap controls (behavioral_mp_stripped/run_extoff.sh).
+    # Core features (the ENABLE_* generics): misa plus per-extension adaptive
+    # probes. Every one passes on this full build, and the same images serve as
+    # the stripped-build trap controls in behavioral_mp_stripped/run_extoff.sh.
     "../rca/xrv32ua-p-extprobe.rcf"
     "../rca/xxxrv32ua-p-extmul.rcf"
     "../rca/xxxrv32ua-p-extdiv.rcf"
@@ -150,21 +146,20 @@ TEST_FILES=(
     "../rca/xxxxrv32ua-p-extzb.rcf"
 )
 
-# Optional subset override: `TESTS_FILE=smoke.txt ./xrun_parallel.sh` runs only the
-# rcf paths listed (one per line) in that file instead of the full array above.
-# Used for quick smoke runs; unset → full regression.
+# Subset override: TESTS_FILE=smoke.txt runs only the rcf paths listed in that
+# file, one per line, instead of the array above. Unset means full regression.
 if [ -n "${TESTS_FILE:-}" ] && [ -f "$TESTS_FILE" ]; then
     mapfile -t TEST_FILES < <(grep -vE '^\s*(#|$)' "$TESTS_FILE")
     echo "TESTS_FILE=$TESTS_FILE → running ${#TEST_FILES[@]} test(s)"
 fi
 
-# Derive a valid VHDL entity name from a test file path.
-# "../rca/xxxxxxxrv32ui-p-lb.rcf" → "tb_rv32ui_p_lb"
+# A valid VHDL entity name from a test file path:
+# "../rca/xxxxxxxrv32ui-p-lb.rcf" becomes "tb_rv32ui_p_lb".
 snap_name() {
     basename "$1" .rcf | sed 's/^x*//' | tr '-' '_' | sed 's/^/tb_/'
 }
 
-# ── 1. Generate wrapper VHDL files ────────────────────────────────────────────
+# 1. Generate the wrapper VHDL files.
 echo "=== [1/4] Generating per-test wrapper entities ==="
 mkdir -p "$WRAPPERS_DIR"
 WRAPPER_FILES=()
@@ -174,12 +169,11 @@ for rcf in "${TEST_FILES[@]}"; do
     ENTITIES+=("$entity")
     wf="$WRAPPERS_DIR/${entity}.vhd"
     WRAPPER_FILES+=("$wf")
-    # Minimal wrapper: unique top-level entity that binds the test file generic.
-    # No ports (riscv_tb is a testbench), no signal declarations needed.
-    # M12: the tile-TCM preload (HART_RAM0_INIT) is RETIRED — every hart boots
-    # from the shared ROM like silicon, so the wrapper carries ONLY TEST_FILE.
+    # A unique top-level entity binding the test-file generic. riscv_tb is a
+    # testbench, so the wrapper needs no ports and no signals. TEST_FILE is the
+    # only generic: every hart boots from the shared ROM as in silicon, and the
     # sh-protocol tests load their tiles at runtime through the bootrom's msip
-    # loader mailboxes; the old sh-glob case + ram_images/*.ram0.rcf are gone.
+    # loader mailboxes rather than through a TCM preload.
     cat > "$wf" <<VHDL
 entity ${entity} is end ${entity};
 architecture behavioral of ${entity} is begin
@@ -189,7 +183,7 @@ VHDL
 done
 echo "  ${#ENTITIES[@]} wrappers written to wrappers/"
 
-# ── 2. Compile all HDL + wrappers ────────────────────────────────────────────
+# 2. Compile the HDL and the wrappers.
 echo ""
 echo "=== [2/4] Compiling HDL ==="
 [ -d "$LIB_PATH" ] && rm -r "$LIB_PATH"
@@ -197,19 +191,18 @@ mkdir -p "$LOG_PATH"
 
 cd "$BEHAVIORAL_DIR"
 
-# The single-step `xrun` manages the library mapping internally. The standalone
-# xmvlog/xmvhdl/xmelab/xmsim flow does not, so provide a cds.lib that pulls in
-# the installed IEEE/std/synopsys libraries and defines the local `work` library.
+# Single-step xrun manages the library mapping internally; the standalone
+# xmvlog/xmvhdl/xmelab/xmsim flow does not, so this cds.lib pulls in the
+# installed IEEE, std and synopsys libraries and defines the local work library.
 mkdir -p "$LIB_PATH/work"
 cat > "$BEHAVIORAL_DIR/cds.lib" <<LIB
 SOFTINCLUDE ${XCELIUM_HOME}/tools/xcelium/files/cds.lib
 DEFINE work ./xcelium.d/work
 LIB
 
-# Split cell_list_behavioral.txt into Verilog (.v) and VHDL (.vhd/.vhdl).
-# Use unquoted word-splitting (like xrun_batch.sh) so trailing spaces and a
-# missing final newline don't silently drop files — a per-line `read` loop
-# mis-classifies "...AFE_FSM.vhd " (trailing space) and skips the last line.
+# Split cell_list_behavioral.txt into Verilog and VHDL. Unquoted word splitting,
+# not a per-line `read` loop: the latter misclassifies a name with a trailing
+# space and drops the last line when the file has no final newline.
 VLOG_FILES=()
 VHDL_FILES=()
 for f in $(< "$BEHAVIORAL_DIR/cell_list_behavioral.txt"); do
@@ -239,7 +232,7 @@ xmvhdl -V200X -WORK work -CONTROLRELAX nlstex -RELAX \
     2>&1 | tee "$LOG_PATH/compile_wrappers.log"
 [ "${PIPESTATUS[0]}" -ne 0 ] && { echo "Wrapper compile failed."; exit 1; }
 
-# ── 3. Elaborate each snapshot (sequential, fast) ────────────────────────────
+# 3. Elaborate each snapshot, in sequence.
 echo ""
 echo "=== [3/4] Elaborating snapshots ==="
 > "$LOG_PATH/elab.log"
@@ -253,17 +246,16 @@ for entity in "${ENTITIES[@]}"; do
     fi
 done
 
-# ── 4. Simulate in parallel ───────────────────────────────────────────────────
+# 4. Simulate in parallel.
 echo ""
 echo "=== [4/4] Simulating (MAX_PARALLEL=$MAX_PARALLEL, ${#ENTITIES[@]} tests) ==="
 TOTAL=${#ENTITIES[@]}
 STATUS_DIR="$LOG_PATH/.status"
 rm -rf "$STATUS_DIR"; mkdir -p "$STATUS_DIR"
 
-# Simulate one snapshot, then immediately classify and report its result, so
-# PASS/FAIL lines stream to the terminal as each test finishes (in completion
-# order, not submission order). The per-test status file lets the parent tally
-# accurately afterward.
+# Simulate one snapshot, then classify and report it at once, so PASS and FAIL
+# lines stream in completion order rather than submission order. The per-test
+# status file is what the parent tallies afterwards.
 run_one() {
     local entity="$1"
     xmsim "work.${entity}:behavioral" \
@@ -275,7 +267,7 @@ run_one() {
     local result=FAIL
     grep -q "TEST PASSED" "$LOG_PATH/${entity}.log" 2>/dev/null && result=PASS
     echo "$result" > "$STATUS_DIR/$entity"
-    # Completion index = number of status files written so far.
+    # The completion index is the number of status files written so far.
     local done; done=$(ls "$STATUS_DIR" | wc -l)
     printf "  [%2d/%2d]  %-4s  %s\n" "$done" "$TOTAL" "$result" "$entity"
 }
@@ -288,7 +280,7 @@ for entity in "${ENTITIES[@]}"; do
 done
 wait
 
-# ── Collect results ───────────────────────────────────────────────────────────
+# Collect the results.
 echo ""
 echo "=== Results ==="
 PASS=0

@@ -1,66 +1,13 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# wntagx.S  -- VACUITY CONTROL: identical to wntag.S except that L1 expects
-#            E3h where the NTAG 5 delivery content actually holds E1h. If the
-#            gate sim still PASSES, wntag.S is not really reading the tag.
-#-----------------------------------------------------------------------------
-# Drives the I2C0 MASTER against an external NXP NTAG 5 tag model
-# (hdl/common/tb/ntag5_model.vhd, an I2C SLAVE at the datasheet default 7-bit
-# address 54h) hung off the shared open-drain SDA0/SCL0 pad planes P4.0/P4.1
-# (LQFP-100 pins 37/38). Single-hart directed (hart 0; tiles park).
-#
-# This is the FIRMWARE side of the "can the synthesized chip talk to a real
-# COTS part" question -- it is meant to run at gate level with SDF, where the
-# bits really move through synthesized logic and pad models.
-#
-# TB CONTRACT (same as wi2ct.S): riscv_tb gives P4.0/P4.1 a WEAK 'H' pull so
-# the open-drain bus idles high; the tag model resolves its own strong lows
-# onto the same nets. No firmware REN is needed. I2C0's serial core is SMCLK,
-# so SYSCLK_CR_ADDR = 0 first (the bootrom parks SMCLK on LFXT = 32.768 kHz and a
-# frame would then take ~10 ms). PAD ROUTING: SDA0/SCL0 are the AF0 (home)
-# function of P4.0/P4.1 but a pin only drives its alt-function when GPIO3
-# PxSEL = 1 (reset is PxSEL = 0 = plain GPIO) -- without it the master reads
-# back an undriven pad and loses arbitration mid-address.
-#
-# NTAG 5 FRAME SHAPES ([L] NTP53x2 data sheet Rev. 3.2, 8.3.1.4). There is NO
-# flat byte address: every access opens with a 16-bit BLOCK address, MSB
-# first, and a block is 4 bytes.
-#   MEMORY write : S SL_AD+W BL_AD1 BL_AD0 D0 D1 D2 D3 P     (exactly 1 block)
-#   MEMORY read  : S SL_AD+W BL_AD1 BL_AD0 P, S SL_AD+R D... NACK P
-#   REGISTER (blocks 10A0h-10AFh) reads take a THIRD address byte REGA:
-#                  S SL_AD+W BL_AD1 BL_AD0 REGA P, S SL_AD+R REGDAT NACK P
-#
-# WHAT IS CHECKED
-#   L1  MEMORY READ of user block 0000h == E1 40 80 09 -- the NFC Forum
-#       capability container the part ships with ([L] Tab. 7). The chip cannot
-#       manufacture these bytes; they can only come off the tag.
-#   L2  MEMORY WRITE of DE AD C0 DE into user block 0040h, then a fresh
-#       pointer-set + read-back of the same block. Proves the tag took real
-#       state from the chip (NTAG 5 commits an EEPROM block write on the STOP).
-#   L3  REGISTER READ of STATUS0_REG (block 10A0h, REGA 0) == 02h:
-#       VCC_SUPPLY_OK = 1, NFC_FIELD_OK = 0 (no reader field in this bench).
-#       Exercises the second, incompatible frame shape.
-#   L4  NEGATIVE: addressing 7-bit 2Ah (address byte 54h -- note that 54h is
-#       the tag's 7-bit address, a classic off-by-a-shift) must be NACKed.
-#       Proves the model is address-selective rather than ACKing everything.
-#
-# I2C0 master (I2C.vhd AS-BUILT; base 0x4E00):
-#   CR  0x4E00 : ... MDIV[16:13] ... MEN[21]
-#   FCR 0x4E04 : MRB[0] MSP[1] MST[2] SC[3]      (write-1 command bits;
-#                MSP/MRB are ignored unless MCB -- this master owns the bus)
-#   SR  0x4E08 : SPR[0] STR[1] MXC[2] MNR[3] MTXE[4] MARB[5] MSPS[6] MSTS[7]
-#                ... MCB[14] BS[15]              (MXC/MNR/MSPS are W1C)
-#   MTX 0x4E0C : master transmit byte (a write with MEN=1 issues MasterWrite);
-#                the FIRST byte after a START is {SAD<<1 | RnW}
-#   MRX 0x4E10 : master receive byte
-#
-# WHY EVERY STOP IS POLLED (I2C.vhd race, found writing this test): the master
-# FSM asserts ClearI2CMST for one ClkMaster period inside MasterStateStop2, so
-# a START written into FCR during the stop cadence is silently swallowed. Each
-# I2STOP therefore W1C-clears MSPS, commands the stop, and polls MSPS back to
-# 1 (set in MasterStateStop3) before the next frame may open.
-#*****************************************************************************
+# VestaRV: vacuity control for the COTS NFC tag test
+# IDENTICAL TO wntag.S EXCEPT THAT L1 EXPECTS E3h WHERE THE TAG ACTUALLY HOLDS E1h. If the gate simulation still passes, wntag.S is not really reading the tag.
+# It drives the I2C0 MASTER against an external NXP NTAG 5 model, an I2C SLAVE at the datasheet default 7-bit address 54h, hung off the shared open-drain SDA0/SCL0 pad planes P4.0 and P4.1. Single hart, with the tiles parked. It is the firmware side of "can the synthesized chip talk to a real COTS part", and is meant to run at gate level with SDF, where the bits really move through synthesized logic and pad models.
+# TB CONTRACT: riscv_tb gives P4.0 and P4.1 a WEAK 'H' pull so the open-drain bus idles high and the tag model resolves its own strong lows onto the same nets, so no firmware pull-enable is needed. I2C0's serial core is SMCLK, SO SYS_CLK_CR MUST BE ZEROED FIRST, since the boot ROM parks SMCLK on LFXT at 32.768 kHz and a frame would then take about 10 ms. PAD ROUTING IS NOT AUTOMATIC: SDA0 and SCL0 are the AF0 home function of those pins, but a pin only drives its alternate function when GPIO3 PxSEL is 1, and PxSEL resets to 0, so without it the master reads back an undriven pad and loses arbitration mid-address.
+# NTAG 5 FRAME SHAPES, from the data sheet: THERE IS NO FLAT BYTE ADDRESS, every access opens with a 16-bit BLOCK address, MSB first, and a block is 4 bytes. A memory write is S, slave address with W, the two block-address bytes, four data bytes, P, and writes exactly one block. A memory read is S, slave address with W, the two block-address bytes, P, then S, slave address with R, the data, a NACK and P. A register read, for blocks 10A0h to 10AFh, takes a THIRD address byte before the P.
+# The legs: L1 reads user block 0000h and requires E1 40 80 09, the NFC Forum capability container the part ships with, WHICH THE CHIP CANNOT MANUFACTURE and can only come off the tag; L2 writes DE AD C0 DE into user block 0040h and then, with a fresh pointer set, reads the same block back, proving the tag took real state from the chip, since the part commits an EEPROM block write on the STOP; L3 reads STATUS0_REG and requires 02h, supply OK with no reader field in this bench, exercising the second, incompatible frame shape; L4 is a NEGATIVE leg addressing 7-bit 2Ah, the classic off-by-a-shift of the tag's own 54h, which must be NACKed, proving the model is address-selective rather than ACKing everything.
+# I2C0 master registers at 0x4E00: CR has MDIV at [16:13] and MEN at [21]; FCR has the write-1 command bits MRB, MSP, MST and SC, of which MSP and MRB are ignored unless the master owns the bus, which it does here; SR has SPR, STR, MXC, MNR, MTXE, MARB, MSPS, MSTS, MCB and BS, with MXC, MNR and MSPS write-1-to-clear; MTX is the transmit byte, and a write with MEN set issues a master write, with the FIRST byte after a START being the address shifted up with the read/write bit; MRX is the receive byte.
+# EVERY STOP IS POLLED, because of an I2C.vhd race: the master FSM asserts its clear strobe for one master-clock period inside the second stop state, so a START written into FCR during the stop cadence is silently swallowed. Each stop therefore clears MSPS, commands the stop, and polls MSPS back to 1 before the next frame may open.
 
 #include "riscv_test.h"
 #include "test_macros.h"

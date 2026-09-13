@@ -1,61 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# wow.S  (wound-config firmware smoke — digperiphs Stage E)
-#-----------------------------------------------------------------------------
-# OW0 @0x6700 Dallas/Maxim 1-Wire master IRQ-delivery smoke. Single-hart
-# directed (hart 0; tiles parked). Proves the CPU can launch 1-Wire
-# transactions and that the transaction-complete IRQ (vector 117) routes
-# through irq_router (HhENX bit21) -> meip -> MEIP_DISPATCHER -> IVT ->
-# plain-ret handler -> CLAIM/COMPLETE.
-#
-# TB CONTRACT: DQ reads a STRONG '0' with no loopback device on the line, so
-# every reset always samples PRESENCE (DQ low) and any read bit/byte returns
-# 0x00. This test exploits that: reset+presence -> TC IRQ; read-byte ->
-# RX == 0x00 + TC IRQ again. (Because DQ is stuck low, the RTL also sets
-# SR.SHORT and SR.PRES; with ERRIE off, SHORT does not contribute to the irq
-# — only TC does.)
-#
-# !! TB DEPENDENCY (Stage H re-pin, 2026-07-26) !! Up to Stage E the DQ pad was
-# P6.6 and riscv_tb hard-drove `prt6_in <= (others => '0')` (GPIO4/5 ports have
-# NO pad cells in the tb), which IS where the strong-'0' contract came from.
-# P4.7 is a REAL pad (PDUW16SDGZ_G in riscv_tb's pad_prt4_gen), so the level on
-# prt4(7) now comes from the pad bus: with nothing driving it the vendor model
-# floats (C = x) and only creeps to a weak '1' PullTime = 100 us after each
-# release — unusable as a 1-Wire line. riscv_tb must therefore give prt4(7) a
-# bench level, the way it already does for the open-drain I2C0 pads
-# (`prt4(0) <= 'H'; prt4(1) <= 'H';`): a weak `prt4(7) <= 'L';` reproduces the
-# stuck-low contract above verbatim (and yields to any strong driver), whereas
-# a weak 'H' would turn this into a no-device bus and the expectations below
-# would have to become NOPRES + RX == 0xFF.
-#
-# OW register map (onewire_spec.md / OneWire.vhd AS-BUILT; RegSlotOWx*):
-#   CR 0x6700  CMD 0x6704  TX 0x6708  RX 0x670C  DIV 0x6710  SR 0x6714
-#   CR : OWEN[0] ODS[1](overdrive) SPUEN[2](stub) TCIE[3] ERRIE[4]
-#   CMD: OP[2:0] BITVAL[8]  (lane-0 write LAUNCHES when OWEN=1 & !BUSY)
-#        OP: RESET=0 WRBIT=1 RDBIT=2 WRBYTE=3 RDBYTE=4
-#   SR : BUSY[0](ro) TCIF[1](W1C) PRES[2](ro) NOPRES[3](W1C) SHORT[4](W1C)
-#   DIV: tick = (DIV+1) clk; reset 0 = fastest.  irq_ow (117) = TCIF & TCIE
-#
-# OW0 is mclk-domain (register file on ClkMem, engine on free-running mclk) —
-# NO SYS_CLK_CR write is needed. ODS=1 + DIV=0 keeps the whole reset+presence
-# and read-byte well under a few hundred us of sim time.
-#
-# DQ ROUTING (Stage H re-pin): OW0's DQ is P4.7 / GPIO31 (DTP3) on alt plane
-# AF2 — the pin-mux-v2 replaced-spread-slot mechanism, DQ having taken over the
-# redundant T0CMP1 output-spread copy in that slot. ow0_dq_in = prt4_in(7) ONLY
-# when P4.7 selects AF2, otherwise it idles '1', so this test MUST route the
-# pin (RstValP4AFS = 0 -> every pin is AF0 out of reset). PxAFS is 4 BITS PER
-# PIN (a nibble, like wqspi's P5AFS=0x00111100); P4.7 is nibble 7 = bits 31:28,
-# so AF2 = 0x2000_0000 (the GPIO repacks it into the 3-bit p4_afs field the mux
-# reads). The test also sets PxSEL bit 7 so the pad's out/dir come from the AF2
-# plane (open-drain: out fixed 0, dir pulls low) — the INPUT mux ignores PxSEL,
-# but a real DQ has to be drivable. P4.7's pull is enabled at reset
-# (RstValP4REN = 0x80 when OneWire is configured); PxOUT stays 0.
-# Register file: GPIO3 is at 0x4D00, so PxSEL = 0x4D24 and PxAFS = 0x4D2C
-# (the headers spell these P3SEL/P3AFS — header register numbering is 0-based
-# while the pin/port naming is 1-based).
-#*****************************************************************************
+# VestaRV: 1-Wire master interrupt smoke
+# Hart 0 only, tiles parked. OW0 sits at 0x6700 and the transaction-complete interrupt is vector 117, routed through irq_router HhENX bit 21 to meip, the MEIP_DISPATCHER, the IVT and a plain-ret handler that claims and completes.
+# TB CONTRACT: with no loopback device on the line DQ reads a strong '0', so every reset samples PRESENCE and any read returns 0x00. The test exploits that: reset gives presence and a TC interrupt, and a read-byte gives RX == 0x00 and another. DQ stuck low also sets SR.SHORT and SR.PRES, but with ERRIE off only TC contributes to the IRQ.
+# THE BENCH MUST DRIVE prt4(7). P4.7 is a real pad, so with nothing driving it the vendor model floats and only creeps to a weak '1' 100 us after each release, which is unusable as a 1-Wire line. riscv_tb must give it a weak `prt4(7) <= 'L';`, the way it already does for the open-drain I2C0 pads, which reproduces the stuck-low contract and still yields to any strong driver. A weak 'H' would make this a no-device bus and the expectations here would have to become NOPRES and RX == 0xFF.
+# Register map: CR 0x6700 = OWEN[0] ODS[1] SPUEN[2] TCIE[3] ERRIE[4]; CMD 0x6704 = OP[2:0] BITVAL[8], and a lane-0 write LAUNCHES when OWEN is set and BUSY is clear, with OP 0 RESET, 1 WRBIT, 2 RDBIT, 3 WRBYTE, 4 RDBYTE; TX 0x6708; RX 0x670C; DIV 0x6710, where a tick is (DIV+1) clocks and reset 0 is fastest; SR 0x6714 = BUSY[0] ro, TCIF[1] W1C, PRES[2] ro, NOPRES[3] W1C, SHORT[4] W1C. irq_ow is TCIF AND TCIE. OW0 is mclk-domain, so no SYS_CLK_CR write is needed, and ODS = 1 with DIV = 0 keeps the whole sequence well under a few hundred microseconds of sim time.
+# DQ ROUTING IS NOT AUTOMATIC: OW0's DQ is P4.7 on alt plane AF2, and ow0_dq_in follows prt4_in(7) ONLY while P4.7 selects AF2, otherwise it idles '1'. Since P4AFS resets to 0, every pin is AF0 and this test MUST route the pin. PxAFS IS FOUR BITS PER PIN, so P4.7 is nibble 7 at bits 31:28 and AF2 is 0x20000000. The test also sets PxSEL bit 7 so the pad's out and dir come from the AF2 plane, open-drain with out fixed 0 and dir pulling low; the input mux ignores PxSEL, but a real DQ has to be drivable. P4.7's pull is enabled at reset and PxOUT stays 0. GPIO3 is at 0x4D00, so PxSEL is 0x4D24 and PxAFS is 0x4D2C; the headers spell these P3SEL and P3AFS, because header register numbering is 0-based while the pin and port naming is 1-based.
 
 #include "riscv_test.h"
 #include "test_macros.h"

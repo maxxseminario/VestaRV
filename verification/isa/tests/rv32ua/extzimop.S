@@ -1,47 +1,19 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extzimop.S   (ISA extension program, X1 Zimop+Zcmop, 2026-07-17)
-#-----------------------------------------------------------------------------
-# Build-time-dispatched probe for Zimop (mop.r.N / mop.rr.N) and Zcmop
-# (c.mop.N). These extensions have NO misa bit, so — like the extprobe_template
-# it derives from — this file dispatches at COMPILE time on the CORE_ENABLE_ZIMOP
-# preprocessor macro.
-#
-# EXPLICIT-APPEND CONVENTION (phase-standard; matches zcb/zicond):
-#   The macro is NEVER auto-derived — the default build always compiles the OFF
-#   arm, and the ON arm is built by explicitly appending -DCORE_ENABLE_ZIMOP to
-#   the compile flags. So the image polarity is a function of the build command
-#   alone, not of hidden make-chip state:
-#     OFF (default):   cd verification/isa && rm -rf build/ && make rv32ua-flash
-#     ON  (explicit):  cd verification/isa && rm -rf build/ && \
-#         make rv32ua-flash RISCV_GCC_OPTS="-static -mcmodel=medany \
-#         -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZIMOP"
-#   (The ON hardware itself is still staged separately — flip CORE_ENABLE_ZIMOP
-#   in hdl/common/MemoryMap.vhd false->true, or `make chip CONFIG` with
-#   isa.zimop=true — the -D only selects which arm of THIS test compiles.)
-#
-#   feature ON  (#ifdef CORE_ENABLE_ZIMOP):  execute the encodings, CHECK that
-#       mop.r/mop.rr write rd<-0 (a real x0-safe zero write) and that c.mop.N is
-#       a pure nop (no register/memory change, sequential PC) -> PASS.
-#   feature OFF (#else):  the same encodings are decode HOLES and MUST take the
-#       illegal-instruction trap (observed as trap_flag by the stripped-build
-#       harness behavioral_mp_stripped/run_extoff.sh + trap_watch.tcl; surviving
-#       past them -> explicit FAIL).
-#
-# Authoritative encodings (source: riscv/riscv-opcodes rv_zimop + rv_zcmop;
-# the installed gcc 13.2.0 gas does not know zimop/zcmop, so raw .word/.2byte
-# are used). Skeleton cross-checks against the well-known reference words
-# mop.r.0 x0,x0 = 0x81C04073 and mop.rr.0 x0,x0,x0 = 0x82004073. rd=a2, rs1=a5,
-# rs2=a1 are chosen to AVOID a0/x10 (the testbench's pass/fail monitor register)
-# as any mop operand:
-#   mop.r.0   a2,a5     = 0x81C7C673   (SYSTEM f3=100, bit31=1, bits25..22=0111)
+# VestaRV: Zimop and Zcmop extension probe
+# BUILD-TIME DISPATCH on CORE_ENABLE_ZIMOP, because neither extension has a misa bit. THE MACRO IS NEVER AUTO-DERIVED: the default build always compiles the OFF arm and the ON arm is built by explicitly appending -DCORE_ENABLE_ZIMOP, so the image polarity is a function of the build command alone and not of hidden state. The ON hardware is staged separately, and the -D only selects which arm of this test compiles.
+# With the macro defined the encodings execute and the test checks that mop.r and mop.rr write rd = 0, a real x0-safe zero write, and that c.mop.N is a pure nop with no register or memory change and a sequential PC. Without it the same encodings are decode HOLES and must take the illegal-instruction trap, observed as trap_flag by the stripped-build harness; surviving past them is an explicit FAIL.
+# The installed gas does not know zimop or zcmop, so raw .word and .2byte are used. rd = a2, rs1 = a5 and rs2 = a1 are chosen to AVOID a0, the testbench's pass/fail monitor register, as any mop operand.
+
+# Authoritative encodings, from riscv-opcodes rv_zimop and rv_zcmop, with the skeleton
+# cross-checked against the reference words mop.r.0 x0,x0 = 0x81C04073 and
+# mop.rr.0 x0,x0,x0 = 0x82004073:
+#   mop.r.0   a2,a5     = 0x81C7C673   (SYSTEM f3=100, bit31=1, bits 25..22 = 0111)
 #   mop.r.31  a2,a5     = 0xCDF7C673   (index bits {30,27,26,21,20} all set)
 #   mop.rr.0  a2,a5,a1  = 0x82B7C673   (SYSTEM f3=100, bit31=1, bit25=1, rs2=a1)
 #   mop.rr.7  a2,a5,a1  = 0xCEB7C673   (index bits {30,27,26} all set)
-#   c.mop.1             = 0x6081       (C1 15..13=011,12=0,11..7=N odd,6..2=0,1..0=01)
+#   c.mop.1             = 0x6081       (C1 15..13=011, 12=0, 11..7=N odd, 6..2=0, 1..0=01)
 #   c.mop.15            = 0x6781
-#*****************************************************************************
 
 #include "riscv_test.h"
 #include "test_macros.h"

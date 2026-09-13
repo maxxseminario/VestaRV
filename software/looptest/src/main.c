@@ -1,8 +1,6 @@
-/*
- * looptest - infinite loop, no trap.
- * Use to verify forth-run actually loaded a program: chip should run
- * silently forever (no UART output, no reset).
- */
+// VestaRV: looptest image
+// Infinite loop, no trap: the chip runs silently forever, which is how a successful forth-run load is told from a failed one.
+
 int main(void) {
     while (1) { }
     return 0;

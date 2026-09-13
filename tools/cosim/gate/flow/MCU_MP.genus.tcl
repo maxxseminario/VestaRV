@@ -1,22 +1,9 @@
-################################################################################
-#
-# Genus TCL script -- MULTI-CORE VestaRV (4 harts)
-#
-# Derived from tcl/MCU.genus.tcl (the verified single-core "Myshkin" flow).
-# Differences vs. the single-core script:
-#   * Reads the MCU_MP HDL tree (hdl/common/...) plus the new multi-core infra
-#     blocks (mp_arbiter, clint, irq_router, mutex_bank, resv_unit, hart_tile).
-#   * Top entity is still "MCU"; since M13 ALL FOUR harts are hart_tile
-#     instances "hart0/1/2/3" (each a full vesta + adddec + private TCM,
-#     registered tile boundary).
-#   * A clk_cpu clock, cost group, path group and SRAM/ROM PGEN false-paths are
-#     declared for ALL FOUR harts.
-#   * TIME-OPTIMIZED, AREA-RELAXED: high generic/map/opt effort with NO area
-#     constraint so Genus is free to spend area to close/optimize timing. This
-#     is a first-cut flow to prove the multi-core RTL is synthesizable; it will
-#     be perfected (freq push, floorplan-aware constraints) later.
-#
-################################################################################
+# VestaRV: Genus synthesis of the flat four-hart MCU_MP.
+# The top entity is MCU and all four harts are hart_tile instances hart0..hart3,
+# each a full vesta plus adddec plus private TCM behind a registered boundary. A
+# clk_cpu clock, cost group, path group and SRAM/ROM PGEN false paths are
+# declared for every hart. The flow is time optimised and area relaxed: high
+# effort at every stage with no max_area, so Genus may grow area to close timing.
 
 # Project names and paths. These are relative to the Genus run directory.
 set INPUT_DIR        ../common/in
@@ -76,9 +63,7 @@ puts "Target I2CSCL period in ns: $I2CSCL_PERIOD"
 puts "Target SPISCK period in ns: $SPISCK_PERIOD"
 puts "Target minimum period in ns: $FASTEST_PERIOD"
 
-################################################################################
 # Procedures
-################################################################################
 proc getHMS {start stop} {
 	# Constants for the conversion
 	set s_per_m 60
@@ -114,9 +99,7 @@ proc toc {} {
 	printRuntime $START_TIME $STOP_TIME
 }
 
-################################################################################
 # Root Attributes
-################################################################################
 
 # Start timer
 tic
@@ -148,18 +131,14 @@ set_db library [list \
 # them), register-aware clock gating.
 set_db tns_opto true
 set_db auto_ungroup none
-# M9b GATE-SIM FIX: default boundary optimization disconnects hierarchical
-# ports it proves redundant (controller resetn/jump/csr_*, c_dec is_compressed,
-# GlitchFilter->system0 irq, ...). The logic is re-implemented flat so silicon
-# is fine, but the written netlist has thousands of floating (Z) port nets and
-# every leftover consumer reads Z->X in xmsim -- the MP gate sim X-collapsed at
-# hart 0's first SYSTEM0 store. Keep boundaries intact for a sim-faithful
-# netlist; timing has huge margin at 25 MHz.
-# NOTE (2026-07-04): in this Genus (19.15) the ROOT-level boundary_opto attr is
-# OBSOLETED and silently ignored ("use the attribute boundary_opto on
-# subdesign") -- the first re-synth still boundary-optimized. The effective
-# setting is the per-MODULE one applied right after elaborate below; verified
-# on a toy 2-module design (UNCONNECTED_HIER_* nets gone with the fix).
+# Boundary optimisation must stay off. It disconnects hierarchical ports it proves
+# redundant and re-implements the logic flat, which is fine in silicon but leaves
+# the written netlist with thousands of floating port nets; every leftover
+# consumer reads Z as X in xmsim and the gate sim X-collapses. Timing has ample
+# margin at 25 MHz, so a sim-faithful netlist costs nothing.
+# In Genus 19.15 the root-level boundary_opto attribute is obsoleted and silently
+# ignored, so the effective setting is the per-module one applied right after
+# elaborate below.
 set_db lp_insert_clock_gating true
 set_db lp_clock_gating_register_aware true
 
@@ -170,9 +149,7 @@ set_dont_use TIEHIX1MA10TH false
 set_dont_use TIELOX1MA10TH false
 set_db use_tiehilo_for_const duplicate
 
-################################################################################
 # Read HDL (MCU_MP tree)
-################################################################################
 # Order follows dependencies. Synthesizable clock cells are the *_cmn65gp_ARM
 # wrappers (NOT the sim/ ClkGate / ClockMuxGlitchFree behavioral models), and
 # the ROM/SRAM functional models are NOT read -- Genus only needs their timing,
@@ -225,7 +202,7 @@ read_hdl -vhdl -library work $MP/vesta/c_dec.vhd
 read_hdl -vhdl -library work $MP/vesta/vesta.vhd
 
 # --- Multi-core infrastructure (new vs. single-core) ---
-# (M13: mp_wait_injector RETIRED — hart 0 is a plain hart_tile now.)
+# mp_wait_injector is retired: hart 0 is a plain hart_tile.
 read_hdl -vhdl -library work $MP/adddec.vhd
 read_hdl -vhdl -library work $MP/clint.vhd
 read_hdl -vhdl -library work $MP/irq_router.vhd
@@ -240,9 +217,7 @@ read_hdl -vhdl -library work $MP/hart_tile.vhd
 # --- Top level ---
 read_hdl -vhdl -library work $MP/MCU.vhd
 
-################################################################################
 # Elaboration
-################################################################################
 puts "Elaborating $TOP_MODULE"
 elaborate $TOP_MODULE
 
@@ -252,9 +227,7 @@ elaborate $TOP_MODULE
 set_db [get_db modules] .boundary_opto false
 puts "boundary_opto disabled on [llength [get_db modules]] modules"
 
-################################################################################
 # Constraints
-################################################################################
 
 # --- Clocks generated inside system0 (shared by every hart) ---
 create_clock -name mclk			-domain mclk_domain			-period $FASTEST_PERIOD	hpin:$TOP_MODULE/system0/mclk_out
@@ -263,8 +236,8 @@ create_clock -name clk_lfxt		-domain clk_lfxt_domain		-period $CLKLFXT_PERIOD	hp
 create_clock -name clk_hfxt		-domain clk_hfxt_domain		-period $CLKHFXT_PERIOD	hpin:$TOP_MODULE/system0/clk_hfxt_out
 
 # --- Per-hart gated CPU clock (clk_cpu output of each hart's vesta core) ---
-# M13 tile extraction: hart 0 is hart0 (hart_tile) like the rest — all four
-# cores live at $TOP_MODULE/hart<h>/core.
+# hart 0 is hart0, a hart_tile like the rest: all four cores live at
+# $TOP_MODULE/hart<h>/core.
 for {set h 0} {$h < $NUM_HARTS} {incr h} {
 	create_clock -name clk_cpu$h	-domain clk_cpu${h}_domain	-period $FASTEST_PERIOD	hpin:$TOP_MODULE/hart$h/core/clk_cpu
 }
@@ -344,9 +317,7 @@ for {set h 0} {$h < $NUM_HARTS} {incr h} {
 	set_false_path -to pin:$TOP_MODULE/hart$h/ram0/PGEN
 }
 
-################################################################################
 # Top Design Attributes
-################################################################################
 
 # Max rise/fall times (ns) for all signals (sets core-device strength).
 set_max_transition 0.5
@@ -360,9 +331,7 @@ set_driving_cell -lib_cell INVX1MA10TH [get_ports -filter "direction==in"]
 # NPU decision bit preserved as in the single-core flow (hart-0 private NPU).
 set_db net:$TOP_MODULE/npu0/Decision[15] .dont_touch true
 
-################################################################################
 # Synthesis -- TIME-OPTIMIZED, AREA-RELAXED
-################################################################################
 puts "Synthesizing top design (MCU_MP)"
 
 # Keep hierarchy + register-aware clock gating (same as read stage).
@@ -392,9 +361,7 @@ syn_generic
 syn_map
 syn_opt
 
-################################################################################
 # Reports
-################################################################################
 puts "Generating reports"
 report_area           > $REPORT_DIR/$BASENAME.area.rpt
 report_gates          > $REPORT_DIR/$BASENAME.gates.rpt
@@ -403,22 +370,18 @@ report_power -by_hierarchy -levels 4 > $REPORT_DIR/$BASENAME.power.rpt
 report_clock_gating   > $REPORT_DIR/$BASENAME.clk.rpt
 report_design_rules   > $REPORT_DIR/$BASENAME.rules.rpt
 
-################################################################################
 # Output Files
 #
 # script  Design constraints (.g Genus database)
 # hdl     Gate-level Verilog netlist
 # sdc     Design constraints for later flows (Innovus)
 # sdf     Timing for backannotated gate-level simulation
-################################################################################
 write_script > $OUTPUT_DIR/$BASENAME.g
 write_hdl    > $OUTPUT_DIR/$BASENAME.v
 write_sdc    > $OUTPUT_DIR/$BASENAME.sdc
 write_sdf    > $OUTPUT_DIR/$BASENAME.sdf
 
-################################################################################
 # End of Script
-################################################################################
 toc
 set total_run_time [getHMS $START_TIME $STOP_TIME]
 puts "Genus MCU_MP run is complete. Run time $total_run_time"

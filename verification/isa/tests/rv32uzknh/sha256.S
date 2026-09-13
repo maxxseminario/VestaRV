@@ -1,9 +1,7 @@
 # See LICENSE for license details.
-#*****************************************************************************
-# rv32uzknh sha256.S — directed per-op tests for the Zknh SHA-256 sigma/sum
-# ops (ON-polarity suite; run only against a Zkn-ON MCU). Goldens computed
-# from the independent standard SHA-256 ror/shr definitions.
-#*****************************************************************************
+
+# VestaRV: Zknh SHA-256 sigma and sum per-operation tests
+# ON-POLARITY ONLY, to be run against a Zkn-on MCU. The goldens are computed from the independent standard SHA-256 rotate and shift definitions, so a wrong rotate constant fails the test.
 #include "riscv_test.h"
 #include "test_macros.h"
 

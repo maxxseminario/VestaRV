@@ -1,43 +1,29 @@
-"""VestaRV "Castalia" (4 harts) as a riscv-tests/debug harness target.
+"""VestaRV: Castalia, 4 harts, as a riscv-tests/debug harness target.
 
-LOCAL FILE (not vendored upstream) -- see ../../VENDORED.md.
+Local file, not vendored upstream; see ../../VENDORED.md.
 
-Unlike every upstream target here, the "simulator" is not a process this file
-launches and talks to directly: it is an Xcelium simulation of the actual RTL,
-with the OpenOCD remote_bitbang server running INSIDE xmsim's own Tcl
-interpreter (d5_spec section 2, ruled at R-D5-1(3)).  So `create()` starts the
-sim through the tree's own runner and waits for the bridge to publish its port,
-exactly as testlib.Spike waits for spike's "--rbb-port 0" line.
+The "simulator" is not a process this file launches and talks to directly: it is an
+Xcelium simulation of the RTL, with the OpenOCD remote_bitbang server running INSIDE
+xmsim's own Tcl interpreter. So create() starts the sim through the tree's own runner and
+waits for the bridge to publish its port, the way testlib.Spike waits for spike's port line.
 
-WHAT THIS TARGET DECLARES, AND WHY EACH ONE IS A STRUCTURAL FACT ABOUT THE
-CHIP RATHER THAN A CONVENIENCE:
+Each capability declared below is a structural fact about the chip, not a convenience.
+instruction_hardware_breakpoint_count is 0 because VestaRV has no triggers at all, which
+is what makes the hardware-breakpoint family report NOT APPLICABLE instead of failing.
+support_memory_sampling is False because sampling needs System Bus Access, which this chip
+has none of by design: sbcs reads all-zeros and the access-memory abstract command answers
+NOT_SUPPORTED, so every memory access goes through the program buffer. support_manual_hwbp,
+support_hasel, support_unavailable_control, implements_custom_test,
+implements_page_virtual_memory and test_semihosting are all False for the same kind of
+reason: no triggers to write by hand, dmcontrol.hasel READS BACK 0, which is the real
+discriminator for whether OpenOCD ever touches those registers, no DMCUSTOM, M-mode only
+so no page-based virtual memory, and no semihosting.
 
-  instruction_hardware_breakpoint_count = 0
-      VestaRV has no triggers at all yet (D6 owns them).  This is what makes
-      the Hwbp* family report NOT APPLICABLE instead of failing.
-
-  support_memory_sampling = False
-      Memory sampling needs System Bus Access.  VestaRV has none by design
-      (DD5/R-DD2): sbcs reads all-zeros meaning "no system bus", and cmdtype 2
-      answers NOT_SUPPORTED, so every memory access goes through the program
-      buffer.
-
-  support_manual_hwbp = False, support_hasel = False,
-  support_unavailable_control = False, implements_custom_test = False,
-  implements_page_virtual_memory = False, test_semihosting = False
-      No triggers to write by hand; dmcontrol.hasel READS BACK 0 (which is the
-      real discriminator for whether OpenOCD ever touches 0x14/0x15 -- a Spike
-      flag is not); no DMCUSTOM; no Spike custom debug registers; M-mode only,
-      so no page-based virtual memory; no semihosting.
-
-  timeout_sec = 120
-      *** NOT A ROUND NUMBER, AND NOT OPTIONAL. ***
-      targets.Target.timeout_sec DEFAULTS TO 2 and is what the harness passes
-      as gdb's remotetimeout.  Over this transport a 256-byte memory read
-      through the program buffer measures ~3.8 s, so the DEFAULT FAILS ON A
-      CORRECT CHIP.  The .cfg's `riscv set_command_timeout_sec 120` is the
-      OTHER half of the same requirement; setting only one leaves the other
-      side at 2 s.  Both or neither.
+timeout_sec = 120 IS NOT A ROUND NUMBER AND NOT OPTIONAL. The harness default is 2 s and
+is what it passes as gdb's remotetimeout, while a 256-byte memory read through the program
+buffer over this transport measures about 3.8 s, so the default fails on a correct chip.
+The .cfg's own command timeout is the other half of the same requirement: set both or
+neither.
 """
 
 import os

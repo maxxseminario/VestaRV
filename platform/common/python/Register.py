@@ -1,3 +1,6 @@
+# VestaRV: one register and its template in the chip description model.
+# A RegisterTemplate holds the slot, size, description and bit fields; CheckBitFields()
+# proves every bit is accounted for and computes the register's reset value.
 from BitField import BitField
 
 class RegisterTemplate():

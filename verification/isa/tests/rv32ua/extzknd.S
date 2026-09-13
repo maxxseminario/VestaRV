@@ -1,24 +1,8 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extzknd.S   (X3 Zknd ext-probe, 2026-07-17)
-#-----------------------------------------------------------------------------
-# Build-time dispatch on CORE_ENABLE_ZKN (extprobe_template.S convention — the
-# macro is supplied EXPLICITLY via -DCORE_ENABLE_ZKN when staging the ON polarity,
-# NEVER auto-derived from a make-chip header or platform/common/out/ state; the
-# two build-order traps in that header apply verbatim).
-#
-#   ON  (#ifdef CORE_ENABLE_ZKN): execute real aes32dsi/aes32dsmi encodings and
-#       CHECK the architectural results -> PASS.
-#   OFF (#else): the aes32dsmi encoding executed UNCONDITIONALLY. On a build
-#       without Zkn the OP funct5=10111/funct3=000 encoding MUST take the
-#       illegal-instruction trap. run_extoff.sh + trap_watch.tcl report TRAP_OK;
-#       executing PAST it -> FAIL. Wired ONLY into behavioral_mp_stripped/
-#       run_extoff.sh.
-#
-# gas 13.2 has no aes32* mnemonic; explicit `.insn' R-type (OP 0x33, funct3=0,
-# funct7=(bs<<5)|fn5, fn5 dsi=0x15 dsmi=0x17).
-#*****************************************************************************
+# VestaRV: Zknd extension probe
+# BUILD-TIME DISPATCH on CORE_ENABLE_ZKN, supplied EXPLICITLY with -DCORE_ENABLE_ZKN when staging the ON polarity and never auto-derived from a generated header or build output. With it defined, the real aes32dsi and aes32dsmi encodings execute and their results are checked. Without it the aes32dsmi encoding executes unconditionally and the OP funct5 = 10111, funct3 = 000 encoding must take the illegal-instruction trap; run_extoff.sh with trap_watch.tcl reports TRAP_OK, and executing past it is a FAIL. IT IS WIRED ONLY INTO behavioral_mp_stripped/run_extoff.sh.
+# gas 13.2 has no aes32* mnemonic, so every operation is an explicit `.insn` R-type with OP 0x33, funct3 = 0 and funct7 = (bs << 5) | fn5, where fn5 is 0x15 for dsi and 0x17 for dsmi.
 
 #include "riscv_test.h"
 #include "test_macros.h"

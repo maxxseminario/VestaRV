@@ -1,30 +1,7 @@
-// ===========================================================================
-// mutex_bank.rdl: the register map of hdl/common/mutex_bank.vhd.
-//
-// THE VHDL IS THE AUTHORITY and this block does not fit the ordinary
-// read/write model, so read the notes before the properties:
-//   READ  claims the mutex for the reading master if it was free, and
-//         ALWAYS returns the PRE-transaction owner (0 = it was free, and is
-//         now yours; nonzero = the holder's hartid+1).
-//   WRITE 0 releases it, owner-unqualified.
-//   WRITE nonzero is IGNORED, so ownership can never be forged.
-//
-// PARAMETERISED (report R7). Both the register set and the field geometry
-// move with the configuration:
-//
-//     NMUTEX   the bank size (16 here, 32 on argus) -- mutex_bank's NMUTEX
-//     MW       mp_arbiter's granted-master width (3 here, 5 on argus), i.e.
-//              mcu_vhd.masterW(); the owner field is MW+1 bits at MW:0 and
-//              bits 31:MW+1 always read 0
-//     NHARTS   the hart count, which is how many owner markers exist
-//
-// The owner markers cannot be a plain SystemRDL enum: its member values must
-// fit the field, and one static enum covering 32 harts is 6 bits wide, which
-// the compiler rejects on a 4-bit field ("Field 'MTXOWN' is not wide enough
-// to encode as enum 'owner_e'"). `encode` therefore carries only the value
-// that does not repeat (0 = free) and vesta_values_* enumerate the NHARTS
-// per-hart markers above it.
-// ===========================================================================
+// VestaRV: the register map of hdl/common/mutex_bank.vhd
+// The VHDL is the authority and this block does not fit the ordinary read/write model. A READ claims the mutex for the reading master if it was free and ALWAYS returns the PRE-transaction owner (0 = it was free, and is now yours; nonzero = the holder's hartid+1). A WRITE of 0 releases it, owner-unqualified. A WRITE of nonzero is IGNORED, so ownership can never be forged.
+// Parameterised on NMUTEX the bank size (16 here, 32 on argus), MW the mp_arbiter granted-master width (3 here, 5 on argus, i.e. mcu_vhd.masterW(); the owner field is MW+1 bits at MW:0 and bits 31:MW+1 always read 0), and NHARTS, which is how many owner markers exist.
+// The owner markers cannot be a plain SystemRDL enum: its member values must fit the field, and one static enum covering 32 harts is 6 bits wide, which the compiler rejects on a 4-bit field ("Field 'MTXOWN' is not wide enough to encode as enum 'owner_e'"). `encode` therefore carries only the value that does not repeat (0 = free) and vesta_values_* enumerate the NHARTS per-hart markers above it.
 
 `include "vesta_udp.rdl"
 

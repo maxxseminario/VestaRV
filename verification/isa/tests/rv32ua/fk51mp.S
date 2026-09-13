@@ -1,109 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# fk51mp.S   (K5 queue item 5 -- the DEFAULT-BUILD MEASUREMENT detector for F-K5-1)
-#-----------------------------------------------------------------------------
-# THE VERDICT POLARITY IS FIXED-BEHAVIOUR = PASS, and R-K5-8 (3) is why.
-# This file began life as a MEASUREMENT instrument: it asserted what the RTL did
-# BEFORE the fix, so it passed on the defective tree and failed on the corrected
-# one.  That form did its job -- it is what measured F-K5-1 and what showed the
-# two halves are not mechanically coupled -- but it must not be the form that
-# gets committed.  A detector that goes RED on correct RTL is a standing trap
-# the day anybody wires it into a list: the next reader sees a failing test on a
-# healthy tree and learns to ignore it.  So the committed form is the REGRESSION
-# form, and its verdicts are inverted:
-#
-#     reserved shamt[5]=1 encoding TRAPS   -> PASS   (correct, post-fix)
-#     reserved shamt[5]=1 encoding RETIRES -> FAIL   (the defect, pre-fix)
-#
-# Both polarities are proven, and neither is a claim: the file FAILS against the
-# parent commit's RTL and PASSES against the fixed RTL, with the half-(a) and
-# control rows identical in both runs.  This is the packalias construction's own
-# design point (R-K5-4), reused deliberately.
-#
-# HALF (a) IS NOT FIXED and this file asserts it UNCHANGED.  R-K5-7 (2) ruled it
-# INERT-AS-MEASURED: the funct3=001 ORC.B/REV8 rows in is_zbb_i_instr are dead,
-# shadowed by is_zbs_i_instr, and real orc.b/rev8 work through the fall-through.
-# The two rows therefore keep RETIRING and keep computing their Zbs results, in
-# both polarities.
-#
-# HALF (a) RUNS ON HART 0, NOT ON A VICTIM (2026-09-05).  It used to be victim
-# 1's preamble.  Since b1c39da the four hart_tile instances take
-# TILE_ENABLE_MUL/DIV/BITMANIP = false (MemoryMap.vhd), so an rv32iac tile traps
-# the two Zbs-shaped forms, PROGRESS1 stuck at 1 and hart 0 reported
-# 0xF5100004 -- a bitmanip verdict wearing a half-(b) label.  The tiles now
-# carry ONLY reserved shamt[5]=1 shift forms, which trap identically at both
-# ENABLE_BITMANIP polarities, so every VICTIM preamble is plain rv32i and a
-# stall means what it says.  Hart 0 keeps CORE_ENABLE_BITMANIP and executes
-# half (a) itself; that is the one remaining bitmanip dependence in the file.
-#
-# THE FINDING, IN ITS OWN TERMS (maindec.vhd + constants.vhd)
-#   half (a)  `is_zbb_i_instr` groups ORC.B and REV8 under funct3 = "001".
-#             The architecture puts both at funct3 = "101".
-#   half (b)  the OP-IMM shift space decides legality on funct7(6:5) alone, so
-#             an RV32-RESERVED shamt[5] = 1 form is admitted.
-#
-# WHAT THE ENCODINGS ACTUALLY ARE -- read off constants.vhd, not assumed:
-#   ORC_B_IMM12 = 001010000111 = funct7 0010100 (== BSETI_FN7) + shamt 00111 (7)
-#   REV8_IMM12  = 011010011000 = funct7 0110100 (== BINVI_FN7) + shamt 11000 (24)
-# and `is_zbs_i_instr` already admits funct3="001" with BSETI_FN7 or BINVI_FN7
-# for ANY shamt, under the SAME ENABLE_BITMANIP gate.  So half (a)'s two rows
-# are a STRICT SUBSET of a row that is already there, and the prediction this
-# detector tests is that the wrong-funct3 forms are ordinary Zbs instructions:
-#   0x28729313  "orc.b-shaped"  ==  bseti x6, x5, 7
-#   0x69829313  "rev8-shaped"   ==  binvi x6, x5, 24
-#
-# THE THREE RESERVED SHIFTS (half b), shamt field = 0x23 = 35, i.e. shamt[5]=1
-# with shamt[4:0] = 3:
-#   0x02329313  funct3=001 funct7=0000001   "slli x6, x5, 35"
-#   0x0232D313  funct3=101 funct7=0000001   "srli x6, x5, 35"
-#   0x4232D313  funct3=101 funct7=0100001   "srai x6, x5, 35"
-# All three reach their arm with funct7(6:5) in {"00","01"} and are admitted.
-# The prediction is that shamt[5] is IGNORED and each computes the shamt=3 form.
-#
-# WHY THIS NEEDS FOUR HARTS -- the rocsrwmp construction, ratified by R-K5-4
-#   On a default build an illegal instruction lands in the TERMINAL TRAP_STATE
-#   (self-loop, pc_en = '0'), so a hart that traps NEVER writes a0 again and
-#   cannot be the gate.  The VICTIMS are tile harts 1, 2 and 3; the OBSERVER is
-#   hart 0, which keeps the ordinary PASS/FAIL contract.
-#
-#   Each victim writes a PROGRESS word BEFORE its suspect encoding and a higher
-#   value AFTER it, so the two states are unambiguous:
-#       PROGRESS stuck below the end value  -> that encoding TRAPPED
-#       PROGRESS reached the end value      -> every encoding RETIRED
-#   Every instruction in a victim's preamble is plain rv32i, so a stall can only
-#   be the suspect encoding and never the tile's narrowed ISA.
-#   and each victim also STORES THE COMPUTED RESULT of every encoding, so the
-#   verdict is not merely "it ran" but "it ran and produced exactly this".
-#
-#   HART 3 IS THE CONTROL, and it is the reason the other two verdicts mean
-#   anything (method rule 1: a detector never seen to fail proves nothing).  It
-#   executes funct3=001 with funct7 = SHA256_FN7 = 0001000, which maindec
-#   rejects OUTRIGHT when ENABLE_ZKN is off -- the one arm in that space that
-#   still says `valid_funct <= '0'`.  Hart 0 REQUIRES hart 3 to be stuck at 1.
-#   Without it, "the suspects did not trap" would be unfalsifiable: a build in
-#   which nothing traps at all would look identical.
-#
-#   The victims wedge in TCM, generate no arbiter traffic, and the instruction
-#   after every suspect encoding is an `addi`, never a store, so F8 (TRAP_STATE
-#   commits the word at pc+4 if it decodes as a store) cannot fire.
-#
-# HART 0's OWN HALF is the ARCHITECTURAL REFERENCE, computed with real
-# instructions that `gas` encodes -- never with hand-computed constants in a
-# comment.  bseti/binvi/slli/srli/srai are assembled from mnemonics; the
-# suspects are raw `.word`s.  The comparison is therefore between what the
-# assembler says the architecture means and what the decoder actually did.
-#
-# BITMANIP DEPENDENCE, stated: half (a) lives inside `ENABLE_BITMANIP` arms, so
-# it is meaningful only on a build whose HART 0 is bitmanip-ON.  The default
-# Castalia config is CORE_ENABLE_BITMANIP = true on hart 0, which is the build
-# R-K5-5 (2) is about.  Half (b) has NO bitmanip dependence: the three reserved
-# shamt[5]=1 forms trap at both polarities (proven by decode, not inferred), so
-# the victim arms run unchanged on the rv32iac tiles.
-#
-# NOTE: `RVTEST_CODE_END` is `unimp` in this env (it TRAPS since F10) -- every
-# path below ends in an explicit PASS or FAIL spin and never falls through.
-#*****************************************************************************
+# VestaRV: reserved shamt[5] shift forms must trap, and the wrong-funct3 ORC.B/REV8 rows
+# THE VERDICT POLARITY IS FIXED-BEHAVIOUR EQUALS PASS: a reserved shamt[5] = 1 encoding that TRAPS passes and one that RETIRES fails. This file began as a measurement instrument asserting the pre-fix behaviour, but a detector that goes red on correct RTL is a standing trap the day anybody wires it into a list, so the committed form is the regression form. Both polarities are proven: it fails against the parent commit's RTL and passes against the fixed RTL, with the half-(a) and control rows identical in both runs.
+# HALF (a) IS NOT A DEFECT AND IS ASSERTED UNCHANGED. `is_zbb_i_instr` groups ORC.B and REV8 under funct3 = "001" where the architecture puts both at "101", but those rows are INERT: they are shadowed by `is_zbs_i_instr`, which already admits funct3 = "001" with BSETI_FN7 or BINVI_FN7 for any shamt under the same ENABLE_BITMANIP gate, and real orc.b and rev8 work through the fall-through. Read off constants.vhd, ORC_B_IMM12 is funct7 0010100 with shamt 7 and REV8_IMM12 is funct7 0110100 with shamt 24, so the two rows are a strict subset of one already present and the wrong-funct3 forms are ordinary Zbs instructions: 0x28729313 is `bseti x6, x5, 7` and 0x69829313 is `binvi x6, x5, 24`.
+# HALF (b) is the OP-IMM shift space deciding legality on funct7(6:5) alone, which admits an RV32-reserved shamt[5] = 1 form. The three suspects all have a shamt field of 0x23, that is shamt[5] set with shamt[4:0] = 3: 0x02329313 `slli x6, x5, 35`, 0x0232D313 `srli x6, x5, 35` and 0x4232D313 `srai x6, x5, 35`. All three reach their arm with funct7(6:5) in {"00","01"} and are admitted, and the prediction is that shamt[5] is ignored and each computes the shamt = 3 form.
+# THIS NEEDS FOUR HARTS, because on a default build an illegal instruction lands in the TERMINAL TRAP_STATE and a hart that traps never writes a0 again, so it cannot be the gate. The victims are tile harts 1, 2 and 3 and the observer is hart 0. Each victim writes a PROGRESS word before its suspect encoding and a higher value after it, so a stall is unambiguous, and it also stores the computed RESULT of every encoding, so the verdict is not merely that it ran but that it ran and produced exactly this. EVERY INSTRUCTION IN A VICTIM'S PREAMBLE IS PLAIN rv32i, because the tiles are built rv32iac with no M, no DIV and no BITMANIP, so a stall can only be the suspect encoding and never the tile's narrowed ISA. That is also why half (a) runs on HART 0, which keeps CORE_ENABLE_BITMANIP, and is the one remaining bitmanip dependence in the file.
+# HART 3 IS THE CONTROL and is why the other two verdicts mean anything: it executes funct3 = 001 with funct7 = SHA256_FN7, the one arm in that space that maindec still rejects outright when ENABLE_ZKN is off, and hart 0 REQUIRES it to be stuck. Without it, "the suspects did not trap" would be unfalsifiable, because a build in which nothing traps at all would look identical. The victims wedge in TCM, generate no arbiter traffic, and the instruction after every suspect encoding is an `addi` and never a store, so the TRAP_STATE store-leak cannot fire.
+# HART 0'S HALF IS THE ARCHITECTURAL REFERENCE, computed with real instructions gas encodes rather than hand-computed constants: bseti, binvi, slli, srli and srai come from mnemonics while the suspects are raw `.word`s, so the comparison is between what the assembler says the architecture means and what the decoder actually did. RVTEST_CODE_END is `unimp` in this environment, so every path ends in an explicit PASS or FAIL spin and never falls through.
 
 #include "riscv_test.h"
 #include "test_macros.h"

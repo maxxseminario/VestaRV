@@ -1,47 +1,10 @@
 #!/usr/bin/env python3
-# VestaRV: X4 Stage 2c: mechanical rv32uf -> Zfinx conversion.
+# VestaRV: mechanical rv32uf to Zfinx conversion.
 #
-# Zfinx runs the F operation set on the X (integer) register file: there is NO
-# separate f-register file, so
-#     * flw/fsw            -> (do not exist; operands are already in x-regs)
-#     * fmv.w.x / fmv.x.w  -> (do not exist; a plain `mv` / nothing)
-#     * every  fXXX.s fD,fA,fB   becomes   fXXX.s xD,xA,xB
-#
-# GAS FINDING (recorded in the self-report): the repo toolchain
-#   riscv-none-elf-gcc (xPack) 13.2.0
-# accepts EVERY single-precision mnemonic with x-register operands under an
-# arch string that carries `_zfinx` (e.g. -march=rv32imc_zfinx). Verified:
-#   fadd.s a0,a1,a2   ->  0x00c5f553   (identical encoding to the F form)
-#   fmadd.s / rounding-mode suffixes / csrr fflags|frm|fcsr all assemble.
-# Therefore NO `.insn` fallback is needed -- the converted suite is emitted with
-# ordinary Zfinx mnemonics and built with `-march=rv32imc_zfinx -mabi=ilp32`.
-# (flw/fsw/fmv.w.x correctly REQUIRE `f` and are rejected under pure _zfinx --
-#  that is why they are removed by the conversion, not just re-spelled.)
-#
-# HOW THE CONVERSION IS DONE (deterministic, no hand edits):
-# The upstream rv32uf tests are thin shims that `#include "../rv64uf/<t>.S"`,
-# and the real bodies are pure invocations of the TEST_FP_* macros from
-# macros/scalar/test_macros.h (only fcvt_w has a few inline flw/fcvt).  So the
-# mechanical conversion has two mechanical parts:
-#   1. A converted macro header `test_macros_zfinx.h` (emitted below) that
-#      #includes the stock test_macros.h and then #undef/#redefines ONLY the
-#      floating-point TEST_FP_* macros so they load operands with `lw` into
-#      fixed x-registers, run the op on x-registers (Zfinx), and read the
-#      result with `mv` and fflags with an explicit csrrw.  The data sections
-#      (.float/.result) are emitted byte-for-byte as upstream.
-#   2. Per-test copies of the rv64uf bodies with three textual rewrites:
-#         #include "test_macros.h"  -> #include "test_macros_zfinx.h"
-#         RVTEST_RV64UF             -> RVTEST_RV32U   (init macro is never
-#                                      invoked; RV32U avoids the dead FP-enable)
-#         inline `flw f1,off(rs)` / `fcvt.*.s xD,f1` -> lw/fcvt on x-reg t3
-#
-# Re-running this script reproduces the committed suite byte-for-byte
-# (convert-then-diff is clean).  HAND EDITS OF THE OUTPUT ARE FORBIDDEN.
-#
-# Usage:   python3 verification/isa/tools/zfinx_convert.py [--check]
-#   (no args) : (re)generate tests/rv32uzf/*.S + test_macros_zfinx.h
-#   --check   : regenerate into a temp area and diff against the committed
-#               suite; non-zero exit if they differ (CI determinism gate).
+# Zfinx runs the F operation set on the integer register file, so flw/fsw and fmv.w.x/fmv.x.w do
+# not exist and every fXXX.s takes x-register operands; the toolchain assembles all of them under
+# an arch string carrying _zfinx, so no .insn fallback is needed. Conversion emits a
+# test_macros_zfinx.h redefining only the TEST_FP_* macros. Hand edits of the output are forbidden.
 import os, re, sys, difflib, tempfile
 
 HERE      = os.path.dirname(os.path.abspath(__file__))
@@ -64,7 +27,7 @@ EXCLUDE = {"ldst": "pure FP load/store; Zfinx loads are plain lw (rv32ui covers)
            "move": "fmv.w.x/fmv.x.w do not exist in Zfinx; fsgnj kept as directed vector",
            "recoding": "tests NaN-boxing recoding; Zfinx has no NaN-boxing (N/A)"}
 
-# --- the Zfinx-converted macro header -------------------------------------
+# the Zfinx-converted macro header
 # Fixed collision-free operand x-registers (none overlaps the harness's
 # a0..a3 / gp / t1 / t2 / x7):  s2=op1  s3=op2  s4=op3(fma)  s5=result.
 MACRO_HEADER = r'''// =====================================================================

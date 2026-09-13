@@ -1,36 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shcount.S  (M4c; M12 single-ROM boot rework)
-#-----------------------------------------------------------------------------
-# Multi-hart ATOMIC COUNTER test — the end-to-end cross-hart LR/SC proof.
-#
-# Before M12 the three contending harts came from the default tile preload
-# (harts 1-3 ran shmem_mp phase 2, each committing 64 LR/SC increments to the
-# shared counter at 0x10080). M12 retires that preload, so this test now
-# LAUNCHES the tiles itself into a payload that mirrors shmem_mp exactly:
-# hart 0 stages this TCM image once, launches harts 1-3 into tile_payload
-# through the bootrom loader (mp_boot.h), then commits its own 64 increments
-# under the tiles' live hammer traffic and requires the counter to equal
-# EXACTLY 4*64 = 256:
-#   * any LOST update (broken cross-hart atomicity) -> counter < 256 forever
-#     -> the wait_full spin never exits -> testbench watchdog FAIL
-#   * any DOUBLE commit -> counter > 256 -> explicit FAIL
-# A hart whose SC fails 64 times consecutively declares livelock -> FAIL
-# (the serializing round-robin arbiter guarantees forward progress; identical
-# tiles need hartid-scaled backoff to de-synchronize — M4c rule).
-#
-# The tile payload commits EXACTLY 64 increments on 0x10080 (like shmem_mp
-# phase 2) and then hammers its OWN disjoint word forever (shmem_mp phase 3) —
-# it never re-touches the counter, so hart 0's exact NHARTS*64 check is never
-# disturbed while contention stays live.
-#
-# Argus A3 ledger note: the disjoint hammer word is 0x10090 + 4*hartid (NOT the
-# historical 0x10040 base). At N=18 the old 0x10040+4*hartid array reached hart
-# 16 at 0x10080 — exactly the atomic COUNTER — which would corrupt the count.
-# Rebased to 0x10090 (N=18 span 0x10090..0x100D4, clear of the counter and all
-# other ledger words, still inside the bootrom-zeroed 0x10000-0x107FF range).
-#*****************************************************************************
+# VestaRV: multi-hart atomic counter, the cross-hart LR/SC proof
+# Hart 0 stages this TCM image once, launches every tile into a payload that mirrors the shared-RAM contention test, then commits its own 64 LR/SC increments under the tiles' live hammer traffic and requires the counter at 0x10080 to equal EXACTLY NHARTS*64. A lost update leaves the counter short forever, so the wait spin never exits and the testbench watchdog fails the run; a double commit overshoots and fails explicitly.
+# A hart whose store-conditional fails 64 times consecutively declares livelock and fails: the serialising round-robin arbiter guarantees forward progress, but identical tiles need hartid-scaled backoff to de-synchronise.
+# THE TILE PAYLOAD COMMITS EXACTLY 64 INCREMENTS AND THEN NEVER RE-TOUCHES THE COUNTER, hammering its own disjoint word forever instead, so hart 0's exact count check is never disturbed while contention stays live.
+# The disjoint hammer word is 0x10090 + 4*hartid. The base must stay clear of the atomic counter at 0x10080, which a 0x10040 base collides with at hart 16; the N=18 span is 0x10090..0x100D4, inside the bootrom-zeroed 0x10000-0x107FF range.
 
 #include "riscv_test.h"
 #include "test_macros.h"

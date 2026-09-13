@@ -1,11 +1,6 @@
-/*
- * traptest - illegal instruction, expected to TRAP.
- * Use to verify forth-run actually jumped into the loaded program: the
- * chip should reset / print a trap banner shortly after `<entry> call0`.
- *
- * 0x00000000 is the canonical "all-zeros" word which is illegal on rv32i
- * (decodes as funct/opcode all zero, not a valid instruction).
- */
+// VestaRV: traptest image
+// Executes the all-zeros word, which is an illegal instruction on rv32i, so the chip traps shortly after the loaded program is entered. Use it to tell a real jump into loaded code from a silent no-op.
+
 int main(void) {
     asm volatile (".word 0x00000000");
     while (1) { }   /* unreachable */

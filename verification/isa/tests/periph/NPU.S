@@ -1,19 +1,6 @@
-#*****************************************************************************
-# NPU_TESTBENCH_ENHANCED.S
-#-----------------------------------------------------------------------------
-# Enhanced NPU (Neural Processing Unit) Peripheral testbench for RISC-V assembly (riscv32ui)
-# Author: Maxx Seminario
-# Date: 09-15-2025
-#
-# Test Categories:
-# 1-4: Register Boundary Tests (4 tests)
-# 5-8: NPUCR Control Register Tests (4 tests)
-# 9-12: Address Register Tests (4 tests)
-# 13-16: Register Field Tests (4 tests)
-# 17-20: Bit Field Isolation Tests (4 tests)
-# 21-24: Sequential Access Tests (4 tests)
-# 25-28: Reset Behavior Tests (4 tests)
-#-----------------------------------------------------------------------------
+# VestaRV: NPU register-file test
+# Register-level only: it walks NPUCR and the four address registers, the field and bit-isolation cases, sequential access and the reset values. It does not run an inference.
+# The address registers hold a word offset from the RAM2 base 0x10000, not a byte address, and are 12 bits wide.
 
 #include "riscv_test.h"
 #include "test_macros.h"

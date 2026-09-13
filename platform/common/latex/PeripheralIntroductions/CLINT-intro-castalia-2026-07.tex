@@ -1,6 +1,7 @@
-% CLINT chapter. Configuration-driven: hart counts, vector numbers and
-% addresses come from include/defines.tex. Section order is the per-peripheral
-% template enforced by python/check_intro_names.py.
+% VestaRV: CLINT chapter of the TRM.
+% Configuration-driven: hart counts, vector numbers and addresses come from
+% include/defines.tex. Section order is the per-peripheral template enforced by
+% python/check_intro_names.py.
 \section{Overview}
 
 The Core-Local Interruptor (\peripheral{CLINT}) provides the two interrupt sources on which multi-core software is built: a per-hart software interrupt, used as the inter-processor interrupt (IPI), and a per-hart timer interrupt driven by one shared free-running 64-bit counter. The block sits in the shared window behind the multi-core arbiter, so any hart can raise, clear or program any hart's interrupts.

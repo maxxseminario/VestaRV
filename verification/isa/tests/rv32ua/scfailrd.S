@@ -1,66 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# scfailrd.S   (F-series fix pass, wave W1 — DETECTOR for finding F2)
-#-----------------------------------------------------------------------------
-# F2: a FAILED `sc.w` still issues a real bus READ at rs1.
-#
-#   vesta.vhd SC_CHECK asserts `mem_access_instr <= '1'` UNCONDITIONALLY and
-#   only the byte lanes are conditional (`wen <= (others=>'1')` on the failing
-#   arm).  data_addr takes `rs1_value` in SC_CHECK unconditionally, and
-#   hart_tile's `sh_sel` is a PURE DECODE of data_addr — `mem_access_instr`
-#   appears nowhere in it.  So a failed SC whose rs1 lands anywhere in
-#   0x4000-0x7FFF performs a real, side-effecting shared-window READ.
-#
-# WHY A MUTEX ADDRESS, DELIBERATELY:
-#   CLAUDE.md and mutex_bank.vhd's own header both say "NEVER LR/SC a mutex
-#   address".  mutex_bank.vhd:20-22 states the reason exactly:
-#       "a reservation-failed SC arrives here with its lanes suppressed by
-#        resv_unit and would be indistinguishable from a claim-read."
-#   THIS TEST DELIBERATELY DOES THE FORBIDDEN THING.  Its whole purpose is to
-#   demonstrate, in silicon-accurate RTL, why that rule exists — the stray read
-#   is an ATOMIC CLAIM of a lock the program never asked for.  Do not "fix" the
-#   test by moving the SC off the mutex; that would delete the detector.
-#
-# MECHANISM OF THE FAILURE (deterministic, not probabilistic):
-#   `lr.w` at LRWORD arms the reservation at LRWORD.  The `sc.w` is then aimed
-#   at MUTEX0.  SC_CHECK's success predicate is
-#       reservation_valid = '1' and reservation_addr = rs1_value
-#   so reservation_addr (LRWORD) /= rs1 (MUTEX0) => the SC MUST fail, every
-#   run, with no race.  The test PROVES it failed by checking rd /= 0 before
-#   looking at the side effect (a passing SC would invalidate the whole probe).
-#
-# OBSERVABLE — THE SIDE EFFECT, NOT THE READ:
-#   mutex_bank read = atomic return-old-and-claim, attributed to the arbiter's
-#   granted master.  The verification `lw` is ITSELF a claim, so it returns the
-#   PRE-EXISTING owner:
-#       0 -> the mutex was still free: nobody read it. Correct.  (post-fix)
-#       1 -> owner = hart 0 + 1: something on hart 0 already claimed it, and
-#            the only candidate is the failed SC's stray read.  F2 FIRED.
-#   The mutex is explicitly RELEASED first, so the starting state is known-free
-#   rather than assumed-free.
-#
-# SECOND OBSERVABLE (traced runs): the tracer emits `# SCFAILRD <hdr> <addr>`
-#   for exactly this event (vesta_tracer.vhd:496).  Pre-fix this test must emit
-#   SCFAILRD at address 00006000; post-fix it must emit none.
-#
-# VERDICT
-#   pre-fix : a0 = 0xDEADBEEF  (a1 = 0xF2F2F2F2, "F2 fired")
-#   post-fix: a0 = 0xCAFEBABE
-#   Any other a1 code on a FAIL is a setup break, not the finding:
-#       a1 = 0x5E100001  shared LRWORD store/read-back broke
-#       a1 = 0x5E100002  lr.w did not return the value we stored
-#       a1 = 0x5E100003  the sc.w SUCCEEDED (rd == 0) — probe invalid
-#
-# Single hart.  Tiles 1-3 are never launched; they park in the boot ROM and the
-# tb reports "tile hart(s) silent/parked", which is expected.
-#
-# Shared words claimed (both < 0x10500 and inside the bootrom zero range):
-#     LRWORD = 0x10430   the reservation target (written before read)
-#   Free band 0x10420-0x1043C sits between shexec's N=18 DONE top (0x1041C)
-#   and shfault's HEARTBEAT base (0x10440) — unclaimed at N=4 and N=18.
-#   MUTEX0 @0x6000 is hardware, not scratch; released on every exit path.
-#*****************************************************************************
+# VestaRV: detector for a failed `sc.w` still issuing a real bus read
+# THE DEFECT: SC_CHECK asserts mem_access_instr UNCONDITIONALLY and only the byte lanes are conditional, data_addr takes rs1_value in SC_CHECK unconditionally, and hart_tile's sh_sel is a PURE DECODE of data_addr in which mem_access_instr appears nowhere. So a failed store-conditional whose rs1 lands anywhere in 0x4000-0x7FFF performs a real, side-effecting shared-window READ.
+# THE SC IS AIMED AT A MUTEX ADDRESS DELIBERATELY. The house rule is never to LR/SC a mutex address, precisely because a reservation-failed SC arrives with its lanes suppressed and is indistinguishable from a claim-read. THIS TEST DOES THE FORBIDDEN THING ON PURPOSE, to demonstrate why the rule exists: the stray read is an atomic claim of a lock the program never asked for. DO NOT "FIX" THE TEST BY MOVING THE SC OFF THE MUTEX; that deletes the detector.
+# The failure is deterministic, not probabilistic: `lr.w` arms the reservation at LRWORD and the `sc.w` is aimed at MUTEX0, and SC_CHECK's success predicate requires reservation_addr to equal rs1_value, so the SC must fail every run with no race. The test proves it failed by checking rd is nonzero BEFORE looking at the side effect, since a passing SC would invalidate the whole probe.
+# THE OBSERVABLE IS THE SIDE EFFECT, NOT THE READ: a mutex read is an atomic return-old-and-claim attributed to the granted master, and the verification load is itself a claim, so it returns the PRE-EXISTING owner. Reading 0 means the mutex was still free and nobody read it; reading hart 0 + 1 means something on hart 0 already claimed it and the only candidate is the failed SC's stray read. The mutex is explicitly RELEASED first, so the starting state is known-free rather than assumed-free. In traced runs the tracer emits an SCFAILRD record at address 00006000 for exactly this event.
+# Verdicts: a0 = 0xCAFEBABE passes; a0 = 0xDEADBEEF with a1 = 0xF2F2F2F2 means the stray read fired. Other a1 codes are setup breaks: 0x5E100001 the shared LRWORD store or read-back broke, 0x5E100002 the lr.w did not return the value stored, 0x5E100003 the sc.w succeeded so the probe is invalid.
+# Single hart: tiles are never launched and park in the boot ROM, which the tb reports as silent or parked. Shared words, both below 0x10500 and inside the bootrom zero range: LRWORD = 0x10430, the reservation target, written before read. MUTEX0 at 0x6000 is hardware rather than scratch and is released on every exit path.
 
 #include "riscv_test.h"
 #include "test_macros.h"

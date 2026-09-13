@@ -1,63 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# pmprt7.S   (THE FETCH-AHEAD-UNDER-LOAD SHAPE: an instruction fetch address
-#             is PMP-denied in the SAME cycle a permitted load is on the bus)
-#-----------------------------------------------------------------------------
-# ON-ONLY DIRECTED TEST (needs a trapCsr+umode+pmp build).  Sibling of pmprt6,
-# which fences the upper half of a straddling 32-bit instruction reached from
-# a compressed ALU op.  This file reaches the SAME fenced half-word from a
-# compressed LOAD, which puts the fetch check and a data access in one cycle.
-#
-# WHY THAT CYCLE IS DIFFERENT.  The core checks the address it would put on
-# the bus as an instruction fetch, and a denial raises pmp_if_park, which
-# parks data_addr on PC_RST_VAL.  In the dispatch cycle of a load the bus is
-# carrying the LOAD's address, not a fetch, and the load's PMP verdict is a
-# separate, permitted one.  So this cycle asks data_addr to serve a permitted
-# data access while the fetch side of the same cycle is denied.  The park arm
-# of the data_addr mux sits BELOW every data-access arm precisely so that the
-# data access wins; CHECK 17 is what makes that ordering a measured fact
-# rather than a reading of the source.
-#
-# THE GEOMETRY.  Identical to pmprt6's except for the instruction at B+0, and
-# only the word at B+4 is fenced:
-#
-#     B+0   c.lw s1, 0(s0)              compressed LOAD, permitted address
-#     B+2   addi s10, s10, 1            32-bit, occupies B+2 .. B+5
-#     B+4   <-- THE FENCED WORD (NA4, no permissions): holds the UPPER HALF
-#     B+6   c.nop                       (same fenced word, never fetched)
-#     B+8   c.nop                       (word B+8 -- permitted)
-#     B+10  c.li s11, 7                 <-- the RESUME point, ODD halfword
-#
-# The load's own address is s0, a word well outside the fenced one, holding a
-# sentinel written in M before the drop to U.  The load retires normally: its
-# rd commit happens at the memory edge, one edge before the fetch denial is
-# consumed, so s1 carries the sentinel out of U and CHECK 17 reads it in M.
-#
-# WHAT EACH CHECK OWNS:
-#   10..12  the fault still fires with cause 1, and mepc still names the LOWER
-#           half while mtval names the DENIED half, exactly as in pmprt6.
-#   13      the straddling addi committed nothing.
-#   14      no split-fetch flag survived trap entry to mis-decode the
-#           compressed instruction at the odd halfword B+10.
-#   17      THE NEW ONE: the load read the sentinel, so the denied fetch
-#           address did not displace the permitted data address.  A park that
-#           won over the data arm would read PC_RST_VAL instead.
-#
-# BOUNDEDNESS: the U fragment is straight-line into `ecall`, every landing
-# slot is a c.nop chain falling into rt7_uexit, and the handler BAILS to M
-# after 8 traps, so a mis-decoded instruction that traps cannot loop.
-#
-# Compressed encodings are raw `.half` words (the extrvc idiom) so the file
-# can stay `.option norvc` and the layout is byte-exact.
-#   0x0001 = c.nop        0x4D9D = c.li s11, 7      0x4004 = c.lw s1, 0(s0)
-#
-# REGISTER CONTRACT:
-#   s0 = the load base   s1 = the loaded sentinel   s2 = B (the split base)
-#   s3 trap counter   s4/s5/s6 FIRST fault's cause/mepc/mtval (captured once)
-#   s7 handler resume PC   s9 M continuation after ECALL   s10 straddle-commit
-#   witness   s11 c.li witness
-#*****************************************************************************
+# VestaRV: a PMP-denied fetch address in the same cycle as a permitted load
+# ON-ONLY, needing a trapCsr, umode and pmp build. Sibling of pmprt6, which fences the upper half of a straddling 32-bit instruction reached from a compressed ALU operation; this file reaches the SAME fenced halfword from a compressed LOAD, which puts the fetch check and a data access in one cycle.
+# WHY THAT CYCLE IS DIFFERENT: the core checks the address it would put on the bus as an instruction fetch, and a denial raises pmp_if_park, which parks data_addr on PC_RST_VAL. In the dispatch cycle of a load the bus is carrying the LOAD's address, not a fetch, and the load's own PMP verdict is a separate, permitted one. So this cycle asks data_addr to serve a permitted data access while the fetch side of the same cycle is denied. THE PARK ARM OF THE data_addr MUX SITS BELOW EVERY DATA-ACCESS ARM precisely so the data access wins, and check 17 makes that ordering a measured fact rather than a reading of the source.
+# THE GEOMETRY is pmprt6's except for the instruction at B+0, and only the word at B+4 is fenced: B+0 `c.lw s1, 0(s0)`, a compressed load at a permitted address; B+2 `addi s10, s10, 1`, 32-bit, occupying B+2 through B+5; B+4 THE FENCED WORD, NA4 with no permissions, holding the upper half; B+6 c.nop in the same fenced word, never fetched; B+8 c.nop in the permitted word; B+10 `c.li s11, 7`, the resume point at an odd halfword. The load's address is a word well outside the fenced one, holding a sentinel written in M before the drop to U, and the load retires normally, because its rd commit happens at the memory edge one edge before the fetch denial is consumed, so the sentinel reaches M in s1.
+# What each check owns: 10 to 12 that the fault still fires with cause 1 and that mepc names the LOWER half while mtval names the denied half; 13 that the straddling addi committed nothing; 14 that no split-fetch flag survived trap entry to mis-decode the compressed instruction at the odd halfword; and 17, the new one, that the load read the sentinel, so the denied fetch address did not displace the permitted data address, which a park that won over the data arm would replace with PC_RST_VAL.
+# Boundedness: the U fragment is straight-line into `ecall`, every landing slot is a c.nop chain falling into the exit jump, and the handler bails to M after 8 traps, so a mis-decoded instruction that traps cannot loop. Compressed encodings are raw `.half` words so the file stays `.option norvc` and the layout is byte-exact: 0x0001 is c.nop, 0x4D9D is `c.li s11, 7` and 0x4004 is `c.lw s1, 0(s0)`.
+# REGISTER CONTRACT: s0 the load base, s1 the loaded sentinel, s2 = B the split base, s3 the trap counter, s4, s5 and s6 the FIRST fault's cause, mepc and mtval captured once, s7 the handler resume PC, s9 the M continuation after ECALL, s10 the straddle-commit witness and s11 the c.li witness.
 
 #include "riscv_test.h"
 #include "test_macros.h"

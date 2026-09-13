@@ -1,16 +1,9 @@
-# Multiprocessor boot ROM (the "flashboot" image).
+# VestaRV: the multiprocessor boot ROM, the mask ROM content of the fabricated part.
 #
-# This is the mask ROM content of the fabricated part, so the recipe here is a
-# literal transcription of software/bootrom_mp/makefile: same sources in the
-# same order, same flags, same link line, same 8KB zero filled window, same
-# 2048 word RCF. See :rom_rcf_reproducibility_test for the byte level proof
-# against the pinned bench artifact.
-#
-# start.S must stay first in srcs. The linker script places the first input
-# section at the reset vector.
-#
-# The -march string and the size-coupled compile flags are NOT written twice.
-# They live in isa.bzl, which this file loads and the makefile reads with sed.
+# The recipe is a literal transcription of software/bootrom_mp/makefile: same sources in the
+# same order, same flags, same link line, same 8KB zero filled window, same 2048 word RCF, with
+# :rom_rcf_reproducibility_test as the byte level proof. start.S must stay first in srcs: the
+# linker script places the first input section at the reset vector. The ISA string is isa.bzl's.
 
 load("@rules_python//python:defs.bzl", "py_test")
 load("//toolchains/riscv:defs.bzl", "rv32_firmware")
@@ -92,74 +85,20 @@ rv32_firmware(
     # reads the same assignment, so the two build paths cannot drift apart.
     march = BOOTROM_MARCH,
     # 8KB boot ROM, 2048 words: the depth of the rom2k_hvt_pg macro at rom0.
-    # Halved from 16384/4096 on 2026-08-23 with the makefile's dd/line check.
+    # Halved from 16384/4096 with the makefile's dd/line check.
     pad_bytes = 8192,
     rcf_name = "rom.rcf",
 )
 
 # The pinned bench copy of the ROM image, tracked under a name that does not
-# collide with the global *.rcf gitignore. Byte identical to the ROM plate.
-#
-# RE-CUT TWICE ON 2026-08-23, and neither cut is drift.
-# First the ISA string in isa.bzl went from rv32i to rv32ic and
-# -fno-tree-loop-distribute-patterns was added, so every word of the image
-# moved. .text went 10,140 bytes to 7,376, which is 816 bytes under the 8,192
-# byte target.
-# Then the ROM itself was halved: memory.romSize 16384 -> 8192 and rom0 became
-# the 2048 x 32 rom2k_hvt_pg macro, so pad_bytes above is 8192 and this file is
-# 2,048 lines. The 2,048 lines that went away were the zero padding; the words
-# that remain are byte for byte what the first cut produced, and they are the
-# code file the physical macro was compiled from.
-# The mirror the cosim gate reads, tools/cosim/gate/bootrom_mp_rom.rcf, was
-# re-cut in the same change both times; the two and
-# software/bootrom_mp/bin/rom.rcf are one md5.
-#
-# RE-CUT A THIRD TIME ON 2026-08-23, and this one moved the PHYSICAL PLATE.
-# The Forth interpreter's .noinit arrays in src/rv4th.c were 23,920 bytes
-# against 7,708 bytes of usable TCM, and only the frozen 2026/04 memory.x let
-# that link.  Fixing it meant sizing the arrays to the real 8 KiB TCM and
-# installing the true generated link environment, so every absolute data
-# address in the image moved (the first changed ROM word is 0x304, the
-# `add a5,a5,484` that now points at 0x81E4 instead of 0x814C; bytes 0x000
-# through 0x303 are unchanged, which is why the cosim boot-mode X pins at
-# pc 0x5c and 0x15c still hold).  ~/chips/myshkin/ip/rom2k_hvt_pg was
-# recompiled from this image in the same change; the superseded plate is kept
-# alongside it as rom2k_hvt_pg.pre_noinit_fix.  Same 156.525 x 181.41 um
-# footprint, same 51 pins, byte-identical .dat timing.
-#     cab1bbe82d67d959d514dda9e338e3f9 -> d177e8314f2de080150070762b3d80f7
-#
-# RE-CUT A FOURTH TIME ON 2026-09-05, and this one moved the PHYSICAL PLATE
-# again. Two source changes, both in src/start.S (report 08 findings 2 and 6):
-#   * the stack pointer reset value went 0xBFFC -> 0xA000 at all three sites.
-#     0xBFFC is in the MIRRORED half of the 16 KiB private decode window and
-#     aliases to 0x9FF8; 0xA000 is the TCM array top + 1, which is what
-#     MemoryMap.h STACK_POINTER_INIT, ChipConfig.resolved.json
-#     derived.stackPointerInit, periph.S StackPointerInit and the linker
-#     script's __StackPointerInit have always published.
-#   * the two SPI flash polls became bounded (fall through to the Forth
-#     monitor with a status word at 0x10644) and the boot path now arms the
-#     watchdog. An unresponsive flash used to hang hart 0 forever.
-# The image is 7,532 bytes of 8,192 (was 7,376) and the FIRST CHANGED WORD IS
-# AT 0x004 -- the mhartid dispatch branch offset -- so unlike the 2026-08-23
-# cut nothing before 0x304 is preserved. The cosim boot-mode X pins in
-# xrun_cosim.sh (pc 0x5c and 0x15c) MUST be re-measured.
-#     d177e8314f2de080150070762b3d80f7 -> 99b0c95dfb3fc0da52a49d1a68efa904
-# ~/chips/myshkin/ip/rom2k_hvt_pg HAS NOT BEEN RECOMPILED YET; that is a
-# signoff_mp job and the plate is stale until it is done.
-#
-# RE-CUT A FIFTH TIME ON 2026-09-12, and this one is a MAP move, not a source
-# move: no file under src/ changed. config/castalia.json collapsed into the
-# generator's built-in defaults (owner decision: one default silicon chip), so
-# the default chip is now the wound peripheral set. NUM_IRQ_SRCS went 121 -> 124,
-# the vector table grew 484 -> 496 bytes, and RAM therefore starts at 0x081F0
-# instead of 0x081E4. Every absolute data address in the image moved with it.
-# The image is 7,532 bytes of 8,192, unchanged in size; 87 of the 2,048 words
-# differ, the first at 0x39C, so bytes 0x000 through 0x39B are preserved and the
-# cosim boot-mode X pins in xrun_cosim.sh (pc 0x5c and 0x15c) hold through this
-# cut. The two mirrors moved with it and the three are one md5.
-#     99b0c95dfb3fc0da52a49d1a68efa904 -> cea7e60f4723f63acfd92c5883716f1e
-# ~/chips/myshkin/ip/rom2k_hvt_pg IS STILL NOT RECOMPILED; the plate was already
-# stale from the fourth cut and is now two cuts behind.
+# collide with the global *.rcf gitignore.
+# tools/cosim/gate/bootrom_mp_rom.rcf and software/bootrom_mp/bin/rom.rcf are
+# mirrors of it; the three are one md5, currently cea7e60f4723f63acfd92c5883716f1e.
+# The image is 7,532 bytes of 8,192. The cosim boot-mode X pins in xrun_cosim.sh
+# sit at pc 0x5c and 0x15c, so a cut that moves any word below 0x39C makes them
+# stale and they must be re-measured against the new image.
+# ~/chips/myshkin/ip/rom2k_hvt_pg IS TWO CUTS BEHIND THIS IMAGE. Recompiling it
+# is a signoff_mp job and the plate is stale until it is done.
 filegroup(
     name = "rom_rcf_golden",
     srcs = ["testdata/rom_rcf_golden.txt"],

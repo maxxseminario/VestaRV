@@ -1,34 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shboot.S  (M5a; M12 single-ROM boot rework)
-#-----------------------------------------------------------------------------
-# THE M12 BOOT-PROTOCOL PROOF — the real silicon flow, end to end.
-#
-# Since M12 nothing preloads the tile TCMs: harts 1-3 boot from THE shared
-# ROM, park in WFI inside the bootrom, and wake only through the bootrom's
-# msip loader (mp_boot.h documents the mailbox row at 0x10400+0x10*h).
-#
-# Hart 0 (SPI boot, the only hart running this image at start): for each
-# hart 1..3 IN TURN (staggered):
-#   1. check DONE[h]==0 — proves the tile parked WITHOUT side effects, and
-#      on silicon proves the bootrom's mailbox zeroing (write-before-read);
-#   2. stage this image into shared RAM (once) and launch the hart through
-#      the loader: SRC/LEN/ENTRY row, then CLINT msip[h]=1;
-#   3. bounded-poll DONE[h] for 0xD00E0000+h;
-#   4. verify msip[h] reads back 0 — the tile's ROM ISR cleared its own
-#      level through the arbiter.
-# All three released and reporting -> RVTEST_PASS.
-#
-# Tile payload (entered at boot_payload with sp=0xBFFC, TCM freshly loaded
-# by the bootrom copy): write DONE[mhartid], a0 = PASS inline, then verify
-# DONE forever (a post-PASS corruption still fails the run).
-#
-#     DONE[h]  = 0x10120 + 4*h   (h = 1..NHARTS-1; GO/ENTRY at 0x10100/0x10110
-#                                 are RETIRED — the bootrom loader mailboxes
-#                                 replaced them). N=18: 0x10124..0x10164, no
-#                                 control words above the array, all < 0x10500.
-#*****************************************************************************
+# VestaRV: the multi-hart boot protocol, end to end
+# Nothing preloads the tile TCMs: harts 1..N-1 boot from THE shared ROM, park in WFI inside the boot ROM, and wake only through the ROM's msip loader, whose mailbox row is documented in mp_boot.h.
+# Hart 0 is the only hart running this image at start, and for each tile in turn it first checks DONE[h] is 0, which proves the tile parked WITHOUT side effects and on silicon proves the ROM's mailbox zeroing; then stages this image into shared RAM once and launches the hart through the loader by writing the SRC, LEN and ENTRY row and setting CLINT msip[h]; then bounded-polls DONE[h]; then verifies msip[h] reads back 0, which proves the tile's ROM ISR cleared its own level through the arbiter.
+# The tile payload is entered with sp set and the TCM freshly loaded by the ROM copy: it writes DONE[mhartid], sets a0 to PASS inline, then verifies DONE forever, so a post-PASS corruption still fails the run.
+# Shared words: DONE[h] = 0x10120 + 4*h for h = 1..NHARTS-1, with no control words above the array and everything below 0x10500.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,3 +1,6 @@
+# VestaRV: the package model: pin list, sides, dimensions and power domains.
+# A PackageData is the pad ring the TRM pinout chapter, config/PadRing.json and the Innovus
+# pad-placement template are all rendered from.
 import datetime, os, pathlib
 
 class PackageData():
@@ -67,11 +70,10 @@ class PackageData():
 		return
 
 	def AddPowerDomain(self, powerDomainName:str, positiveVoltage:float, negativeVoltage:float, positiveRailPinNumber:int, positiveRailPinName:str, negativeRailPinNumber:int, negativeRailPinName:str, isGpioPowerDomain:bool=False, positiveRailExtraPins=None, negativeRailExtraPins=None):
-		'''A power domain's + and - rails each land on ONE package pin by default.
-		positiveRailExtraPins/negativeRailExtraPins (lists of (pinNumber, pinName))
-		bond the SAME rail net out on ADDITIONAL package pads — a multi-pad rail
-		(e.g. the CQ QFN-64 core/IO supplies, one pair per die edge). Single-pad
-		domains pass neither and behave exactly as before.'''
+		'''A power domain whose + and - rails each land on one package pin by default.
+		positiveRailExtraPins and negativeRailExtraPins, lists of (pinNumber, pinName), bond the same
+		rail net out on additional pads, which is how a multi-pad supply is declared.
+		'''
 		pd = PowerDomain(name=powerDomainName, positiveVoltage=positiveVoltage, negativeVoltage=negativeVoltage)
 		vddPin = self.AddPin(packagePinNumber=positiveRailPinNumber, name=positiveRailPinName, ioType='pi', powerDomain=pd)
 		vddPin.IsPowerDomainPin = True

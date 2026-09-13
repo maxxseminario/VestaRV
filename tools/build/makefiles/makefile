@@ -1,11 +1,9 @@
+# VestaRV: build every firmware project in this directory.
+# `make <name>.c.new` and `make <name>.cpp.new` create a project from the
+# template_c and template_cpp directories; those two and testbenches are excluded
+# from the default all target because they are templates, not projects.
 SUBDIRS := $(wildcard */)
 
-# # Make all projects
-# .PHONY: all
-# all: $(SUBDIRS)
-# Make all projects
-# Make all projects
-# Make all projects
 FILTERED_SUBDIRS := $(filter-out testbenches template_c template_cpp,$(SUBDIRS))
 .PHONY: all
 all: $(FILTERED_SUBDIRS)
@@ -14,17 +12,15 @@ all: $(FILTERED_SUBDIRS)
 $(SUBDIRS):
 	if [ -f ./$@/makefile ]; then cd $@ && make; fi
 
-# Clean up unnecessary files
 .PHONY: tidy
 tidy:
 	for s in $(SUBDIRS); do if [ -f $$s/makefile ]; then cd $$s && make tidy && cd ..; fi; done
 
-# Clean up unnecessary files and compiled program files
+# Remove the build artifacts as well as the junk.
 .PHONY: clean
 clean:
 	for s in $(SUBDIRS); do if [ -f $$s/makefile ]; then cd $$s && make clean && cd ..; fi; done
 
-# Create a new project using the C template
 .PHONY: %.c.new
 %.c.new:
 	@if [ ! -d $* ] ; then \
@@ -37,7 +33,6 @@ clean:
 		echo "Project \"$*\" already exists" ; \
 	fi
 
-# Create a new project using the C++ template
 .PHONY: %.cpp.new
 %.cpp.new:
 	@if [ ! -d $* ] ; then \

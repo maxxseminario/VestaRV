@@ -1,33 +1,9 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shspin.S  (M5a — the multi-core signature test; M12 single-ROM boot rework)
-#-----------------------------------------------------------------------------
-# 4-HART SPINLOCK: ALL FOUR harts contend on one LR/SC spinlock, doing a
-# NON-ATOMIC read-modify-write of a shared counter inside the critical
-# section. Any mutual-exclusion violation loses an update (final count wrong)
-# or trips the owner-word check.
-#
-# M12: the retired GO/ENTRY mailboxes (0x10100/0x10110) are gone. Hart 0
-# stages this TCM image once and launches all three tiles into tile_entry
-# through the bootrom loader (mp_boot.h); each tile falls straight into
-# lock_payload, and hart 0 falls through and contends too — all four hit the
-# lock together (max contention).
-#
-# Shared-window map (clear of shmem 0x10000-8, shlrsc 0x1000C/0x10010,
-# shmem_mp 0x10040+4*h, counter 0x10080):
-#     DONE[h] = 0x10120 + 4*h            (h = 1..NHARTS-1)
-#     LOCK    = 0x10120 + 4*NHARTS        (0 free, 1 held)
-#     CTR     = 0x10120 + 4*NHARTS + 4    (must end EXACTLY NHARTS*32)
-#     OWNER   = 0x10120 + 4*NHARTS + 8    (holder writes hartid+1, re-checks)
-# Argus A3: control words placed AFTER the NHARTS-sized DONE array so it can't
-# overrun them at N=18. N=4: LOCK/CTR/OWNER=0x10130/34/38; N=18: 0x10168/6C/70.
-#
-# LR/SC RULES (M4c post-mortem): hartid-scaled backoff after a failed acquire
-# (identical harts on the fair round-robin arbiter LIVELOCK without it) and a
-# BOUNDED acquire budget so a broken lock FAILS instead of riding the 100ms
-# watchdog.
-#*****************************************************************************
+# VestaRV: multi-hart LR/SC spinlock
+# ALL harts contend on one LR/SC spinlock and do a NON-ATOMIC read-modify-write of a shared counter inside the critical section, so any mutual-exclusion violation either loses an update, making the final count wrong, or trips the owner-word check. Hart 0 stages this TCM image once and launches every tile into lock_payload through the boot ROM loader, then falls through and contends too, so all harts hit the lock together at maximum contention.
+# LR/SC RULES: a failed acquire must back off by a hartid-scaled amount, because identical harts on the fair round-robin arbiter LIVELOCK without it, and the acquire budget must be BOUNDED so a broken lock fails instead of riding the 100 ms watchdog.
+# Shared words, clear of the other tests' bands, with the control words placed AFTER the NHARTS-sized DONE array so it cannot overrun them: DONE[h] = 0x10120 + 4*h for h = 1..NHARTS-1, LOCK = 0x10120 + 4*NHARTS, CTR = LOCK + 4, which must end at exactly NHARTS*32, and OWNER = LOCK + 8, where the holder writes hartid + 1 and re-checks.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,10 +1,8 @@
-"""A hermetic chip-generation action.
+"""VestaRV: a hermetic chip-generation action.
 
-One `chip_artifacts` target runs platform/common/python/generate.py for one
-configuration inside a staged copy of the tree (see stage_generate.py) and
-declares the generated files plus the whole latex/TRM tree as bazel outputs.
-The source tree is never written to, so the target is safe to build
-concurrently with any other work in the workspace.
+One chip_artifacts target runs generate.py for one configuration inside a staged copy of the
+tree and declares the generated files plus the whole latex/TRM tree as outputs. The source
+tree is never written to, so the target is safe to build concurrently with other work.
 """
 
 # The files the generator writes that anything downstream consumes, as paths
@@ -69,7 +67,7 @@ def _chip_artifacts_impl(ctx):
     stageRoot = "{}/{}/{}_stage".format(ctx.bin_dir.path, ctx.label.package, name)
 
     # The SystemRDL descriptions are generation INPUTS now, not documentation:
-    # generate.py builds most peripheral register maps out of them (report R5).
+    # generate.py builds most peripheral register maps out of them.
     # They are attached by the rule rather than listed per target, because every
     # configuration reads the same set and forgetting one would silently emit a
     # chip with a missing register.

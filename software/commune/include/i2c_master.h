@@ -1,15 +1,16 @@
+// VestaRV: I2C master driver interface
+// Every call returns I2C_GOOD (0) or a negative I2C_* error code; the i2cx_* forms take an I2Cx_t* and the bare i2c_* forms act on I2C0.
+
 #pragma once
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/** Includes **/
 #include <MemoryMap.h>
 
 
 
-/** Defines **/
 #define I2C_GOOD					(0)
 #define I2C_BUS_BUSY				(-1)
 #define I2C_START_CONDITION_TIMEOUT	(-2)
@@ -35,7 +36,6 @@ int8_t i2cx_master_stop(I2Cx_t* I2Cx);
 
 
 
-/** External Function Declarations **/
 int8_t i2c_master_tx_start(uint8_t slave_address);
 int8_t i2c_master_rx_start(uint8_t slave_address);
 int8_t i2c_master_tx_byte(uint8_t tx_data);

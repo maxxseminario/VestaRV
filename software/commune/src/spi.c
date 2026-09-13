@@ -1,4 +1,6 @@
-/** Includes **/
+// VestaRV: SPI driver
+// spix_transfer is full duplex and blocking: it writes the transmit word, polls SPITCIF, then returns the received word.
+
 // #include <MemoryMap.h>
 #include <myshkin.h>
 
@@ -11,7 +13,6 @@ uint32_t spix_transfer(SPIx_t* SPIx, uint32_t data);
 
 
 
-/** Function Declarations **/
 void spi_init(uint8_t spi_mode, uint8_t data_length);
 void spi_setDataLength(uint8_t data_length);
 uint32_t spi_transfer(uint32_t data);
@@ -88,7 +89,6 @@ uint32_t spix_transfer(SPIx_t* SPIx, uint32_t data)
 
 
 
-/** Function Definitions **/
 void spi_init(uint8_t spi_mode, uint8_t data_length)
 {
 	// Initialize SPI

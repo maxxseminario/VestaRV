@@ -1,4 +1,6 @@
-/** Includes **/
+// VestaRV: interrupt enable, disable and dispatch
+// The interrupt mask lives in a custom CSR reached through the custom_ops.S encodings, not in mie.
+
 #include <MemoryMap.h>
 
 

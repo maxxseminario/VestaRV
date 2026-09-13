@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# VestaRV: CRC helpers for the chip description tooling.
 
 def Reflect(data, numbits):
 	reflection = 0

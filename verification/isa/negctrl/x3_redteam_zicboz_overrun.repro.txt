@@ -1,5 +1,4 @@
-X3 Stage-D red-team (C) — Zicboz cbo.zero OVER-RUN detector
-==========================================================
+VestaRV: X3 Stage-D red-team (C), Zicboz cbo.zero OVER-RUN detector
 DELIVERABLE C: complement to the existing UNDER-run seed (x3_zicboz_partial.patch,
 which stops at 15 words -> tail word non-zero). This seed OVER-runs by ONE word
 (writes 17 words: cboz_idx 0..16, so word 16 lands at block_base+64) and proves

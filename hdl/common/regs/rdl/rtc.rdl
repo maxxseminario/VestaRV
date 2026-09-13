@@ -1,17 +1,7 @@
-// ===========================================================================
-// rtc.rdl: the register map of hdl/common/periph/RTC.vhd.
-//
-// THE VHDL IS THE AUTHORITY: seven slots from the block's SLOT_* constants,
-// an all-zero reset branch, and every commit plus the SR write-1-to-clear
-// qualified by byte lane 0.
-//
-// RTCxSEC and RTCxSUB do not read back what was written: a write STAGES the
-// value (and, for SEC, commits {SEC,SUB} atomically into the 32 kHz domain)
-// while a read returns the synchronized live counter snapshot. RTCxSUB alone
-// never commits; the following RTCxSEC write is what commits it.
-//
+// VestaRV: the register map of hdl/common/periph/RTC.vhd
+// The VHDL is the authority: seven slots from the block's SLOT_* constants, an all-zero reset branch, and every commit plus the SR write-1-to-clear qualified by byte lane 0.
+// RTCxSEC and RTCxSUB do not read back what was written: a write STAGES the value (and, for SEC, commits {SEC,SUB} atomically into the 32 kHz domain) while a read returns the synchronized live counter snapshot. RTCxSUB alone never commits; the following RTCxSEC write is what commits it.
 // RTCxTRIM (slot 6) is reserved: it reads 0 and ignores writes.
-// ===========================================================================
 
 `include "vesta_udp.rdl"
 

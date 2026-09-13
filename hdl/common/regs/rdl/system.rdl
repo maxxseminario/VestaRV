@@ -1,19 +1,6 @@
-// ===========================================================================
-// system.rdl: the register map of hdl/common/periph/SYSTEM.vhd.
-//
-// THE VHDL IS THE AUTHORITY. Two reset values are NOT zero and both come
-// from hdl/common/constants.vhd:
-//   DCO0BIAS.SYSDCO0BIAS = 0x800   (DCO0_BIAS_DEFAULT = "100000000000")
-//   DCO1BIAS.SYSDCO1BIAS = 0x800   (DCO1_BIAS_DEFAULT)
-// The generator models both as resetting to 0; the RTL mid-scale default is
-// what silicon comes up with.
-//
-// WDTCR is the only register in the chip whose write is gated by another
-// register: `if unlocked = '1' and wen(0) = '0'`, the unlock window being
-// the 64 cycles a WDTPASS write of WDT_UNLCK_PASSWD (0x5F3759DF) opens.
-// WDTPASS itself accepts FULL-WORD stores only (`if wen = "0000"`), and the
-// second password WDT_CLR_PASSWD (0xA0C8A620) petts the dog.
-// ===========================================================================
+// VestaRV: the register map of hdl/common/periph/SYSTEM.vhd
+// The VHDL is the authority. Two reset values are NOT zero and both come from hdl/common/constants.vhd: DCO0BIAS.SYSDCO0BIAS and DCO1BIAS.SYSDCO1BIAS both reset to 0x800 (DCO0_BIAS_DEFAULT / DCO1_BIAS_DEFAULT = "100000000000"). The generator models both as resetting to 0; the RTL mid-scale default is what silicon comes up with.
+// WDTCR is the only register in the chip whose write is gated by another register: `if unlocked = '1' and wen(0) = '0'`, the unlock window being the 64 cycles a WDTPASS write of WDT_UNLCK_PASSWD (0x5F3759DF) opens. WDTPASS itself accepts FULL-WORD stores only (`if wen = "0000"`), and the second password WDT_CLR_PASSWD (0xA0C8A620) pets the dog.
 
 `include "vesta_udp.rdl"
 

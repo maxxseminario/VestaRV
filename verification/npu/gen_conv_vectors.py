@@ -1,43 +1,10 @@
 #!/usr/bin/env python3
-"""gen_conv_vectors.py -- FROZEN golden-vector generator for the NPU CONV1D
-mode (npu_conv_design.md D9), built entirely on npu_fixed.py's validated,
-bit-exact MAC/sigmoid model. Emits one case per design-doc GROUP into
-conv_vectors/, at the FROZEN MCU/chip generics:
+"""VestaRV: frozen golden-vector generator for the NPU CONV1D mode, Q0.24 in, Q7.24 out.
 
-    X_M=0  W_M=7  Y_M=7  N=24  RHO=2      (Q0.24 in, Q7.24 weight/acc/out)
-
-Golden-file interface (D9, FROZEN -- do not change without a doc amendment):
-    npu_conv_<case>_cfg.txt  -- 12 scalars, one per line, in order:
-                                K Cin Cout Lout S D BEN AEN ACTF IVSAR WVSAR OVSAR
-    npu_conv_<case>_in.txt   -- Cin*L lines, channel-major: in[c][t] at line c*L+t
-    npu_conv_<case>_w.txt    -- Cout*(Cin*K+BEN) lines, filter-major,
-                                bias-first-per-filter when BEN
-    npu_conv_<case>_exp.txt  -- Cout*Lout lines, flat f*Lout+j order
-    All data values are raw fixed-point words reinterpreted as signed
-    (Python ints straight out of npu_fixed.py -- never re-derived here).
-
-L (the physical per-channel input length) is NOT stored in the cfg file (D9's
-12-scalar header has no L field) -- both this generator and NPU_conv_tb.vhd
-independently DERIVE it from the same "exact valid conv, no padding" formula:
-
-    L = D*(K-1) + 1 + (Lout-1)*S
-
-so the two sides never need to agree out-of-band. The Lout=0 case (G-DEGEN
-zero-output) needs NO in/w/exp files at all (D10 G3): only a cfg file, read
-by the tb to confirm immediate-done + zero staging-RAM writes.
-
-Pinned accumulation order (D2/npu_family_spec.md): bias FIRST (if BEN, weight
-= first word of the filter block, CurrX = to_sfixed(1, X_M, -N) -- the
-saturating-integer-constant quirk, NOT an exact 1.0), then c OUTER, k INNER
--- exactly the contiguous weight-pointer walk `think_layer()` already
-implements when handed a flattened (c-outer, k-inner) input vector per
-output. No arithmetic is reimplemented here: every MAC step and every
-sigmoid evaluation runs through npu_fixed.mac_step()/sigmoid() by way of
-think_layer().
-
-Usage:
-    /usr/bin/python3 gen_conv_vectors.py
-    (no arguments -- regenerates every case into ./conv_vectors/)
+The 12-scalar cfg header has no L field, so this and NPU_conv_tb.vhd both derive the physical
+input length from L = D*(K-1) + 1 + (Lout-1)*S and never agree out of band. Accumulation is
+pinned: bias first when BEN, then c outer, k inner, which is the contiguous weight walk
+think_layer() makes. No arithmetic is reimplemented; every step runs through npu_fixed.
 """
 import os
 import sys
@@ -45,9 +12,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from npu_fixed import think_layer  # noqa: E402  -- the only arithmetic entry point used
 
-# ---------------------------------------------------------------------------
 # Frozen MCU/chip generics (npu_conv_design.md binding inputs)
-# ---------------------------------------------------------------------------
 X_M = 0
 W_M = 7
 Y_M = 7
@@ -82,14 +47,10 @@ def predicted_cycles(K, Cin, Cout, Lout, BEN):
 
 
 def compute_conv(inputs, weights, cin, k, cout, lout, s, d, ben, aen, actf=0):
-    """inputs: list of Cin lists, each length L (raw Q(X_M).N_BITS).
-    weights: flat list, filter-major, bias-first-per-filter if ben.
-    Returns: list of Cout lists, each length Lout (raw Q(Y_M).N_BITS, or
-    post-activation if aen -- actf=0 default keeps the sigmoid-legacy
-    behavior every pre-P4.4 call site here relies on). Every MAC/
-    activation step runs through npu_fixed.think_layer()/mac_step()/
-    sigmoid()/activate() -- this function only does index bookkeeping
-    (the pinned c-outer/k-inner flattening)."""
+    """inputs is Cin lists of length L, weights a flat filter-major list, bias-first per filter when
+    ben; returns Cout lists of length Lout, post-activation when aen. Every MAC and activation
+    step runs through npu_fixed, so this only does the pinned c-outer, k-inner index bookkeeping.
+    """
     weights_per_filter = (1 if ben else 0) + cin * k
     outputs = []
     for f in range(cout):
@@ -111,11 +72,9 @@ def compute_conv(inputs, weights, cin, k, cout, lout, s, d, ben, aen, actf=0):
     return outputs
 
 
-# ---------------------------------------------------------------------------
 # Deterministic stimulus generators (raw fixed-point ints; not part of the
 # arithmetic path -- just test-data synthesis). Distinct, modest-magnitude,
 # reproducible without an RNG.
-# ---------------------------------------------------------------------------
 def in_val(c, t):
     return (c * 9173 + t * 337 + 101) % 2000000 - 1000000
 
@@ -163,10 +122,10 @@ CASES_MANIFEST = []  # (case, K,Cin,Cout,Lout,S,D,BEN,AEN,ACTF,IVSAR,WVSAR,OVSAR
 
 def emit_case(case, k, cin, cout, lout, s, d, ben, aen, actf,
               input_fn, weight_fn, bias_fn=None, has_data=True):
-    """Builds inputs/weights via the supplied per-index callbacks, computes
-    the golden outputs (through think_layer -- no arithmetic here), and
-    writes the four D9 files. Returns the computed outputs (flat, f*Lout+j)
-    for any case-specific post-hoc assertions (G-ASYM, G-SAT)."""
+    """Build inputs and weights via the supplied per-index callbacks, compute the golden outputs
+    through think_layer, and write the four files. Returns the computed outputs, flat in f*Lout+j
+    order, for any case-specific post-hoc assertions.
+    """
     L = calc_L(k, s, d, lout)
     assert lout == 0 or conv_out_len(L, k, s, d) == lout, \
         "%s: calc_L/conv_out_len round-trip mismatch" % case
@@ -223,9 +182,7 @@ def emit_case(case, k, cin, cout, lout, s, d, ben, aen, actf,
     return flat_out
 
 
-# ---------------------------------------------------------------------------
 # GROUP generators (npu_conv_design.md D9)
-# ---------------------------------------------------------------------------
 def gen_base():
     # G-BASE: the plain path; proves the c-outer/k-inner walk + flat output order.
     emit_case("base", k=8, cin=2, cout=4, lout=16, s=1, d=1, ben=False, aen=False, actf=0,

@@ -1,15 +1,13 @@
-/** Includes **/
+// VestaRV: rv4th monitor application entry point
+// Clocks MCLK and SMCLK from HFXT, powers on all memory, brings up UART0 at 115200 baud, then runs the rv4th Forth interpreter forever.
+// The baud constant assumes HFXT is exactly 24 MHz.
+
 #include <MemoryMap.h>
 #include <rv4th.h>
 #include <uart.h>
 #include <flash_memory.h>
 
-
-
-/** Defines **/
-
-// Baud rate generation defines
-#define SMCLK_FREQUENCY 24000000UL	// The clock going into the UART
+#define SMCLK_FREQUENCY 24000000UL
 #define BAUDRATE 115200UL
 
 const char chip_id[] = {
@@ -24,25 +22,6 @@ const char chip_id[] = {
 	"- White\n"
 };
 
-
-
-
-/*
- * Re-define the startup/reset behavior to this.  GCC normally uses this
- * opportunity to initialize all variables (bss) to zero.
- *
- * By doing this, we take all initialization into our own hands.
- *
- *      YE BE WARNED
- */
-//void __attribute__ ((naked)) _reset_vector__(void) {
-//  __asm__ __volatile__("mov #0xff00,r1"::);
-//  __asm__ __volatile__("br #main"::);
-//}
-
-
-
-/** Main Function **/
 int main()
 {
 	// Init clocks
@@ -62,17 +41,7 @@ int main()
 	// Init UART
 	uart_init_default(UART_CALC_BR(SMCLK_FREQUENCY, BAUDRATE));
 
-	/*
-	 * Startup and run rv4th interp.
-	 *
-	 * See config_default_rv4th() and "test4th.c" for examples of
-	 * re-configuring the program vector sizes and providing I/O functions.
-	 *
-	 * The following make processLoop() return:
-	 *  - executing the "exit" word
-	 *  - any EOT character in the input ('^D', control-D, 0x04)
-	 *  - any 0xff character in the input
-	 */
+	// rv4th_processLoop() returns on the "exit" word, on EOT (0x04) and on 0xff in the input.
 	int16_t x;
 
 	while (1)

@@ -15,8 +15,6 @@ under `xcelium/` (gitignored).
 | `check_gate_files.py` | **the gate-infrastructure drift checker** — see below. |
 | `gate/` | **canonical, tracked copies of the gate infrastructure** — see below. |
 
----
-
 ## Building with Bazel
 
 Bazel is the recommended path for the comparator's own tests: it runs them on a
@@ -52,8 +50,6 @@ tree, which a sandbox cannot see. Run them as documented, with
 `/usr/bin/python3.6`.
 
 Full map of the Bazel build: [`BAZEL.md`](../../BAZEL.md).
-
----
 
 ## `gate/` + `check_gate_files.py` — the gate infrastructure is tracked HERE
 
@@ -122,8 +118,6 @@ tracked script and never over the sweep's own `cosim_work/traces` or
 `cosim_work/inject`. Expected: **GOLD exit=0 plants=9281/9281**, **PERTURBED
 exit=1 plants=9280/9280, divergence at compared record #50154**.
 
----
-
 ## Invocation — always `/usr/bin/python3.6`
 
 ```bash
@@ -161,8 +155,6 @@ Stdlib only — no external dependencies, no network, no Xcelium, no Cadence env
   stream sizes, records compared, pre-entry skips, the Amendment-A5 x-record
   census, the RTL `#` diagnostic-tag census, and the exit verdict. Plus
   warnings (see *Provenance header* below).
-
----
 
 ## Exit codes — the contract
 
@@ -236,8 +228,6 @@ snapshot emits **no trace file at all**, and a stale one emits a header-less or
 old file. `compare.py` **warns** on stderr when the header is absent but does
 not fail — asserting it is the runner's job, before it trusts a trace.
 
----
-
 ## What is compared
 
 Exactly `RECORD_FORMAT.md` §8, no more:
@@ -297,8 +287,6 @@ unrecognised Spike trailing field, a non-commit line in the Spike log, or an
 "no register write" — §1). Silently dropping any of these would let a broken
 tracer or a changed reference model masquerade as a match.
 
----
-
 ## Self-tests
 
 ```bash
@@ -319,8 +307,6 @@ Setting `COSIM_REAL_SPIKE_LOG=<a Spike log for rv32ui-p-add at 0x8200>` adds two
 whole-window cases against `xcelium/riscv_test/behavioral_mp/vesta_trace_h00.trace`
 (462 compared records, bounded → exit 0 and unbounded → exit 2). They are
 skipped with a `SKIP` line when the artifacts are absent.
-
----
 
 ## Known limitations (V2 scope)
 

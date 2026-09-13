@@ -1,54 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# pmprt5.S   (P3 RED TEAM — the STORE-side D5 leak, the TRAP-ENTRY
-#             RE-PRESENTATION window, and CROSS-HART BANK ISOLATION)
-#-----------------------------------------------------------------------------
-# ON-ONLY DIRECTED MP TEST (needs a trapCsr+umode+pmp build).  privpmpmx
-# proves the LOAD side of D5 (a denied mutex claim-read never issues).  This
-# file covers the two things it does not:
-#
-# PART 1 (CHECK 10..17) — THE STORE SIDE, AND THE TRAP-ENTRY WINDOW.
-#   The HW mutex bank's `sw 0` is an owner-unqualified RELEASE (CLAUDE.md).
-#   So: hart 0 CLAIMS mutex 14 in M, then attempts a PMP-DENIED `sw x0` to the
-#   same word under the U data view.  If the denied store issued — either in
-#   its own EXECUTE cycle, or when the faulting encoding is RE-PRESENTED to
-#   the decoder during MTRAP_SV/MTRAP_JUMP (`read_data` doubles as the
-#   instruction during decode; this is the exact shape of the P2 U-mode CSR
-#   escape, closed there by `trap_entry_seq`, vesta.vhd:1742-1758) — the mutex
-#   would have been RELEASED.  hart 0 then re-reads it: still-owned reads back
-#   as hartid+1 = 1, released reads back as 0.  ONE HART sees the whole story,
-#   so this is a much cheaper D5 witness than the two-hart claim test.
-#
-#   This is also the vehicle for red-team item 2 (MTRAP_SV presents
-#   `pc_next_reg` on the bus for ALL causes; only cause 1 is parked,
-#   vesta.vhd:1841-1846).  A cause-7 entry from a store aimed at a mutex word
-#   is precisely the case where a re-presented address would be
-#   side-effecting.
-#
-# PART 2 (CHECK 20..27) — CROSS-HART BANK ISOLATION.
-#   Every hart_tile instantiates its OWN csr_unit, so the pmpcfg/pmpaddr bank
-#   is per-hart.  hart 0 fences a shared word with an entry that has no
-#   permissions; hart 1 is launched through the M12 bootrom loader with an
-#   untouched (all-zero) bank and must be able to WRITE that same word.  Then
-#   hart 0 proves BOTH halves at once: its own U view still faults on the
-#   word, and its M view reads back exactly what hart 1 wrote.  A bank that
-#   bled across harts fails the first half (hart 1 blocked, no marker) or the
-#   second (hart 0's fence gone).
-#
-# SHARED-WORD LEDGER (CLAUDE.md: everything < 0x10500, inside the bootrom zero
-# range).  Two N-agnostic scalars from the reserved band
-# 0x102A0-0x1037F, just below privpmpmx's pair:
-#     0x10368  PMPRT5_W      the fenced shared word (hart 1 writes it)
-#     0x1036C  PMPRT5_DONE1  hart 1's completion flag (0x50BE0001)
-#
-# BOUNDEDNESS: the only loop is hart 0's DONE poll with an explicit 100000
-# iteration budget (the shmutex figure).
-#
-# REGISTER CONTRACT:
-#   s2 the fenced address    s3 trap counter   s4/s5/s6 cause/mepc/mtval
-#   s7 handler resume PC     s10 mhartid       t4 CHECK ID
-#*****************************************************************************
+# VestaRV: red team, the store-side pre-issue leak and cross-hart PMP bank isolation
+# ON-ONLY multi-hart test, needing a trapCsr, umode and pmp build. privpmpmx proves the LOAD side, that a denied mutex claim-read never issues; this file covers the two things it does not.
+# PART 1, THE STORE SIDE AND THE TRAP-ENTRY WINDOW. The HW mutex bank's `sw 0` is an owner-unqualified RELEASE, so hart 0 claims mutex 14 in M and then attempts a PMP-denied `sw x0` to the same word under the U data view. If the denied store issued, either in its own EXECUTE cycle or when the faulting encoding is RE-PRESENTED to the decoder during MTRAP_SV and MTRAP_JUMP, since read_data doubles as the instruction during decode, the mutex would have been released. Hart 0 re-reads it: still-owned reads back as hartid + 1 and released reads back as 0. ONE HART SEES THE WHOLE STORY, so this is a much cheaper witness than a two-hart claim test. It is also the vehicle for the re-presentation question, since MTRAP_SV presents pc_next_reg on the bus for all causes and only cause 1 is parked, and a cause-7 entry from a store aimed at a mutex word is precisely where a re-presented address would be side-effecting.
+# PART 2, CROSS-HART BANK ISOLATION. Every hart_tile instantiates its OWN csr_unit, so the pmpcfg and pmpaddr bank is per-hart. Hart 0 fences a shared word with an entry that has no permissions; hart 1 is launched through the boot ROM loader with an untouched all-zero bank and must be able to WRITE that same word. Hart 0 then proves both halves at once: its own U view still faults on the word, and its M view reads back exactly what hart 1 wrote. A bank that bled across harts fails the first half, with hart 1 blocked and no marker, or the second, with hart 0's fence gone.
+# Shared words, both N-agnostic scalars from the reserved band 0x102A0-0x1037F just below privpmpmx's pair, inside the bootrom zero range: 0x10368 PMPRT5_W, the fenced word hart 1 writes, and 0x1036C PMPRT5_DONE1, hart 1's completion flag 0x50BE0001. The only loop is hart 0's DONE poll, bounded at 100000 iterations.
+# REGISTER CONTRACT: s2 the fenced address, s3 the trap counter, s4, s5 and s6 cause, mepc and mtval, s7 the handler resume PC, s10 mhartid, t4 the CHECK ID.
 
 #include "riscv_test.h"
 #include "test_macros.h"

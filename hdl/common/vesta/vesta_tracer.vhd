@@ -1,8 +1,7 @@
-/* vesta_tracer.vhd: retire-event trace writer for lockstep co-simulation, one ASCII file per hart.
-   A PURE OBSERVER: no output ports, drives no signal, never touches the memory path.
-   Instantiated in vesta.vhd inside `gen_trace: if TRACE_ENABLE generate`, so an OFF build elaborates none of it.
-   It logs what COMMITTED, not what decode intended: every value comes from an actual write port, sampled pre-edge on rising_edge(clk_cpu).
-   -V200X only: no VHDL-2008, no external names, no to_hstring; hex is hand-rolled below and std.textio is the only I/O. */
+-- VestaRV: retire-event trace writer for lockstep co-simulation, one ASCII file per hart
+-- A PURE OBSERVER: no output ports, drives no signal, never touches the memory path. Instantiated in vesta.vhd inside gen_trace: if TRACE_ENABLE generate, so an OFF build elaborates none of it.
+-- It logs what COMMITTED, not what decode intended: every value comes from an actual write port, sampled pre-edge on rising_edge(clk_cpu).
+-- -V200X only: no VHDL-2008, no external names, no to_hstring; hex is hand-rolled below and std.textio is the only I/O.
 
 library IEEE;
 use IEEE.std_logic_1164.all;
@@ -406,7 +405,7 @@ begin
             end if;
 
             if resetn = '1' then
-                -- ---------- Dispatch shapes, mutually exclusive, P and Q evaluated first.
+                -- Dispatch shapes, mutually exclusive, P and Q evaluated first.
                 sP := ENABLE_PMP and pmp_f_deny_r = '1';
                 sQ := (not ENABLE_COMPRESSED) and pc(1) = '1';
                 sE := (pc(1) = '1') and (quadrant_upper =  "11") and repeat_if = '0';
@@ -416,7 +415,7 @@ begin
                 sB := (pc(1) = '0') and (quadrant_lower /= "11");
                 is_disp := (state = ST_EXECUTE) and (not sP) and (not sQ) and (not sE);
 
-                -- ---------- The retire condition.
+                -- The retire condition.
                 ret_exec := is_disp
                             and trap = '0' and ecall_op = '0' and ebreak_op = '0'
                             and mret_op = '0'
@@ -438,7 +437,7 @@ begin
                        or (state = ST_PAUSE_WAIT and next_state = ST_EXECUTE)
                        or (state = ST_WRS_WAIT  and next_state = ST_EXECUTE);
 
-                -- ---------- Back-fill the load data issued on the PREVIOUS edge.
+                -- Back-fill the load data issued on the PREVIOUS edge.
                 -- `instr` IS the unified read bus and this edge is where the core itself consumes it; every load-issuing state is followed by its consuming state after exactly one clk_cpu edge, since a memory stall gates clk_cpu rather than adding edges.
                 if fl_pend then
                     if fl_idx < mm_n and not mm_st(fl_idx) then
@@ -449,7 +448,7 @@ begin
                     fl_pend := false;
                 end if;
 
-                -- ---------- Capture the architectural instruction at dispatch.
+                -- Capture the architectural instruction at dispatch.
                 if is_disp then
                     clear_inflight;
                     iv_valid := true;
@@ -469,12 +468,12 @@ begin
                     end if;
                 end if;
 
-                -- ---------- Arm the WFI one-shot on the real dispatch only.
+                -- Arm the WFI one-shot on the real dispatch only.
                 if state = ST_EXECUTE and next_state = ST_SLEEPING then
                     wfi_armed := true;
                 end if;
 
-                -- ---------- Committed register writes on the regfile main port.
+                -- Committed register writes on the regfile main port.
                 if reg_write = '1' and rd_addr /= "00000" then
                     if rd_n < MAX_RD then
                         rd_a(rd_n) := rd_addr; rd_v(rd_n) := rd_data; rd_n := rd_n + 1;
@@ -487,7 +486,7 @@ begin
                     rd_a(rd_n) := "00010"; rd_v(rd_n) := sp_write_data; rd_n := rd_n + 1;
                 end if;
 
-                -- ---------- Memory transactions.
+                -- Memory transactions.
                 -- wen is ACTIVE LOW per byte lane, so all-ones means no store this edge.
                 is_store := (wen /= "1111");
                 is_load  := (mem_access_instr = '1') and (wen = "1111");
@@ -607,14 +606,14 @@ begin
                     end if;
                 end if;
 
-                -- ---------- Flags committed on a non-retire edge are a loud leak, never a silent drop, exactly like an off-retire CSR write.
+                -- Flags committed on a non-retire edge are a loud leak, never a silent drop, exactly like an off-retire CSR write.
                 -- Expected to stay silent: vesta's EXECUTE arm carries the same pmp, compressed and half-fetch guards as `is_disp`, and FPU_DONE is an unconditional retire.
                 if fp_flags_we = '1' and not retire then
                     emit("# FPFLAGSLEAK " & hdr(cyc) & hexnat(state, 2) & " "
                          & hexstr(fp_flags_val));
                 end if;
 
-                -- ---------- A compared C record only on a retire edge; any other edge's CSR commit is a loud leak.
+                -- A compared C record only on a retire edge; any other edge's CSR commit is a loud leak.
                 if csr_commit_we = '1' then
                     if retire then
                         csr_p := true; csr_pa := csr_addr; csr_pv := csr_commit_val;
@@ -624,7 +623,7 @@ begin
                     end if;
                 end if;
 
-                -- ---------- On a sequencer PMP abort, flush what DID commit.
+                -- On a sequencer PMP abort, flush what DID commit.
                 if (state = ST_CBOZ_WRITE or state = ST_ZCM_PUSH_ST or
                     state = ST_ZCM_POP_LD or state = ST_ZCM_JT_LD) and
                    (next_state = ST_TRAP_STATE or next_state = ST_MTRAP_SV) then
@@ -632,7 +631,7 @@ begin
                     clear_inflight;               -- no R: nothing architectural completed
                 end if;
 
-                -- ---------- The retire flush: R records, then M records, then C records.
+                -- The retire flush: R records, then M records, then C records.
                 if retire then
                     -- A retire with no committed rd write still emits one R record, writing x0.
                     if rd_n = 0 then
@@ -666,7 +665,7 @@ begin
                     clear_inflight;
                 end if;
 
-                -- ---------- T records: trap entries.
+                -- T records: trap entries.
                 if state = ST_IRQ_SV then          -- legacy path: capture here, emit at IRQ_JUMP
                     t_pend := true;
                     t_epc  := write_data;          -- pc_next, the pushed return PC
@@ -689,7 +688,7 @@ begin
                          & " " & hexstr(pc) & " " & hexstr(instr_curr) & " 3");
                 end if;
 
-                -- ---------- X records: events with no reference counterpart.
+                -- X records: events with no reference counterpart.
                 if state = ST_MTRAP_RET then
                     emit("X " & hdr(cyc) & "mret");
                 end if;
@@ -710,7 +709,7 @@ begin
                     wfi_armed := false;
                 end if;
 
-                -- ---------- One-shot probe: does INITIALIZE ever execute?
+                -- One-shot probe: does INITIALIZE ever execute?
                 if state = ST_INITIALIZE and not init_seen then
                     emit("# INIT " & hdr(cyc) & "INITIALIZE entered");
                     init_seen := true;

@@ -1,46 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# dvbubble.S
-#-----------------------------------------------------------------------------
-#
-# DET-B: divide dispatch in the split-fetch bubble.
-#
-# K5 BLIND DETECTOR.  Authored at unfixed HEAD 5c91e35 by an agent that has
-# never seen the fix (root-cause report sections 1-9 only; section 10, the fix
-# design, was not read).  Every expected value below is the RISC-V ISA value,
-# computed by an independent oracle -- not copied from any report.
-#
-# Self checking, and it does NOT stop at the first wrong row: each row ORs a
-# bit into x31 (value failures) or x30 (structural/alignment failures), and the
-# verdict is taken once at the end.  So a single run exercises and reports on
-# every row, and the accumulators give per row attribution.
-#
-
-# WHAT IT COVERS.  The ALU's divide FSM arms off a RAW combinational
-# decode of alu_control with no dispatch qualification.  In the shape-E
-# split-fetch bubble -- the EXECUTE cycle of a 32-bit instruction that
-# straddles a word boundary, in which instr_curr is HELD at the previous
-# instruction -- the strobe therefore fires for a divide that already
-# retired, latches THAT divide's sel_signed/sel_rem, and sticks in
-# ALU_DIV_WAIT.  The next divide, at ANY distance, then computes a
-# DIFFERENT OPCODE ON ITS OWN CORRECT OPERANDS.
-#
-# STRUCTURAL CONSTRUCTION, not tuned constants.  Each row starts with
-# `.balign 4' OUTSIDE `.option norvc' (measured to be the only form that
-# aligns here) and then differs ONLY by whole halfwords emitted as
-# explicit `.2byte 0x0001' (c.nop).  Inside norvc every instruction is
-# exactly 4 bytes, so each row's parity follows from its own text.  Every
-# address relationship the mechanism needs is ALSO ASSERTED AT RUN TIME
-# (x30), so a toolchain change cannot make this test silently stop
-# covering -- it makes it fail.
-#
-# ROW INDEPENDENCE.  Only the instruction IMMEDIATELY after a divide can
-# arm the bubble (instr_curr_prev holds that divide for exactly one
-# EXECUTE cycle).  So every row whose last divide sits at mod4==2 is
-# followed by a c.nop, which is compressed and therefore not a straddle.
-# Each row additionally opens with a WORD ALIGNED canary divide that would
-# absorb, and report, any stale arm leaking out of the row before it.
+# VestaRV: divide dispatch in the split-fetch bubble
+# THE DEFECT: the ALU's divide FSM arms off a RAW combinational decode of alu_control with no dispatch qualification. In the split-fetch bubble, the EXECUTE cycle of a 32-bit instruction that straddles a word boundary, instr_curr is HELD at the previous instruction, so the strobe fires for a divide that already retired, latches THAT divide's signed and remainder selects, and sticks in the wait state. The next divide, at any distance, then computes a DIFFERENT OPCODE ON ITS OWN CORRECT OPERANDS.
+# Self-checking and non-stopping: each row ORs a bit into x31 for a value failure or x30 for a structural one, and the verdict is taken once at the end, so a single run reports on every row and the accumulators give per-row attribution. Expected values are the RISC-V ISA values from an independent oracle.
+# THE CONSTRUCTION IS STRUCTURAL, NOT TUNED. Each row starts with `.balign 4' OUTSIDE `.option norvc', which is the only form that aligns here, and rows differ ONLY by whole halfwords emitted as explicit `.2byte 0x0001' c.nops; inside norvc every instruction is exactly 4 bytes, so each row's parity follows from its own text. EVERY ADDRESS RELATIONSHIP THE MECHANISM NEEDS IS ALSO ASSERTED AT RUN TIME, so a toolchain change cannot make this test silently stop covering: it makes it fail.
+# ROW INDEPENDENCE: only the instruction IMMEDIATELY after a divide can arm the bubble, because the previous-instruction latch holds that divide for exactly one EXECUTE cycle. So every row whose last divide sits at an odd halfword is followed by a c.nop, which is compressed and therefore not a straddle, and each row additionally opens with a WORD-ALIGNED canary divide that would absorb and report any stale arm leaking out of the row before it.
 
 #include "riscv_test.h"
 #include "test_macros.h"

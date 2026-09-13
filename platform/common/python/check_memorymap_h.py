@@ -1,26 +1,11 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""Standing gate: prove the generated MemoryMap.h is C-includable.
+# coding: utf-8
+"""VestaRV: prove the generated MemoryMap.h is C-includable.
 
-The chip generator emits a C header (out/software/include/MemoryMap.h). It must
-compile cleanly as freestanding RISC-V C — a regression here (e.g. duplicate
-struct-padding member names) silently breaks every downstream firmware build,
-because the header itself stops being `#include`-able.
-
-This script writes a tiny translation unit that includes the header and runs
-    riscv-none-elf-gcc -march=rv32ima -mabi=ilp32 -ffreestanding -fsyntax-only
-against it. Exit 0 = the header parses; nonzero = it does not (the compiler's
-diagnostics are printed verbatim).
-
-Usage:
-    python3 check_memorymap_h.py [path/to/MemoryMap.h]
-
-With no argument it checks the default emitted header,
-../out/software/include/MemoryMap.h (relative to this script).
-
-Kept Python-3.6-compatible (no f-strings with '=', no walrus, no dirs_exist_ok);
-never invoked as `python3 -c "..."` (this machine's python3 is a Calibre wrapper
-that strips quotes) — it is a script FILE on purpose.
+Writes a translation unit that includes the header and runs riscv-none-elf-gcc
+-march=rv32ima -mabi=ilp32 -ffreestanding -fsyntax-only over it; a regression such as a
+duplicate struct-padding member name breaks every downstream firmware build. Exit 0 parses.
+Python 3.6 compatible, and a script file on purpose: this host's python3 strips quotes.
 """
 
 import os

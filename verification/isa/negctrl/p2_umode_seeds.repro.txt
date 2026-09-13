@@ -1,5 +1,4 @@
-P2 U-mode negative controls — seeded-bug repro (P2 agent, 2026-07-28)
-=====================================================================
+VestaRV: P2 U-mode negative controls, seeded-bug repro
 
 FOUR committed seeds, one repro. All four are RTL-ONLY (no image rebuild
 between clean/seeded/reverted), and all four are caught by a bounded
@@ -13,9 +12,7 @@ hang. The failing check id is left in t4 (x29) and a0 = 0xDEADBEEF.
   p2_twignore_seed.patch          privucsr      33    (c) p0_specs.md §3 negctrl
   p2_csrcommit_seed.patch         privucsr      27    EXTRA — see below
 
-----------------------------------------------------------------------------
 (a) p2_mppstuck_seed.patch — hdl/common/vesta/csr_unit.vhd
-----------------------------------------------------------------------------
 The MRET arm drops `mst_mpp <= MPP_U;`, i.e. the privilege POP restores
 priv <- MPP but never forces MPP <- 00 (p0_specs.md §3: "MRET: priv<-MPP,
 MPP<-00" — the half that stops a second MRET re-escalating).
@@ -28,9 +25,7 @@ Seeded it reads 0x1880 and the bounded bne fires.
 U-entry MRET is taken with MPP already 00, so cleared-vs-unchanged are
 indistinguishable there. CHECK 8's M->M MRET with MPP=11 is the discriminator.)
 
-----------------------------------------------------------------------------
 (b) p2_privgate_seed.patch — hdl/common/vesta/maindec.vhd
-----------------------------------------------------------------------------
 `u_csr_denied` loses the `imm12(9 downto 8) /= "00"` term, i.e. the ONE
 comparator that makes every machine (0x3xx/0xBxx/0xFxx) and custom (0x7C0)
 CSR illegal in U-mode. (The mcounteren term is left, so poisons 8/9 still
@@ -40,9 +35,7 @@ privucsr POISON 1 is a U-mode `csrr mstatus`. It no longer traps, so the U
 code falls through to its own bounded witness `bne s3, s11` (the U code
 carries its expected trap count) and FAILs at CHECK 10.
 
-----------------------------------------------------------------------------
 (c) p2_twignore_seed.patch — hdl/common/vesta/maindec.vhd
-----------------------------------------------------------------------------
 Both mstatus.TW consumers are neutered (`if false then` in the SYSTEM PRIV
 WFI arm, and `not false` in the wfi_op output qualifier), i.e. WFI is legal
 in U-mode regardless of TW.
@@ -53,9 +46,7 @@ WFI is legal, enters SLEEPING, and wakes IMMEDIATELY on that pending source
 (mstatus.MIE stays 0, so nothing is delivered) — it resumes at WFI+4, lands
 on `bne s3, s11`, and FAILs at CHECK 33. It can never hang.
 
-----------------------------------------------------------------------------
 (d) p2_csrcommit_seed.patch — hdl/common/vesta/maindec.vhd   [EXTRA]
-----------------------------------------------------------------------------
 Not in the p0_specs.md §3 list — added because it guards a REAL ESCAPE found
 while building this phase. `csr_valid` (which IS csr_unit's write enable:
 `csr_write_en <= csr_valid when ...`) is reverted to a bare `is_csr_instr`,
@@ -76,9 +67,7 @@ which also gates isr_ret and the sleep_cpu flop). Evidence that block is
 load-bearing: with the maindec fix in place but before the vesta block
 existed, privucsr FAILED at CHECK 27 (t4 = 27, a0 = 0xDEADBEEF).
 
-----------------------------------------------------------------------------
 Proven results (ON build, CORE_ENABLE_TRAPCSR = CORE_ENABLE_UMODE = true)
-----------------------------------------------------------------------------
   clean RTL                   -> TEST PASSED - ../rcf/rv32ua-p-privumode.rcf
   + p2_mppstuck_seed.patch    -> TEST FAILED - ../rcf/rv32ua-p-privumode.rcf
                                  (t4 = 8,  a0 = 0xDEADBEEF)
@@ -92,9 +81,7 @@ Proven results (ON build, CORE_ENABLE_TRAPCSR = CORE_ENABLE_UMODE = true)
   + p2_csrcommit_seed.patch   -> TEST FAILED (t4 = 27, a0 = 0xDEADBEEF)
   reverted                    -> TEST PASSED
 
-----------------------------------------------------------------------------
 Exact repro (from the repo root; privumode/privucsr are ON-ONLY tests)
-----------------------------------------------------------------------------
 The ON hardware is a `make chip` product, not a hand edit. The test arms are
 selected by the phase-standard EXPLICIT-APPEND dispatch (both -D flags
 appended to RISCV_GCC_OPTS, never auto-derived from a header).

@@ -1,14 +1,9 @@
 #!/usr/bin/env python3
-# check_register_browser.py — provenance gate for docs/register_browser.html
-#
-# Verifies that the memory-map data embedded in the register browser page
-# (between the /*VESTA_REGDATA_BEGIN*/ ... /*VESTA_REGDATA_END*/ markers) is
-# byte-identical (after whitespace normalisation) to a source MemoryMap.json,
-# and that the peripheral / register counts agree.
-#
-#   python3 tools/python/check_register_browser.py
-#   python3 tools/python/check_register_browser.py --spot CLINT.MSIP0
-#
+# VestaRV: provenance gate for docs/register_browser.html.
+# Verifies that the memory-map data embedded between the /*VESTA_REGDATA_BEGIN*/ and
+# /*VESTA_REGDATA_END*/ markers is identical, after whitespace normalisation, to a source
+# MemoryMap.json, and that the peripheral and register counts agree.
+#   python3 tools/python/check_register_browser.py [--spot CLINT.MSIP0]
 # Python 3.6 compatible. Exits non-zero with a diff summary on any mismatch.
 from __future__ import print_function
 import argparse

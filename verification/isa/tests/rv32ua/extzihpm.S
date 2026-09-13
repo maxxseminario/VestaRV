@@ -1,32 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extzihpm.S   (X1 Zihpm ext-probe, 2026-07-17)
-#-----------------------------------------------------------------------------
-# Adaptive probe for the Zihpm hardware performance counters (ENABLE_ZIHPM) AND
-# a companion for the UNCONDITIONAL csr_valid base repair (Deliverable A). One
-# image, BOTH polarities: the arm is chosen at RUN TIME by whether counter 3
-# actually moves, so the SAME rcf proves the OFF behavior in the default suite
-# and the ON behavior under the ENABLE_ZIHPM build (no include-path surgery, no
-# per-polarity rebuild of THIS file — see the report for the rationale vs the
-# compile-time #ifdef template).
-#
-#   ON  (ENABLE_ZIHPM true):  program event 1 (arbiter-stall) on counter 3 and
-#       event 2 (shared-bus grants) on counter 4, hammer the shared bus, and
-#       require  stall_cycles(c3) > grant_count(c4)  (each grant costs several
-#       stall cycles) — this is the exact assertion the negative-control event
-#       1<->2 swap violates. Then: counter 3 nonzero+monotone across two reads;
-#       mhpmevent3=0 freezes it; counter 5 reads zero and swallows writes.
-#   OFF (ENABLE_ZIHPM false): counters 3/4/5 read zero, writes ignored, event
-#       selector reads zero, and NONE of these legal CSRs trap.
-#
-# Every CSR touched here is in the csr_valid map, so this probe NEVER traps in
-# either polarity (the trap side of Deliverable A is the extbadcsr.S poison).
-#
-# Whole file is `.option norvc/norelax` so the image is fixed-width base + the
-# explicit CSR ops; `.option arch, +zicsr` admits the CSR encodings (rv32ua's
-# -march has no zicsr).
-#*****************************************************************************
+# VestaRV: Zihpm hardware performance counter probe
+# ONE IMAGE, BOTH POLARITIES, chosen at RUN TIME by whether counter 3 actually moves, so the same rcf proves the OFF behaviour in the default suite and the ON behaviour under an ENABLE_ZIHPM build with no include-path surgery and no per-polarity rebuild.
+# With the counters present it programs event 1, arbiter stall, on counter 3 and event 2, shared-bus grants, on counter 4, hammers the shared bus, and requires stall_cycles(c3) > grant_count(c4), since each grant costs several stall cycles; that is the exact assertion a swap of events 1 and 2 violates. It then requires counter 3 to be nonzero and monotone across two reads, mhpmevent3 = 0 to freeze it, and counter 5 to read zero and swallow writes. Without them, counters 3, 4 and 5 read zero, writes are ignored, the event selector reads zero, and NONE of these legal CSRs trap.
+# Every CSR touched here is in the csr_valid map, so this probe never traps in either polarity; the trap side of that repair is the extbadcsr.S poison.
+# The whole file is `.option norvc` and `norelax`, so the image is fixed-width base plus the explicit CSR operations, and `.option arch, +zicsr` admits the CSR encodings, which the suite's base -march lacks.
 
 #include "riscv_test.h"
 #include "test_macros.h"

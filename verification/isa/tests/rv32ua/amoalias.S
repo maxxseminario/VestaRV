@@ -1,19 +1,8 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# amoalias.S  (WORD AMO rd/rs1/rs2 register-aliasing — DEFAULT build)
-#-----------------------------------------------------------------------------
-# The AMO datapath must read the address and the rs2 operand from ALIAS-PROOF
-# REGISTERED copies (latched at AMO_READ), not the live regfile ports: the FSM
-# writes rd in AMO_WRITEBACK, two states before the memory write, so for rd==rs1
-# or rd==rs2 the live ports carry the sign-extended old value, not the address /
-# original rs2. GCC can emit these aliased forms (e.g. amoadd rd,rd,(rs1)), so
-# they are real. This runs on the DEFAULT build (word A extension) and needs no
-# Zabha — it also pins the pre-existing word rd==rs2 fault (X2 F2).
-#
-# amoadd.w rd==rs1 (Case C) uses the registered address today and must ALREADY
-# pass — it proves the address path and is the negative control for Case A/B/D.
-#*****************************************************************************
+# VestaRV: word AMO register aliasing, rd equal to rs1 or rs2
+# THE AMO DATAPATH MUST READ THE ADDRESS AND THE rs2 OPERAND FROM ALIAS-PROOF REGISTERED COPIES latched at AMO_READ, not from the live regfile ports: the FSM writes rd in AMO_WRITEBACK, two states before the memory write, so for rd == rs1 or rd == rs2 the live ports carry the sign-extended old value rather than the address or the original rs2. GCC can emit these aliased forms, so they are real.
+# This runs on the DEFAULT build with the word A extension and needs no Zabha; it also pins the pre-existing word rd == rs2 fault. The rd == rs1 case for amoadd.w already uses the registered address and must ALREADY pass, so it proves the address path and is the negative control for the other cases.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# VestaRV: strip pin labels from a CDL netlist.
 
 import argparse
 

@@ -1,20 +1,10 @@
 #!/usr/bin/env python3
-# check_mcu_vhd.py — MCU.vhd drop-in checker (RTL-generation track, Phase 2)
-#
-# Compares the generated out/hdl/MCU.vhd against the hand-written RTL
-# hdl/common/MCU.vhd. The Phase-2 drop-in bar is BYTE-IDENTICAL apart from the
-# generated-file comment header, so the default mode strips the leading comment
-# block (and any blank lines that follow it) from both files and then requires
-# an exact match. Exit 0 = drop-in compatible.
-#
-# --structural relaxes the comparison to whitespace-normalized, comment-stripped
-# tokens — useful while iterating on the generator to separate "wrong logic"
-# from "wrong formatting". A structural pass is NOT the drop-in bar.
-#
-# Usage (from platform/common/):
-#   python3 python/check_mcu_vhd.py [--structural] [generated.vhd] [rtl.vhd]
-#
-# Python 3.6 compatible.
+# VestaRV: MCU.vhd drop-in checker.
+# Compares the generated out/hdl/MCU.vhd against hdl/common/MCU.vhd. The bar is byte-identical
+# apart from the generated-file comment header, so the default mode strips the leading comment
+# block and the blank lines after it from both files and requires an exact match; exit 0 means
+# drop-in compatible. --structural relaxes to whitespace-normalized, comment-stripped tokens,
+# a diagnostic aid and not the bar. Python 3.6 compatible.
 
 import difflib
 import os
@@ -22,10 +12,9 @@ import sys
 
 
 def stripHeader(lines):
-	'''Remove the leading comment block and following blank lines.
-
-	Both VHDL comment styles are recognized: the generated header is a
-	/* ... */ block, older masters wrote a run of -- lines.'''
+	'''Remove the leading comment block and the blank lines after it. Both VHDL comment styles are
+	recognized: the generated header is a /* ... */ block, older masters wrote a run of -- lines.
+	'''
 	i = 0
 	inBlock = False
 	while i < len(lines):

@@ -1,30 +1,9 @@
-"""Bazel rules for the verification/isa RISC-V test images.
+"""VestaRV: bazel rules for the verification/isa RISC-V test images.
 
-This is a faithful port of the verification/isa/Makefile compile_template plus
-the build_mp_images.sh / flash_prepend.sh staging that the CI job "Bootrom +
-ISA image builds" runs as `./build_mp_images.sh 4 rcf_ci`.
-
-WHY THIS EXISTS.  The Makefile keys `$(build_dir)/<suite>/<test>` on the .S
-alone.  The -march of the suite and the -DCORE_ENABLE_* / -DNHARTS polarity
-arrive through RISCV_GCC_OPTS, which is NOT a prerequisite of anything, so a
-rebuild at a different polarity reuses whatever ELF is already on disk.  That
-is the trap build_mp_images.sh works around with `rm -rf build/` and the
-build/.imgset stamp.  Here the march, the mabi, the define list and the linker
-script are all arguments of the compile action, so they are part of the action
-key: changing any one of them rebuilds exactly the images it affects, and
-nothing else.
-
-The pipeline per test, matching the Makefile step for step:
-  gcc <march> <mabi> <opts> <defines> -I... -T<ld> test.S -o test.elf
-  objdump <the Makefile's RISCV_OBJDUMP section list>          -> test.dump
-  objcopy -O binary --gap-fill=0x00                            -> test.bin
-  zero image of MEM_SIZE bytes, binary overlaid at BIN_OFFSET   -> test_padded.bin
-  //tools/build:bin2rcf --expect-words 20480                   -> test.rcf
-  //tools/build:rcf_flash --basename-len 22                    -> <x-pad>test.rcf
-
-The unflashed .rcf carries the plain test name.  The flashed image carries the
-x-padded 22-character name that riscv_tb's fixed 29-character TEST_FILE generic
-requires, which is what pad_all_rcf and flash_prepend.sh produce on disk.
+A port of the verification/isa Makefile plus the build_mp_images.sh staging. The Makefile
+keys a build product on the .S alone, so the march and the define polarity arrive outside the
+dependency graph and a rebuild reuses whatever ELF is on disk; here they are arguments of the
+compile action. The flashed image carries the x-padded 22-character name riscv_tb requires.
 """
 
 # Makefile MEM_SIZE / BIN_OFFSET / WORD_COUNT.
@@ -160,13 +139,8 @@ SHARED_LD = "//verification:env/p/link_shared.ld"
 _TOOLCHAIN = "@xpack_riscv_gcc//:toolchain"
 
 def flashed_rcf_name(basename):
-    """The x-padded 22-character image name pad_all_rcf produces.
-
-    Args:
-      basename: the test name, e.g. "rv32ui-p-simple".
-
-    Returns:
-      The padded file name, e.g. "xxxrv32ui-p-simple.rcf".
+    """The x-padded 22-character image name pad_all_rcf produces, for example
+    "xxxrv32ui-p-simple.rcf" from "rv32ui-p-simple".
     """
     name = basename + ".rcf"
     pad = RCF_BASENAME_LEN - len(name)
@@ -187,26 +161,9 @@ def riscv_isa_image(
         outdir = "",
         tags = [],
         visibility = None):
-    """Build one ISA test image: .elf, .dump, .bin, padded .bin, .rcf, flashed .rcf.
-
-    Args:
-      name: target name prefix.  The rule targets are <name>_elf, <name>_dump,
-        <name>_rcf and <name>_flashed; the output FILES keep the plain image
-        names (<basename>.elf and so on), which is why the rules cannot be
-        named after them.
-      src: the test .S source label.
-      march: the -march string for this suite, without the -march= prefix.
-      mabi: the -mabi string, without the -mabi= prefix.
-      defines: extra preprocessor flags, e.g. ["-DNHARTS=4"].  These are part of
-        the compile action key, which is the whole point of this port.
-      ld_script: label of the linker script to pass to -T.
-      hdrs: additional sources the compile reads (headers, included .S files).
-      gcc_opts: the RISCV_GCC_OPTS list.
-      basename: output file base name; defaults to name.
-      outdir: optional package-relative output subdirectory, with trailing slash.
-        Use it to hold two configurations of the same test in one package.
-      tags: tags applied to every generated target.
-      visibility: visibility applied to every generated target.
+    """Build one ISA test image: .elf, .dump, .bin, padded .bin, .rcf and flashed .rcf. The rule
+    targets are <name>_elf and friends while the output files keep the plain image names.
+    `defines` are part of the compile action key, which is the whole point of this port.
     """
     if basename == None:
         basename = name
@@ -317,23 +274,9 @@ def riscv_isa_suite(
         name_prefix = "",
         tags = [],
         visibility = None):
-    """Instantiate a whole ISA suite plus its :<suite>_rcfs / :<suite>_flashed groups.
-
-    Args:
-      suite: suite directory name, e.g. "rv32ui".
-      march: the suite's -march, matching its $(eval $(call compile_template,...)).
-      tests: the suite's <suite>_sc_tests list from tests/<suite>/Makefrag.
-      mabi: the suite's -mabi.
-      defines: the polarity define list, e.g. CI_DEFINES.
-      hdrs: shared compile inputs.
-      ld_overrides: {test name: linker script label} for the per-test overrides.
-      outdir: package-relative output subdirectory, with trailing slash.
-      name_prefix: prefix on the bazel target names, for a second configuration.
-      tags: tags applied to every generated target.
-      visibility: visibility applied to every generated target.
-
-    Returns:
-      None.
+    """Instantiate a whole ISA suite plus its :<suite>_rcfs and :<suite>_flashed groups. `tests` is
+    the suite's <suite>_sc_tests list from tests/<suite>/Makefrag, `march` matches its
+    compile_template call, and `name_prefix` allows a second configuration in one package.
     """
     rcfs = []
     flashed = []

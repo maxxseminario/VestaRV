@@ -1,17 +1,18 @@
+// VestaRV: polled UART driver interface
+// The uartx_* forms take a UARTx_t*; the bare uart_* forms act on UART0. UART_CALC_BR converts a clock and a baud rate into the BR register value, and the printX aliases are kept for older sources.
+
 #pragma once
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/** Includes **/
 // #include <MemoryMap.h>
 #include <myshkin.h>
 #include <stdint.h>
 
 
 
-/** Defines **/
 #define UART_CALC_BR(__clockfreq, __baudrate)	((__clockfreq / (16 * __baudrate)) - 1)
 #define UART_CALC_BAUDRATE(__clockfreq, __baud_control_reg)	(__clockfreq / (16 * (__baud_control_reg + 1)))
 

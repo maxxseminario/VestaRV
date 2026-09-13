@@ -1,28 +1,17 @@
-################################################################################
-#
-# Genus TCL script -- MCU_MP HIERARCHICAL TOP (M14 physical flow)
-#
-# Derived from tcl/MCU_MP.genus.tcl (the flat 4-hart flow). This synthesizes
-# the top level ONLY: the four hart instances resolve to the HARDENED tile --
-# hart_tile is NOT read as HDL, so it elaborates as a BLACKBOX (exactly how
-# the flat flow already treats GlitchFilter/POR/OscillatorCurrentStarved).
-# Real tile timing enters the flow in Innovus via the tile ILM/LEF
-# (innovus_mp/out/hart_tile.{ilm,lef}); Genus maps the top logic with DRC
-# constraints (max_transition, loads) and the top clocks.
-#
-# Consequences vs. the flat script:
-#   * no vesta/adddec/hart_tile read_hdl -- tile is a blackbox
-#   * no clk_cpu<h> clocks (those hpins are INSIDE the hardened tile; the
-#     tile SDC constrains them via the generated-clock fix -- M9c bug dead)
-#   * no hart<h>/ram0/PGEN false paths (tile-internal, in the tile SDC)
-#   * hart0's flash_clk_mem output (gated mclk, XIP) gets an explicit
-#     generated clock at the tile pin so spi0's flash-side logic stays
-#     constrained (the flat flow got this by propagation through the tile)
-#   * the emitted netlist may contain an EMPTY `module hart_tile` stub --
-#     the top Innovus run and the gate sim must bind the REAL tile netlist
-#     (stub is stripped by the Innovus wrapper / compile order in sim)
-#
-################################################################################
+# VestaRV: Genus synthesis of the MCU_MP top level only, against the hardened
+# hart tile. hart_tile is not read as HDL, so it elaborates as a blackbox, the way
+# the flat flow already treats GlitchFilter, POR and OscillatorCurrentStarved.
+# Real tile timing enters in Innovus through the tile ILM and LEF; Genus maps the
+# top logic against DRC constraints and the top clocks. Four consequences follow.
+#   No vesta, adddec or hart_tile read_hdl.
+#   No clk_cpu<h> clocks: those hpins are inside the tile and the tile SDC
+#     constrains them.
+#   No hart<h>/ram0 PGEN false paths: tile internal, in the tile SDC.
+#   hart0's flash_clk_mem output, the gated XIP mclk, gets an explicit generated
+#     clock at the tile pin so spi0's flash-side logic stays constrained; the flat
+#     flow got that by propagation through the tile.
+# The emitted netlist may carry an empty `module hart_tile` stub. The top Innovus
+# run and the gate sim must bind the real tile netlist instead.
 
 set INPUT_DIR        ../common/in
 set IP_DIR           /home/mseminario2/chips/myshkin/ip
@@ -56,9 +45,7 @@ set SPISCK_PERIOD	[expr 1 / [expr $SPISCK_FREQ * 0.001]]
 set FASTEST_PERIOD	[expr 1 / [expr $FASTEST_FREQ * 0.001]]
 puts "Target mclk/hfxt period in ns: $FASTEST_PERIOD"
 
-################################################################################
 # Procedures
-################################################################################
 proc getHMS {start stop} {
 	set s_per_m 60
 	set m_per_h 60
@@ -75,9 +62,7 @@ proc printRuntime {start stop} { puts "### UNL RUNTIME ### : [getHMS $start $sto
 proc tic {} { global START_TIME; set START_TIME [clock clicks -milliseconds] }
 proc toc {} { global START_TIME STOP_TIME; set STOP_TIME [clock clicks -milliseconds]; printRuntime $START_TIME $STOP_TIME }
 
-################################################################################
 # Root Attributes
-################################################################################
 tic
 set_db information_level 3
 
@@ -99,9 +84,9 @@ set_db init_lib_search_path [list \
 set_db init_hdl_search_path [list \
 	$HDL_DIR ]
 
-# M17: the pmk NLDM joins the list — the tile gate netlist read as source
-# below now contains HEADBUF16MA10TH power switches, which must resolve
-# against a library like every other tile cell.
+# The pmk NLDM is in the list because the tile gate netlist read as source below
+# contains HEADBUF16MA10TH power switches, which resolve against a library like
+# every other tile cell.
 set_db library [list \
 	rom_hvt_pg_nldm_tt_1p00v_1p00v_25c_syn.lib \
 	sram1p16k_hvt_pg_nldm_tt_1p00v_1p00v_25c_syn.lib \
@@ -118,9 +103,7 @@ set_dont_use TIEHIX1MA10TH false
 set_dont_use TIELOX1MA10TH false
 set_db use_tiehilo_for_const duplicate
 
-################################################################################
 # Read HDL (MCU_MP tree MINUS the tile: no vesta/, no adddec, no hart_tile)
-################################################################################
 puts "Reading HDL (MCU_MP top, hart_tile as blackbox)"
 set MP $HDL_DIR/common
 
@@ -157,7 +140,7 @@ read_hdl -vhdl -library work $MP/pwr_ctrl.vhd
 read_hdl -vhdl -library work $MP/resv_unit.vhd
 # CQ2b: AFE / EIS digital register stub (5 instances in MCU.vhd: AFE0-3 @0x4C00
 # sub-slots + EIS @0x7C00). Plain arbiter-slave register file, depends only on
-# IEEE (no MP package deps) — placed with the other control-plane slaves.
+# IEEE with no MP package dependencies, so it sits with the other slaves.
 read_hdl -vhdl -library work $MP/afe_stub.vhd
 
 # --- The tile: its HARDENED GATE NETLIST as verilog source ---
@@ -177,9 +160,9 @@ read_hdl -vhdl -library work $MP/afe_stub.vhd
 # (CDFG-214). Inject matching dummy verilog parameters into the module header
 # (generated copy -- the tile-only outputs stay pristine). Values = the one
 # real configuration; all four instances bind identically.
-# (M17 note: the post-M14 core ISA-extension generics ENABLE_* must be
-# injected too — the generated MCU.vhd passes them in every hart generic
-# map, and elaboration dies with CDFG-200 on the first missing one.)
+# The core ISA-extension generics ENABLE_* must be injected too: the generated
+# MCU.vhd passes them in every hart generic map, and elaboration dies with
+# CDFG-200 on the first one missing.
 exec bash -c "mkdir -p $INPUT_DIR && awk '
 	/^module hart_tile\\(/ { inhdr=1 }
 	{ print }
@@ -195,18 +178,16 @@ read_hdl $INPUT_DIR/hart_tile_top.gen.v
 # configuration; the tile netlist was synthesized with exactly those
 # values; PMP_ENTRIES is inert with ENABLE_PMP false). After the strip
 # SH_AW is the last remaining generic and loses its now-trailing comma.
-# Fixed 2026-08-05 (D2 open, R-D2-1(9)): the old '/=> CORE_ENABLE_/d'
-# pattern left 'PMP_ENTRIES => CORE_PMP_ENTRIES,' behind while deleting
-# the comma-less last ENABLE_DEBUG line -- two syntax errors since
-# d-series 0162546. MCU.vhd itself stays pristine (make-chip product).
+# The sed pattern must be '=> CORE_', not '=> CORE_ENABLE_': the narrower form
+# leaves 'PMP_ENTRIES => CORE_PMP_ENTRIES,' behind while deleting the comma-less
+# last ENABLE_DEBUG line, which is two syntax errors. MCU.vhd itself stays
+# pristine; it is a make-chip product.
 exec bash -c "sed -e '/=> CORE_/d' \
 	-e 's/SH_AW          => SH_AW,/SH_AW          => SH_AW/' \
 	$MP/MCU.vhd > $INPUT_DIR/MCU_top.gen.vhd"
 read_hdl -vhdl -library work $INPUT_DIR/MCU_top.gen.vhd
 
-################################################################################
 # Elaboration
-################################################################################
 puts "Elaborating $TOP_MODULE"
 elaborate $TOP_MODULE
 
@@ -225,9 +206,7 @@ foreach h {0 1 2 3} {
 	catch { set_db inst:$TOP_MODULE/hart$h .preserve true }
 }
 
-################################################################################
 # Constraints
-################################################################################
 
 # --- Clocks generated inside system0 (control plane) ---
 create_clock -name mclk			-domain mclk_domain			-period $FASTEST_PERIOD	hpin:$TOP_MODULE/system0/mclk_out
@@ -306,17 +285,13 @@ for {set h 0} {$h < $NUM_HARTS} {incr h} {
 	set_false_path -to pin:$TOP_MODULE/hart$h/ram0/PGEN
 }
 
-################################################################################
 # Top Design Attributes
-################################################################################
 set_max_transition 0.5
 set_load 0.600 [get_ports -filter "direction==out"]
 set_driving_cell -lib_cell INVX1MA10TH [get_ports -filter "direction==in"]
 set_db net:$TOP_MODULE/npu0/Decision[15] .dont_touch true
 
-################################################################################
 # Synthesis -- TIME-OPTIMIZED, AREA-RELAXED
-################################################################################
 puts "Synthesizing top design (MCU_MP hierarchical)"
 set_db auto_ungroup none
 set_db [get_db modules] .boundary_opto false
@@ -333,9 +308,7 @@ syn_generic
 syn_map
 syn_opt
 
-################################################################################
 # Reports
-################################################################################
 puts "Generating reports"
 report_area           > $REPORT_DIR/$BASENAME.area.rpt
 report_gates          > $REPORT_DIR/$BASENAME.gates.rpt
@@ -344,9 +317,7 @@ report_power -by_hierarchy -levels 4 > $REPORT_DIR/$BASENAME.power.rpt
 report_clock_gating   > $REPORT_DIR/$BASENAME.clk.rpt
 report_design_rules   > $REPORT_DIR/$BASENAME.rules.rpt
 
-################################################################################
 # Output Files
-################################################################################
 write_script > $OUTPUT_DIR/$BASENAME.g
 write_hdl    > $OUTPUT_DIR/$BASENAME.v
 write_sdc    > $OUTPUT_DIR/$BASENAME.sdc

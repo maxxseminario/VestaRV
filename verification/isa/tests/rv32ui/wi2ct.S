@@ -1,57 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# wi2ct.S  (digperiphs I2CT — firmware smoke, Stage 5)
-#-----------------------------------------------------------------------------
-# I2CT0 @0x6A00 hardware-autonomous I2C TARGET (slave) end-to-end smoke via an
-# I2C0-as-HOST loopback on the SHARED SDA0/SCL0 pad planes (P4.0/P4.1). Single-
-# hart directed (hart 0; tiles park). Proves the CPU can drive the I2C0 master
-# AND the I2CT0 target on the same open-drain bus (the D19 wired-AND DIR merge
-# makes the loopback legal), and that BOTH target IRQs route through irq_router
-# (HhENX bits 26/27) -> meip -> MEIP_DISPATCHER -> IVT -> plain-ret handler ->
-# CLAIM/COMPLETE:
-#   vector 122 = I2CT0_AE   (address-match / error / framing)
-#   vector 123 = I2CT0_DATA (rx-full / tx-ready)
-#
-# TB CONTRACT: the wound/verify riscv_tb gives P4.0 (SDA0) and P4.1 (SCL0) a
-# WEAK 'H' pull so the open-drain bus idles high (the Verilog pad model's buf()
-# normalizes the weak-high to a clean '1' at the MCU input). No firmware REN is
-# needed. I2C0's serial core is SMCLK -> this test writes SYS_CLK_CR=0 first
-# (bootrom parks SMCLK on LFXT); I2CT0 itself is MCLK (D2) and needs no clock
-# setup. PAD ROUTING (critical): SDA0/SCL0 are the AF0 (home) function of
-# P4.0/P4.1, but a pin only drives its alt-function when GPIO3 PxSEL=1 (reset
-# is PxSEL=0 = plain GPIO). This test sets P4SEL bit0/bit1 (P4AFS stays 0 = AF0)
-# so the I2C0 master's SDA/SCL actually reach the pads -- without it the master
-# reads back an un-driven pad and loses arbitration (I2CMARB) mid-address.
-#
-# I2CT0 register map (i2ct_design.md AS-BUILT; base 0x6A00, slot n @ +4n):
-#   CR 0x6A00 : EN[0] GCEN[1] CSEN[2] AEIE[3] DATAIE[4] SAD[14:8] SADM[22:16]
-#   SR 0x6A04 : BUSY[0] TM[1] AMF[2] GCF[3] RXF[4] TXE[5] OVF[6] NACKF[7]
-#               STOPF[8] RSTARTF[9] ERRF[10]  (AMF/GCF/RXF/OVF/NACKF/STOPF/
-#               RSTARTF/ERRF are W1C; BUSY/TM/TXE read-only)
-#   TX 0x6A08 : [7:0] next transmit byte (a write loads the buffer, clears TXE)
-#   RX 0x6A0C : [7:0] last received byte (RO, side-effect-free)
-#   irq_ae   = (AMF|GCF|OVF|NACKF|STOPF|RSTARTF|ERRF) & AEIE   -> vector 122
-#   irq_data = (RXF|TXE) & DATAIE                              -> vector 123
-#
-# I2C0 master (I2C.vhd AS-BUILT; base 0x4E00):
-#   CR 0x4E00 : ... MDIV[16:13] ... MEN[21]
-#   FCR 0x4E04: MRB[0] MSP[1] MST[2] SC[3]  (write-1 command bits)
-#   SR 0x4E08 : SPR[0] STR[1] MXC[2] MNR[3] ...  (MXC/MNR are W1C)
-#   MTX 0x4E0C: master transmit byte (a write with MEN=1 issues MasterWrite);
-#               the FIRST byte after a START is the address byte {SAD<<1|RnW}
-#   MRX 0x4E10: master receive byte
-#
-# HANDLER STRATEGY (M19 plain-ret ABI; t0-t2 dispatcher-saved; ra survives):
-#   ae_handler (122)  : accumulate the SR snapshot into AE_FLAGS, bump AE_CNT,
-#                       then MASK AEIE (drop irq_ae) while LEAVING AMF set so the
-#                       DATA handler can still witness the address match; W1C the
-#                       framing/error flags EXCEPT AMF.
-#   data_handler (123): demux. On RXF -> record AMF-at-RXF, read I2CTRX into
-#                       RX_MB, W1C RXF+AMF, set RX_GOT. On TXE -> load I2CTTX with
-#                       the staged byte (clears TXE, RELEASES the CSEN TX stretch,
-#                       D11), set TX_SERVICED.
-#*****************************************************************************
+# VestaRV: autonomous I2C target smoke over an I2C0 loopback
+# Hart 0 only, tiles parked. I2CT0 at 0x6A00 is the hardware-autonomous I2C TARGET, exercised end to end by using I2C0 as the host on the SHARED SDA0/SCL0 pad planes, which the wired-AND direction merge makes legal. It proves the CPU can drive both on the same open-drain bus and that BOTH target interrupts route through irq_router HhENX bits 26 and 27, meip, the MEIP_DISPATCHER, the IVT and plain-ret handlers that claim and complete: vector 122 is the address-match, error and framing source and vector 123 is the data source.
+# TB CONTRACT: the bench gives the two pads a WEAK 'H' pull so the open-drain bus idles high, and the pad model normalises that to a clean 1 at the MCU input, so no firmware pull-enable is needed. I2C0's serial core is SMCLK, SO SYS_CLK_CR IS ZEROED FIRST, since the boot ROM parks SMCLK on LFXT; I2CT0 itself is mclk and needs no clock setup. PAD ROUTING IS CRITICAL: SDA0 and SCL0 are the AF0 home function of those pins, but a pin only drives its alternate function when GPIO3 PxSEL is 1 and PxSEL resets to 0, so this test sets the two PxSEL bits, leaving PxAFS at AF0; without it the master reads back an undriven pad and loses arbitration mid-address.
+# I2CT0 registers, slot n at 0x6A00 + 4n: CR = EN[0] GCEN[1] CSEN[2] AEIE[3] DATAIE[4] SAD[14:8] SADM[22:16]; SR = BUSY[0] TM[1] AMF[2] GCF[3] RXF[4] TXE[5] OVF[6] NACKF[7] STOPF[8] RSTARTF[9] ERRF[10], where all but BUSY, TM and TXE are write-1-to-clear and those three are read-only; TX loads the next transmit byte and clears TXE; RX holds the last received byte and is read-only and side-effect-free. The address-and-error interrupt is the OR of the framing and error flags gated by AEIE, and the data interrupt is RXF or TXE gated by DATAIE.
+# I2C0 master registers at 0x4E00: CR has MDIV at [16:13] and MEN at [21]; FCR has the write-1 command bits MRB, MSP, MST and SC; SR has SPR, STR, MXC and MNR, of which MXC and MNR are write-1-to-clear; MTX is the transmit byte, where a write with MEN set issues a master write and the FIRST byte after a START is the address shifted up with the read/write bit; MRX is the receive byte.
+# HANDLER STRATEGY under the plain-ret ABI, where the dispatcher saves t0 to t2 and ra survives: the address-and-error handler accumulates the status snapshot, bumps its counter, then MASKS its own enable to drop the level WHILE LEAVING THE ADDRESS-MATCH FLAG SET so the data handler can still witness the match, and clears the framing and error flags except that one. The data handler demultiplexes: on receive-full it records the address-match state, reads the byte and clears both flags; on transmit-empty it loads the staged byte, which clears the flag and RELEASES the clock stretch.
 
 #include "riscv_test.h"
 #include "test_macros.h"

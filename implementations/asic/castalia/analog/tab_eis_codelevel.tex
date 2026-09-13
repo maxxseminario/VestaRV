@@ -1,21 +1,16 @@
-%% HAND-WRITTEN table fragment (maestro2tex house style; nothing here is
+%% VestaRV: hand-written TRM table fragment, maestro2tex house style; nothing here is
 %% generated -- one transient record decoded by hand, not a Maestro results
 %% database, and there is no maestro2tex config for any *_eis_* fragment).
 %%
-%% 2026-08-27, OWNER'S EXPLICIT INSTRUCTION: THIS TABLE REPLACES THE FIGURE
-%% fig_eis_codelevel.tex, which took a full page to print ten scalars on the
-%% face of a chart.  That fragment is LEFT ON DISK UNEDITED and is no longer
-%% input by anything -- restoring it is putting an \input back and moving the
-%% \label.  Its header carries the same note and the full provenance.  Nothing
-%% measured is lost: every plotted value is a row here, at the precision of the
-%% source data rather than of a bar top.
-%%
-%% WHAT THE FIGURE CARRIED SPATIALLY AND THIS TABLE CARRIES OTHERWISE:
-%%   - filled vs open markers (measured vs corrected vs analytic control) ->
-%%     the Reading column.
+%% This table replaces the figure fig_eis_codelevel.tex, which is on disk and no longer
+%% input; restoring it is putting an \input back and moving the \label. Every plotted
+%% value is a row here, at the precision of the source data rather than of a bar top.
+%% What the figure carried spatially, this table carries otherwise:
+%%   - filled vs open markers (measured vs corrected vs analytic control) -> the
+%%     Reading column.
 %%   - the +-0.573 deg gate band -> the gate column.
-%%   - the dashed -180 f/f_s line the two interleaved reads sit on -> a row of
-%%     its own, adjacent to them, marked analytic.
+%%   - the dashed -180 f/f_s line the two interleaved reads sit on -> a row of its own,
+%%     adjacent to them, marked analytic.
 %%
 %% Source of every number: ~/chips/castalia/simruns/eisfigs2_20260826/
 %%   data/fig5a_attribution.csv (magnitude block, column step_delta_pp) and
@@ -45,7 +40,7 @@
 %% measured; pure sine on the same grids 0.000 deg.  +-0.573 deg caps an
 %% uncorrected interleaved read at 2768 Hz = 0.00318*f_s.
 %%
-%% THE PURE-SINE ROW IS COMPUTED, NOT SIMULATED: an ideal excitation on the
+%% The pure-sine row is computed, not simulated: an ideal excitation on the
 %% analytic load with a single-pole Z_t fitted to the record's own zt_ac, point
 %% sampled on the two interleaved grids and demodulated exactly as the extractor
 %% does.  The same model driven with a two-code square returns +0.2727 % /
@@ -55,11 +50,11 @@
 %% Every other row is measured, save the deskewed row, which is a measured read
 %% less that exact angle.
 %%
-%% Caveats that had to survive into the caption: both blocks are referred to the
-%% AC ANALYSIS OF THE SAME LOAD AND GAIN CODE, whose own error against the
-%% analytic load is +0.295 % and +0.405 deg (against the analytic load the codes
-%% read +0.639 % and -2.533 deg); ONE record, ONE die, ONE frequency, ONE
-%% resistive load, no noise sources in the deck -- a deterministic attribution
+%% Caveats that must survive into the caption: both blocks are referred to the ac
+%% analysis of the same load and gain code, whose own error against the analytic load
+%% is +0.295 % and +0.405 deg (against the analytic load the codes read +0.639 % and
+%% -2.533 deg); one record, one die, one frequency, one resistive load, no noise
+%% sources in the deck -- a deterministic attribution
 %% and not a distribution, so there is nothing behind this table to quote a
 %% sigma from.  The record is demodulated over cycles 1-2; cycle 0 carries the
 %% TIA's step response to the first DAC edge and the last cycle demodulates
@@ -69,62 +64,33 @@
 %% attribution is unambiguous.
 %% Library cell names are kept out of the rendered prose.
 %%
-%% SET INLINE, NOT AS A FLOAT (2026-08-27).  The section's prose ends part-way
-%% down its last page and the \FloatBarrier that closes it turned a deferred
-%% float into a \newpage (placeins), so a 12-row table was costing a whole page
-%% of its own.  Written as an ordinary vertical box in the text stream instead:
-%% the table counter, the \label and the short-form List of Tables entry are
-%% unchanged because \captionof{table} steps and writes exactly what \caption
-%% does inside a table environment.
-%% NOT \begin{table}[H]: the float package, which defines the H specifier, is
-%% commented out in platform/common/latex/packages-commands.template.tex (that
-%% preamble is shared across chips and is not ours to add to).  caption IS
-%% loaded there, so \captionof is the available route.
-%% The box must not break across a page -- caption on one page and body on the
-%% next is worse than the float was -- hence the \parbox, with the \addvspace
-%% pair standing in for the float's \intextsep.
-%% THE \parbox IS LOAD-BEARING, not cosmetic.  Written as loose vertical
-%% material the block was unbreakable anyway, but \captionof's
-%% \addcontentsline whatsit is NOT: the page builder flushed it to the page
-%% BEFORE the one the table landed on, and the List of Tables then printed the
-%% wrong page number (114 for a table on 115) while \ref and the hyperlink were
-%% both right -- a wrong number that no lint and no log line reports.  Inside a
-%% box the whatsit ships with the box.  Verified in the built TRM.lot.
-%% [b] so the box is all height and no depth: a 320 pt depth on the line that
-%% carries it is what \maxdepth exists to police.  It renders identically to
-%% the default alignment here (byte-identical PDF) -- it is insurance against a
-%% future reflow that lands the block elsewhere on a page.
+%% Set inline, not as a float. The section's prose ends part-way down its last page and
+%% the \FloatBarrier that closes it turns a deferred float into a \newpage (placeins),
+%% so a 12-row table costs a whole page. As an ordinary vertical box in the text stream
+%% the table counter, the \label and the short-form List of Tables entry are unchanged,
+%% because \captionof{table} steps and writes exactly what \caption does inside a table
+%% environment. Not \begin{table}[H]: the float package, which defines the H specifier,
+%% is commented out in platform/common/latex/packages-commands.template.tex, a shared
+%% preamble that is not ours to add to; caption is loaded there, so \captionof is the
+%% available route.
+%% The \parbox is load-bearing. The box must not break across a page, and although
+%% loose vertical material would be unbreakable anyway, \captionof's \addcontentsline
+%% whatsit is not: the page builder flushes it to the page before the one the table
+%% lands on, and the List of Tables then prints a page number one short while \ref and
+%% the hyperlink are both right -- an error no lint and no log line reports. Inside a
+%% box the whatsit ships with the box. The \addvspace pair stands in for the float's
+%% \intextsep, and [b] makes the box all height and no depth, which is what \maxdepth
+%% exists to police; it renders identically to the default alignment here and is
+%% insurance against a future reflow.
 %%
-%% 2026-08-27, CAPTION CUT (nine rendered lines / 122 pt -> six).  Four
-%% sentences before and after; the sentences were the long thing, not the
-%% count.  WHAT LEFT, and where it still lives:
-%%   - "the excitation synthesised by the real 12-bit ladder": the section's
-%%     own prose already says the record was "excited by the real reference
-%%     ladder and read through the input multiplexer and an extracted
-%%     converter" (note_eis_accuracy.tex), so the condition is stated once in
-%%     the section instead of twice.  Provenance for it is unchanged above:
-%%     code pair 2032/2064 out of the real ladder.
-%%   - "three successive readings of that one record" -> "magnitude rows
-%%     accumulate to the total", which is the part a reader must have to read
-%%     the block (and which stops the phase rows being summed the same way).
-%%     The count of three is the three rows themselves.
-%%   - "64 conversions per excitation period": ARITHMETIC ON TWO NUMBERS THAT
-%%     ARE BOTH STILL IN THE CAPTION -- 869 565 / 13 587 = 64.0 exactly, which
-%%     is also what makes the -180 f/f_s row 2.8125 deg.  Dropped as derived,
-%%     not as a measured quantity; it is still in the provenance block above.
-%%   - "one record of" in the opening sentence, because the closing sentence
-%%     says "One record, one die, one frequency" in bold and the caveat is
-%%     stated once and tersely rather than twice.
-%% NOTHING NUMERIC LEFT.  The two caveats that change how a number reads are
-%% both still here and still attached to their number: the reference for BOTH
-%% blocks is the small-signal analysis, itself +0.295 % and 0.405 deg from the
-%% analytic load (without which the +0.343 % total reads as an absolute error
-%% and is not one); and ONE record, ONE die, ONE frequency into a RESISTIVE
-%% load with no noise sources -- a deterministic attribution, nothing to quote
-%% a sigma from.  Archive for everything in and around this table:
-%% ~/chips/castalia/simruns/eisfigs2_20260826 (data/fig5a_attribution.csv,
-%% data/fig5b_phase.csv) and ~/chips/castalia/simruns/eisdeep_20260826
-%% (code_report/).
+%% Two caveats in the caption change how a number reads and must stay attached to it:
+%% the reference for both blocks is the small-signal analysis, itself +0.295 % and
+%% 0.405 deg from the analytic load (without which the +0.343 % total reads as an
+%% absolute error and is not one); and it is one record, one die, one frequency into a
+%% resistive load with no noise sources, a deterministic attribution with no sigma to
+%% quote. Archive: ~/chips/castalia/simruns/eisfigs2_20260826
+%% (data/fig5a_attribution.csv, data/fig5b_phase.csv) and
+%% ~/chips/castalia/simruns/eisdeep_20260826 (code_report/).
 \par\addvspace{\intextsep}
 \noindent\parbox[b]{\textwidth}{%
   \captionof{table}[{Impedance from converter codes: magnitude attribution and the phase

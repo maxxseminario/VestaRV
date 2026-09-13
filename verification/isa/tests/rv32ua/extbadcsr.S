@@ -1,20 +1,8 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extbadcsr.S   (X1 Deliverable-A poison, 2026-07-17)
-#-----------------------------------------------------------------------------
-# UNCONDITIONAL negative control for the csr_valid base repair. Before the
-# repair, csr_unit's read `others` arm returned zero with NO trap, so ANY
-# unknown CSR silently read zero — the priv-spec gap. After the repair, maindec
-# decodes the CSR address and drops valid_funct for an unknown one, so the
-# access takes the illegal-instruction trap.
-#
-# 0x5C0 is outside every documented/implemented range (not mhartid/misa, not the
-# counter or hpm ranges, not mcountinhibit/mcounteren) — a genuinely unknown
-# CSR. Reading it MUST trap on EVERY build (this repair ships regardless of any
-# generic), so this poison is run under the trap-watching harness in BOTH
-# polarities. Surviving the read = the repair is broken = FAIL.
-#*****************************************************************************
+# VestaRV: unknown-CSR poison, the negative control for the csr_valid base repair
+# Before the repair csr_unit's read `others` arm returned zero with NO trap, so any unknown CSR silently read zero; after it, maindec decodes the CSR address and drops valid_funct for an unknown one, so the access takes the illegal-instruction trap.
+# 0x5C0 is outside every documented and implemented range, so it is a genuinely unknown CSR. READING IT MUST TRAP ON EVERY BUILD, since this repair ships regardless of any generic, so the poison is run under the trap-watching harness in BOTH polarities. Surviving the read means the repair is broken and is a FAIL.
 
 #include "riscv_test.h"
 #include "test_macros.h"

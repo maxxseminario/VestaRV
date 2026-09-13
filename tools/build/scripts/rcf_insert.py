@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# VestaRV: insert one RCF image into another at a word offset.
 
 import argparse
 import sys
@@ -37,17 +38,8 @@ def write_rcf_file(filename, lines):
         sys.exit(1)
 
 def insert_rcf_at_index(base_rcf, insert_rcf, word_index, pad_value='11111111111111111111111111111111'):
-    """
-    Insert one RCF file into another at specified word index.
-    
-    Args:
-        base_rcf: List of binary strings from base RCF file
-        insert_rcf: List of binary strings to insert
-        word_index: Word offset where to insert (0-based)
-        pad_value: Binary string to use for padding (default is 0xFFFFFFFF)
-    
-    Returns:
-        Combined list of binary strings
+    """Insert one RCF word list into another at a 0-based word index, padding with pad_value
+    (0xFFFFFFFF by default). Returns the combined list of binary strings.
     """
     # If word_index is beyond current file, pad with pad_value
     while len(base_rcf) < word_index:

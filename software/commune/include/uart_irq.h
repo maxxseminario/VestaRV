@@ -1,21 +1,21 @@
+// VestaRV: interrupt-driven UART0 driver interface
+// Transmit and receive are buffered in software and serviced from the UART0 ISR, so uart_putchar returns before the byte is on the wire; uart_transmitting() reports when the queue has drained.
+
 #pragma once
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/** Includes **/
 #include <stdint.h>
 
 
 
-/** Defines **/
 #define UART_CALC_BR(__clockfreq, __baudrate)	((__clockfreq / (16 * __baudrate)) - 1)
 #define UART_CALC_BAUDRATE(__clockfreq, __baud_control_reg)	(__clockfreq / (16 * (__baud_control_reg + 1)))
 
 
 
-/** External Function Declarations **/
 void uart_init_default(uint16_t baud_register_value);
 void uart_putchar(char c);
 char uart_getchar();

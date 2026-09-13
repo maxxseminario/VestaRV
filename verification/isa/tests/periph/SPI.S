@@ -1,26 +1,7 @@
-#*****************************************************************************
-# SPI.S
-#-----------------------------------------------------------------------------
-#
-# Test SPI peripheral(s) instruction.
-#
-
-# ---------------------------------------------------------------
-# RISC-V Assembly: SPI Peripheral Master & Slave Mode Test Loops
-# - GP register (gp = x3) stores TestNum.
-# - In the center of the innermost loop, construct the SPI control word
-#   from the loop variables and store it in register s1.
-# - The control word format (matching SPIxCR):
-#   [18] spi_mode | [17] spi_tx_sb | [16] spi_rx_sb | [15:8] spi_br
-#   | [7] spi_en | [6] spi_msb | [5] spi_tcie | [4] spi_teie
-#   | [3:2] spi_dl | [1] spi_cpol | [0] spi_cpha
-# - For test, use loop variables for relevant bits; others (spi_br, spi_en, spi_tcie, spi_teie) set to 0.
-# Test 0: Dummy Transfer
-# Test (Odd 1-191) Master (SPI0) RX & Slave (SPI1) TX Tests 
-# Test (Even 2-192) Master (SPI1) TX & Slave (SPI0) RX Tests 
-# Test (Odd 193-385) Master (SPI1) RX & Slave (SPI0) TX Tests 
-# Test (Even 194-384) Master (SPI0) TX & Slave (SPI1) RX Tests 
-# ---------------------------------------------------------------
+# VestaRV: SPI master and slave transfer test
+# SPI0 and SPI1 are wired to each other, and the test sweeps the control word built in s1 from the loop variables; gp holds the test number.
+# Control word layout, matching SPIxCR: [18] spi_mode, [17] spi_tx_sb, [16] spi_rx_sb, [15:8] spi_br, [7] spi_en, [6] spi_msb, [5] spi_tcie, [4] spi_teie, [3:2] spi_dl, [1] spi_cpol, [0] spi_cpha. Only the swept bits vary; spi_br, spi_en, spi_tcie and spi_teie stay 0.
+# Test 0 is a dummy transfer. Tests 1-192 run SPI0 as master and SPI1 as slave (odd = master RX, even = master TX); tests 193-385 swap the roles.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,5 +1,5 @@
--- aludec.vhd
--- ALU control decoder: turns the main decoder's ALU_op class plus the instruction's funct3 and funct7 bit 5 into the ALU's 5-bit operation code.
+-- VestaRV: ALU control decoder
+-- Turns the main decoder's ALU_op class plus the instruction's funct3 and funct7 bit 5 into the ALU's operation code.
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use work.constants.all;

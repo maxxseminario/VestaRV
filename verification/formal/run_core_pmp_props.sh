@@ -1,27 +1,15 @@
 #!/bin/sh
-# verification/formal/run_core_pmp_props.sh   (K4 -- R-S4-1's deferred D5 item)
-#
-# TRACKED runner for the CORE-level PMP suppression set.  Unlike the three S4
-# runners, the DUT here is the whole core inside the real testbench: the D5 arm
-# is an EXECUTE arm of vesta's FSM, and the only stimulus that reaches it is a
-# program.  So this runs ONE staged `make verify` configuration's compile list
-# plus ONE test wrapper under xrun with the property file attached.
-#
-#   CHIP=verify_castaliapmp  TEST=rv32ua-p-pmpfq  MODE=props ./run_core_pmp_props.sh
-#
-#   MODE=props    expect ZERO fires   (rc 0 = pass, 1 = property fire)
-#   MODE=witness  expect EVERY witness to fire (rc 0 = all fired, 1 = a silent
-#                 witness, which is a finding against the STIMULUS)
-#   rc 2          = infrastructure: nothing elaborated / no staged config
-#
-# The staged directory is a `make verify CONFIG=<a pmp config>` product
-# (platform/common/verify.sh).  It must exist and must have been built with
-# ENABLE_PMP true -- an ENABLE_PMP=false build compiles the properties fine and
-# they are VACUOUS, which is exactly what the witness file exists to catch.
-#
-# NOTE: `set -e`/`set -u` are deliberately NOT used -- cdspaths.sh references a
-# never-defined assuraPath and `set -u` kills the shell before xrun ever runs
-# (the S4 lesson, R-S4-3 item 6).
+# VestaRV: run the core-level PMP suppression property set. The DUT is the whole
+# core in the real testbench, so the stimulus is one staged `make verify`
+# configuration's compile list plus one test wrapper.
+#   CHIP=verify_castaliapmp TEST=rv32ua-p-pmpfq MODE=props ./run_core_pmp_props.sh
+# MODE=props expects zero fires; MODE=witness expects every witness to fire, a
+# silent one being a finding against the stimulus. rc 0 pass, 1 property or
+# witness failure, 2 infrastructure. The staged config must have been built with
+# ENABLE_PMP true: an ENABLE_PMP=false build compiles the properties and they are
+# vacuous, which is what the witness file catches. `set -u` is absent because
+# cdspaths.sh references a never-defined assuraPath and would kill the shell
+# before xrun runs.
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 . "$ROOT/cdspaths.sh" >/dev/null 2>&1
 F="$ROOT/verification/formal"
@@ -42,20 +30,18 @@ ENT="tb_$(echo "$TEST" | tr '-' '_')"
 WRAP="$STAGE/wrappers/$ENT.vhd"
 [ -f "$WRAP" ] || { echo "FATAL: no wrapper $WRAP (was $TEST selected by this config?)"; exit 2; }
 
-# The polarity of the staged RTL is the whole point: say it out loud rather
-# than assume it (an ENABLE_PMP=false stage would run green and prove nothing).
+# The polarity of the staged RTL is printed rather than assumed: an
+# ENABLE_PMP=false stage runs green and proves nothing.
 echo "stage : $STAGE"
 grep -E "CORE_ENABLE_(PMP|UMODE|TRAPCSR|COMPRESSED)\s*:" "$STAGE/hdl/MemoryMap.vhd" | tr -s ' '
 
-# RUN IN A SCRATCH DIRECTORY, NOT IN THE STAGE. Two reasons, both measured:
-#   * the stage carries its own cds.lib pointing `work` at ./xcelium.d/work, and
-#     xrun's own library handling collides with it -- every package body came
-#     back "Intermediate file for package 'X' could not be loaded" and nothing
-#     elaborated;
-#   * a run here must never clobber the staged compiled library the `make
-#     verify` flow owns.
-# The wrapper's TEST_FILE generic is RELATIVE ("../<link>/<test>.rcf"), so the
-# scratch dir gets a symlink of the same name one level up from CWD.
+# Run in a scratch directory, never in the stage. The stage carries its own
+# cds.lib pointing `work` at ./xcelium.d/work, which collides with xrun's
+# library handling: every package body comes back "Intermediate file for package
+# 'X' could not be loaded" and nothing elaborates. A run here would also clobber
+# the compiled library the `make verify` flow owns. The wrapper's TEST_FILE
+# generic is relative ("../<link>/<test>.rcf"), so the scratch dir gets a symlink
+# of the same name one level up from CWD.
 LINK=$(sed -n 's|.*"\.\./\([a-z0-9][a-z0-9][a-z0-9]\)/.*|\1|p' "$WRAP" | sed -n 1p)
 [ -n "$LINK" ] || { echo "FATAL: cannot read the rcf link out of $WRAP"; exit 2; }
 RCFDIR="$ROOT/verification/isa/rcf_$LINK"
@@ -67,11 +53,10 @@ cat > "$WORK/run/cds.lib" <<LIB
 SOFTINCLUDE ${XCELIUM_HOME}/tools/xcelium/files/cds.lib
 DEFINE work ./xcelium.d/work
 LIB
-# The x-warning settings are INLINE, not sourced. The staged flow sources
-# ../../disable_x_warnings.tcl relative to its own directory; getting that path
-# wrong here is silent-ish and expensive -- the tcl source fails, the range
-# constraint stays an ERROR, and the run dies at time 0 having elaborated
-# perfectly. Same four settings, no path to get wrong.
+# The x-warning settings are inline rather than sourced. The staged flow sources
+# ../../disable_x_warnings.tcl relative to its own directory, and a wrong path
+# there fails quietly: the range constraint stays an error and the run dies at
+# time 0 having elaborated perfectly. Same four settings, no path to get wrong.
 cat > "$WORK/run/go.tcl" <<'TCL'
 set severity_pack_assert_off {warning}
 set pack_assert_off {std_logic_arith numeric_std}
@@ -82,17 +67,14 @@ exit
 TCL
 echo "link  : $LINK -> $RCFDIR"
 
-# The compile list is the staged one, in order; its paths are relative TO THE
-# STAGE, so they are absolutised here (CWD is the scratch dir, not the stage).
+# The compile list is the staged one, in order. Its paths are relative to the
+# stage, so they are absolutised here: CWD is the scratch dir, not the stage.
 cd "$STAGE" || { echo "FATAL: cannot enter $STAGE"; exit 2; }
-#
-# VESTA_SRC is THE FAIL-FIRST HOOK, and it exists so that a mutant never has to
-# be made in the tree.  Point it at a SCRATCH copy of hdl/common/vesta/vesta.vhd
-# and that copy is compiled in place of the tracked one; everything else in the
-# list is unchanged.  A property never seen to FAIL proves nothing (method rule
-# 1), and the S4 campaign's md5-edit-run-revert discipline on the real file is
-# one interrupted session away from leaving a mutant in the tree.  With this,
-# `git diff hdl/` is empty by construction.
+# VESTA_SRC is the fail-first hook, so a mutant never has to be made in the tree.
+# Point it at a scratch copy of hdl/common/vesta/vesta.vhd and that copy is
+# compiled in place of the tracked one; the rest of the list is unchanged. A
+# property never seen to fail proves nothing, and with this hook `git diff hdl/`
+# stays empty by construction.
 FILES=""
 for f in $(grep -vE '^\s*(#|$)' cell_list_behavioral.txt); do
     case "$f" in
@@ -122,10 +104,10 @@ xrun -64bit -V200X -licqueue -RELAX -CONTROLRELAX nlstex \
      -propfile_vhdl "$PF" \
      -input go.tcl > "$WORK/run.log" 2>&1
 
-# THE ELABORATION CHECK. Not `grep Assertions:` -- that string also appears in
-# xrun's VERILOG hierarchy summary (the pad models carry 8 of their own), so it
-# is true even when the property file was never read. The propfile echo is the
-# one line that means what we need it to mean.
+# The elaboration check greps the property-file echo, not "Assertions:": that
+# string also appears in xrun's Verilog hierarchy summary, where the pad models
+# carry 8 of their own, so it is present even when the property file was never
+# read.
 if ! grep -q "Property file: $PF" "$WORK/run.log"; then
     echo "FATAL: the run did not elaborate -- the property file was never read"
     echo "  see $WORK/run.log"; exit 2

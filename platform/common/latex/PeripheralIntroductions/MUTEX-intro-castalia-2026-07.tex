@@ -1,6 +1,6 @@
-% MUTEX chapter. Configuration-driven: mutex count and base address come from
-% include/defines.tex. Section order is the per-peripheral template enforced by
-% python/check_intro_names.py.
+% VestaRV: MUTEX chapter of the TRM.
+% Configuration-driven: mutex count and base address come from include/defines.tex.
+% Section order is the per-peripheral template enforced by python/check_intro_names.py.
 \section{Overview}
 
 The hardware mutex bank (\peripheral{MUTEX}) provides \NumMutexesWord{} word-mapped advisory locks with single-instruction cross-hart mutual exclusion. A claim is one load and a release is one store; there is no reservation state and no retry loop in hardware. Atomicity comes from the multi-core arbiter, which serializes whole shared-window transactions, so two harts reading the same free mutex in the same cycle are still served one after the other.

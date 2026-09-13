@@ -124,32 +124,34 @@ chip_artifacts(
     out_of_tree_srcs = ["//hdl:vhdl_sources"],
 )
 
-# MCU_hart (1 hart, no orchestrator, minimal peripheral set). The DRC/LVS
-# vehicle: one hardened hart_tile, the shared fabric it masters, and the AFE
-# stub bank, with everything optional dropped. There are no identity gates for
-# it either -- the tracked RTL is Castalia's -- so the bar here is that the
-# configuration generates and its machine-readable outputs parse
-# (:mcu_hart_generation_test). What it emits is ALSO elaborated and BOOTED, by
-# //opensource_sim/mcu_hart, which consumes the two labels below.
+# asic_default (1 hart, no orchestrator, minimal peripheral set). The MINIMAL
+# ASIC STARTING POINT, and the DRC/LVS vehicle it grew out of: one hardened
+# hart_tile, the shared fabric it masters, and the AFE stub bank, with
+# everything optional dropped. There are no identity gates for it either -- the
+# tracked RTL is Castalia's -- so the bar here is that the configuration
+# generates and its machine-readable outputs parse
+# (:asic_default_generation_test). What it emits is ALSO elaborated and BOOTED,
+# by //opensource_sim/asic_default, which consumes the two labels below.
 chip_artifacts(
-    name = "chip_artifacts_mcu_hart",
+    name = "chip_artifacts_asic_default",
     srcs = ["//platform/common/python:generator_srcs"],
     chip_root_srcs = CHIP_ROOT_SRCS,
-    config = "config/mcu_hart.json",
+    config = "config/asic_default.json",
     out_of_tree_srcs = ["//hdl:vhdl_sources"],
 )
 
-# FPGA (1 hart, no orchestrator, nothing that has no FPGA counterpart). The
-# bring-up vehicle for the synthesizable cells in hdl/fpga/. The tracked RTL is
-# Castalia's here too, so the bar is that the configuration still generates and
-# its machine-readable outputs still parse (:fpga_generation_test). What binds
-# against it is not built here: hdl/fpga/README.md carries the elaboration
-# recipe, which needs a simulator this build does not provision.
+# fpga_default (1 hart, no orchestrator, nothing that has no FPGA counterpart).
+# The FPGA STARTING POINT, and the bring-up vehicle for the synthesizable cells
+# in hdl/fpga/. The tracked RTL is Castalia's here too, so the bar is that the
+# configuration still generates and its machine-readable outputs still parse
+# (:fpga_default_generation_test). What binds against it is not built here:
+# hdl/fpga/README.md carries the elaboration recipe, which needs a simulator
+# this build does not provision.
 chip_artifacts(
-    name = "chip_artifacts_fpga",
+    name = "chip_artifacts_fpga_default",
     srcs = ["//platform/common/python:generator_srcs"],
     chip_root_srcs = CHIP_ROOT_SRCS,
-    config = "config/fpga.json",
+    config = "config/fpga_default.json",
     out_of_tree_srcs = ["//hdl:vhdl_sources"],
 )
 
@@ -484,60 +486,61 @@ py_test(
     main = "compare_trees.py",
 )
 
-# The single-hart RTL, as the two labels //opensource_sim/mcu_hart splices
+# The single-hart RTL, as the two labels //opensource_sim/asic_default splices
 # into the MCU analysis order in place of the tracked five-hart pair.
 chip_artifact(
-    name = "mcu_hart_mcu_vhd",
+    name = "asic_default_mcu_vhd",
     rel_path = "out/hdl/MCU.vhd",
-    target = ":chip_artifacts_mcu_hart",
+    target = ":chip_artifacts_asic_default",
 )
 
 chip_artifact(
-    name = "mcu_hart_memorymap_vhd",
+    name = "asic_default_memorymap_vhd",
     rel_path = "out/hdl/MemoryMap.vhd",
-    target = ":chip_artifacts_mcu_hart",
+    target = ":chip_artifacts_asic_default",
 )
 
-# MCU_hart still generates, and its machine-readable outputs still parse.
+# asic_default still generates, and its machine-readable outputs still parse.
 py_test(
-    name = "mcu_hart_generation_test",
+    name = "asic_default_generation_test",
     size = "small",
     srcs = ["//platform/common/bazel:assert_artifacts.py"],
     args = [
-        "platform/common/chip_artifacts_mcu_hart/out/hdl/MCU.vhd",
-        "platform/common/chip_artifacts_mcu_hart/out/hdl/MemoryMap.vhd",
-        "platform/common/chip_artifacts_mcu_hart/out/hdl/riscv_tb.vhd",
-        "platform/common/chip_artifacts_mcu_hart/out/software/include/MemoryMap.h",
-        "platform/common/chip_artifacts_mcu_hart/out/software/include/periph.S",
-        "platform/common/chip_artifacts_mcu_hart/out/web/chip_data.js",
-        "platform/common/chip_artifacts_mcu_hart/out/web/MemoryMap.json",
-        "platform/common/chip_artifacts_mcu_hart/config/ChipConfig.resolved.json",
-        "platform/common/chip_artifacts_mcu_hart/config/PadRing.json",
-        "platform/common/chip_artifacts_mcu_hart/latex/TRM/",
+        "platform/common/chip_artifacts_asic_default/out/hdl/MCU.vhd",
+        "platform/common/chip_artifacts_asic_default/out/hdl/MemoryMap.vhd",
+        "platform/common/chip_artifacts_asic_default/out/hdl/riscv_tb.vhd",
+        "platform/common/chip_artifacts_asic_default/out/software/include/MemoryMap.h",
+        "platform/common/chip_artifacts_asic_default/out/software/include/periph.S",
+        "platform/common/chip_artifacts_asic_default/out/web/chip_data.js",
+        "platform/common/chip_artifacts_asic_default/out/web/MemoryMap.json",
+        "platform/common/chip_artifacts_asic_default/config/ChipConfig.resolved.json",
+        "platform/common/chip_artifacts_asic_default/config/PadRing.json",
+        "platform/common/chip_artifacts_asic_default/latex/TRM/",
     ],
-    data = [":chip_artifacts_mcu_hart"],
+    data = [":chip_artifacts_asic_default"],
     main = "assert_artifacts.py",
 )
 
 # The FPGA configuration still generates, and its machine-readable outputs still
-# parse. This is what keeps config/fpga.json from rotting against a knob rename.
+# parse. This is what keeps config/fpga_default.json from rotting against a knob
+# rename.
 py_test(
-    name = "fpga_generation_test",
+    name = "fpga_default_generation_test",
     size = "small",
     srcs = ["//platform/common/bazel:assert_artifacts.py"],
     args = [
-        "platform/common/chip_artifacts_fpga/out/hdl/MCU.vhd",
-        "platform/common/chip_artifacts_fpga/out/hdl/MemoryMap.vhd",
-        "platform/common/chip_artifacts_fpga/out/hdl/riscv_tb.vhd",
-        "platform/common/chip_artifacts_fpga/out/software/include/MemoryMap.h",
-        "platform/common/chip_artifacts_fpga/out/software/include/periph.S",
-        "platform/common/chip_artifacts_fpga/out/web/chip_data.js",
-        "platform/common/chip_artifacts_fpga/out/web/MemoryMap.json",
-        "platform/common/chip_artifacts_fpga/config/ChipConfig.resolved.json",
-        "platform/common/chip_artifacts_fpga/config/PadRing.json",
-        "platform/common/chip_artifacts_fpga/latex/TRM/",
+        "platform/common/chip_artifacts_fpga_default/out/hdl/MCU.vhd",
+        "platform/common/chip_artifacts_fpga_default/out/hdl/MemoryMap.vhd",
+        "platform/common/chip_artifacts_fpga_default/out/hdl/riscv_tb.vhd",
+        "platform/common/chip_artifacts_fpga_default/out/software/include/MemoryMap.h",
+        "platform/common/chip_artifacts_fpga_default/out/software/include/periph.S",
+        "platform/common/chip_artifacts_fpga_default/out/web/chip_data.js",
+        "platform/common/chip_artifacts_fpga_default/out/web/MemoryMap.json",
+        "platform/common/chip_artifacts_fpga_default/config/ChipConfig.resolved.json",
+        "platform/common/chip_artifacts_fpga_default/config/PadRing.json",
+        "platform/common/chip_artifacts_fpga_default/latex/TRM/",
     ],
-    data = [":chip_artifacts_fpga"],
+    data = [":chip_artifacts_fpga_default"],
     main = "assert_artifacts.py",
 )
 

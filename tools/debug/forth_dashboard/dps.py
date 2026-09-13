@@ -1,3 +1,6 @@
+# VestaRV: bench power-supply control for the Forth dashboard.
+# RPi.GPIO is optional: without it the supply functions are stubbed so the dashboard still
+# runs on a host that is not the bench Pi.
 try:
     import RPi.GPIO as GPIO
     HAS_GPIO = True

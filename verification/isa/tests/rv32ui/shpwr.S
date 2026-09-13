@@ -1,66 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shpwr.S  (M17 — MTCMOS cold-gate power gating; N-AWARE since CPR4)
-#-----------------------------------------------------------------------------
-# THE M17 SIGNATURE TEST: gate a LIVE tile, prove it died, wake it, prove the
-# wake is a clean M12 cold boot, and relaunch it to a payload PASS.
-#
-# pwr_ctrl (window slot 11 @0x4B00): PWRCR bit h gates tile hart h through a
-# hardware sequencer (iso -> reset -> rail off; on wake rail on -> settle ->
-# un-iso -> un-reset). Functionally the cold gate IS the reset (pd_rstn folds
-# into the tile's resetn), so this test observes: the tile's shared-window
-# hammer FREEZES when gated, and after wake the tile re-runs the shared-ROM
-# boot, parks in WFI, and accepts a NORMAL loader relaunch.
-#
-# WHAT CPR4 CHANGED, AND WHY. Two defects, both N-shaped:
-#   (1) The "other tiles are still ON" check read nibbles 2+3 of PWRSR with a
-#       hardcoded 0xFF mask. At NHARTS=5 (CPR3/R2 makes pwr_ctrl see numHarts,
-#       so PWRCR gains bit 4 and PWRSR gains nibble 4) that mask is BLIND to a
-#       live nibble 4 — the check would pass with tile 4 gated underneath it.
-#       The nibble walk is now derived from NHARTS and covers every tile row
-#       the configuration actually has (`chk_nib`).
-#   (2) NO TEST PROVED THE TOP GATE BIT. Every episode gated tile 1 only, so
-#       PWRCR bit NHARTS-1 — bit 4 on a penta chip, the bit CPR3/R2 added, and
-#       the one whose tile was NOT gateable before the renumber — had no
-#       coverage at all. Episode 2 below gates and wakes tile NHARTS-1 with the
-#       full live-tile treatment (launch, alive, gate, dead, wake, relaunch).
-#       Written as NHARTS-1 rather than 4 so it is the TOP tile at any hart
-#       count: at N=4 it exercises tile 3 and the test stays green there.
-#
-# Hart 0 (SPI boot):
-#   1. stage this image; LAUNCH tile 1 into tile_entry (a shared-word hammer)
-#   2. prove tile 1 is ALIVE (hammer word changes between two samples)
-#   3. PWRCR = 2 (gate tile 1); poll PWRSR nibble 1 == 3 (OFF); walk EVERY
-#      other tile nibble and require ON; verify PWRCR reads back 2
-#   4. prove tile 1 is DEAD (hammer word FROZEN across a delay — this also
-#      exercises gating a tile with transactions in flight: the clamped/reset
-#      req must look RELEASED to the wait-for-release arbiter, never wedging
-#      the shared bus; hart 0 keeps using the window throughout)
-#   5. PWRCR = 0 (wake); poll PWRSR nibble 1 == 0 (ON); delay for the tile's
-#      ROM re-park (cold boot: sp, IVT slot 83 arm, WFI — no park signal
-#      exists, the settle delay covers it with >100x margin)
-#   6. RELAUNCH tile 1 into tile_done via the ordinary loader row + msip;
-#      bounded-wait for its magic.
-#   7. EPISODE 2, THE TOP TILE (hart NHARTS-1): launch it into the hammer,
-#      prove alive, gate it (PWRCR bit NHARTS-1) with tile 1 still running its
-#      done payload, walk the nibbles (the top tile OFF, every other tile
-#      including the live tile 1 ON), prove dead, wake, relaunch into
-#      tile_done2. PASS.
-#
-# Shared words (>= 0x10470, clear of shfault.S's 0x10440-0x10468 tail at N=5):
-#     HAMMER = 0x10470   the live counter (phase 1 payload, both episodes)
-#     PDONE  = 0x10474   0xCAFE0001 from the relaunched tile 1
-#     PDONE2 = 0x10478   0xCAFE000<NHARTS-1> from the relaunched TOP tile
-#   Three fixed words, N-agnostic (no hartid-indexed word), all inside the
-#   bootrom zero range and below shafe's GO at 0x10480. PDONE2 is a SEPARATE
-#   word rather than a per-hart array on purpose: tile 1's done payload spins
-#   verifying that its own magic SURVIVES, so a second tile writing the same
-#   word would fail the first tile rather than prove anything.
-#
-# Tiles never launched stay parked in the ROM the whole test; the nibble walk
-# proves they also stay ON.
-#*****************************************************************************
+# VestaRV: MTCMOS cold-gate power gating of a live tile
+# pwr_ctrl at 0x4B00 gates tile hart h through a hardware sequencer, isolating, resetting and cutting the rail, and on wake restoring the rail, settling, un-isolating and releasing reset. FUNCTIONALLY THE COLD GATE IS THE RESET, because pd_rstn folds into the tile's resetn, so the observable is that the tile's shared-window hammer FREEZES when gated and that after wake the tile re-runs the shared-ROM boot, parks in WFI and accepts a NORMAL loader relaunch.
+# Hart 0 stages this image and launches tile 1 into a shared-word hammer, proves it is ALIVE by sampling the hammer word twice, gates it and polls its PWRSR nibble to the OFF encoding, WALKS EVERY OTHER TILE NIBBLE and requires them ON, verifies PWRCR reads back, then proves the tile is DEAD by requiring the hammer word FROZEN across a delay. That step also exercises gating a tile with transactions in flight: the clamped and reset request must look RELEASED to the wait-for-release arbiter and must never wedge the shared bus, and hart 0 keeps using the window throughout. It then wakes the tile, polls the nibble back to ON, waits out the cold ROM re-park, and relaunches it through the ordinary loader row and msip.
+# THE NIBBLE WALK IS DERIVED FROM NHARTS, NOT A FIXED MASK: a hardcoded two-nibble mask is BLIND to the nibbles a wider configuration adds, so the check would pass with a tile gated underneath it.
+# EPISODE 2 GATES THE TOP TILE, hart NHARTS-1, which no earlier episode covered even though it is the bit a wider configuration adds and the one whose tile was not gateable before the renumber. It gets the full treatment, launch, alive, gate, dead, wake and relaunch, with tile 1 still running its done payload, and it is written as NHARTS-1 rather than a literal so it is the top tile at any hart count.
+# Shared words, three fixed N-agnostic words with no hartid-indexed entry, all inside the bootrom zero range and clear of the neighbouring bands: HAMMER = 0x10470, the live counter used by both episodes; PDONE = 0x10474 from the relaunched tile 1; PDONE2 = 0x10478 from the relaunched top tile. PDONE2 IS A SEPARATE WORD RATHER THAN A PER-HART ARRAY ON PURPOSE, because tile 1's done payload spins verifying that its own magic survives, so a second tile writing the same word would fail the first tile rather than prove anything.
+# Tiles that are never launched stay parked in the ROM for the whole test, and the nibble walk proves they also stay ON.
 
 #include "riscv_test.h"
 #include "test_macros.h"

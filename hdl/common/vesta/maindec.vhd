@@ -1,3 +1,5 @@
+-- VestaRV: main instruction decoder
+-- Produces the control word for every instruction. A disabled extension's encodings fall out of valid_opcode/valid_funct and take the illegal-instruction trap path, so no execution hardware has to guard them.
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
@@ -136,7 +138,7 @@ end maindec;
 
 architecture behave of maindec is
 
-    -- ========== Internal Signal Declarations ==========
+    -- Internal Signal Declarations
     signal read_data_flag  : std_logic;
     signal write_data_flag : std_logic;
     signal rtype_sub       : STD_LOGIC;
@@ -199,7 +201,7 @@ architecture behave of maindec is
 
 begin
 
-    -- ========== Helper Signals ==========
+    -- Helper Signals
 
     -- Instruction-class detects shared by the legality checks and the output muxes below.
     is_mul_div <= '1' when ((ENABLE_MUL or ENABLE_DIV) and op = R_OPCODE and funct7 = MULT_FN7) else '0';
@@ -276,7 +278,7 @@ begin
                             ((ENABLE_BITMANIP or ENABLE_ZBKC) and (funct3 = CLMUL_FN3 or funct3 = CLMULH_FN3)) or
                             (ENABLE_BITMANIP and funct3 = CLMULR_FN3))) else '0';
 
-    /* ========== Zbkb / Zbkx (scalar crypto bit-manip) decode helpers ==========
+    /* Zbkb / Zbkx (scalar crypto bit-manip) decode helpers.
        New Zbkb R-type ops: pack (funct3=100) and packh (funct3=111), both funct7 = PACK_FN7.
        pack shares funct7 and funct3 with Zbb ZEXT.H (the rs2=x0 case); pack is the superset. */
     is_zbkb_new_r_instr <= '1' when (ENABLE_ZBKB and op = R_OPCODE and funct7 = PACK_FN7 and
@@ -373,7 +375,7 @@ begin
         (unsigned(imm12) >= unsigned(CSR_HPMCOUNTER3H)  and unsigned(imm12) <= x"C9F")    -- hpmcounter3h-31h (user)
     ) else '0';
 
-    -- ========== U-mode decode gating ==========
+    -- U-mode decode gating
     -- ONE gate signal drives every U-mode restriction, and it is statically '0' unless ENABLE_UMODE, since priv_m reads '1' there by the csr_unit contract.
     u_gate <= '1' when (ENABLE_UMODE and priv_m = '0') else '0';
 
@@ -407,7 +409,7 @@ begin
                                 ( (funct7(0) = '0' and imm12(4 downto 2) = "111") or  -- mop.r.N
                                   (funct7(0) = '1') )) else '0';                        -- mop.rr.N
 
-    -- ========== CSR Control Signals ==========
+    -- CSR Control Signals
     -- csr_op passes funct3 through for a CSR instruction and reads 000 otherwise.
     csr_op <= funct3 when is_csr_instr = '1' else "000";
     -- csr_valid IS csr_unit's write enable, so every denial must take it down or a trapping CSR instruction still commits its write.
@@ -432,7 +434,7 @@ begin
                                (funct3(1 downto 0) = "01" or csr_rs1_zero = '0'))
                      else '0';
 
-    -- ========== RV32A Atomic Operation Signals ==========
+    -- RV32A Atomic Operation Signals
     -- Load-Reserved operation
     lr_op <= '1' when (ENABLE_ATOMICS and op = AMO_OPCODE and funct3 = AMO_WIDTH_W and funct5 = LR_FN5) else '0';
 
@@ -466,7 +468,7 @@ begin
     is_zcm <= '1' when ((ENABLE_ZCMP or ENABLE_ZCMT) and op = ZCM_SENTINEL_OP) else '0';
     zcm_op <= is_zcm;
 
-    /* ========== Zfinx single-precision FP decode ==========
+    /* Zfinx single-precision FP decode.
        rm-field (funct3) legality for the rounding-mode-carrying ops: 000 to 100 are legal, 101 and 110 are illegal, and 111 (dynamic) is legal iff frm is a valid mode.
        The op-selector ops (fsgnj*, fmin, fmax, fcmp, fclass) do NOT consult this; their funct3 and rs2 field (imm12(4:0) = instr[24:20]) are checked exactly below. */
     fp_rm_ok <= '1' when (funct3 = "000" or funct3 = "001" or funct3 = "010" or
@@ -501,7 +503,7 @@ begin
     is_fp_multicycle  <= is_fp_arith_mc;
     is_fp_fma         <= is_fp_fma_op;
 
-    -- ========== Valid Instruction Detection ==========
+    -- Valid Instruction Detection
     -- First legality stage: is the opcode itself one this configuration implements?
     valid_opcode <= '1' when (
         op = I_LOAD_OPCODE   or  -- Load instructions
@@ -781,18 +783,18 @@ begin
         end if;
     end process;
 
-    -- ========== Trap Signal Generation ==========
+    -- Trap Signal Generation
     -- Trap on invalid opcode or invalid function field combination
     trap <= not (valid_opcode and valid_funct);
 
-    /* ========== Custom Vesta Instructions ==========
+    /* Custom Vesta Instructions.
        All three carry the U-mode qualifier because they are SIDE EFFECTS that fire independently of the trap: isr_ret pulses the legacy irq_handler EOI, and sleep_rq/wake_rq set and clear vesta's `sleep_cpu` flop on the free-running clk.
        Without it a U-mode `extinguish` would trap AND leave sleep_cpu set, so a later legacy-mode IRQ_REST would return M-mode to SLEEPING: a U-mode denial of service on M. */
     isr_ret  <= '1' when (op = CUSTOM_OPCODE and funct3 = IRET_FN3 and funct7 = IRET_FN7  and u_gate = '0') else '0';
     sleep_rq <= '1' when (op = CUSTOM_OPCODE and funct3 = SLP_FN3 and funct7 = SLEEP_FN7 and u_gate = '0') else '0';
     wake_rq  <= '1' when (op = CUSTOM_OPCODE and funct3 = SLP_FN3 and funct7 = WAKE_FN7  and u_gate = '0') else '0';
 
-    /* ========== Standard SYSTEM/PRIV decode outputs (ENABLE_TRAPCSR) ==========
+    /* Standard SYSTEM/PRIV decode outputs (ENABLE_TRAPCSR).
        All three are statically '0' when the generic is off, matching the valid_funct arm above that keeps the encodings illegal there.
        They are consumed ONLY by vesta's FSM dispatch arms, which additionally qualify on the delivery mode; these signals never feed valid_funct or trap. */
     ecall_op  <= '1' when (ENABLE_TRAPCSR and op = SYSTEM_OPCODE and
@@ -820,7 +822,7 @@ begin
     wrs_op  <= is_wrs_instr;
     wrs_sto <= '1' when (is_wrs_instr = '1' and imm12 = WRS_STO_IMM12) else '0';
 
-    -- ========== Register Write Enable ==========
+    -- Register Write Enable
     reg_write <= '1' when op = I_LOAD_OPCODE   else  -- Load instructions
                  '1' when op = R_OPCODE         else  -- R-type instructions (including Zba/Zbb)
                  '1' when op = I_ARITH_OPCODE   else  -- I-type arithmetic (including Zbb)
@@ -836,7 +838,7 @@ begin
                  '0' when (op = FENCE_OPCODE)        else  -- FENCE instruction
                  '0';  -- No write for stores, branches, custom instructions
 
-    /* ========== Immediate Source Selection ==========
+    /* Immediate Source Selection.
        Encoding: 000 I-type, 001 S-type, 010 B-type, 011 J-type, 100 U-type.
        AMO instructions use the R-type format and carry no immediate. */
     imm_src <= "000" when op = I_LOAD_OPCODE   else  -- I-type
@@ -850,7 +852,7 @@ begin
                "000" when op = AMO_OPCODE       else  -- No immediate for AMO
                "000";
 
-    -- ========== ALU Source Selection ==========
+    -- ALU Source Selection
     -- 0 selects the register operand, 1 selects the immediate; Zba/Zbb R-type ops use registers, and the Zbb I-type pseudo-instructions read rs1 only.
     ALU_src <= '1' when op = I_LOAD_OPCODE   else  -- Use immediate
                '1' when op = S_OPCODE         else  -- Use immediate
@@ -866,7 +868,7 @@ begin
                '0' when (is_csr_instr = '1' and funct3(2) = '0') else -- CSR register
                '0';
 
-    -- ========== Write Enable for Memory Operations ==========
+    -- Write Enable for Memory Operations
     -- Byte enables from the store type and the address offset, ACTIVE-LOW per lane; SC and AMO operations always work on words.
     WEN <= -- Store Byte (SB)
            "1110" when (op = S_OPCODE and funct3 = "000" and mask = "00") else
@@ -883,7 +885,7 @@ begin
            -- No write for all other instructions (including LR)
            "1111";
 
-    /* ========== Result Source Selection (3-bit) ==========
+    /* Result Source Selection (3-bit).
          000 ALU result          001 Memory data        010 PC+4
          011 PC+immediate        100 CSR read value     101 Zimop (rd gets 0)
          110 RSRC_FP_SINGLE      111 RSRC_FP_MULTI */
@@ -905,18 +907,18 @@ begin
                   RSRC_FP_MULTI  when (is_fp_arith_mc = '1' or is_fp_fma_op = '1') else  -- multi-cycle FP (fpu, FPU_DONE)
                   "001";
 
-    -- ========== Branch Control ==========
+    -- Branch Control
     branch <= '1' when op = B_OPCODE else '0';
 
-    -- ========== Jump Control ==========
+    -- Jump Control
     jump <= '1' when op = J_OPCODE      else
             '1' when op = I_JALR_OPCODE else
             '0';
 
-    -- ========== JALR Control ==========
+    -- JALR Control
     jalr <= '1' when op = I_JALR_OPCODE else '0';
 
-    -- ========== Memory Access Flags ==========
+    -- Memory Access Flags
     -- mem_access_instr tells vesta this instruction has a data-phase transaction; data_addr is valid only in the EXECUTE cycle.
     read_data_flag <= '1' when op = I_LOAD_OPCODE else
                       '1' when (op = CUSTOM_OPCODE and funct3 = "000" and funct7 = "0000000") else
@@ -929,12 +931,12 @@ begin
 
     mem_access_instr <= read_data_flag or write_data_flag;
 
-    -- ========== Division Operation Flag ==========
+    -- Division Operation Flag
     div_op <= '1' when (ENABLE_DIV and op = R_OPCODE and funct7 = MULT_FN7 and
                        (funct3 = DIV_FN3 or funct3 = DIVU_FN3 or
                         funct3 = REM_FN3 or funct3 = REMU_FN3)) else '0';
 
-    /* ========== ALU Control Signal Generation (7-bit) ==========
+    /* ALU Control Signal Generation (7-bit).
        One 7-bit code per ALU operation, allocated so that no two decode rows collide.
        The rows are ORDER-SENSITIVE, earlier rows winning, which is how the shared funct7/funct3 encodings (PACK before ZEXT.H, AES before the generic ADD/SUB path) are resolved. */
     alu_control <= 

@@ -1,18 +1,9 @@
-"""SimChip -- an in-process, byte-level emulation of the rv4th REPL.
+"""VestaRV: an in-process, byte-level emulation of the rv4th REPL.
 
-It is a *transport* (same read/write/close surface as RealSerial), so the whole
-real stack -- SerialManager framing, memops, the REST layer -- is exercised
-against it with no hardware.  It is deliberately honest: it echoes every byte,
-prints "\\n>" after every line, and speaks the fw '$'/CRC/'Y' handshake, exactly
-like the chip.  It does NOT know anything about REST endpoints.
-
-A background thread runs a blocking REPL that mirrors rv4th.c:
-
-    getLine():  print "\\n>", then read+echo chars until '\\n'/'\\r'
-    execVM():   the opcode switch (subset that the dashboard actually drives)
-
-fw and other words that pull raw bytes just call the blocking byte reader, so
-multi-phase transactions work with no special casing.
+A transport with RealSerial's read/write/close surface, so the whole real stack runs against
+it with no hardware. Deliberately honest: it echoes every byte, prints the prompt after every
+line and speaks the fw handshake exactly like the chip, and knows nothing about REST. A
+background thread runs a blocking REPL mirroring rv4th.c's getLine() and execVM().
 """
 
 import json
@@ -60,7 +51,7 @@ class SimChip:
             target=self._repl, name="sim-chip", daemon=True)
         self._thread.start()
 
-    # -- transport interface ----------------------------------------------
+    # -- transport interface
 
     def read(self, max_bytes: int, timeout: float) -> bytes:
         with self._cond:
@@ -84,7 +75,7 @@ class SimChip:
         if self._thread.is_alive():
             self._thread.join(timeout=2.0)
 
-    # -- register seeding --------------------------------------------------
+    # -- register seeding
 
     def _seed_from_registers(self, path: str) -> None:
         try:
@@ -97,7 +88,7 @@ class SimChip:
                 if "reset" in reg and "addr" in reg:
                     self._mem[int(reg["addr"]) & ~3] = forth.to_u32(int(reg["reset"]))
 
-    # -- byte-level I/O for the REPL --------------------------------------
+    # -- byte-level I/O for the REPL
 
     def _get_byte(self) -> int:
         with self._cond:
@@ -115,7 +106,7 @@ class SimChip:
     def _emit_str(self, text: str) -> None:
         self._emit(text.encode("latin-1"))
 
-    # -- the REPL ----------------------------------------------------------
+    # -- the REPL
 
     def _repl(self) -> None:
         try:
@@ -140,7 +131,7 @@ class SimChip:
                 return "".join(chars)
             chars.append(chr(byte))
 
-    # -- execution ---------------------------------------------------------
+    # -- execution
 
     def _execute(self, line: str) -> None:
         stack = []  # type: List[int]
@@ -229,7 +220,7 @@ class SimChip:
         # Unknown word -> the monitor prints '?' (see progBi[] undefined-string path)
         self._emit_str("?")
 
-    # -- memory helpers ----------------------------------------------------
+    # -- memory helpers
 
     def _read_word(self, addr: int) -> int:
         return self._mem.get(forth.to_u32(addr) & ~3, 0)
@@ -248,7 +239,7 @@ class SimChip:
             self._mem[addr] = 0
             addr += 4
 
-    # -- mr / fr / fw ------------------------------------------------------
+    # -- mr / fr / fw
 
     def _do_mr(self, mode: int, length: int, addr: int) -> None:
         data = bytes(self._byte_at(addr + i) for i in range(length))

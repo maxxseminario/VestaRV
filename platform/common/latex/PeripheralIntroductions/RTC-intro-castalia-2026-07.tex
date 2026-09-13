@@ -1,7 +1,7 @@
-% RTC chapter. Section order is the per-peripheral template enforced by
+% VestaRV: RTC chapter of the TRM.
+% Section order is the per-peripheral template enforced by
 % python/check_intro_names.py (Overview / Functional description / Interrupts
-% and events / Programming / Usage notes). Restructured 2026-09-05; the prose
-% is unchanged apart from the headings it now sits under.
+% and events / Programming / Usage notes).
 \section{Overview}
 
 The real-time clock (\peripheral{RTCx}) is a 32.768\,kHz always-on wall clock with a one-shot alarm and a recurring periodic tick, delivered on a single combined interrupt. It keeps a 32-bit seconds count with a 15-bit subsecond prescaler, compares the seconds against a programmable alarm, and generates a subsecond-cadence periodic tick. The whole point of the block is to present that autonomous, slowly-ticking counter domain coherently to firmware on the memory bus. It has \emph{no pins}. The main features are listed below:

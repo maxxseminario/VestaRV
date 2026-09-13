@@ -1,21 +1,10 @@
 #!/usr/bin/env python3
-"""rdl_emit.py -- emit every artifact of every peripheral flagged `rdl: true`.
+"""VestaRV: emit every artifact of every peripheral flagged `rdl: true` in config/rdl.json.
 
-Reads platform/common/config/rdl.json, compiles each flagged peripheral's .rdl
-description and writes four files per block into <out>/:
-
-    <TAG>-registers-rdl.tex   the TRM register tables, in LatexUserGuide's format
-    MemoryMap_<TAG>_rdl.h     the MemoryMap.h fragment, in the header's conventions
-    <TAG>_reg_pkg.vhd         the VHDL package the peripheral could `use`
-    <TAG>_rdl.json            the configurator / register-browser fragment
-
-The RDL path is deliberately SEPARATE from the hermetic generation action: the
-generator emits its own artifacts with no @rdl_deps in its runfiles, so a
-configuration generates byte-identically whether or not the SystemRDL toolchain
-is present. What ties the two together is not a shared code path but a gate,
-//platform/common:rdl_vs_generator_test.
-
-    rdl_emit.py --out <dir> [--peripheral NAME ...] [--config <rdl.json>]
+Four files per block into <out>/: <TAG>-registers-rdl.tex, MemoryMap_<TAG>_rdl.h,
+<TAG>_reg_pkg.vhd and <TAG>_rdl.json. This path is deliberately separate from the hermetic
+generation action, which carries no SystemRDL toolchain in its runfiles, so a configuration
+generates byte-identically without it; what ties the two together is rdl_vs_generator_test.
 """
 
 import argparse

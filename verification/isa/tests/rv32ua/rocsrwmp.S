@@ -1,104 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# rocsrwmp.S   (F-series fix pass, wave W5 -- the DEFAULT-BUILD detector for F10)
-#-----------------------------------------------------------------------------
-# F10: a WRITE FORM aimed at a CSR whose address has bits[11:10] = "11" (the
-# READ-ONLY quadrant) is accepted and silently dropped instead of raising an
-# illegal-instruction exception.  The mechanism is documented in the sibling
-# file rocsrw.S; in one line: maindec.vhd:790-795 sets
-# `valid_funct <= csr_addr_valid`, and csr_addr_valid (maindec.vhd:381-419) is
-# a pure ADDRESS map with no reference to csr_op or to the rs1/uimm field --
-# while csr_unit.vhd:456 already decodes the write form correctly and uses it
-# only as a store strobe.
-#
-# THE USER'S RULING: the trap applies in EVERY build, not just a knobs-on one.
-# rocsrw.S can only test a build where CORE_ENABLE_TRAPCSR is true, because it
-# needs a recoverable trap.  THIS file covers the DEFAULT build -- the one the
-# ruling actually changes -- and that build has no trap handler at all.
-#
-# WHY THIS TEST NEEDS THREE HARTS
-#   On a default build an illegal instruction lands in the TERMINAL TRAP_STATE
-#   (self-loop, no exit, pc_en = '0').  A hart that enters it NEVER writes a0
-#   again, so the offending hart can never be the a0 gate.  Here the VICTIMS
-#   are tile harts 1 and 2 and the OBSERVER is hart 0, which keeps the ordinary
-#   PASS/FAIL contract -- the trapstor.S (W1) pattern.
-#
-#   Each victim writes a PROGRESS word BEFORE its illegal encoding and again
-#   AFTER it.  The two states are unambiguous:
-#       PROGRESS = 1  the victim reached the encoding and is wedged in it
-#                     => the write TRAPPED   (post-fix, the PASS condition)
-#       PROGRESS = 2  the victim executed straight through the encoding
-#                     => the write was a silent NOP   (pre-fix, THE FINDING)
-#   Hart 0 refuses to render any verdict until it has seen PROGRESS = 1 from
-#   BOTH victims, so a tile that never launched FAILs rather than vacuously
-#   passing.
-#
-#   The victims wedge in TCM, not in the shared window: TRAP_STATE's fetch
-#   address is pc_next_trad_reg (a TCM address here), so the wedged harts
-#   generate no arbiter traffic and cannot disturb hart 0's observation.  The
-#   instruction placed immediately after each illegal encoding is an `addi`,
-#   never a store, so F8 (TRAP_STATE commits the word at pc+4 if it decodes as
-#   a store) cannot fire either.
-#
-# THE VICTIM ENCODINGS
-#   hart 1   f1429073   csrw mhartid, t0    CSRRW at 0xF14, [11:10] = "11"
-#   hart 2   c0001073   `unimp` itself      = csrrw x0, cycle, x0 at 0xC00.
-#                                           CLAUDE.md has always claimed unimp
-#                                           traps in this environment; today it
-#                                           is a silent NOP.  This victim is
-#                                           that claim, made testable in the
-#                                           very build the claim is about.
-#
-# THE NEGATIVE HALF runs on HART 0 ITSELF, before any launch, and its proof is
-#   LIVENESS: on a default build a wrongly-trapped instruction wedges hart 0
-#   terminally, so if hart 0 reaches its verdict at all, none of the eight
-#   negative encodings trapped.  Each one bumps a shared counter first, so a
-#   wedged run can still be located precisely with a tcl probe of NEGPROG and
-#   :dut:hart0:core:pc.  The eight (all unconditionally in csr_addr_valid on a
-#   default build -- note mip 0x344 is deliberately ABSENT, it is an unknown
-#   CSR without CORE_ENABLE_TRAPCSR and would trap for an unrelated reason):
-#       f14022f3  csrr t0, mhartid        read of a READ-ONLY CSR
-#       c0006373  csrrsi t1, cycle, 0     uimm FIELD 0 => not a write
-#       f14073f3  csrrci t2, mhartid, 0   uimm FIELD 0 => not a write
-#       32329073  csrw mhpmevent3, t0     0x323, WRITABLE quadrant
-#       32029073  csrw mcountinhibit, t0  0x320, WARL-ignore
-#       b0301073  csrw mhpmcounter3, x0   0xB03, WRITABLE quadrant
-#       b0501073  csrw mhpmcounter5, x0   0xB05, dropped in BOTH ZIHPM
-#                                         polarities -- still not F10
-#       30129073  csrw misa, t0           0x301, WARL-ignore
-#   Three of these (mhpmevent3, mhpmcounter3, mhpmcounter5) are VERBATIM from
-#   the nine writes rv32ua-p-extzihpm executes on its default path.  Hart 0
-#   surviving them IS the proof that the correctly-scoped F10 cannot move the
-#   136/136 suite floor.
-#
-# ---------------------------------------------------------------------------
-# VERDICT.  a0 = 0xCAFEBABE => F10 is FIXED, in the DEFAULT build, correctly
-# scoped.  a0 = 0xDEADBEEF with:
-#   a1 = 0xF10A0001   hart 1 executed PAST `csrw mhartid, t0`   <-- THE FINDING
-#   a1 = 0xF10A0002   hart 2 executed PAST `unimp`              <-- THE FINDING
-#   a1 = 0x5E1A0001   a negative-half READ returned the wrong value
-#   a1 = 0x5E1A0002   a victim never armed: it did not reach the encoding
-#   a1 = 0x5E1A0003   NEGPROG did not read back: shared RAM setup break
-# NO a0 AT ALL (tb watchdog) is itself a result on a post-fix build: it means
-#   hart 0 wedged inside its own negative half, i.e. THE FIX OVER-REACHES.
-#   Probe NEGPROG (0x104F0) and :dut:hart0:core:pc to name the leg.
-#
-# NOT IN THE STANDING SUITE.  Post-fix both victims are parked in TRAP_STATE
-#   forever and never write a0_1/a0_2; riscv_tb reports "tile hart(s)
-#   silent/parked", a NOTE, not a failure.  Keep this file OUT of
-#   xrun_parallel.sh's TEST_FILES array (floor stays 136); invoke it explicitly
-#   with ./xrun_batch.sh xxxxrv32ua-p-rocsrwmp.
-#
-# SHARED WORDS CLAIMED (all < 0x10500 and inside the bootrom zero range):
-#     0x104E8  PROG1    hart 1's progress
-#     0x104EC  PROG2    hart 2's progress
-#     0x104F0  NEGPROG  hart 0's negative-half counter
-#   The band 0x104E8-0x104F4 is free at N=4 AND at N=18: below it shevfab's
-#   WAKE tops out at 0x104E4 (its SRC is 0x104E0) and shafe's N=18 TURN at
-#   0x104D0; above it the bootrom loader rows start at 0x10500.  Unlike the
-#   W1/W3/W4 bands this one does not even overlap at N=18.
-#*****************************************************************************
+# VestaRV: read-only-CSR write form must trap, on the default build
+# The same subject as rocsrw.S, which documents the mechanism: maindec sets valid_funct from csr_addr_valid, a pure ADDRESS map with no reference to csr_op or the rs1 and uimm fields, while csr_unit already decodes the write form correctly and uses it only as a store strobe. THE TRAP APPLIES IN EVERY BUILD, and rocsrw.S can only test one where the trap is recoverable, so THIS file covers the DEFAULT build, which has no trap handler at all.
+# THAT NEEDS THREE HARTS, because on a default build an illegal instruction lands in the TERMINAL TRAP_STATE and a hart that enters it never writes a0 again. The victims are tile harts 1 and 2 and the observer is hart 0, which keeps the ordinary pass/fail contract. Each victim writes a PROGRESS word before its illegal encoding and again after it, so the two states are unambiguous: PROGRESS = 1 means the victim reached the encoding and is wedged in it, so the write trapped; PROGRESS = 2 means it executed straight through, so the write was a silent nop. HART 0 REFUSES TO RENDER A VERDICT UNTIL IT HAS SEEN PROGRESS = 1 FROM BOTH VICTIMS, so a tile that never launched fails rather than vacuously passing.
+# THE VICTIMS WEDGE IN TCM, NOT IN THE SHARED WINDOW, because TRAP_STATE's fetch address is the latched next-fetch address, which is a TCM address here, so the wedged harts generate no arbiter traffic and cannot disturb hart 0's observation. The instruction immediately after each illegal encoding is an `addi`, never a store, so the TRAP_STATE store-leak cannot fire either. Hart 1's encoding is `csrw mhartid, t0`, a CSRRW at 0xF14; hart 2's is `unimp` itself, csrrw x0, cycle, x0 at 0xC00, which has always been claimed to trap in this environment while today it is a silent nop, made testable in the very build the claim is about.
+# THE NEGATIVE HALF RUNS ON HART 0 ITSELF, before any launch, and its proof is LIVENESS: on a default build a wrongly trapped instruction wedges hart 0 terminally, so hart 0 reaching its verdict at all means none of the eight negative encodings trapped. Each bumps a shared counter first, so a wedged run can be located precisely. The eight are a read of mhartid, csrrsi on cycle with uimm field 0, csrrci on mhartid with uimm field 0, and csrw to mhpmevent3, mcountinhibit, mhpmcounter3, mhpmcounter5 and misa. mip AT 0x344 IS DELIBERATELY ABSENT, because without CORE_ENABLE_TRAPCSR it is an unknown CSR and would trap for an unrelated reason. Three of the eight are verbatim from the Zihpm probe's default path, so hart 0 surviving them is the proof that a correctly scoped fix cannot move the suite floor.
+# Verdicts: a0 = 0xCAFEBABE means the behaviour is correct in the default build and correctly scoped. a0 = 0xDEADBEEF with a1 = 0xF10A0001 means hart 1 executed past its write and 0xF10A0002 that hart 2 executed past `unimp`, both the finding; 0x5E1A0001 a negative-half read returned the wrong value; 0x5E1A0002 a victim never armed; 0x5E1A0003 the counter did not read back, a shared-RAM setup break. NO a0 AT ALL is itself a result: hart 0 wedged inside its own negative half, meaning the fix over-reaches; probe NEGPROG at 0x104F0 to name the leg.
+# NOT IN THE STANDING SUITE: both victims end parked in TRAP_STATE forever and never write their a0, which riscv_tb reports as a NOTE rather than a failure. Invoke it explicitly with ./xrun_batch.sh xxxxrv32ua-p-rocsrwmp. Shared words, all below 0x10500 and inside the bootrom zero range: 0x104E8 PROG1, 0x104EC PROG2, 0x104F0 NEGPROG. The band 0x104E8-0x104F4 is free at N=4 and at N=18, and unlike the neighbouring bands it does not even overlap at N=18.
 
 #include "riscv_test.h"
 #include "test_macros.h"

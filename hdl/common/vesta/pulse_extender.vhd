@@ -1,3 +1,5 @@
+-- VestaRV: pulse extender
+-- Stretches a low pulse by one clock cycle, glitch free.
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 
@@ -9,8 +11,6 @@ entity pulse_extender is
         y : out STD_LOGIC    -- x stretched by one clock cycle, active low
     );
 end pulse_extender;
-
--- Stretches a low pulse by one clock cycle, glitch free.
 
 architecture Behavioral of pulse_extender is
     signal in_delayed : STD_LOGIC;

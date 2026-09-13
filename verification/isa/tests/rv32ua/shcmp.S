@@ -1,27 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shcmp.S  (X3 Zcmp — compressed push/pop + reg-moves directed functional test)
-#-----------------------------------------------------------------------------
-# Build-time dispatch on CORE_ENABLE_ZCMP (explicit -DCORE_ENABLE_ZCMP at ON
-# staging; never auto-derived). Runs on hart 0 (single-hart; tiles park).
-#
-#   OFF (#else): base sanity + PASS. The cm.* encodings are illegal here and
-#       must NOT be emitted (image stays bit-identical to a base build).
-#
-#   ON  (#ifdef): the full push/pop/move matrix. For several (rlist,spimm):
-#       seed the listed regs with sentinels, cm.push, verify the frame memory
-#       holds them at the SPEC offsets, clobber, cm.pop, verify EXACT round-trip
-#       AND sp restored. Plus cm.mvsa01/cm.mva01s round-trip and cm.popretz
-#       (a0=0 + control redirect to ra).
-#
-# gas 13.2 has no cm.* mnemonics, so each is emitted as a raw 16-bit `.short'
-# (BYTE-IMAGE encoding). Encodings (C2 op=10, funct3=101):
-#   cm.push  rlist,spimm : 12:8=11000  cm.pop     : 11010
-#   cm.popretz           : 11100       cm.popret  : 11110
-#   cm.mvsa01 s1,s2      : 12:10=011,6:5=01   cm.mva01s : 6:5=11
-# The stack is a .data buffer (TCM), so nothing else is disturbed.
-#*****************************************************************************
+# VestaRV: Zcmp push, pop and register-move functional test
+# BUILD-TIME DISPATCH on CORE_ENABLE_ZCMP, supplied EXPLICITLY and never auto-derived. Without it the file does base sanity and passes, emitting NO cm.* encoding, so the image stays bit-identical to a base build; with it, the full matrix runs on hart 0 while the tiles park.
+# For several (rlist, spimm) pairs it seeds the listed registers with sentinels, runs cm.push, verifies the frame memory holds them at the SPEC offsets, clobbers the registers, runs cm.pop and verifies an exact round trip with sp restored. It also covers the cm.mvsa01 and cm.mva01s round trip and cm.popretz, which zeroes a0 and redirects control to ra.
+# gas 13.2 has no cm.* mnemonics, so each is a raw 16-bit `.short` byte image. In C2 with op = 10 and funct3 = 101: cm.push has bits 12:8 = 11000, cm.pop 11010, cm.popretz 11100 and cm.popret 11110; cm.mvsa01 has 12:10 = 011 with 6:5 = 01 and cm.mva01s has 6:5 = 11.
+# The stack is a .data buffer in TCM, so nothing else is disturbed.
 
 #include "riscv_test.h"
 #include "test_macros.h"

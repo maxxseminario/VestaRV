@@ -1,16 +1,10 @@
 #!/usr/bin/env python3
-"""rdl_configurator.py -- the configurator / register-browser JSON fragment of an
-.rdl block.
+"""VestaRV: the configurator and register-browser JSON fragment of an .rdl block.
 
-Shape is the `Peripherals[].Registers[]` sub-tree of config/MemoryMap.json, which
-is what docs/chip_configurator.html's register browser and web_export.py already
-consume; it is produced by the SAME Register.ToDict / BitField.ToDict methods, so
-a fragment splices in without a schema of its own. What the fragment adds on top
-is the block metadata SystemRDL carries and the Python model does not: the source
-.rdl file, the addrmap name and the word base of an overlaid block.
-
-Keys are sorted and the separators are fixed, so two emissions of one description
-are byte-identical -- the generation determinism gate applies to this file too.
+The Peripherals[].Registers[] sub-tree of config/MemoryMap.json, produced by the same
+Register.ToDict and BitField.ToDict methods, so a fragment splices in without a schema of its
+own. It adds the block metadata SystemRDL carries and the Python model does not: source file,
+addrmap name, word base. Keys sorted and separators fixed, so two emissions are identical.
 """
 
 import json

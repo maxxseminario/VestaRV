@@ -1,3 +1,5 @@
+# VestaRV: the hermetic chip-generation binaries and their checkers.
+
 load("@rdl_deps//:requirements.bzl", "requirement")
 load("@rules_python//python:defs.bzl", "py_binary")
 
@@ -8,7 +10,7 @@ exports_files(["chipgen.bzl"])
 # Runs generate.py inside a staged copy of the tree so the source tree is never
 # written to. See the module docstring for the path arithmetic it works around.
 # systemrdl-compiler rides along because generate.py's register maps come out of
-# hdl/common/regs/rdl/*.rdl (report R5): the stager hands the closure to the
+# hdl/common/regs/rdl/*.rdl: the stager hands the closure to the
 # generator subprocess on an explicit PYTHONPATH. The .rdl FILES are attached to
 # the action by chipgen.bzl's _rdl_srcs, so the whole path is hermetic.
 py_binary(

@@ -1,54 +1,10 @@
 #!/usr/bin/env python3
-"""synth_coverage.py -- the gate that keeps a new RTL file from dodging synthesis.
+"""VestaRV: the gate that keeps a new RTL file from dodging synthesis.
 
-WHAT THIS IS FOR.
----------------------------------------------------------------------------
-//hdl/common/synth grades a fixed list of entities.  A list is only as good
-as the thing that maintains it, and nothing maintained it: a new .vhd under
-hdl/common/ that no ghdl_synth_test names, and that no graded block
-instantiates, was simply never synthesized, and the census stayed green while
-the coverage silently shrank as a fraction of the tree.
-
-This gate closes that.  It parses EVERY entity declared under hdl/common/,
-subtracts a documented exclusion list, and asserts that what is left is either
-
-  (a) the top-level entity of a ghdl_synth_test target -- including a
-      documented SKIP, because a skip is a recorded decision and not a hole;
-      or
-  (b) present in the elaborated hierarchy of one, which the census records as
-      a module row (the census is derived from the netlist ghdl_synth_test
-      writes, so this reads the same evidence without re-running synthesis).
-
-A new RTL file therefore fails this test on the commit that adds it, and the
-author has to give it a target, wire it into a graded block, or write down why
-it is excluded.
-
-MODULE NAMES.
----------------------------------------------------------------------------
-GHDL names the synthesized top module after the entity, in the entity's own
-case ("MCU", "GPIO"), and every submodule "<entity>_B<architecture>" with both
-halves lowercased and a generic/hash suffix appended
-("periph_regs_Brtl_20_0_e225...", "sync_Brtl_4_2_da39...").  The "_B" separator
-keeps its capital B, which is what makes the split unambiguous: entity and
-architecture names are lowercased around it.  Comparison is case-insensitive
-throughout, because VHDL identifiers are.
-
-BLACK BOXES DO NOT COUNT AS COVERAGE.
----------------------------------------------------------------------------
-hdl/common/synth/*_blackbox.vhd substitutes a port-compatible stub for a cell
-`ghdl --synth` must not look inside -- a compiled memory macro, an analog
-cell, or SYSTEM, which crashes GHDL 6.0.0.  A stub is not a graded design, so
-this gate ignores any module whose architecture is literally `blackbox`.  That
-is the one naming contract those files have to keep, and it is why every stub
-architecture in them is named `blackbox` and nothing else is.
-
-WHY THE EXCLUSIONS ARE PATTERNS OVER PATHS, AND WHY A STALE ONE IS FATAL.
----------------------------------------------------------------------------
-The two conflicting `regfile` entities and the two `TrngRoEnsemble`
-architectures make an entity-name exclusion ambiguous: the name that must be
-graded and the name that must not are the SAME name.  Paths separate them.
-An exclusion pattern that matches no file is an ERROR rather than a no-op, so
-a deleted or renamed file cannot leave a licence to skip behind it.
+Every entity under hdl/common/ minus the documented exclusions must be a ghdl_synth_test top
+(a documented SKIP counts) or a module row in a census. Module names are `<entity>` at the top
+and `<entity>_B<architecture>` below, split on the capital B, compared case-insensitively. An
+architecture named `blackbox` is not coverage; an exclusion matching no file is an error.
 """
 
 import argparse
@@ -58,11 +14,9 @@ import os
 import re
 import sys
 
-# ---------------------------------------------------------------------------
 # THE EXCLUSION LIST.  Every entry says what it covers and why that is not a
 # hole in the gate.  Patterns are fnmatch over the workspace-relative path, so
 # a trailing "*" reaches into subdirectories too.
-# ---------------------------------------------------------------------------
 
 EXCLUSIONS = [
     (
@@ -128,13 +82,11 @@ EXCLUSIONS = [
 
 ROOT = "hdl/common/"
 
-# ---------------------------------------------------------------------------
 # VHDL parsing
 #
 # Comments must go first, and BOTH kinds: this tree uses VHDL-2008 /* */ block
 # comments heavily for its file headers, and several of them quote entity
 # declarations in prose.
-# ---------------------------------------------------------------------------
 
 _BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.S)
 _LINE_COMMENT = re.compile(r"--[^\n]*")
@@ -142,10 +94,9 @@ _ENTITY_DECL = re.compile(r"(?<![\w.])entity\s+([A-Za-z]\w*)\s+is\b", re.I)
 
 
 def entities_in(path):
-    """Every entity DECLARED in one VHDL file, in declaration order.
-
-    `entity work.foo` instantiations do not match: an instantiation has no
-    `is`.  `end entity foo;` does not match for the same reason.
+    """Every entity declared in one VHDL file, in declaration order. An `entity work.foo`
+    instantiation does not match, having no `is`, and `end entity foo;` does not match for the
+    same reason.
     """
     try:
         text = open(path, "r", errors="replace").read()
@@ -157,9 +108,7 @@ def entities_in(path):
     return [m.group(1) for m in _ENTITY_DECL.finditer(text)]
 
 
-# ---------------------------------------------------------------------------
 # Census reading
-# ---------------------------------------------------------------------------
 
 _MODULE_SPLIT = re.compile(r"^(.+?)_B(.*)$")
 
@@ -193,9 +142,7 @@ def covered_from_censuses(paths):
     return covered
 
 
-# ---------------------------------------------------------------------------
 # Runfiles resolution, same shape as synth_census.py's
-# ---------------------------------------------------------------------------
 
 def runfiles_root():
     for var in ("RUNFILES_DIR", "TEST_SRCDIR"):
@@ -234,10 +181,9 @@ def read_manifest(path):
 
 
 def workspace_relative(path):
-    """Strip a runfiles or bazel-out prefix off a manifest entry.
-
-    A source file's manifest entry is already workspace relative; the prefix
-    handling is here so the same gate runs unchanged under `bazel run`.
+    """Strip a runfiles or bazel-out prefix off a manifest entry. A source file's entry is already
+    workspace relative; the prefix handling is here so the same gate runs unchanged under
+    `bazel run`.
     """
     marker = ROOT
     index = path.find(marker)
@@ -246,9 +192,7 @@ def workspace_relative(path):
     return path
 
 
-# ---------------------------------------------------------------------------
 # main
-# ---------------------------------------------------------------------------
 
 def main(argv):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])

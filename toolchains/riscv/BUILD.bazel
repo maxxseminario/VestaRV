@@ -1,4 +1,4 @@
-# Anchor package for the hermetic RISC-V toolchain overlay (xpack_gcc.BUILD).
+# VestaRV: anchor package for the hermetic RISC-V toolchain overlay.
 # The @xpack_riscv_gcc repository is declared in MODULE.bazel; firmware rules
 # consume its filegroups directly.
 

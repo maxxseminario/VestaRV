@@ -1,82 +1,13 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# trapstor.S   (F-series fix pass, wave W1 — DETECTOR for finding F8)
-#-----------------------------------------------------------------------------
-# F8: TRAP_STATE is NOT SILENT — it commits real stores.
-#
-#   vesta.vhd's TRAP_STATE arm (:3464-3468) assigns pc_en, reg_write_dp,
-#   next_state and trap_flag — and NOTHING ELSE.  `wen` therefore falls
-#   through to the process default `wen <= wen_controller` (:2110), and
-#   TRAP_STATE is absent from the instr_curr hold list (:1429-1474) so
-#   `instr_curr <= instr_decomp` of the LIVE BUS WORD.  Meanwhile
-#   mem_access_instr is '0', so the data_addr mux (:1551-1563) falls all the
-#   way through to `pc_next` = pc_next_trad = pc_next_trad_reg — the fetch
-#   address latched at the trapping EXECUTE edge, i.e. PC_of_trap + 4.
-#
-#   Consequence: the word AT pc_next_trad_reg is decoded as an instruction AND
-#   is the store target.  If that word is a store encoding, the core commits a
-#   real store to it, and TRAP_STATE self-loops forever, so it can keep doing
-#   so until the 100 ms tb watchdog.  riscv_tb does not watch trap_flag.
-#
-# WHY THIS TEST NEEDS TWO HARTS
-#   TRAP_STATE is TERMINAL (self-loop, no exit).  A hart that enters it never
-#   writes a0 again, so the trapping hart can never be the a0 gate.  Here the
-#   VICTIM is tile hart 1 and the OBSERVER is hart 0, which keeps the ordinary
-#   PASS/FAIL contract.  For hart 0 to see the corruption at all, the victim
-#   must be executing FROM THE SHARED WINDOW when it traps (the store target is
-#   the fetch address; a TCM fetch address would corrupt a private word that no
-#   other hart can read).  Execute-from-shared is proven by shexec.S (M10).
-#
-# THE PLANTED PAYLOAD (hart 0 writes it into shared RAM before any launch):
-#     0x10420  CODE   = 0x0000007F   opcode 0x7F is not in maindec's
-#                                    valid_opcode list (maindec.vhd:608-630)
-#                                    on ANY build => illegal-instruction trap;
-#                                    bits[1:0]="11" so it is a full 32-bit
-#                                    insn and pc_next_trad = pc + 4.
-#     0x10424  VICTIM = 0x00002023   `sw x0, 0(x0)`.  Decoded out of TRAP_STATE
-#                                    it drives wen_controller to "0000" (all
-#                                    four lanes, ACTIVE-LOW) with write_data =
-#                                    x0 = 0 — so the pre-fix core overwrites
-#                                    THIS VERY WORD with 0x00000000.
-#     0x10428  CAN1   = 0xC0DEC0DE   canaries: catch a store that lands near
-#     0x1042C  CAN2   = 0xC0DEC0DE   the victim instead of on it.
-#     0x10438  ARM    = 0xA5A5A5A5   liveness flag, written by hart 1 in the
-#                                    instruction immediately before it jumps
-#                                    into the payload.  Hart 0 REFUSES to
-#                                    render a verdict until it sees ARM — a
-#                                    tile that never launched must FAIL, never
-#                                    vacuously pass.
-#
-# VERDICT
-#   pre-fix : a0 = 0xDEADBEEF  (a1 = 0xF8F8F8F8, "F8 fired" — VICTIM changed)
-#   post-fix: a0 = 0xCAFEBABE  (VICTIM and both canaries intact for the whole
-#                               observation window, with ARM proven set)
-#   Other a1 codes on a FAIL are setup breaks, not the finding:
-#       a1 = 0x5E800001  the planted payload did not read back
-#       a1 = 0x5E800002  ARM never appeared: tile 1 never reached the payload
-#       a1 = 0x5E80000C  a CANARY moved (store landed off-target — analyse,
-#                        do NOT score this as a clean F8 hit)
-#
-#   SECOND OBSERVABLE (traced runs): the tracer emits
-#   `# TRAPSTORE <hart> <cycle> <addr> <size> <data>` (vesta_tracer.vhd:563)
-#   for exactly this event.  W0 measured TRAPSTORE = 0 everywhere at HEAD, so
-#   per ruling R-W0-1 this diagnostic is a POSITIVE CONTROL this detector must
-#   PROVOKE: pre-fix TRAPSTORE > 0 on hart 1, post-fix 0.  Note
-#   TRAPSTORE_LIMIT := 8 per hart — any nonzero count is a FLOOR.
-#
-# NOT IN THE STANDING SUITE.  Post-fix, tile hart 1 is parked in TRAP_STATE
-# forever and never writes a0_1; riscv_tb reports "tile hart(s) silent/parked",
-# which is a NOTE, not a failure.  The test is still kept OUT of
-# xrun_parallel.sh's TEST_FILES array so the suite floor stays at its pinned
-# count; invoke it explicitly with ./xrun_batch.sh xrv32ua-p-trapstor.
-#
-# Shared words claimed (all < 0x10500 and inside the bootrom zero range):
-#     0x10420 CODE, 0x10424 VICTIM, 0x10428 CAN1, 0x1042C CAN2, 0x10438 ARM
-#   Free band 0x10420-0x1043C sits between shexec's N=18 DONE top (0x1041C) and
-#   shfault's HEARTBEAT base (0x10440) — unclaimed at N=4 and N=18.  0x10430 is
-#   deliberately skipped: it belongs to the sibling W1 detector scfailrd.S.
-#*****************************************************************************
+# VestaRV: detector for stores committed out of the terminal trap state
+# THE DEFECT: TRAP_STATE assigns pc_en, reg_write_dp, next_state and trap_flag and NOTHING ELSE, so `wen` falls through to wen_controller, and TRAP_STATE is absent from the instr_curr hold list, so instr_curr takes the decode of the LIVE BUS WORD. Meanwhile mem_access_instr is low, so data_addr falls all the way through to pc_next_trad_reg, the fetch address latched at the trapping EXECUTE edge, which is the trapping PC plus 4. The word at that address is therefore decoded as an instruction AND is the store target, so if it is a store encoding the core commits a real store to it, and TRAP_STATE self-loops forever so it can keep doing so until the 100 ms watchdog. riscv_tb does not watch trap_flag.
+# THIS NEEDS TWO HARTS, because TRAP_STATE is TERMINAL and a hart that enters it never writes a0 again. The victim is tile hart 1 and the observer is hart 0, which keeps the ordinary pass/fail contract. FOR HART 0 TO SEE THE CORRUPTION AT ALL THE VICTIM MUST BE EXECUTING FROM THE SHARED WINDOW when it traps, since the store target is the fetch address and a TCM fetch address would corrupt a private word no other hart can read.
+# The planted payload, written by hart 0 before any launch: 0x10420 CODE = 0x0000007F, whose opcode is not in maindec's valid_opcode list on any build so it is an illegal instruction, with bits [1:0] = "11" so it is a full 32-bit instruction and the next fetch address is pc + 4; 0x10424 VICTIM = 0x00002023, `sw x0, 0(x0)`, which decoded out of TRAP_STATE drives all four active-low lanes with write data 0 and therefore overwrites THIS VERY WORD; 0x10428 and 0x1042C canaries holding 0xC0DEC0DE, to catch a store that lands near the victim instead of on it; and 0x10438 ARM = 0xA5A5A5A5, written by hart 1 in the instruction immediately before it jumps into the payload. HART 0 REFUSES TO RENDER A VERDICT UNTIL IT SEES ARM, so a tile that never launched must fail rather than vacuously pass.
+# Verdicts: a0 = 0xCAFEBABE means the victim word and both canaries stayed intact for the whole observation window with ARM proven set; a0 = 0xDEADBEEF with a1 = 0xF8F8F8F8 means the victim word changed. Other a1 codes are setup breaks rather than the finding: 0x5E800001 the planted payload did not read back, 0x5E800002 ARM never appeared so tile 1 never reached the payload, 0x5E80000C a canary moved, so a store landed off-target and the result must be analysed rather than scored as a clean hit.
+# A SECOND OBSERVABLE EXISTS IN TRACED RUNS: the tracer emits a TRAPSTORE record for exactly this event, which is a POSITIVE CONTROL this detector must provoke, so the count must be above zero on hart 1 when the defect is present and zero when it is not. The per-hart trace limit is 8, so any nonzero count is a floor.
+# NOT IN THE STANDING SUITE: the victim ends parked in TRAP_STATE forever and never writes its a0, which riscv_tb reports as a NOTE rather than a failure, and the test is kept out of the runner array so the suite floor stays at its pinned count. Invoke it explicitly with ./xrun_batch.sh xrv32ua-p-trapstor.
+# Shared words, all below 0x10500 and inside the bootrom zero range: 0x10420 CODE, 0x10424 VICTIM, 0x10428 and 0x1042C canaries, 0x10438 ARM. 0x10430 IS DELIBERATELY SKIPPED, because it belongs to the sibling detector scfailrd.S.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,4 +1,4 @@
-# Small helpers shared by the firmware regression tests.
+# VestaRV: small helpers shared by the firmware regression tests.
 
 load("@rules_python//python:defs.bzl", "py_test")
 
@@ -9,9 +9,7 @@ package(default_visibility = ["//visibility:public"])
 # each test needs it as its own entry point with its own arguments.
 exports_files(["compare_text.py"])
 
-# ---------------------------------------------------------------------------
 # The shared-code ISA gate.
-# ---------------------------------------------------------------------------
 
 # PROVES that no image more than one hart executes carries an instruction the
 # hardened tiles do not implement. Castalia's harts are not interchangeable:

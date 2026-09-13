@@ -1,53 +1,16 @@
 #!/usr/bin/python3.6
-"""isa_model.py -- what a given VestaRV configuration may legally be asked to
-execute, and what the ORACLE can be asked to judge about it.
+"""VestaRV: what a configuration may legally execute, and what the oracle can judge.
 
-TWO GATES, NOT ONE.  This is the design decision of K3 and it is worth stating
-before the tables:
-
-  1. **Config-legality.**  An encoding the configured RTL would trap is never
-     emitted.  On a default build a trap is TERMINAL (`vesta.vhd`'s TRAP_STATE
-     self-loops with no ENABLE_ term -- K0 oracle probe §1.3n), so an
-     illegal-for-config encoding does not fail loudly, it HANGS until the tb
-     watchdog.  Gate 1 is what k3_spec.md requirement 2 asks for.
-
-  2. **Oracle-judgeability.**  An encoding both sides execute but DESCRIBE
-     DIFFERENTLY is worse than an illegal one, because the resulting divergence
-     looks like an RTL bug.  The K0 oracle probe measured, per knob, whether the
-     reference's record stream can be compared at all:
-
-        verdict A  comparable today
-        verdict B  needs a comparator amendment that DOES NOT EXIST (K2b)
-        verdict C  not modellable; needs a V-series bracket channel
-
-     A random generator that emits a verdict-B class into a lockstep run
-     manufactures a divergence out of the harness.  So every class here carries
-     its oracle status, and `select_classes()` REFUSES to hand a verdict-B class
-     to a stream unless the caller passes `allow_unmodelled=True` and thereby
-     takes responsibility for it in writing.
-
-Neither gate is a substitute for the other.  Gate 1 is about the DUT; gate 2 is
-about the reference.
-
-WHAT THIS MODULE DOES NOT DO
-----------------------------
-It does not encode instructions.  It emits MNEMONIC TEXT and lets `gas` do the
-encoding, so that the census (`census.py`) -- which decodes the built image's
-BYTES back to a mnemonic from its own field table -- is an INDEPENDENT
-instrument rather than a restatement of this file.  R-K2-5's `200f` lesson is
-that a census which shares its author's assumptions confirms them; the unit
-tests assert `census.decode(gas(m)) == m` for every mnemonic below, with
-`objdump -M no-aliases` as the third-party referee.
-
-Python 3.6 compatible.
+Two gates. Config-legality keeps out an encoding the configured RTL would trap, which hangs
+rather than fails. Oracle-judgeability keeps out an encoding both sides execute but describe
+differently; select_classes() refuses an unmodelled class unless the caller passes
+allow_unmodelled. This emits mnemonic text and lets gas encode, so census.py stays independent.
 """
 
 import re
 
-# --------------------------------------------------------------------------
 # Oracle verdicts, quoted from k0_oracle_probe.md §1.2's table.  The citation
 # is part of the datum: a status without its measurement is an opinion.
-# --------------------------------------------------------------------------
 A = 'A'      # comparable today
 B = 'B'      # needs a comparator amendment that DOES NOT EXIST -- do not lockstep
 C = 'C'      # not modellable at all; bracket channel only
@@ -102,24 +65,18 @@ KNOB_ORACLE = (
     # frame's memory records in different orders -- so the counts matched and
     # the stream still could not be compared positionally.  A was therefore a
     # judgeability claim the measurement did not support, and it was live in
-    # this table for the whole of K4.  K5 queue item 2 landed the
-    # `zcmp-frame-order` amendment (canonicalise ONE frame retire's memory
-    # records into ascending address order, INDEPENDENTLY on each side; nothing
-    # is dropped), which is exactly the E contract: emittable, and the run must
-    # carry the named amendment.
+    # this table until the `zcmp-frame-order` amendment landed (canonicalise ONE
+    # frame retire's memory records into ascending address order, INDEPENDENTLY
+    # on each side; nothing is dropped), which is exactly the E contract:
+    # emittable, and the run must carry the named amendment.
     #
-    # THE PRE-FLIP REFUSAL WAS MEASURED, NOT ASSUMED (K5 item 4).  With this row
-    # at B, `available_classes` on a zcmp-ON config blocked EXACTLY ONE class --
-    # zcmp -- with the reason "oracle verdict B (comparator amendment is K2b and
-    # does not exist)", and `allow_unmodelled=True` re-admitted exactly that one
-    # and nothing else.  That is the FIRST FIRING of the refusal arm in this
-    # programme: R-K3-2's D-3 recorded it had never fired, and R-K4-3 (4)
-    # measured that no CONFIGURATION could make it fire and named it a K5
-    # emitter question.  It was, and this is the answer.  R-K4-3 (4)'s
-    # accompanying instruction -- do not "prove" a new class by making the arm
-    # fire -- is honoured: B is not a pose, it is this knob's honest state
-    # between K4-L3's measurement and K5 queue item 2's amendment, and the flip
-    # below is the amendment landing, not the demonstration ending.
+    # THE PRE-FLIP REFUSAL WAS MEASURED, NOT ASSUMED.  With this row at B,
+    # `available_classes` on a zcmp-ON config blocked EXACTLY ONE class, zcmp,
+    # with the reason "oracle verdict B (the comparator amendment does not
+    # exist)", and `allow_unmodelled=True` re-admitted exactly that one and
+    # nothing else.  B was this knob's honest state between the measurement and
+    # the amendment; the flip below is the amendment landing, not a
+    # demonstration ending.
     ('zcmp',       E, 'k0 §1.3l counted the records and said A; K4-L3 MEASURED '
                       'the frame store ORDER and the two sides differ, so A was '
                       'a judgeability claim the measurement did not support. '
@@ -172,24 +129,18 @@ KNOB_AMENDMENTS = dict((r[0], tuple(r[3]) if len(r) > 3 else ())
                        for r in KNOB_ORACLE)
 
 
-# --------------------------------------------------------------------------
-# HARD REFUSALS -- the things k3_spec.md requirement 3 forbids outright, each
+# HARD REFUSALS -- the encodings the spec forbids outright, each
 # with the measurement behind it.  These are not weights; nothing may switch
 # them on.
 #
-# K5 CORRECTION (method rule 12: a wrong rationale is worse than none).  This
-# header said, from K3 until now, "Enforced by `assert_no_forbidden_text()`
-# over the emitted body, so that a future emitter cannot reintroduce one
-# silently."  THAT FUNCTION DID NOT EXIST -- anywhere in the tree.  The table
-# was a comment claiming an enforcement it did not have, for two waves, while
-# every emitter that could have violated it happened not to.  K5 queue item 4
-# adds five emitters, one of which writes a CSR for the first time in the
-# generator's life, so the claim is now made true instead of edited away:
-# `assert_no_forbidden_text()` is below, it is called from
-# `randgen.build_stream`, and the unit tests see it FAIL before its silence
-# means anything (method rule 1).  Its limits are documented AT the function --
-# it is a TEXT scan, not a semantic one, and it says so.
-# --------------------------------------------------------------------------
+# A wrong rationale is worse than none.  This header used to say "Enforced by
+# `assert_no_forbidden_text()` over the emitted body, so that a future emitter
+# cannot reintroduce one silently", and THAT FUNCTION DID NOT EXIST anywhere in
+# the tree: the table claimed an enforcement it did not have, while every emitter
+# that could have violated it happened not to.  It exists now, it is called from
+# `randgen.build_stream`, and the unit tests see it FAIL before its silence means
+# anything.  Its limits are documented AT the function: it is a TEXT scan, not a
+# semantic one, and it says so.
 FORBIDDEN = (
     ('mip write',
      'k0 §1.3n: `mip` is a READ-ONLY mirror in the RTL and WRITABLE in M-mode '
@@ -221,7 +172,7 @@ FORBIDDEN = (
     # it is never a compared record.  What the row actually forbids is opcode
     # 0x0b in the COMPARED stream -- i.e. inside the census range -- and that is
     # the scope `assert_no_forbidden_text` now enforces.  A missing instrument
-    # hid a wrong rule rather than a wrong emission, which is method rule 12
+    # hid a wrong rule rather than a wrong emission, which is the same lesson
     # measured rather than quoted.
     ('opcode 0x0b in the census range',
      'k0 §1.5: iret/extinguish/ignite TRAP in Spike under EVERY --isa string. '
@@ -236,7 +187,6 @@ FORBIDDEN = (
 )
 
 
-# --------------------------------------------------------------------------
 # The shape classes.  A class is a set of mnemonics that (a) the census can
 # tell apart from every other class by FIELD DECODE alone, and (b) share a
 # knob requirement.  `needs` is a tuple of resolved-config isa.* keys that must
@@ -245,7 +195,6 @@ FORBIDDEN = (
 # ORDER IS PART OF THE CONTRACT: it is the order weights are consumed in and
 # therefore reaches the emitted bytes.  Never reorder without bumping the
 # generator version.
-# --------------------------------------------------------------------------
 
 # Base-integer R-type.
 M_ALU_REG = ('add', 'sub', 'sll', 'slt', 'sltu', 'xor', 'srl', 'sra', 'or', 'and')
@@ -285,9 +234,7 @@ M_ZFINX_R = ('fadd.s', 'fsub.s', 'fmul.s', 'fdiv.s', 'fmin.s', 'fmax.s',
 M_ZFINX_UN = ('fsqrt.s', 'fclass.s', 'fcvt.w.s', 'fcvt.wu.s', 'fcvt.s.w',
               'fcvt.s.wu')
 
-# --------------------------------------------------------------------------
-# K5 queue item 4 -- the five emitter-less state-bearing Z rows R-K4-2 (2)
-# dropped from the campaign with "write the emitters" filed for K5.
+# The five emitter-less state-bearing Z rows once dropped from the campaign.
 #
 # THE TOOLCHAIN SPLITS THEM IN TWO, AND THE SPLIT DECIDES WHAT CAN BE TRUSTED.
 # Measured on this tree's gas/objdump 2.41, not assumed:
@@ -299,7 +246,7 @@ M_ZFINX_UN = ('fsqrt.s', 'fclass.s', 'fcvt.w.s', 'fcvt.wu.s', 'fcvt.s.w',
 #     `_zca` outright ("unknown prefixed ISA extension") and objdump prints
 #     `.word`/`.short` for their encodings.  So for exactly these two classes
 #     the generator must ENCODE the 16-bit words itself and BOTH third parties
-#     are gone.  The substitute referee is a known-NONZERO one (method rule 4):
+#     are gone.  The substitute referee is a known-NONZERO one:
 #     the X3 wave's directed tests carry hand-verified literals -- `0xB852`
 #     (`cm.push {ra,s0},-16`), `0xBA52` (`cm.pop {ra,s0},16`), `0xA016`
 #     (`cm.jt 5`) -- and the unit tests assert this encoder reproduces all
@@ -310,12 +257,11 @@ M_ZFINX_UN = ('fsqrt.s', 'fclass.s', 'fcvt.w.s', 'fcvt.wu.s', 'fcvt.s.w',
 # mnemonic, but the encodings ARE plain `add x0, x0, x{2,3,4,5}` which gas
 # assembles under the base ISA and objdump names as `add`.  So gas and objdump
 # both survive for ntl at the ENCODING level and only the MNEMONIC is ours.
-# --------------------------------------------------------------------------
 M_ZICBOZ = ('cbo.zero',)
 M_ZAWRS = ('wrs.nto', 'wrs.sto')
 # `pause` is `fence w,0` -- opcode 0x0F funct3 0 -- so a decoder that keys on
 # the opcode alone CONFLATES it with the generator's `fence iorw,iorw`.  That is
-# the R-K2-5 lesson one field deeper, and census.py decodes the full imm/rd/rs1
+# the suffix-matching lesson one field deeper, and census.py decodes imm/rd/rs1
 # to keep them apart.
 M_ZIHINT = ('pause', 'ntl.p1', 'ntl.pall', 'ntl.s1', 'ntl.all')
 # Zcmp: push/pop ONLY.  cm.popret/cm.popretz are deliberately absent -- both
@@ -379,7 +325,7 @@ CLASSES = (
 # class's lockstep eligibility is an OPEN question this wave did not settle.
 # `zihint`: pause retires in BOTH polarities (k0 §1.3b), so a zihint stream is
 # byte-identical content whether the knob is on or off.  A lockstep cell over
-# it would be judging the base ISA with a config label attached -- R-K2-7(2)'s
+# it would be judging the base ISA with a config label attached, the
 # plumbing-control shape -- so the demonstration is the SUITE, where the claim
 # "the encoding retires and touches nothing" is exactly what is checked.
 SUITE_ONLY_CLASSES = ('zawrs', 'zihint')
@@ -389,24 +335,9 @@ CLASS_OWN_ORACLE = dict((n, o) for (n, _need, o, _d) in CLASSES)
 
 
 def class_oracle(name):
-    """A class's oracle verdict = its OWN verdict combined with the verdicts of
-    every knob it needs.
-
-    DERIVED RATHER THAN TABULATED, and that is a K2b correction to K3's shape.
-    Before this, `CLASSES` carried a hand-written verdict beside `KNOB_ORACLE`'s
-    hand-written verdict, with nothing tying them together: a class needing a
-    verdict-B knob could have been written down as A and the refusal arm would
-    never have noticed.  (It could not happen in K3 only because no class
-    needed a B knob at all -- which is exactly why R-K3-2's D-3 records that
-    the refusal arm had never fired.)
-
-    The combination is NOT a total order on 'badness', because C and B are
-    treated oppositely on purpose:
-        any B  -> B   REFUSED: modelled DIFFERENTLY by the two sides, and the
-                      amendment that would reconcile it does not exist
-        any C  -> C   ADMITTED via the existing V3 bracket channel
-        any E  -> E   ADMITTED, and the run must carry the named amendment
-        else      A
+    """A class's oracle verdict: its own combined with every knob it needs, derived rather than
+    tabulated. Not a total order: any B refuses, any C is admitted through the bracket channel,
+    any E is admitted and the run must carry the named amendment.
     """
     vs = [CLASS_OWN_ORACLE[name]] + [KNOB_ORACLE_STATUS[k]
                                      for k in CLASS_NEEDS[name]
@@ -462,7 +393,7 @@ del _c, _ms, _m
 # `alu_imm`/`store`/`load` and the census counts them as such.  That is
 # deliberate and is stated in the manifest: a census cannot tell an
 # msip-arming `sw` from any other `sw` by field decode, and pretending it can
-# would be exactly the suffix-matching error R-K2-5 recorded.  The IRQ-site
+# would be exactly the suffix-matching error.  The IRQ-site
 # count is therefore a GENERATOR claim carried in the manifest and validated by
 # a different witness (the ISR's own flag word), not by the census.
 CENSUS_OPAQUE_CLASSES = ('clint_irq',)
@@ -525,28 +456,9 @@ RANGE_END = 'k3_stream_end:'
 
 
 def assert_no_forbidden_text(text, allow=()):
-    """Raise `ForbiddenEmission` if the emitted text trips a FORBIDDEN row.
-
-    WHAT THIS IS AND IS NOT, stated at the site so no future reader over-reads
-    it (the defect this function replaces was exactly an over-read comment):
-
-      * It IS a text scan of the WHOLE emitted `.S`, prologue and epilogue
-        included -- the reference executes those too, so a forbidden encoding
-        is just as fatal there as in the census range.
-      * It is NOT semantic.  It cannot see a `csrw` whose CSR number arrives in
-        a register, it cannot evaluate a `jvt` value that comes from `la`, and
-        it cannot tell a mutex address from any other address held in a
-        register.  Those three are structural properties of the emitters
-        instead: v1.3.0 emits exactly ONE CSR write in the whole generator
-        (`csrw 0x017, <reg>` from a `.align 6` table symbol, Zcmt only), and no
-        emitter can construct an address outside the scratch block.
-      * `allow` is the ESCAPE for a caller that owns the exception in writing.
-        The Zcmt prologue's `mtvec`-free `csrw 0x017` needs no escape; the
-        parameter exists so that a future emitter with a measured argument
-        writes the argument down rather than deleting a pattern.
-
-    A scan that has never rejected anything is worth nothing (method rule 1),
-    so `test_randgen.py` feeds it each pattern and asserts it fires.
+    """Raise ForbiddenEmission if the emitted text trips a FORBIDDEN row. A text scan of the whole
+    emitted .S, prologue and epilogue included, since the reference executes those too. It is not
+    semantic: it cannot see a csrw whose CSR number arrives in a register.
     """
     lines = text.splitlines()
     lo = hi = None
@@ -574,19 +486,9 @@ def assert_no_forbidden_text(text, allow=()):
 
 
 def available_classes(cfg_isa, allow_unmodelled=False):
-    """The classes this configuration may legally and judgeably emit.
-
-    Returns `(available, blocked)` where `blocked` is an ordered list of
-    `(class, reason)` -- kept and reported rather than silently dropped, so a
-    manifest can state what a run did NOT cover and why.
-
-    VERDICT C IS ADMITTED AND VERDICT B IS NOT, which looks backwards until the
-    difference is named: a C class has an EXISTING channel (the V3
-    `BRACKET_ISR` machinery, a standing gate since the multi-hart sweep), while
-    a B class needs a comparator amendment that K2 explicitly deferred to K2b
-    and that DOES NOT EXIST.  "Not modellable, but bracketed" is a solved
-    problem; "modelled differently by the two sides" is an open one, and only
-    the second manufactures divergences that look like RTL bugs.
+    """The classes this configuration may legally and judgeably emit, as (available, blocked), with a
+    reason per blocked class. Verdict C is admitted because it has an existing bracket channel;
+    verdict B needs an amendment that does not exist, and only B looks like an RTL bug.
     """
     avail, blocked = [], []
     for name in CLASS_ORDER:
@@ -605,15 +507,9 @@ def available_classes(cfg_isa, allow_unmodelled=False):
 
 
 def required_amendments(class_names):
-    """The K2b comparator amendments a stream containing these classes NEEDS.
-
-    A stream that carries an E class and is compared WITHOUT its amendment
-    diverges on record SHAPE, which reads exactly like a DUT defect -- so the
-    requirement is written into the manifest rather than left as folklore.
-    The comparator is fed the same set independently, derived from the same
-    resolved config by `tools/cosim/oracle_isa.py::derive_amendments`; this is
-    the generator's half of that agreement, and the two are checked against
-    each other by the unit tests.
+    """The comparator amendments a stream containing these classes needs. An E class compared without
+    its amendment diverges on record shape, which reads like a DUT defect, so the requirement goes
+    into the manifest. The comparator derives the same set independently and the two are checked.
     """
     out = []
     for name in class_names:
@@ -625,11 +521,9 @@ def required_amendments(class_names):
 
 
 def knobs_on_without_emitter(cfg_isa, cfg_priv):
-    """Knobs the config turns ON that this generator has NO emitter for.
-
-    Named rather than ignored.  A knob-on row whose stream contains none of that
-    knob's encodings is a green cell covering nothing -- R-K2-7 (2) ruled that
-    distinction into the residue list, and this is the generator's half of it.
+    """Knobs the config turns on that this generator has no emitter for, named rather than ignored:
+    a knob-on row whose stream contains none of that knob's encodings is a green cell covering
+    nothing.
     """
     have_emitter = set()
     for name in CLASS_ORDER:

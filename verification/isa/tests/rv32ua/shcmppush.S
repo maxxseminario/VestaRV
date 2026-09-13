@@ -1,58 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shcmppush.S  (X3 Zcmp — INTERRUPTED push/pop uninterruptibility proof)
-#   [X3 Stage-D red-team deliverable (B)]
-#-----------------------------------------------------------------------------
-# Build-time dispatch on CORE_ENABLE_ZCMP (explicit -DCORE_ENABLE_ZCMP at ON
-# staging; never auto-derived). Hart 0 only (single-hart; tiles park).
-#
-#   OFF (#else): base sanity + PASS. The cm.* encodings are illegal here and
-#       must NOT be emitted (image stays bit-identical to a base build); this
-#       keeps the test in the DEFAULT behavioral_mp regression, green.
-#
-#   ON  (#ifdef): PROVE the Zcmp push/pop sequencer is UNINTERRUPTIBLE — it
-#       holds a pending interrupt to the retire boundary, and `sp` commits
-#       exactly once, LAST. So an interrupt that becomes pending DURING the
-#       burst must be taken only AFTER retire, with the handler seeing sp fully
-#       committed and the frame fully written — never a partial frame.
-#
-#       Mechanism (why a TIMER, not a bare msip): every ordinary
-#       instruction-boundary state (EXECUTE / MEMORY_WAIT) takes a pending
-#       interrupt immediately, so a self-IPI pended right before the cm.push is
-#       taken at the pend-STORE's own MEMORY_WAIT — before the push. To land the
-#       interrupt INSIDE the burst we arm CLINT mtimecmp a tuned delta ahead of
-#       the free-running mtime (mtime ticks at the 24 MHz shared clock while the
-#       core runs at the post-boot LFXT ~32 kHz, so the ~13-store burst is tens
-#       of thousands of mtime ticks wide). mtip then rises mid-burst; the
-#       uninterruptible sequencer HOLDS it until ZCM_SP_COMMIT -> MEMORY_WAIT
-#       retires, where it is finally taken.
-#
-#       The mtip ISR (IVT slot 84) records, as its FIRST act, the interrupted
-#       sp. The HW push-entry (IRQ_SV) decremented sp by 4, so the true
-#       interrupted sp = recorded + 4. Invariant asserted:
-#         push {ra,s0-s11},-112 : recorded+4 == entry_sp - 112  (committed)
-#         pop  {ra,s0-s11}, 112 : recorded+4 == entry_sp         (committed)
-#       Because sp commits LAST, "the ISR saw the committed sp" is provable
-#       only if the ENTIRE burst retired before the interrupt was taken. A
-#       sequencer made interruptible mid-burst (see
-#       verification/isa/negctrl/x3_redteam_zcmp_interruptible.patch, which adds
-#       an irq_save escape to ZCM_PUSH_GAP) takes mtip mid-burst -> the ISR sees
-#       the OLD (uncommitted) sp -> the bne FAILs, BOUNDED (never a watchdog).
-#       The frame sentinels + the exact round-trip are the companion guards.
-#
-# gas 13.2 has no cm.* mnemonics; cm.push/pop are raw 16-bit `.short's (verified
-# shcmp.S encodings): cm.push {ra,s0-s11},-112 = 0xB8FE ; cm.pop {..},112 = 0xBAFE.
-#
-# CLINT: base 0x5000; MSIP[h]=0x5000+4h; the msip array is 4*NHARTS bytes and
-# mtime follows it at the next 16-byte boundary, so mtime lo = 0x5000 +
-# roundup16(4*NHARTS) and mtimecmp0 lo/hi = that + 0x10/0x14 (reset all-ones =
-# quiet). The offsets below are DERIVED from NHARTS; they were the N=4 literals
-# 0x10/0x20/0x24 until K5, which on an 18-hart build would have addressed
-# msip[4] and msip[8]/msip[9] -- OTHER HARTS' software-interrupt registers.
-# `extzawrs.S` is the pattern this now follows. Reserved regs (never in an
-# rlist, never touched by the ISR): gp(x3)=&cpp_cursp, tp(x4)=entry sp.
-#*****************************************************************************
+# VestaRV: the Zcmp push/pop sequencer is uninterruptible
+# BUILD-TIME DISPATCH on CORE_ENABLE_ZCMP, supplied EXPLICITLY and never auto-derived. Without it the file does base sanity and passes, emitting NO cm.* encoding, so the image stays bit-identical to a base build and this test can sit in the default regression; with it, hart 0 runs the proof while the tiles park.
+# THE PROPERTY: the sequencer HOLDS a pending interrupt to the retire boundary and commits sp exactly once, LAST. So an interrupt that becomes pending DURING the burst must be taken only after retire, with the handler seeing sp fully committed and the frame fully written, never a partial frame.
+# A TIMER IS USED, NOT A BARE msip, and that is the mechanism. Every ordinary instruction-boundary state takes a pending interrupt immediately, so a self-IPI pended just before the cm.push is taken at the pending store's own MEMORY_WAIT, before the push. To land the interrupt INSIDE the burst the test arms CLINT mtimecmp a tuned delta ahead of the free-running mtime, which ticks at the shared 24 MHz clock while the core runs post-boot on LFXT at about 32 kHz, so the roughly 13-store burst is tens of thousands of mtime ticks wide. mtip then rises mid-burst and the sequencer holds it until the sp-commit state retires.
+# The mtip ISR records the interrupted sp as its first act. The hardware push entry decremented sp by 4, so the true interrupted sp is the recorded value plus 4, and the invariant asserted is that after a push of {ra, s0-s11} with -112 it equals entry_sp - 112, and after the matching pop it equals entry_sp. BECAUSE sp COMMITS LAST, "the ISR saw the committed sp" is provable only if the entire burst retired before the interrupt was taken; a sequencer made interruptible mid-burst makes the ISR see the old sp and fails, bounded, never as a watchdog. The frame sentinels and the exact round trip are the companion guards.
+# gas 13.2 has no cm.* mnemonics, so cm.push and cm.pop are raw 16-bit `.short` values: `cm.push {ra,s0-s11},-112` is 0xB8FE and `cm.pop {ra,s0-s11},112` is 0xBAFE.
+# CLINT ADDRESSES ARE DERIVED FROM NHARTS, not literals: the msip array is 4*NHARTS bytes and mtime follows at the next 16-byte boundary, so mtime low is 0x5000 + roundup16(4*NHARTS) and mtimecmp0 low and high are that plus 0x10 and 0x14. Hardcoded N=4 literals would address OTHER HARTS' software-interrupt registers on a wider build. Reserved registers, never in an rlist and never touched by the ISR: gp holds the cursor address and tp the entry sp.
 
 #include "riscv_test.h"
 #include "test_macros.h"

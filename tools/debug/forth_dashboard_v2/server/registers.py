@@ -1,29 +1,9 @@
-"""Load data/registers.json and provide lookup + field pack/unpack helpers.
+"""VestaRV: load data/registers.json and provide lookup and field pack/unpack helpers.
 
-Schema consumed (produced by WP1's gen_registers.py, verified 2026-07-18):
-
-    {
-      "chip": "myshkin",
-      "peripherals": {
-        "GPIO0": {
-          "description": "...",
-          "base_addr": 16384,
-          "registers": {
-            "PIN": {
-              "addr": 16384, "size": 1, "type": "STATUS",
-              "description": "...",
-              "fields": {
-                "FIELDNAME": {"lsb": 0, "width": 1, "desc": "...",
-                              "values": {"0": "Disabled", "1": "Enabled"}}
-              }
-            }
-          }
-        }
-      }
-    }
-
-Absence of the file is tolerated: load() raises RegistersUnavailable with a
-clear message, which the API surfaces at endpoint-use time (never at import).
+The schema is gen_registers.py's: peripherals, each with base_addr and registers, each
+register with addr, size, type and fields of lsb, width, desc and optional enum values.
+Absence of the file is tolerated: load() raises RegistersUnavailable, which the API surfaces
+at endpoint-use time rather than at import.
 """
 
 import json
@@ -52,7 +32,7 @@ class RegisterMap:
         self.source = source
         self._peripherals = data.get("peripherals") or {}
 
-    # -- construction ------------------------------------------------------
+    # -- construction
 
     @classmethod
     def load(cls, path: Optional[str] = None) -> "RegisterMap":
@@ -67,7 +47,7 @@ class RegisterMap:
             raise RegistersUnavailable("cannot read %s: %s" % (path, exc))
         return cls(data, path)
 
-    # -- raw access --------------------------------------------------------
+    # -- raw access
 
     def raw(self) -> Dict[str, Any]:
         return self._data
@@ -94,7 +74,7 @@ class RegisterMap:
     def fields(self, periph: str, reg: str) -> Dict[str, Any]:
         return self.get_register(periph, reg).get("fields") or {}
 
-    # -- field pack / unpack ----------------------------------------------
+    # -- field pack / unpack
 
     def unpack_fields(self, periph: str, reg: str, value: int) -> Dict[str, Any]:
         """Decode a register value into per-field {value, decoded, lsb, width}."""

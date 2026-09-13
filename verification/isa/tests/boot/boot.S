@@ -1,3 +1,7 @@
+# VestaRV: standalone SPI flash boot test image
+# A self-contained copy of the boot ROM's flash path: it powers up the AT45DB021E on SPI0, streams the RCF command/segment format into RAM and jumps to PROG_BASE_ADDR.
+# Command words are 0x10adbeef (load a segment), 0xdeadbeef (erase a segment) and 0xcafebabe (execute).
+
 #include "myshkin.h"
 
 

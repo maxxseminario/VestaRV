@@ -1,4 +1,4 @@
--- Behavioral stand-in for the analog GlitchFilter macro.
+-- VestaRV: behavioural GlitchFilter stand-in
 -- Simulation only: the real macro suppresses IRQ pulses narrower than minPulseWidth.
 library ieee;
 use ieee.std_logic_1164.all;

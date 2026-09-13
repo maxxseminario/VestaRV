@@ -1,5 +1,4 @@
-X3 Stage-D red-team (B) — Zcmp push/pop UNINTERRUPTIBILITY proof + seed
-======================================================================
+VestaRV: X3 Stage-D red-team (B), Zcmp push/pop UNINTERRUPTIBILITY proof + seed
 DELIVERABLE B: a directed test that raises an interrupt pending DURING a
 cm.push / cm.pop burst and proves the sequencer holds it to retire (sp fully
 committed, frame intact, exact round-trip) — plus a seed that makes the

@@ -1,57 +1,10 @@
 #!/usr/bin/env python3.6
-# VestaRV: the VALIDATION INSTRUMENT for the D4
-# dual-truth gate `tools/cosim/check_dbg_trampoline.py` (d4_spec section 2).
+# VestaRV: the validation instrument for check_dbg_trampoline.py.
 #
-# BLIND-AUTHORED 2026-08-07 against d4_spec.md (FROZEN) by an agent that has
-# not seen and will never see the D4 implementation.  The checker it validates
-# DOES NOT EXIST YET; at 286921d this script exits 2 and says so, and that is
-# its FAIL leg.
-#
-#   /usr/bin/python3.6 tools/cosim/d4_check_trampoline_validate.py
-#
-#   rc 0  the checker exists and behaved correctly in EVERY case below
-#   rc 1  the checker exists and got a case wrong (the case is named)
-#   rc 2  the checker (or an input it needs) is missing/unusable
-#
-# WHY IT EXISTS.  d4_spec 2 requires the checker to be "validated against a
-# known NONZERO before its rc 0 is load-bearing (method rule 4)".  A checker
-# that always returns 0 -- because its parser silently matched nothing, or
-# because it skipped when the gitignored build was absent -- is worse than no
-# checker: `rc 0` reads as evidence.  The F-series measured this exact class
-# (a naive census returned a plausible 44 for a true 57).  So the validation is
-# not a manual one-bit experiment done once and written in a report; it is a
-# script, and it can be re-run whenever the checker or the deliverable moves.
-#
-# THE INTERFACE CONTRACT THIS SCRIPT REQUIRES OF THE CHECKER, and it is a
-# requirement, not a preference: the checker MUST offer at least one way to be
-# pointed at inputs other than the live tree's, because otherwise no
-# perturbation experiment is possible without editing the real
-# hdl/common/debug_module.vhd -- and an acceptance instrument that has to
-# modify tracked RTL to run is not one.  Any ONE of these satisfies it:
-#     (a) `--vhdl <path> --words <path>` command-line overrides;
-#     (b) honouring $VESTA_ROOT as the repository root;
-#     (c) resolving both inputs relative to a repository root derived from the
-#         checker's own __file__ (the check_mcu_vhd.py idiom), so that a copy
-#         of the checker placed in a mirror tree reads that tree.
-# This script tries all three, in that order, and names the one that worked.
-#
-# WHAT IT CHECKS
-#   V0  CONTENT FREEZE (d4_spec 4: "the trampoline .words/binary content itself
-#       DOES NOT CHANGE at D4").  md5 of dbg_trampoline.S, its Makefile and the
-#       built .words, pinned here at 286921d.  A miss is a STOP-AND-REPORT, not
-#       a checker failure -- so it is reported separately and loudly.
-#   V1  pristine inputs           -> rc 0
-#   V2  ONE BIT flipped in the VHDL table -> rc 1, and the output must NAME the
-#       word index and quote BOTH values (d4_spec 2, verbatim)
-#   V3  ONE BIT flipped in the .words file instead -> rc 1.  The symmetry
-#       matters: a checker that only ever notices RTL drift will bless a
-#       trampoline rebuilt behind its back.
-#   V4  the .words file ABSENT    -> rc 2, and NOT rc 0.  d4_spec 2: "NEVER a
-#       silent skip".
-#   V5  the VHDL table one word SHORT (39) -> anything but rc 0.  The whole
-#       mechanism is coupled to 40 (W_ABST = W_ENTRY + 40).
-#   V6  the checker's interpreter is /usr/bin/python3.6 (d4_spec 2), because
-#       this machine's bare `python3` is Calibre's quote-stripping wrapper.
+# A checker that always returns 0, because its parser matched nothing or it skipped a missing
+# build, is worse than none, so its rc 0 is load-bearing only once it has been seen to fail.
+# Cases: pristine inputs, a bit flipped in the VHDL table, a bit flipped in the .words, the
+# .words absent, a 39-word table, the interpreter. It needs the checker to accept other inputs.
 from __future__ import print_function
 import hashlib
 import os
@@ -80,42 +33,13 @@ WORDS = os.path.join(REPO, 'software', 'dbg_trampoline', 'bin', 'dbg_trampoline.
 TRAMP_S = os.path.join(REPO, 'software', 'dbg_trampoline', 'dbg_trampoline.S')
 TRAMP_MK = os.path.join(REPO, 'software', 'dbg_trampoline', 'Makefile')
 
-# Pinned at d-series 286921d, 2026-08-07, by the D4 blind acceptance author.
-#
-# THE .S PIN WAS RE-PINNED ONCE, 2026-08-07, BY THE VALIDATION WAVE UNDER THE
-# INSTRUMENT-OWNER PATTERN (R-D4-2(3), option (a); F-K2b-1 via succession).
-# WHY, because a moved pin with no reason attached is exactly the "quietly
-# widened prediction" method rule 3 forbids:
-#
-#   d4_spec 4 bullet 3 ORDERS the dbg_trampoline.S prose edit (the KNOWN-LIMIT
-#   paragraph asserted "nobody plants this on silicon", which D4 falsifies --
-#   rule 12: a wrong rationale outlives a wrong line).  V0's .S md5 pinned that
-#   file byte-for-byte, so the spec and this instrument could not both be
-#   satisfied.  The invariant d4_spec 4 bullet 4 actually freezes is the
-#   TRAMPOLINE CONTENT, and that is PROVEN unmoved: the implementer rebuilt
-#   .words from the edited source in a scratch tree and got
-#   c68684893f11b506ef7adea43b813377 -- EXACTLY the pin below, unchanged -- with
-#   the .bin byte-identical too.  So the old .S pin was TIGHTER THAN THE CLAUSE
-#   IT ENFORCED: a comment-only edit moved it without moving one instruction.
-#
-#   Re-pinned .S  8695823e38ee557a4741f97f53d805aa -> 2f9d8ef4dac39f0511a8aba0426ae1cc
-#   NOT re-pinned: the Makefile and the .words pins.  They are the ones that
-#   carry the clause, and if either ever moves it is still a STOP.
-#
-# RE-PINNED A SECOND TIME, 2026-08-13, BY THE D5 VALIDATION WAVE — the same
-# class as the first, found by the D4-column re-verification (F-VALC-2):
-#
-#   D5 C5 (`d24cfa4`, the R-DD9 coherent-dscratch fix) edited dbg_trampoline.S
-#   COMMENTS-ONLY — proven at the C5 stop by non-comment-line invariance, by
-#   the .words md5 (c68684893f11b506ef7adea43b813377, UNMOVED, the pin below)
-#   and by check_dbg_trampoline 40/40 (R-D5-8).  The C5 re-pin updated
-#   check_dbg_trampoline's record but MISSED this consumer, so a tracked
-#   checker sat rc 1 on the shipped tree for two days.  The clause carriers
-#   (.words, Makefile) never moved; the .S pin was, again, tighter than the
-#   clause it enforces.
-#
-#   Re-pinned .S  2f9d8ef4dac39f0511a8aba0426ae1cc -> 4e68031181416562f2f9ff02c228460b
-#   NOT re-pinned: the Makefile and the .words pins, same reason as above.
+# The content freeze. The clause this enforces is the TRAMPOLINE CONTENT, which the
+# .words and Makefile pins carry: if either of those moves it is a stop, and they
+# have never moved. The .S pin is tighter than the clause, because a comment-only
+# edit to dbg_trampoline.S moves it without moving one instruction, so it is
+# re-pinned when that happens and the reason is written here rather than left as a
+# quietly widened prediction. Every re-pin so far rebuilt .words from the edited
+# source and got the same md5 below.
 FREEZE = {
     TRAMP_S: '4e68031181416562f2f9ff02c228460b',
     TRAMP_MK: '0e0be0ae4f1e2494de3d45f6c550c899',
@@ -207,11 +131,9 @@ def _try(how, vhdl_path, words_path, checker_copy, root):
 
 
 def invoke(vhdl_path, words_path, checker_copy, root):
-    """Run the checker against the given inputs; returns (rc, out, how).
-
-    The FIRST successful mechanism is remembered and reused for every later
-    case, so all six cases are measured through one interface rather than
-    silently through three.
+    """Run the checker against the given inputs; returns (rc, out, how). The first successful
+    mechanism is remembered and reused for every later case, so all six are measured through one
+    interface rather than silently through three.
     """
     if MECHANISM[0] is not None:
         r = _try(MECHANISM[0], vhdl_path, words_path, checker_copy, root)
@@ -229,18 +151,9 @@ def invoke(vhdl_path, words_path, checker_copy, root):
 
 
 def tramp_decl_offset(text):
-    """Character offset of the TRAMP *declaration* line in `text`, or -1.
-
-    MEASURED DEFECT, fixed 2026-08-07 by this script's own liveness-control
-    arm: the first draft searched for the bare substring 'TRAMP', which matches
-    the word TRAMPOLINE in debug_module.vhd's header comment at line 15.  The
-    perturbation then landed on the first 32-bit literal AFTER that comment --
-    the DATA0_ADDR generic default x"00010680" -- so V2 changed a generic, the
-    reference checker correctly reported the tables equal, and V2 read as a
-    checker failure when it was a harness failure.  A perturbation experiment
-    that perturbs the wrong thing is the exact shape of a false pass, and it
-    was invisible until the instrument was run in the direction where it is
-    supposed to succeed.
+    """Character offset of the TRAMP declaration line in `text`, or -1. A bare substring search for
+    TRAMP also matches the word TRAMPOLINE in a header comment, and the perturbation then lands on
+    an unrelated literal, which reads as a checker failure when it is a harness failure.
     """
     off = 0
     for ln in text.split('\n'):
@@ -258,14 +171,9 @@ def tramp_decl_offset(text):
 
 
 def perturb_vhdl(text):
-    """Flip ONE bit of ONE word of the TRAMP table, whatever its spelling.
-
-    The table's literal form is the implementer's choice (d4_spec 1 gives FSM
-    and encoding latitude), so this looks for either spelling inside the TRAMP
-    declaration: a 32-character binary string literal, or an 8-digit hex
-    literal x"........".  It refuses rather than guesses if it finds neither --
-    a perturbation that silently changed nothing would make V2 a false pass,
-    which is the very failure mode this script exists to prevent.
+    """Flip one bit of one word of the TRAMP table, whatever its spelling: a 32-character binary
+    literal or an 8-digit hex literal, the form being the implementer's choice. It refuses rather
+    than guesses if it finds neither, a perturbation that changed nothing being a false pass.
     """
     start = tramp_decl_offset(text)
     if start < 0:
@@ -351,13 +259,13 @@ def main():
 
     with open(CHECKER) as f:
         first = f.readline()
-    # d4_spec 2 says "/usr/bin/python3.6".  What that clause is really about is
+    # The spec names "/usr/bin/python3.6".  What that clause is really about is
     # CLAUDE.md's trap: this machine's BARE `python3` is Calibre's aoj_cal
     # wrapper, which re-evaluates its arguments and strips quotes.  A shebang of
     # `#!/usr/bin/env python3.6` names a real 3.6 interpreter and is not that
     # trap, so it passes with a note; a shebang naming plain `python3` is the
-    # failure.  (Widened 2026-08-07 by this script's own control arm, which
-    # false-failed a conforming reference checker -- method rule 13: a criterion
+    # failure.  (Widened by this script's own control arm, which
+    # false-failed a conforming reference checker: a criterion
     # that rejects a correct implementation is a wrong criterion.)
     sb = first.strip()
     if '/usr/bin/python3.6' in sb:
@@ -376,14 +284,14 @@ def main():
 
     tmp = tempfile.mkdtemp(prefix='d4val_')
     try:
-        # ---- V1 pristine -------------------------------------------------
+        # V1 pristine
         root = os.path.join(tmp, 'v1')
         v, w, c = mirror_tree(root, vhdl_text, words_text)
         rc, out, how = invoke(v, w, c, root)
         say('    (override mechanism in use: %s)' % how)
         expect('V1', rc, 0, out, why='pristine inputs must compare equal')
 
-        # ---- V2 one bit flipped in the VHDL ------------------------------
+        # V2 one bit flipped in the VHDL
         newv, note = perturb_vhdl(vhdl_text)
         if newv is None:
             FAILS.append('V2')
@@ -400,7 +308,7 @@ def main():
                    why='%s; the report must name the word index and quote BOTH'
                        ' values (named=%s)' % (note, named))
 
-        # ---- V3 one bit flipped in the .words ----------------------------
+        # V3 one bit flipped in the .words
         neww, note = perturb_words(words_text)
         if neww is None:
             FAILS.append('V3')
@@ -411,14 +319,14 @@ def main():
             rc, out, how = invoke(v, w, c, root)
             expect('V3', rc, 1, out, why=note + ' (drift on the SOFTWARE side)')
 
-        # ---- V4 the .words absent ----------------------------------------
+        # V4 the .words absent
         root = os.path.join(tmp, 'v4')
         v, w, c = mirror_tree(root, vhdl_text, words_text, drop_words=True)
         rc, out, how = invoke(v, w, c, root)
         expect('V4', rc, 2, out,
                why='a missing build is rc 2, NEVER a silent rc 0')
 
-        # ---- V5 the table one word short ---------------------------------
+        # V5 the table one word short
         shortv, note = shorten_vhdl(vhdl_text)
         if shortv is None:
             FAILS.append('V5')

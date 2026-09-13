@@ -2,8 +2,6 @@
 
 This directory contains the RTL for the complete VestaRV MCU system — the processor core, all peripherals, top-level integration, and shared components.
 
----
-
 ## Building and testing with Bazel
 
 Bazel is the recommended way to build and exercise this RTL. It provisions
@@ -39,8 +37,6 @@ which is the raw generator and writes wherever it happens to run.
 
 The full target map is in [`BAZEL.md`](../../BAZEL.md).
 
----
-
 ## Architecture Overview
 
 Below is the Castalia configuration of this RTL — five harts on one shared-window arbiter, with the peripheral set on a single rank beneath it. Every block in it is a source file in this directory. The figure is generated from the chip configuration (Figure 2 of the [Castalia TRM](../../implementations/asic/castalia/docs/TRM.pdf)); other configurations drop or repeat blocks.
@@ -60,8 +56,6 @@ The memory map is configurable and varies between implementations. The general l
 | SPI Flash window | Optional native SPI flash read window for XIP execution |
 
 See the implementation-specific READMEs (e.g., [`implementations/asic/myshkin-2025-11/README.md`](../../implementations/asic/myshkin-2025-11/README.md)) for concrete address values.
-
----
 
 ## Processor Core — `vesta/`
 
@@ -104,8 +98,6 @@ The **VestaRV** core is a single-issue, in-order, multicycle RISC-V processor im
 | `branch_valid.vhd` | Branch condition evaluator |
 | `pulse_extender.vhd` | One-shot pulse generation utility |
 
----
-
 ## Peripheral Modules — `periph/`
 
 All peripherals share a common memory-mapped register interface: 32-bit word-addressed registers, byte-enable writes, synchronous reads. Interrupt lines feed the core's `irq_vector` input.
@@ -122,8 +114,6 @@ All peripherals share a common memory-mapped register interface: 32-bit word-add
 
 
 For full register-level documentation of each peripheral, see the **Technical Reference Manual (TRM)** PDF at [`implementations/asic/myshkin-2025-11/docs/TRM.pdf`](../../implementations/asic/myshkin-2025-11/docs/TRM.pdf).
-
----
 
 ## Shared Components — `commune/`
 
@@ -142,8 +132,6 @@ Components in this directory are used by multiple modules across the design.
 | `FPSigmoid` | Piecewise-linear sigmoid approximation (used by NPU) |
 | `fixed_pkg_c.vhdl` | VHDL fixed-point arithmetic package |
 | `macros.vhd` | Package containing common conversions |
-
----
 
 ## Top-Level Integration — `MCU.vhd`
 
@@ -167,8 +155,6 @@ Components in this directory are used by multiple modules across the design.
 - IRQ aggregation
 
 The port list of `MCU` directly maps to physical chip pads and is the entry point for both FPGA and testbench instantiation.
-
----
 
 ## `MemoryMap.vhd` 
 

@@ -1,100 +1,11 @@
 #!/usr/bin/python3.6
-# -*- coding: utf-8 -*-
-"""K2b -- the CONFIG-GATED comparator amendments.
+# coding: utf-8
+"""VestaRV: the config-gated lockstep comparator amendments.
 
-Each amendment exists because the K0 oracle probe MEASURED that a knobs-on
-VestaRV configuration and the reference model describe the same architectural
-event with DIFFERENT RECORD STREAMS.  None of them changes what an instruction
-is allowed to do; every one of them changes only which records are compared,
-and only on a configuration whose resolved config turns the owning knob on.
-
-    knob            amendment name            what it reconciles
-    --------------  ------------------------  ------------------------------
-    isa.zfinx       zfinx-fflags              the RTL tracer emits `C 001`
-                                              on EVERY FPU_DONE; Spike emits
-                                              it only when the op RAISED a
-                                              flag (k0 oracle probe §1.3m)
-    isa.zicboz      cboz-stores               one `cbo.zero` is 1 `R` + SIXTEEN
-                                              `M S` on the RTL side and 1 `R` +
-                                              ZERO on the reference's: Spike
-                                              zeroes the block architecturally
-                                              and logs no `mem` field at all
-                                              (k0 oracle probe §1.3d)
-    isa.zcmt        cmjt-load                 `cm.jt` fetches its table entry on
-                                              the DATA port (state ZCM_JT_LD) --
-                                              one `M L` the reference never logs
-                                              (k0 oracle probe §1.3e)
-    priv.trapCsr    mret-csr                  `mret` is THREE reference `C`
-                                              records (300 mstatus, 310
-                                              mstatush, 7a5 tcontrol) and ONE
-                                              RTL one: the latter two CSRs do
-                                              not exist in the VestaRV map
-                                              (k0 oracle probe §1.3i)
-    priv.trapCsr    mtrap-t                   a STANDARD-delivery trap emits an
-                                              RTL `T`; the reference's commit
-                                              log carries no trap information at
-                                              all (RECORD_FORMAT §4), so both
-                                              sides execute the handler and only
-                                              the `T` itself misaligns
-                                              [R-K2b-2 (2)]
-    isa.zfinx       fcsr-split                one RTL `C 003` fcsr write is TWO
-                                              reference records, `C 001` fflags
-                                              + `C 002` frm (k0 oracle probe
-                                              §1.3h)
-    isa.zihpm       hpm-warl                  the HPM WARL allowlist: the RTL
-                                              stores the full 32-bit value and
-                                              the reference WARLs it to zero (or
-                                              logs nothing at all) -- both legal,
-                                              different records
-                                              (D-2026-07-29-1 / k0 §3.3)
-    isa.zacas       zacas-failwrite           a FAILING `amocas` issues a
-                                              deliberate SECOND, LANE-LESS bus
-                                              transaction (the SC-fail wen
-                                              mirror) which the tracer prints as
-                                              a second `M L`; the reference has
-                                              no bus and models the failing CAS
-                                              as ONE access
-                                              (K4-L4a / R-K4-3 (1))
-    isa.zcmp        zcmp-frame-order          the two models emit the memory
-                                              records of ONE `cm.push`/`cm.pop`
-                                              frame in OPPOSITE ORDER; the spec
-                                              orders neither, and the comparator
-                                              matches `M` records positionally
-                                              (K4-L3 / R-K4-2 (4))
-
-(K2b's own spec was four amendments, six rules.  `zacas-failwrite` and
-`zcmp-frame-order` are the FIFTH and SIXTH, added at K5 from K4's ledger; the
-discipline below governs them identically.  `zcmp-frame-order` is the first rule
-that SUPPRESSES NOTHING -- see its own section.)
-
-WHERE A NEW RULE BELONGS, AND WHY IT MATTERS (the A17 acceptance lesson).
-`--count` measures the RTL window AFTER `rtl_prepass` and its number is fed
-back as `--max-records`, which bounds WINDOW POSITION.  So a rule that decides
-from the RTL stream alone costs nothing: its drops are already inside the
-count.  **Only a rule that CONSULTS THE REFERENCE (today, only `zfinx-fflags`)
-can part the window size from the compared count** -- which is exactly what
-made every Zfinx cell with a nonzero drop count exit `2-rtlshort` before the
-bound was fixed.  Prefer the prepass for every new rule; when a rule genuinely
-needs the reference, the window-position bound is what makes it safe.
-
-**THESE ARE SUPPRESSIONS, THE HIGHEST-RISK INSTRUMENT CLASS** (method rule 11:
-an instrument keyed on what it observes reports zero, which reads as success).
-Three disciplines are therefore applied to every one of them, taken from the
-A9/A15/A16 precedents that already govern this comparator:
-
-  1. **BOUNDED BY AN EQUALITY OR A DECODED FIELD, NEVER BY AN FSM STATE OR A
-     NAME.**  When the bound FAILS the amendment DECLINES to drop and says so,
-     which makes the ensuing divergence the report -- exactly as A3 requires.
-  2. **COUNTED AND PRINTED, ALWAYS.**  Every application is counted per
-     identity and printed in the stderr summary, including the zero case, so
-     an amendment that starts firing beyond its written rationale is visible in
-     the run log.  An amendment that fires ZERO times on its own config is
-     VACUOUS and must be reported as such.
-  3. **NEVER GLOBAL.**  The enabled set is DERIVED from the resolved chip
-     config by `oracle_isa.derive_amendments()`; the default Castalia config
-     enables NONE of them and its four gate pins are unmoved.
-
-Stdlib only.  Python 3.6 syntax only.
+Each rule reconciles one architectural event the RTL tracer and the reference model record
+differently; none changes what an instruction may do. The enabled set comes from
+oracle_isa.derive_amendments() on the resolved config, never global, and every application is
+counted and printed, zero included. Python 3.6 syntax, stdlib only.
 """
 
 from __future__ import print_function
@@ -148,10 +59,8 @@ AMENDMENT_DESC = dict((n, d) for (n, _p, d) in AMENDMENTS)
 
 
 def parse_names(values):
-    """['a,b', 'c'] -> ('a','b','c') in CANONICAL order, unknown names raise.
-
-    Refusing an unknown name is the fail-safe direction (method rule 15): a
-    typo in a derived flag must stop the run, never silently disable an
+    """['a,b', 'c'] -> ('a','b','c') in canonical order; an unknown name raises. Refusing is the
+    fail-safe direction: a typo in a derived flag must stop the run, never silently disable an
     amendment whose absence looks exactly like a passing comparison.
     """
     got = []
@@ -169,10 +78,8 @@ def parse_names(values):
     return tuple(n for n in AMENDMENT_NAMES if n in got)
 
 
-# --------------------------------------------------------------------------
 # instruction predicates.  Field-decoded from the wire `insn` string, never
-# matched by suffix -- R-K2-5's `200f` lesson ("`cbo.zero a1` ends a00f").
-# --------------------------------------------------------------------------
+# matched by suffix: `cbo.zero a1` ends a00f, not 200f.
 
 def _word(insn):
     """The insn field as an int, or None if it is x-tainted / malformed."""
@@ -197,8 +104,8 @@ def is_fp_op(insn):
 
 
 # `cbo.zero rs1` = MISC-MEM (0x0f) funct3=010, rd=00000, imm12=0x004; rs1 free.
-# FIELD-DECODED, never matched by suffix: R-K2-5 ruled the s5_ledger's "ends
-# 200f" census shorthand WRONG as a detector because it holds only for
+# FIELD-DECODED, never matched by suffix: an "ends
+# 200f" shorthand is wrong as a detector, because it holds only for
 # rs1 in {x0,x1} -- `cbo.zero a1` ends `a00f`.  Measured this wave: gas 2.41
 # assembles `cbo.zero (a1)` to 0x0045a00f.
 CBOZ_MASK, CBOZ_MATCH = 0xfff07fff, 0x0040200f
@@ -220,7 +127,7 @@ def is_cbo_zero(insn):
 
 
 # `cm.jt`/`cm.jalt`: 16-bit, funct3=101, bits[12:10]=000, index in bits[9:2],
-# op=10.  Measured (k0 oracle probe §1.3e): `cm.jt 5` = 0xa016.
+# op=10.  Measured: `cm.jt 5` = 0xa016.
 CMJT_MASK, CMJT_MATCH = 0xfc03, 0xa002
 
 
@@ -236,11 +143,9 @@ def cm_jt_index(insn):
 
 # SYSTEM opcode (0x73) with a nonzero funct3 is a CSR instruction.
 def csr_access(insn):
-    """(csr_addr:int, writes:bool) for a 32-bit CSR instruction, else None.
-
-    `writes` follows the architecture: csrrw/csrrwi always write; csrrs/csrrc
-    (and their immediate forms) write only when rs1/uimm is nonzero -- the same
-    rule `csr_unit.vhd`'s `csr_write_en` implements since P3-entry.
+    """(csr_addr, writes) for a 32-bit CSR instruction, else None. `writes` follows the architecture:
+    csrrw and csrrwi always write; csrrs and csrrc write only when rs1 or uimm is nonzero, which
+    is the rule csr_unit.vhd's csr_write_en implements.
     """
     w = _word(insn)
     if w is None or len(insn) != 8:
@@ -277,56 +182,9 @@ def is_amocas(insn):
 
 
 def amocas_failwrite_ok(retire, mem):
-    """The bound on a `zacas-failwrite` drop.  (ok, why-not) -- ALL of:
-
-        exactly TWO `M` records in the retire's memory group, BOTH `L`,
-        at the SAME address, with the SAME size, the second's data all-zero,
-        neither x-tainted, and (when rd != x0) the retire's rdval EQUAL to the
-        FIRST load's data.
-
-    WHY THIS SHAPE IS THE FAILED CAS AND NOTHING ELSE (K4-L4a, measured).  On a
-    SUCCESSFUL compare the retire's group is `L` then `S` -- the read and the
-    committed write -- and it already matches the reference, so this rule never
-    sees it and never touches it.  On a FAILED compare `amo_wen` is `"1111"`,
-    i.e. NO byte lane (`vesta.vhd:2024`, whose own comment states the intent:
-    *"write-enable gating ONLY, so the FSM still issues the identical AMO_WRITE
-    transaction (same LOCKED trajectory) ... Mirrors the SC-fail wen"*).  The
-    transaction is issued, the arbiter GRANTS IT -- measured, two grants on a
-    failing shared CAS, `rv32ua-p-casgrant` -- and `vesta_tracer.vhd` labels it
-    `L` because its `is_load` term is `mem_access_instr='1' and wen="1111"`,
-    which is a CORRECT description of a lane-less access.  The reference has no
-    bus at all and models the failing CAS as one access, so the RTL stream
-    carries one record it cannot.
-
-    THE BOUNDS, and what each one refuses:
-      * TWO records, BOTH `L`.  Three loads, or a load plus a store, is not this
-        shape; the drop is refused and the divergence is the report.  In
-        particular a failing CAS that WROTE (an `S` in the group) is exactly the
-        atomicity defect this amendment must never hide, and it fails here.
-      * SAME ADDRESS.  A second access at a DIFFERENT address is the signature of
-        a sequencer addressing the wrong word (the M8 `rs1_value`-vs-ALU class),
-        and it must reach the comparison.
-      * SAME SIZE.  Under Zabha the `.b`/`.h` forms have their own lane geometry;
-        two accesses of different widths are not one CAS's read+lane-less-write.
-      * THE SECOND DATA IS ZERO.  The back-fill for that record can never land
-        (`AMO_WRITE` IS the retire edge and the buffer flushes on it), which is
-        what the tracer's own `# NODATA ... fill-lost` marker records.  A nonzero
-        payload means data DID land, i.e. the record is not the one described
-        here.
-      * rdval == the FIRST load's data.  This is the ARCHITECTURAL statement --
-        Zacas puts the old memory word in rd -- and it is the one bound that is
-        not about record shape at all.  It ties the drop to the CAS having
-        actually read what it reports.  Skipped only when rd is x0, which cannot
-        carry a value.
-      * NEITHER RECORD x-TAINTED.  A5 keeps its meaning: an x in the compared
-        window is exit 4, never a silently dropped record.
-
-    WHAT THE DROP DOES NOT GIVE AWAY.  The FIRST load stays compared in full, so
-    the address the CAS read is still checked against the reference.  The retire
-    itself (pc, insn, rd, rdval) is untouched.  And if a future RTL change made
-    the failing CAS stop issuing the second transaction, this rule would simply
-    stop firing -- and the summary would print `0 application(s) <-- VACUOUS`,
-    which is the visible form of that change rather than a silent one.
+    """The bound on a zacas-failwrite drop, returning (ok, why-not): exactly two M records in the
+    retire's group, both L, same address and size, the second's data all-zero, neither x-tainted,
+    and rdval equal to the first load's data unless rd is x0. A failing CAS that wrote fails it.
     """
     if len(mem) != 2:
         return False, ("expected exactly 2 memory records in the retire group, "
@@ -404,35 +262,9 @@ def is_zcm_frame(insn):
 
 
 def zcm_frame_ok(mem):
-    """The bound on canonicalising ONE Zcmp frame's memory group.  (ok, why-not).
-
-    ALL of: every record the SAME direction (a `cm.push` only stores, a
-    `cm.pop*` only loads), every record the SAME size, and the addresses a
-    CONTIGUOUS ascending run of XLEN-spaced words with no repeat.
-
-    THE CONTIGUITY BOUND IS THE POINT.  A Zcmp frame saves/restores its register
-    list into ADJACENT stack slots -- that is what makes the instruction one
-    instruction -- so a group whose addresses are not `base, base+4, ...` is not
-    a frame, and sorting it would be inventing an order rather than recovering
-    one.  It also makes the rule COUNT-AWARE in the cboz sense: a sequencer that
-    stores 3 of 4 registers produces a group that is still contiguous but SHORT,
-    and the missing record is then caught by the walk against the reference,
-    while a sequencer that stores the same slot twice fails the no-repeat test
-    here and is REFUSED.
-
-    TWO OF THESE BOUNDS HAVE NO VERDICT-SEPARATING STIMULUS, AND SAYING SO IS
-    PART OF THE RECORD (method rule 9).  The DIRECTION test cannot change a
-    verdict: both `spike_log.py` and the tracer emit a retire's `M L` records
-    before its `M S` ones (RECORD_FORMAT §0), so a mixed group is already
-    positionally aligned on the two sides and sorting it identically on both
-    changes nothing.  The DISTINCTNESS test is shadowed by contiguity (two
-    records at one address also fail the 4-byte-run test) and would in any case
-    be inert under Python's stable sort.  Both are kept as PRECONDITIONS OF THE
-    SORT rather than as detectors -- a sort key must be unique for its result to
-    be canonical at all, which is the same reason `canonicalise_a2` requires
-    distinct `rd` before it sorts a same-pc run -- and both are exercised
-    directly at the function in `test_compare.py` rather than through a
-    fixture that could not fail.
+    """The bound on canonicalising one Zcmp frame's memory group, returning (ok, why-not): every
+    record the same direction and size, addresses a contiguous ascending XLEN-spaced run with no
+    repeat. Contiguity keeps it count-aware: a short group is caught by the walk, a repeat here.
     """
     if len(mem) < 2:
         return False, "fewer than two records -- nothing to canonicalise"
@@ -461,37 +293,9 @@ def zcm_frame_ok(mem):
 
 
 def zcm_frame_canon(recs, am, side):
-    """K5 amendment 6 -- `zcmp-frame-order`.  Returns a NEW list.
-
-    THIS RULE SUPPRESSES NOTHING, and it is the first one here that does not.
-    Every record stays in the compared stream with every field intact; only the
-    ORDER of the memory records WITHIN ONE Zcmp frame retire changes, and the new
-    order (ascending address) is computed on each side FROM THAT SIDE ALONE.
-    Two independent canonicalisations onto one total order are exactly a SET
-    COMPARE of the two groups -- which is what R-K4-2 (4) filed -- but obtained
-    without giving up a single compared field.
-
-    WHY IT IS NEEDED (K4-L3, measured on `rv32ua-p-extzcmp`).  For
-    `cm.push {ra,s0},-16` with ra=0x1234ABCD and s0=0x0F0F0F0F:
-
-        RTL     M S 000083c8 4 1234abcd    M S 000083cc 4 0f0f0f0f
-        spike   mem 0x000083cc 0x0f0f0f0f  mem 0x000083c8 0x1234abcd
-
-    **The same two values reach the same two addresses on both sides.**  The Zcmp
-    specification does not order the individual accesses of one `cm.push`
-    relative to one another -- they are the effects of a single instruction --
-    so neither emission order is wrong, and the comparator's positional match is
-    what manufactures the divergence.  `cm.pop` has the identical asymmetry, so
-    a rule aimed only at push would diverge again one instruction later.
-
-    WHAT IT DOES NOT WEAKEN.  A store to the WRONG ADDRESS still diverges (the
-    sorted sequences differ).  A store of the WRONG VALUE still diverges (`M S`
-    compares addr, size AND data).  A MISSING store still diverges (the groups
-    have different lengths and the walk meets the mismatch).  A frame that is not
-    a contiguous distinct run is REFUSED and reordered by nobody.  And the census
-    counts only the retires whose order this rule ACTUALLY CHANGED, so the
-    summary says which SIDE was out of order rather than merely that the rule
-    ran.
+    """Canonicalise one Zcmp frame's memory records to ascending address; returns a new list. It
+    suppresses nothing: every record keeps every field, and each side is sorted from its own
+    contents, which is a set compare of the two groups with no compared field given up.
     """
     if not am.enabled("zcmp-frame-order"):
         return recs
@@ -538,27 +342,9 @@ def zcm_frame_canon(recs, am, side):
 
 
 def cboz_shape_ok(stores):
-    """The GEOMETRY bound on a `cbo.zero` drop.  (ok, why-not) -- ALL of:
-
-        exactly CBOZ_WORDS records, every one `size 4` / `data 00000000`,
-        addresses base, base+4, ... base+60 in that order, base 64-B aligned.
-
-    THE BOUND IS STATED OVER THE SIXTEEN STORE ADDRESSES, NEVER OVER `rs1`, and
-    that is not a stylistic choice.  `vesta.vhd` computes
-    `cboz_base <= rs1_value and not (CBOZ_BLOCK_SIZE-1)` -- it ROUNDS DOWN -- and
-    `shcboz.S` deliberately issues `cbo.zero` from `rs1 = block+20` and
-    `rs1 = block+44` to prove exactly that.  A bound written as "the first store
-    is at rs1" would pass `extzicboz` (whose only `cbo.zero` is aligned) and
-    REFUSE two legitimate `shcboz` cases -- a test calibrated on the one shape
-    it was developed against, which is method rule 7 arrived at from the other
-    direction.  `rs1` is not consulted here at all; the trace does not carry it.
-
-    What the bound buys: the K2b spec requires the suppression to stay
-    COUNT-AWARE -- "a sequencer that stores 15 words instead of 16 must still be
-    caught" (`verification/isa/negctrl/x3_zicboz_partial.patch` is that mutant).
-    A 15-store burst fails the FIRST test here, nothing is dropped, and the
-    stores meet the reference's next record and diverge.  The amendment DECLINES
-    and says so; it never converts a wrong burst into a pass.
+    """The geometry bound on a cbo.zero drop, returning (ok, why-not): exactly CBOZ_WORDS records,
+    each size 4 and data zero, at base, base+4 ... base+60 with base 64-byte aligned. Stated over
+    the store addresses and never over rs1, which the RTL rounds down and the trace omits.
     """
     if len(stores) != CBOZ_WORDS:
         return False, ("expected exactly %d store records, saw %d"
@@ -582,10 +368,8 @@ def cboz_shape_ok(stores):
     return True, ""
 
 
-# --------------------------------------------------------------------------
 # the HPM WARL allowlist -- NAMED addresses, two tiers, and the second tier is
 # deliberately SMALLER than the first.
-# --------------------------------------------------------------------------
 #
 # TIER 1 (`HPM_C_DROP`): the CSR-WRITE record leaves the compared stream on BOTH
 # sides.  The two models disagree about whether such a write is loggable at all,
@@ -604,7 +388,7 @@ def cboz_shape_ok(stores):
 # handoff draft included are deliberately ABSENT: `0xb05`/`0xb85`
 # (mhpmcounter5/5h) are NOT in that group, so the RTL emits no `C` for them, and
 # the reference logs none either -- a rule arm that cannot fire is decoration,
-# which is worse than absent (method rule 9).
+# which is worse than absent.
 HPM_C_DROP = frozenset((
     0x320,                        # mcountinhibit
     0x323, 0x324,                 # mhpmevent3 / mhpmevent4
@@ -615,11 +399,11 @@ HPM_C_DROP = frozenset((
 # CONFIGURATION registers ONLY.
 #
 # `mhpmcounter*` IS DELIBERATELY ABSENT, AND THAT ABSENCE IS THE POINT OF THE
-# WHOLE AMENDMENT.  The extzihpm disposition (D-2026-07-29-1) records that the
+# WHOLE AMENDMENT.  The extzihpm disposition records that the
 # predicted F1 divergence -- hpm counter VALUES under the gated clock -- lies
 # further down that test's stream and is MASKED by the first mismatch.  Tier 1
 # unmasks it.  Relaxing the counter read-backs here would re-mask it with the
-# very instrument written to expose it: method rule 11, exactly.  So the
+# very instrument written to expose it.  So the
 # counters' read values stay COMPARED, the row is EXPECTED to end in a divergence
 # there, and that divergence is the amendment's deliverable rather than its
 # failure.
@@ -653,19 +437,12 @@ class Amend(object):
         self.refused[name].append((lineno, why))
 
 
-# --------------------------------------------------------------------------
 # the RTL-side pre-pass
-# --------------------------------------------------------------------------
 
 def rtl_prepass(recs, am):
-    """Apply every RTL-side amendment to an already-compared stream.
-
-    `recs` is the R/M/C(+T) projection, AFTER canonicalise_a2.  Returns a NEW
-    list.  Nothing here reads the reference: every rule is decided from the RTL
-    stream's own contents, so a drop cannot be talked into existence by the
-    thing it is supposed to be checked against.  (The ONE rule that does need
-    the reference -- `zfinx-fflags` -- only MARKS here and decides in the walk;
-    see `zfinx_should_skip`.)
+    """Apply every RTL-side amendment to an already-compared stream; returns a new list. Nothing
+    here reads the reference, so a drop cannot be talked into existence by the thing it is
+    checked against. zfinx-fflags only marks here and decides in the walk.
     """
     if not am.names:
         return recs
@@ -706,7 +483,7 @@ def rtl_prepass(recs, am):
             elif v is not None and r.f[0] == "305":
                 mtvec = v
 
-        # -- mtrap-t: the `T` of a STANDARD-delivery trap [R-K2b-2 (2)] --------
+        # -- mtrap-t: the `T` of a STANDARD-delivery trap [R-K2b-2 (2)]
         # A TRAPCSR build in std_mode takes an ARCHITECTURAL exception that the
         # reference takes too, at the same pc, and both then execute the same
         # handler out of the same memory.  The only misalignment is the RTL `T`
@@ -761,7 +538,7 @@ def rtl_prepass(recs, am):
                 continue
 
         # -- fcsr-split: one RTL `C 003` becomes the reference's two records ---
-        # Measured (k0 oracle probe §1.3h): `csrw fcsr,t0` with t0=7 logs
+        # Measured: `csrw fcsr,t0` with t0=7 logs
         # `c1_fflags 0x00000007 c2_frm 0x00000000` on the reference and a single
         # `C 003 00000007` on the RTL side, whose csr_unit write arm is one
         # assignment (`fp_csr <= csr_new_val(7 downto 0)`).  Architectural state
@@ -799,7 +576,7 @@ def rtl_prepass(recs, am):
 
         out.append(r)
 
-        # -- cboz-stores: the 16 stores that belong to a `cbo.zero` retire ----
+        # -- cboz-stores: the 16 stores that belong to a `cbo.zero` retire
         # RECORD_FORMAT §0 fixes the per-retire emission order (R, then every
         # `M L`, then every `M S`, then every `C`), and the tracer flushes the
         # `cbo.zero` group in one go -- one `R` with rd=0 plus 16 `M S`
@@ -885,12 +662,9 @@ def rtl_prepass(recs, am):
 
 
 def _owning_retire(recs, i):
-    """The `R` record whose retire group record `i` belongs to.
-
-    RECORD_FORMAT §0 fixes the per-retire emission order as R, then every
-    `M L`, then every `M S`, then every `C` -- so the owning retire is the
-    nearest preceding `R` with no intervening `R`.  A `T` terminates the
-    search: a trap entry is not a retire and owns nothing.
+    """The R record whose retire group record i belongs to. The per-retire emission order is R, then
+    every M L, then every M S, then every C, so the owner is the nearest preceding R with no
+    intervening R. A T terminates the search: a trap entry is not a retire and owns nothing.
     """
     k = i - 1
     while k >= 0:
@@ -902,23 +676,12 @@ def _owning_retire(recs, i):
     return None
 
 
-# --------------------------------------------------------------------------
 # the REFERENCE-side pre-pass
-# --------------------------------------------------------------------------
 
 def spike_prepass(recs, am):
-    """Apply every reference-side amendment.  Returns a NEW list.
-
-    THIS IS THE ONLY PLACE ANY AMENDMENT TOUCHES THE REFERENCE STREAM, and the
-    asymmetry is deliberate: a rule here removes records the RTL is not
-    expected to have, so it can only ever make the reference SMALLER, never
-    invent one.  It runs after the RTL prepass and never reads the RTL stream,
-    for the same reason `rtl_prepass` never reads this one -- a drop must not be
-    talked into existence by the thing it is checked against.
-
-    Note for `--count`/`--max-records`: the bound is on RTL WINDOW POSITION, so
-    a reference-side drop cannot part the two numbers the way a walk-level rule
-    can (the A17 acceptance defect).  Nothing here needs that machinery.
+    """Apply every reference-side amendment; returns a new list. The only place any amendment
+    touches the reference stream, and a rule here can only make the reference smaller, never
+    invent a record. It never reads the RTL stream, for the reason rtl_prepass never reads this.
     """
     if not am.names:
         return recs
@@ -931,7 +694,7 @@ def spike_prepass(recs, am):
         return recs
     out = []
     for i, r in enumerate(recs):
-        # -- hpm-warl tier 1, reference side (see HPM_C_DROP) ---------------
+        # -- hpm-warl tier 1, reference side (see HPM_C_DROP)
         if r.kind == "C" and am.enabled("hpm-warl"):
             a = _word(r.f[0])
             if a is not None and a in HPM_C_DROP:
@@ -969,47 +732,12 @@ def spike_prepass(recs, am):
     return out
 
 
-# --------------------------------------------------------------------------
 # the walk-level rule
-# --------------------------------------------------------------------------
 
 def zfinx_should_skip(am, a, b):
-    """True when RTL record `a` is a marked `C 001` the reference did not emit.
-
-    THE NARROWING, AND WHY IT IS NOT OPTIONAL.  The frozen K2b spec says
-    "suppress an RTL `C 001 fflags` record ONLY when its value equals the
-    running fflags state".  Measured on the pinned reference
-    (`vesta_ref identity --isa rv32imac_zicsr_zfinx --priv m`), that rule alone
-    is too wide:
-
-        fdiv.s a0,a1,a2   ->  c1_fflags 0x00000010 x10 0x7fc00000
-        fdiv.s a3,a1,a2   ->  c1_fflags 0x00000010 x13 0x7fc00000
-
-    The second op raises NV again, which is ALREADY set, so the VALUE is
-    unchanged and Spike logs it anyway -- its `set_fp_exceptions` writes
-    whenever softfloat raised anything, not when the value moved.  A value-only
-    rule would drop an RTL record the reference DOES present, manufacturing a
-    divergence out of the amendment itself.  So the drop additionally requires
-    that the reference is not presenting that exact record here.
-
-    Two further narrowings, both structural rather than value-based:
-      * the candidate's OWNING RETIRE must be an FP opcode.  An explicit
-        `csrrw fflags` is logged by BOTH sides even when it changes nothing
-        (measured: two `fsflags zero` in a row both print `c1_fflags
-        0x00000000`), so keying on the value alone would suppress a record the
-        reference emits;
-      * an x-tainted `C 001` is never a candidate -- A5 keeps its meaning.
-
-    This is the ONLY place any amendment consults the reference, and it can
-    only ever REFUSE to drop: when the two agree the record is compared
-    normally and counted in `zfinx_kept`, so the narrowing's own workload is
-    visible in the summary.
-
-    WHAT IT DOES NOT WEAKEN.  An RTL that asserts a fflags value the reference
-    does not have is still caught: the drop happens, and the reference's own
-    `C 001` then meets the RTL's NEXT record and diverges one record later.
-    What stops being compared is exactly "the fflags value at an FP retire that
-    claims no change".
+    """True when RTL record `a` is a marked C 001 the reference did not emit. A value-only rule is
+    too wide, so the drop also requires the reference not to be presenting that record, the owning
+    retire to be an FP opcode, and the record not to be x-tainted. It can only refuse to drop.
     """
     if not am.enabled("zfinx-fflags") or id(a) not in am.zfinx_cand:
         return False
@@ -1021,22 +749,9 @@ def zfinx_should_skip(am, a, b):
 
 
 def hpm_keys_match(am, a, b):
-    """Tier 2: `rdval` relaxation on a READ-BACK of a tier-2 HPM CSR.
-
-    Called ONLY after `a.key() != b.key()`, so it can never make a matching pair
-    "more matching"; it can only rescue a pair that already disagrees, and only
-    on the ONE field the two models are legally allowed to disagree about.
-
-    Everything else about the record is still compared EXACTLY -- pc, insn and
-    rd must all be equal before the value is forgiven -- so a read that lands on
-    the wrong register, at the wrong pc, or that fails to retire at all is still
-    caught.  And it never advances one stream without the other: the caller
-    treats the pair as compared, so the record COUNT is untouched (this is why
-    tier 2 cannot recreate the A17 `--count`/`--max-records` problem).
-
-    WHAT IS NOT IN `HPM_RDVAL_RELAX`, and why the list is where to look: the
-    COUNTERS.  See the comment on that frozenset -- the divergence at a counter
-    read is F1, and it is the thing this amendment exists to make reachable.
+    """rdval relaxation on a read-back of a tier-2 HPM CSR. Called only after the keys already
+    differ, so it can only rescue a disagreeing pair, and only on the one field the two models may
+    legally disagree about; pc, insn and rd must still be equal, and the record count is untouched.
     """
     if not am.enabled("hpm-warl"):
         return False
@@ -1051,9 +766,7 @@ def hpm_keys_match(am, a, b):
     return True
 
 
-# --------------------------------------------------------------------------
 # reporting
-# --------------------------------------------------------------------------
 
 def summarise(err, am):
     """The `--amend` block.  Printed whenever ANY amendment is enabled,

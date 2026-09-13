@@ -1,22 +1,5 @@
-#*****************************************************************************
-# UART_BASIC_TEST.S
-#-----------------------------------------------------------------------------
-# Basic UART testbench for RISC-V assembly
-# Author: Maxx Seminario
-# Date: 08-17-2025
-#
-# Test Categories:
-# 1. Basic Communication Tests (Tests 1-11)
-# 2. Interrupt Flag Tests (Tests 12-19)
-# 
-# Each test category runs 3 times with different baud rates:
-# - High baud rate (0x01)
-# - Medium baud rate (0x4D)  
-# - Low baud rate (0xFF)
-#
-# Each baud rate set is run twice, swapping UART0 and UART1 roles to ensure
-# both UARTs are fully tested in both transmit and receive roles.
-#-----------------------------------------------------------------------------
+# VestaRV: UART interrupt test
+# UART0 and UART1 are wired to each other. Covers basic transfer and every interrupt flag, at baud registers 0x01, 0x4D and 0xFF, and runs each baud set twice with the transmit and receive roles swapped so both UARTs are exercised in both directions.
 
 #include "riscv_test.h"
 #include "test_macros.h"

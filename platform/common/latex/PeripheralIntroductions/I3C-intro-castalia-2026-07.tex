@@ -1,7 +1,7 @@
-% I3C chapter. Section order is the per-peripheral template enforced by
+% VestaRV: I3C chapter of the TRM.
+% Section order is the per-peripheral template enforced by
 % python/check_intro_names.py (Overview / Functional description / Interrupts
-% and events / Programming / Usage notes). Restructured 2026-09-05; the prose
-% is unchanged apart from the headings it now sits under.
+% and events / Programming / Usage notes).
 \section{Overview}
 
 The I3C controller (\peripheral{I3Cx}) is a single-controller MIPI I3C Basic interface for a two-wire (\pin{SDA}, \pin{SCL}) sensor bus. It acts as the active bus controller and interoperates with legacy I2C targets sharing the same wires. Transactions are described by the control and command registers and launched by a single register write; the registered read path returns snapshots with no read side effects. The serial core runs in the SMCLK domain (the \register{\register{SYSCLKCR}} $=$ 0 rule applies), with independent open-drain and push-pull baud dividers. The main features of the I3C controller are listed below:

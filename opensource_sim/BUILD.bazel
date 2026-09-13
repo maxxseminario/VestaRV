@@ -1,29 +1,9 @@
-# The open-source simulation tier as bazel tests: the GHDL ISA regression of
-# opensource_sim/isa/run_isa.sh, one sh_test per suite.
+# VestaRV: the open-source simulation tier as bazel tests, one sh_test per suite.
 #
-# Hermetic by construction — @ghdl//:ghdl (built from source, mcode) plus its
-# pre-analyzed VHDL-2008 libraries, ON-polarity images from
-# //verification/isa's os_* targets (defines mirror run_isa.sh's
-# CORE_ENABLE_DEFS; the two lists must move together), RTL from
-# //hdl:vhdl_sources. CI (sim.yml) runs `bazel test
-# //opensource_sim:isa_regression` on a hosted runner with no EDA installs
-# at all.
-#
-# RELATION TO //opensource_sim/isa's per-test ghdl_test port: that package is
-# the finer-grained future — one bazel target per image, currently piloting
-# rv32ui on the CI-polarity images. These suite-level wrappers are the
-# whole-regression gate CI runs TODAY (all nine suites, ON-polarity, the
-# SKIP table's semantics intact). When the per-test port covers a suite at
-# the os_* polarity, drop that suite here; when it covers all nine, delete
-# this file and point sim.yml at the per-test suites.
-#
-# The cocotb smoke test (sky130/sim) is NOT wrapped here: physical.yml's
-# sim-smoke job already runs it on every PR/push, and cocotb has no hermetic
-# py_deps wiring yet.
-#
-# Suite wall-clock is dominated by #tests x GHDL mcode run time; every suite
-# fits "moderate" except the two big ones, measured locally (rv32ui ~55 tests,
-# rv32ua ~60): those get "long".
+# Hermetic: @ghdl//:ghdl with its pre-analyzed VHDL-2008 libraries, ON-polarity images from
+# //verification/isa's os_* targets, RTL from //hdl:vhdl_sources. The os_* define list mirrors
+# run_isa.sh's CORE_ENABLE_DEFS and the two must move together. Suite wall-clock is dominated
+# by test count times GHDL run time, so rv32ui and rv32ua are tagged long and the rest moderate.
 
 load("@rules_shell//shell:sh_test.bzl", "sh_test")
 

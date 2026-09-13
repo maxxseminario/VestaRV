@@ -1,19 +1,10 @@
 #!/usr/bin/env python3
-"""Run the chip generator inside a STAGED COPY of the tree, never the source tree.
+"""VestaRV: run the chip generator inside a staged copy of the tree, never the source tree.
 
-python/generate.py resolves every path from its own __file__ (the chip root is
-python/..), and LatexUserGuide.py reaches three levels further up for two
-out-of-tree inputs: implementations/asic/<chip>/analog/ (the measured analog
-chapter) and hdl/common/periph/NPU.vhd (the NPU datapath figure's oracle).
-
-So the whole flow is made hermetic without patching a single path: the action
-COPIES its inputs into a scratch tree at exactly their workspace-relative paths
-and runs the generator there. The generator then writes out/, config/*.json and
-latex/TRM/ into the scratch tree, and this script copies the declared artifacts
-out. The source tree is opened read-only and never written to.
-
-Inputs arrive as a bazel params file (one argument per line, see the @-prefix
-handling below), because the analog chapter alone is ~2000 files.
+generate.py resolves every path from its own __file__ and LatexUserGuide.py reaches three
+levels further up for the analog chapter and NPU.vhd, so the action copies its inputs into a
+scratch tree at their workspace-relative paths and runs there, patching no path. Inputs arrive
+as a bazel params file because the analog chapter alone is about 2000 files.
 """
 
 import argparse
@@ -24,11 +15,9 @@ import sys
 
 
 def _copyInto(srcPath, dstPath):
-    """Copy one file, creating parents, and leave it writable.
-
-    Bazel source files are read-only symlinks into the execroot; the generator
-    rewrites some of the files it also reads (latex/TRM), so the staged copy has
-    to be a real writable file.
+    """Copy one file, creating parents, and leave it writable. Bazel source files are read-only
+    symlinks into the execroot and the generator rewrites some of the files it also reads, so the
+    staged copy has to be a real writable file.
     """
     dstDir = os.path.dirname(dstPath)
     if dstDir and not os.path.isdir(dstDir):
@@ -38,11 +27,9 @@ def _copyInto(srcPath, dstPath):
 
 
 def _stageRelative(execPath):
-    """Workspace-relative path for an action input.
-
-    Source files already arrive workspace-relative. A generated input would be
-    prefixed with bazel-out/<config>/bin/ (or /genfiles/), which has to come off
-    so the file lands where the generator's __file__ arithmetic expects it.
+    """Workspace-relative path for an action input. Source files already arrive that way; a generated
+    input carries a bazel-out prefix that has to come off, so the file lands where the generator's
+    __file__ arithmetic expects it.
     """
     parts = execPath.split('/')
     if parts and parts[0] == 'bazel-out':
@@ -56,22 +43,9 @@ def _stageRelative(execPath):
 
 
 def _childEnv(args, stageRoot, configPath):
-    """A scrubbed environment for the generator subprocess.
-
-    Nothing is inherited except PATH and TMPDIR: a leaked PYTHONPATH from the
-    py_binary bootstrap could shadow the generator's own modules, and a leaked
-    VESTA_TRM_DATE_EPOCH from a developer shell would unpin the TRM date.
-    PYTHONUTF8 is mandatory, not cosmetic: the generator writes em-dashes and a
-    bazel sandbox has no locale, so the default ASCII text encoding would abort
-    the run on the first non-ASCII character.
-
-    The ONE exception to the scrub is the SystemRDL closure (_rdlPath below):
-    generate.py reads hdl/common/regs/rdl/*.rdl for its register maps, so
-    systemrdl-compiler has to be importable in the child. It is passed as an
-    explicit list of the runfiles directories that actually contain those
-    packages, not as the bootstrap's whole sys.path, and the child runs with
-    cwd=python/ so sys.path[0] is still the generator's own directory and
-    nothing on PYTHONPATH can shadow a generator module.
+    """A scrubbed environment for the generator subprocess: nothing is inherited but PATH and TMPDIR,
+    since a leaked PYTHONPATH could shadow a generator module and a leaked VESTA_TRM_DATE_EPOCH
+    would unpin the TRM date. PYTHONUTF8 is mandatory; the SystemRDL closure is the one exception.
     """
     epoch = str(args.epoch)
     return {
@@ -101,11 +75,10 @@ _RDL_PACKAGES = ('systemrdl', 'antlr4', 'colorama', 'typing_extensions')
 
 
 def _rdlPath():
-    """The sys.path entries holding the SystemRDL closure, as a PYTHONPATH.
-
-    Raises rather than returning empty: a generation that silently loses the
-    register descriptions would emit a chip with no peripheral registers at all,
-    and the failure has to name its cause at the point it happens."""
+    """The sys.path entries holding the SystemRDL closure, as a PYTHONPATH. Raises rather than
+    returning empty: a generation that silently lost the register descriptions would emit a chip
+    with no peripheral registers at all.
+    """
     found = []
     for entry in sys.path:
         if not entry or not os.path.isdir(entry):
@@ -122,6 +95,13 @@ def _rdlPath():
             'so generate.py cannot read hdl/common/regs/rdl/*.rdl. Add '
             'requirement("systemrdl-compiler") to //platform/common/bazel:stage_generate.')
     return os.pathsep.join(found)
+
+
+# Declared outputs the generator may write beside the other outputs instead of into config/.
+_BESIDE_OUTPUTS = {
+    'config/ChipConfig.resolved.json': 'out/config/ChipConfig.resolved.json',
+    'config/PadRing.json': 'out/config/PadRing.json',
+}
 
 
 def main(argv):
@@ -195,6 +175,14 @@ def main(argv):
     for spec in args.out:
         rel, dstPath = spec.split('=', 1)
         srcPath = os.path.join(chipRoot, rel)
+        if not os.path.isfile(srcPath) and rel in _BESIDE_OUTPUTS:
+            # The resolved record and the pad ring are tracked files, so generate.py writes them
+            # to out/config/ and refreshes config/ only for the default configuration. Either
+            # location satisfies the same declared output; out/config/ is preferred because it
+            # is always this run's, while config/ may be a staged copy of the tracked default.
+            beside = os.path.join(chipRoot, _BESIDE_OUTPUTS[rel])
+            if os.path.isfile(beside):
+                srcPath = beside
         if not os.path.isfile(srcPath):
             raise SystemExit('stage_generate: the generator did not write the '
                              'declared output ' + rel)

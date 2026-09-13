@@ -1,12 +1,8 @@
 # See LICENSE for license details.
-#*****************************************************************************
-# extzcmp.S   (X3 Zcmp ext-probe)
-#   ON  (#ifdef CORE_ENABLE_ZCMP): a real cm.push/cm.pop round-trip -> PASS.
-#   OFF (#else, extoff POISON): the cm.push encoding executed unconditionally
-#       MUST take the illegal-instruction trap (C2 funct3=101 reserved without
-#       Zcmp). Reached-past -> FAIL. Wired ONLY into run_extoff.sh.
-# gas has no cm.* mnemonics -> raw 16-bit .short byte-images.
-#*****************************************************************************
+
+# VestaRV: Zcmp extension probe
+# With CORE_ENABLE_ZCMP defined the test runs a real cm.push and cm.pop round trip. Without it the cm.push encoding executes unconditionally and MUST take the illegal-instruction trap, since C2 funct3 = 101 is reserved without Zcmp, and reaching past it is a FAIL; that arm is wired ONLY into run_extoff.sh.
+# gas has no cm.* mnemonics, so the encodings are raw 16-bit `.short` byte images.
 #include "riscv_test.h"
 #include "test_macros.h"
 .option norvc

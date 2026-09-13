@@ -1,18 +1,10 @@
 #!/usr/bin/env python3
-"""rdl_latex.py -- the TRM register tables of an .rdl block, in exactly the
-format LatexUserGuide.py emits today.
+"""VestaRV: the TRM register tables of an .rdl block, in LatexUserGuide.py's own format.
 
-Format identity is BY CONSTRUCTION, not by imitation: this module hands the
-RegisterTemplate objects rdl_model.py built to LatexUserGuide's own
-`_RegisterBlocks` / `_RegisterBlockTex` / `_FieldRows` through a shim that
-supplies the handful of attributes those methods read off `self`. So the array
-detection, the reserved-run collapsing, the coded-list-from-prose parsing, the
-row striping and the hyperref labels are the same code, and a change to the TRM
-table format lands here for free.
-
-The output is a `\\subsection` per register block -- the body of the Registers
-section of a peripheral chapter -- so the chapter builds unchanged whether the
-blocks came from generate.py or from an .rdl file.
+Format identity is by construction: the RegisterTemplate objects are handed to
+LatexUserGuide's _RegisterBlocks, _RegisterBlockTex and _FieldRows through a shim supplying
+the attributes those methods read off self, so array detection, reserved-run collapsing, row
+striping and labels are the same code. Output is a subsection per register block.
 """
 
 import os

@@ -1,73 +1,13 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# privpmp.S   (P3 PMP ENFORCEMENT — TOR/NA4/NAPOT, causes 1/5/7, L, MPRV)
-#-----------------------------------------------------------------------------
-# ON-ONLY DIRECTED TEST (needs a trapCsr+umode+pmp build). privpmpcs proves the
-# CSR BANK in csr_unit; THIS file proves the CHECK INTEGRATION in vesta.vhd
-# against ~/work/chip_docs/castalia/priv_arch/p0_specs.md §4 / §4.1:
-#
-#   * a U-mode LOAD  that PMP denies -> mcause 5, mtval = the data address,
-#     mepc = the load's own PC
-#   * a U-mode STORE that PMP denies -> mcause 7, same mtval/mepc rule
-#   * a U-mode FETCH that PMP denies -> mcause 1, mtval = mepc = the faulting
-#     instruction word's address
-#   * an UNLOCKED entry does NOT constrain M-mode (all three of the above pass
-#     from M with the identical map)
-#   * NO MATCH: M grants, U faults (the spec rule once PMP is implemented)
-#   * PRIORITY: the LOWEST-numbered matching entry decides ALONE — every fenced
-#     address below is ALSO inside the permissive TOR entry 4, so a
-#     highest-wins implementation grants them (negative control p3_priorder)
-#   * NAPOT size decode: the last word INSIDE a 16-byte NAPOT region is denied
-#     and the first word AFTER it is granted (negative control p3_napotoff)
-#   * mstatus.MPRV: M-mode with MPRV=1 + MPP=U takes the U VIEW on a DATA
-#     access, and MPRV=0 restores the M view. Instruction FETCH is NEVER
-#     MPRV-redirected (CHECK 75 executes from a U-X-denied word under MPRV=1)
-#   * L (lock): a LOCKED entry enforces on M-mode (negative control
-#     p3_lockmdeny), and the lock itself holds against a rewrite
-#
-# THE MAP (programmed once, in M, addresses first then cfg):
-#   entry 0  NA4    &pvpp_fence_d      R=W=X=0      the fenced DATA word
-#   entry 1  NA4    &pvpp_fenced_fn    R=W=X=0      the fenced CODE word
-#   entry 2  NAPOT  pvpp_napot..+15    R=W=X=0      the boundary-probe region
-#   entry 3  OFF    0                               TOR base for entry 4
-#   entry 4  TOR    0x00000000-0x0000FFFF  R=W=X=1  everything else U may touch
-#   entry 12 NA4    0x00010200         R=W=X=0 L=1  LOCKED — programmed LAST
-#
-# ENTRY BUDGET (privpmpcs's rule): PMP locks release only at RESET, so the ONE
-# locked entry is programmed at the very END of the test and covers 0x00010200,
-# an address no other check uses. Entries 0-11 stay unlocked throughout.
-# Note the locked entry must sit ABOVE entry 4 in NUMBER but OUTSIDE entry 4's
-# range in ADDRESS — 0x10200 is past the TOR top (0x10000), so no lower entry
-# matches it and entry 12 is the one that decides.
-#
-# BOUNDEDNESS: every check is a compare-and-branch; there is no polling loop
-# anywhere. Each access that MUST NOT fault sets s7 to a dedicated
-# "if-this-faults" label first, so an unexpected fault lands on a FAIL path
-# instead of re-executing the faulting instruction forever.
-#
-# REGISTER CONTRACT (standard mode pushes NOTHING — a U-mode sp is untrusted):
-#   s0  NAPOT region base                    s7  handler resume PC
-#   s1  U-side failure id (0 = all U checks passed)
-#   s2  the NO-MATCH probe address (M phase: the LOCKED address)
-#   s3  trap counter (handler increments)    s8  expected mepc
-#   s4  mcause captured in the handler       s9  M continuation after ECALL
-#   s5  mepc   captured in the handler       s10 &pvpp_fence_d
-#   s6  mtval  captured in the handler       s11 expected trap count (U side)
-#   t4  CHECK ID at every M-side comparison
-#
-# HANDLER PROTOCOL (privucsr-style, handler-mediated): on an ACCESS FAULT the
-# handler records cause/mepc/mtval, bumps s3 and resumes at s7 IN THE TRAPPED
-# PRIVILEGE (csrw mepc,s7 + MRET — MPP still holds the trapped privilege). On
-# an ECALL it leaves with `jr s9` instead, so the U->M transition is one-way
-# and the M flow continues with the pushed state intact.
-#
-# BUILD-TIME DISPATCH (privcsr / privucsr / privpmpcs idiom): ON iff all three
-# of -DCORE_ENABLE_TRAPCSR -DCORE_ENABLE_UMODE -DCORE_ENABLE_PMP are appended
-# to RISCV_GCC_OPTS on a staged pmp build. The #else arm FAILs immediately and
-# loudly — privpmp is deliberately NOT in the default behavioral_mp runner
-# array, so that arm must never execute.
-#*****************************************************************************
+# VestaRV: PMP enforcement, TOR/NA4/NAPOT, causes 1/5/7, lock and MPRV
+# ON-ONLY, needing a trapCsr, umode and pmp build. privpmpcs proves the CSR bank; this file proves the CHECK INTEGRATION in vesta.vhd. A U-mode load PMP denies gives mcause 5 with mtval = the data address and mepc = the load's own PC; a denied store gives mcause 7 under the same rule; a denied fetch gives mcause 1 with mtval = mepc = the faulting word's address. An UNLOCKED entry does not constrain M-mode, so all three pass from M under the identical map. With NO MATCH, M grants and U faults. PRIORITY: the LOWEST-numbered matching entry decides alone, which is why every fenced address is also inside the permissive TOR entry 4, so a highest-wins implementation grants them. NAPOT size decode is checked at the boundary, the last word inside a 16-byte region denied and the first word after it granted. mstatus.MPRV with MPP = U makes M-mode take the U view on a DATA access and MPRV = 0 restores the M view, while INSTRUCTION FETCH IS NEVER MPRV-REDIRECTED. A LOCKED entry enforces on M-mode and the lock holds against a rewrite.
+# THE MAP, programmed once in M with addresses before cfg: entry 0 NA4 on &pvpp_fence_d with R = W = X = 0, the fenced data word; entry 1 NA4 on &pvpp_fenced_fn, the fenced code word; entry 2 NAPOT over pvpp_napot..+15, the boundary probe; entry 3 OFF at 0, the TOR base for entry 4; entry 4 TOR 0x00000000-0x0000FFFF with R = W = X = 1, everything else U may touch; entry 12 NA4 on 0x00010200 with R = W = X = 0 and L = 1, programmed LAST.
+# ENTRY BUDGET: PMP LOCKS RELEASE ONLY AT RESET, so the one locked entry is programmed at the very end and covers an address no other check uses. Entries 0-11 stay unlocked throughout. The locked entry must sit ABOVE entry 4 in NUMBER but OUTSIDE entry 4's range in ADDRESS, and 0x10200 is past the TOR top of 0x10000, so no lower entry matches and entry 12 decides.
+# BOUNDEDNESS: every check is a compare and branch with no polling loop anywhere, and each access that must not fault sets s7 to a dedicated "if this faults" label first, so an unexpected fault lands on a FAIL path instead of re-executing the faulting instruction forever.
+# REGISTER CONTRACT, with standard mode pushing nothing because a U-mode sp is untrusted: s0 the NAPOT region base, s1 the U-side failure id with 0 meaning all U checks passed, s2 the no-match probe address and in the M phase the locked address, s3 the trap counter, s4 mcause, s5 mepc, s6 mtval, s7 the handler resume PC, s8 the expected mepc, s9 the M continuation after ECALL, s10 &pvpp_fence_d, s11 the expected U-side trap count, t4 the CHECK ID at every M-side comparison.
+# HANDLER PROTOCOL: on an access fault the handler records cause, mepc and mtval, bumps s3 and resumes at s7 IN THE TRAPPED PRIVILEGE, by writing mepc from s7 and MRETing while MPP still holds it. On an ECALL it leaves with `jr s9` instead, so the U to M transition is one-way and the M flow continues with the pushed state intact.
+# BUILD-TIME DISPATCH: assembled only with all three of -DCORE_ENABLE_TRAPCSR, -DCORE_ENABLE_UMODE and -DCORE_ENABLE_PMP on a staged pmp build; the #else arm fails immediately and loudly, and this file is deliberately not in the default runner array.
 
 #include "riscv_test.h"
 #include "test_macros.h"

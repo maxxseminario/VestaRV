@@ -1,6 +1,5 @@
-/* FPGA stand-in for the ClkGate technology cell.
-   The ASIC flow maps this entity onto an integrated clock-gating cell; the simulation model in hdl/common/sim/ClkGate.vhd builds it from a level-sensitive latch instead.
-   Vivado infers a real latch from that model and reports it on every clock path that carries one, so this version captures the enable in a falling-edge flip-flop and gets the same runt-free behaviour out of a primitive the fabric actually has. */
+-- VestaRV: FPGA stand-in for the ClkGate technology cell
+-- The ASIC flow maps this entity onto an integrated clock-gating cell, and the simulation model in hdl/common/sim/ClkGate.vhd builds it from a level-sensitive latch. Vivado infers a real latch from that model and reports it on every clock path that carries one, so this version captures the enable in a falling-edge flip-flop: the same runt-free behaviour out of a primitive the fabric has.
 
 library ieee;
 use ieee.std_logic_1164.all;

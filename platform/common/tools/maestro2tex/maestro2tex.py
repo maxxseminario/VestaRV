@@ -1,21 +1,10 @@
 #!/usr/bin/env python3
-"""maestro2tex -- turn a Cadence Maestro (ADE Assembler) run into TRM-ready LaTeX.
+"""VestaRV: turn a Cadence Maestro (ADE Assembler) run into TRM-ready LaTeX.
 
-Reads a Maestro results directory, pulls the waveforms out through OCEAN (the only
-reader that handles binary PSF *and* PSFXL), and writes a self-contained directory of
-pgfplots figures, booktabs tables and .dat files that the LaTeX TRM can \\input
-directly.
-
-    maestro2tex.py --results <.../results/maestro/Interactive.32> \
-                   --config configs/BiasGenCascWideSwing_tb.json \
-                   --outdir <.../latex/analog>
-
-Stage 1 (extract) shells out to OCEAN and needs a Virtuoso licence; it writes plain
-two-column CSVs under <outdir>/data/raw. Stage 2 (render) is pure Python 3.6 stdlib and
-reads only those CSVs, so you can iterate on the LaTeX with --no-extract and never
-take a licence again.
-
-Requires: Python 3.6+, and for --extract, an OCEAN binary (see --ocean/--setup).
+Stage 1 (extract) shells out to OCEAN, the only reader that handles both binary PSF and PSFXL,
+and needs a Virtuoso licence; it writes two-column CSVs under <outdir>/data/raw. Stage 2
+(render) is pure Python 3.6 stdlib reading only those CSVs, so --no-extract iterates on the
+LaTeX without a licence. Output is pgfplots figures, booktabs tables and .dat files.
 """
 
 import argparse
@@ -105,10 +94,8 @@ def slug(s):
 
 
 def fmt(x, digits):
-    """Fixed-point format that never emits '-0.00'.
-
-    Negative values are wrapped in math mode so they typeset with a real minus
-    sign rather than the hyphen a table cell would otherwise give them.
+    """Fixed-point format that never emits '-0.00'. Negative values are wrapped in math mode so they
+    typeset with a real minus sign rather than a hyphen.
     """
     if x is None:
         return '--'
@@ -129,13 +116,9 @@ def fmt(x, digits):
 
 
 def expand_points(spec):
-    """['1-130', '136'] -> {'1', '2', ..., '130', '136'}.
-
-    One Maestro run now routinely holds several unrelated sweeps -- a 130-point
-    2-D map followed by two groups of five-corner single-point benches. Scoping
-    a config to its own points keeps the corner labels clean: 136-140 alone are
-    tt/ff/fs/sf/ss, while all 140 together would de-duplicate into tt1, tt131,
-    tt136 and legends would read like directory numbers.
+    """['1-130', '136'] -> {'1', '2', ..., '130', '136'}. Scoping a config to its own points keeps
+    the corner labels clean: five corners alone are tt/ff/fs/sf/ss, while all 140 points together
+    would de-duplicate into tt1, tt131, tt136 and read like directory numbers.
     """
     if not spec:
         return None
@@ -151,16 +134,9 @@ def expand_points(spec):
 
 
 def discover_corners(results_dir, points=None, prefer_tests=None):
-    """Return [(dirname, label, vars)] for each numeric point/corner subdirectory.
-
-    Maestro names the per-corner run directories 1, 2, 3 ... The process corner
-    itself is recovered from the netlist's .modelFiles (section=ff, section=tt_bip,
-    ...) by majority vote over the section prefixes, and the design variables from
-    the PSF variables_file.
-
-    prefer_tests: test directory names to read variables from first. Benches can
-    run their tests at different temperatures, so the legend must come from a test
-    the config actually uses, not from whichever sorts first in the run directory.
+    """Return [(dirname, label, vars)] for each numeric point or corner subdirectory. prefer_tests
+    names the test directories to read variables from first, since benches run their tests at
+    different temperatures and the legend must come from a test the config uses.
     """
     out = []
     for name in sorted(os.listdir(results_dir), key=lambda s: (len(s), s)):
@@ -200,12 +176,9 @@ def discover_corners(results_dir, points=None, prefer_tests=None):
 
 
 def _corner_from_modelfiles(path):
-    """Recover the process corner from a netlist .modelFiles list.
-
-    Maestro always includes the PDK master .scs (whose sections are all tt_*) and
-    then *overrides* it with cor_*.scs corner files, so a plain majority vote over
-    section prefixes always answers 'tt'. The corner is whatever the standard-MOS
-    override says; fall back to the other cor_* overrides, and only then to a vote.
+    """Recover the process corner from a netlist .modelFiles list. Maestro includes the PDK master
+    whose sections are all tt_* and then overrides it with cor_*.scs, so a plain majority vote
+    always answers 'tt'; the standard-MOS override wins, then the other overrides, then a vote.
     """
     std, override, allsec = None, {}, {}
 
@@ -255,12 +228,8 @@ def corner_cache_path(rawdir, block):
 
 
 def save_corners(rawdir, block, corners):
-    """Persist the discovered corners next to the CSVs.
-
-    Maestro rotates its run directories, so the results a block was extracted
-    from will not be there forever -- the CSVs outlive them. Without this the
-    render stage could not run once the run was gone, which would defeat the
-    point of committing the CSVs at all.
+    """Persist the discovered corners next to the CSVs. Maestro rotates its run directories, so the
+    CSVs outlive the results they came from and the render stage must not need the run.
     """
     with open(corner_cache_path(rawdir, block), 'w') as f:
         json.dump([{'dir': c[0], 'label': c[1], 'vars': c[2]} for c in corners],
@@ -277,13 +246,9 @@ def load_corners(rawdir, block):
 
 
 def relabel_corners(corners, mapping):
-    """Rename discovered corner labels from the config.
-
-    A point whose model list carries no `cor_std_mos.scs` -- a typical point
-    selected through a Monte Carlo process section, say -- has no corner name to
-    discover and falls back to `ptN`, which is meaningless in a published table.
-    The mapping is keyed on the discovered label, so it is explicit about what it
-    is renaming rather than silently rewriting whatever lands in a position.
+    """Rename discovered corner labels from the config. A point with no cor_std_mos.scs has no
+    corner to discover and falls back to ptN; the mapping is keyed on the discovered label, so it
+    says what it renames rather than rewriting whatever lands in a position.
     """
     if not mapping:
         return corners
@@ -361,12 +326,9 @@ def build_ocn(results_dir, corners, cfg, rawdir):
 
 
 def test_dir(tname, tspec):
-    """Results subdirectory a config test reads from.
-
-    A single Maestro test often holds several analyses (ac, dc, stb, noise, ...)
-    and each needs its own signal set, x-axis and figures. The config therefore
-    names *logical* tests, and 'dir' says which run directory each one reads;
-    it defaults to the test name, which is what a one-analysis bench wants.
+    """Results subdirectory a config test reads from. A Maestro test often holds several analyses,
+    each needing its own signals and axes, so the config names logical tests and 'dir' says which
+    run directory each reads; it defaults to the test name.
     """
     return tspec.get('dir', tname)
 
@@ -490,11 +452,9 @@ def read_mcparam(path):
 
 
 def read_mcdata(path, ncols):
-    """[[float] * ncols] -- one row per sample.
-
-    Every mcdata line ends in a trailing tab, so a naive split yields a final
-    empty field; and a test with no outputs defined yields 200 blank lines, which
-    is a real and silent failure mode worth surfacing rather than crashing on.
+    """[[float] * ncols], one row per sample. Every mcdata line ends in a trailing tab, so a naive
+    split yields an empty final field, and a test with no outputs yields blank lines, which is a
+    silent failure worth surfacing.
     """
     rows = []
     if not os.path.isfile(path):
@@ -516,11 +476,9 @@ def read_mcdata(path, ncols):
 
 
 def mc_run_info(netlist_path):
-    """Scrape the montecarlo statement and conditions out of a run's input.scs.
-
-    Captured at copy time and written into the CSV, because input.scs goes away
-    with the run and the seed/sample count are exactly what a TRM table has to
-    quote for the characterisation to be reproducible.
+    """Scrape the montecarlo statement and conditions out of a run's input.scs, at copy time,
+    because input.scs goes away with the run and the seed and sample count are what a TRM table
+    must quote for the characterisation to be reproducible.
     """
     info_ = {}
     if not os.path.isfile(netlist_path):
@@ -547,11 +505,9 @@ def mc_csv_path(rawdir, test):
 
 
 def copy_mc(results_dir, cfg, rawdir):
-    """Copy each MC test's per-sample scalars into rawdir, self-describing.
-
-    Same contract as the OCEAN CSVs: what lands in rawdir must outlive the run
-    directory, so the spec limits, the column names and the run conditions are
-    all written into the file rather than re-read at render time.
+    """Copy each MC test's per-sample scalars into rawdir, self-describing. What lands in rawdir
+    must outlive the run directory, so the spec limits, column names and run conditions are
+    written into the file rather than re-read at render time.
     """
     n_written = 0
     for tname, tspec in sorted(cfg['tests'].items()):
@@ -621,17 +577,9 @@ def read_mc(path):
 
 
 def mc_column(mc, name, derive=None):
-    """The valid samples of one output, plus how many were not measurable.
-
-    `derive` is `"a - b"`: the per-sample difference of two mcdata columns,
-    published under `name` with no mcparam row of its own (so its limits come
-    from the config's `spec_lo`/`spec_hi`). It exists for the quantity the run
-    determines but did not measure -- load regulation with the zero-current
-    error removed sample by sample, which is a different result from the
-    offset-inclusive error the test graded. A sample is held out if EITHER
-    operand is a sentinel; two subtracted sentinels are not a number. Kept to
-    one subtraction on purpose: anything richer belongs in the Assembler
-    outputs, where the corner run measures it too.
+    """The valid samples of one output, plus how many were not measurable. `derive` is "a - b", the
+    per-sample difference of two columns published under `name`, taking its limits from the
+    config; a sample is held out if either operand is a sentinel.
     """
     run, cols, rows = mc
     if derive:
@@ -673,10 +621,8 @@ def mc_column(mc, name, derive=None):
 
 
 def mc_raw(mc, name):
-    """One output's samples in run order, None where it was not measurable.
-
-    Unlike mc_column this keeps the row alignment, which is what a per-sample
-    derivation needs: sample i of one output has to meet sample i of the other.
+    """One output's samples in run order, None where it was not measurable. Unlike mc_column this
+    keeps the row alignment, which a per-sample derivation needs.
     """
     run, cols, rows = mc
     idx = None
@@ -707,11 +653,9 @@ def percentile(sorted_vals, q):
 
 
 def mc_stats(vals, n_bad, lo, hi, nch=1):
-    """Every statistic a Monte Carlo table can print, from one sample vector.
-
-    sigma is the sample standard deviation (n-1). Yield is counted over the
-    samples that produced a number; `n_nomeas` carries the rest so a yield of
-    100 % on 197 of 200 samples can never be read as 100 % of 200.
+    """Every statistic a Monte Carlo table can print, from one sample vector. sigma is the sample
+    standard deviation (n-1), and yield is counted over the samples that produced a number, with
+    n_nomeas carrying the rest so 100 % of 197 cannot read as 100 % of 200.
     """
     d = {'n': len(vals), 'n_nomeas': n_bad, 'spec_lo': lo, 'spec_hi': hi}
     if not vals:
@@ -871,19 +815,9 @@ LEGEND_INSIDE = (
 
 
 def short_caption(caption, limit=110):
-    """The one-line form of a caption, for \\listoffigures / \\listoftables.
-
-    LaTeX puts the *whole* caption in those lists unless a short form is given,
-    which turns a page-long index into a second copy of the body text. The first
-    sentence is what a reader scans an index for, so that is what is used; if it
-    is still too long it is cut at a word boundary.
-
-    Splitting on '. ' (period-space) leaves decimals and \\SI{0.1}{...} alone.
-    A candidate whose braces do not balance is discarded rather than emitted --
-    a truncated \\texttt{ would take the rest of the document with it. Math
-    shifts are checked the same way and for the same reason: a cut at a word
-    boundary inside $R_f = \\SI{560}{\\kilo\\ohm}$ balances its braces but leaves
-    one unpaired '$', and the .lof then fails with "Extra }, or forgotten $".
+    """The one-line form of a caption, for \listoffigures and \listoftables, cut at a word boundary
+    if the first sentence is still too long. Splitting on period-space leaves decimals alone, and
+    a candidate whose braces or math shifts do not balance is discarded rather than emitted.
     """
     def balanced(s):
         d, dollars = 0, 0
@@ -916,10 +850,8 @@ def short_caption(caption, limit=110):
 
 
 def _caption_cmd(caption):
-    """`\\caption` with a short form when one is worth having.
-
-    The short form is wrapped in braces so brackets inside it cannot terminate
-    the optional argument.
+    """`\caption` with a short form when one is worth having. The short form is wrapped in braces so
+    brackets inside it cannot terminate the optional argument.
     """
     s = short_caption(caption)
     if not s or len(s) >= len(' '.join(caption.split())):
@@ -1009,13 +941,9 @@ def emit_figure(outdir, texroot, figid, spec, series, caption, xlabel, ylabel,
 
 
 def emit_heatmap(outdir, texroot, figid, spec, cols, overlays, caption):
-    """A 2-D map: one design variable across the corners on x, the analysis
-    sweep on y, a signal as colour.
-
-    `cols` is [(xvalue, [(y, z) ...])] already sorted, scaled and decimated;
-    every column must carry the same y grid. `overlays` is
-    [(legend, [(x, y) ...])] -- scalar-per-corner curves drawn on top, which is
-    how a compliance envelope goes onto the map it was measured from.
+    """A 2-D map: one design variable across the corners on x, the analysis sweep on y, a signal as
+    colour. `cols` is [(xvalue, [(y, z) ...])] already sorted, scaled and decimated, every column
+    carrying the same y grid; `overlays` draws scalar-per-corner curves on top.
     """
     nx = len(cols)
     ny = len(cols[0][1])
@@ -1095,12 +1023,9 @@ def emit_heatmap(outdir, texroot, figid, spec, cols, overlays, caption):
 
 
 def mc_histogram(vals, nbins, lo=None, hi=None):
-    """[(left_edge, count)] plus the trailing edge, over the sample range.
-
-    Binned in Python rather than by pgfplots' statistics library, which is not
-    among the packages the TRM preamble guarantees. The range is the data's own,
-    widened to include a spec limit only when that limit is close enough to the
-    data to be worth showing on the same axis -- see emit_histogram.
+    """[(left_edge, count)] plus the trailing edge, over the sample range. Binned in Python rather
+    than by pgfplots' statistics library, which the TRM preamble does not guarantee. The range is
+    the data's own, widened for a spec limit only when that limit is close enough to show.
     """
     x0, x1 = min(vals), max(vals)
     if lo is not None:
@@ -1122,19 +1047,9 @@ def mc_histogram(vals, nbins, lo=None, hi=None):
 
 
 def emit_histogram(outdir, texroot, figid, spec, dists, caption, xlabel, ylabel):
-    """One or more Monte Carlo distributions on a shared axis, with spec rules.
-
-    `dists` is [(legend, vals, scale, speclines)] where speclines is
-    [(value, label)] already scaled. Two distributions on one axis is the
-    back-to-back case (a sink and a source limit); more than two stops being
-    readable and the caller should split the figure.
-
-    A spec limit that sits far outside the data is the case this has to get
-    right: drawing it would compress the whole distribution into one bar and
-    hide the very tail the figure exists to show, while dropping it would let
-    the axis imply the design passes. So a limit further than `spec_span` times
-    the data width is drawn as an edge annotation with its value, and the axis
-    stays on the data.
+    """One or more Monte Carlo distributions on a shared axis, with spec rules; `dists` is
+    [(legend, vals, scale, speclines)]. A limit further than `spec_span` times the data width is
+    drawn as an edge annotation instead, so it neither compresses the tail nor implies a pass.
     """
     nbins = int(spec.get('bins', 24))
     span = float(spec.get('spec_span', 1.5))
@@ -1281,13 +1196,9 @@ def render(cfg, corners, rawdir, outdir, texroot, maxpts):
         return _signals_for(cfg, cfg['tests'][test]).get(name, {})
 
     def corner_axis(spec, test, match=None):
-        """[(xvalue, corner_label)] for the corners a map/by-corner spec spans,
-        ordered by the design variable that distinguishes them.
-
-        `match` selects one corner family out of a multi-corner sweep: with five
-        corners the labels are tt1..tt26, ff27..ff52, ... and a map can only show
-        one of them, so '^tt' picks that family and leaves the ordering by the
-        design variable intact.
+        """[(xvalue, corner_label)] for the corners a map or by-corner spec spans, ordered by the design
+        variable that distinguishes them. `match` selects one corner family out of a multi-corner
+        sweep, since a map can only show one.
         """
         var = spec.get('xvar') or spec.get('sortvar')
         want = spec.get('corners', 'all')
@@ -1656,13 +1567,9 @@ def _stat_header(c, tspec):
 
 
 def _mc_limits(spec, ss, lo, hi):
-    """Spec limits for one output, most specific source winning.
-
-    mcparam carries whatever limit was typed into Assembler, which is the run's
-    own record and the right default. But the design specification and the entry
-    on the test are not always the same number -- the phase-margin row was
-    entered as 40 degrees against a documented 60 -- so a config can override
-    per signal, and a figure or table can override for all of its rows.
+    """Spec limits for one output, most specific source winning. mcparam carries whatever was typed
+    into Assembler, which is the run's own record; a config can override per signal and a figure
+    or table for all of its rows, because the entry and the specification are not always equal.
     """
     if 'spec_lo' in ss:
         lo = ss['spec_lo']
@@ -1770,22 +1677,9 @@ def _stat_value(d, stat, ss, tspec, spec):
 
 
 def check_superseded(cfg, cfgpath):
-    """Refuse to regenerate a fragment that later work has corrected.
-
-    A generated fragment can be superseded by a measurement this config cannot
-    reproduce -- a different bench, a corrected corner set -- and replaced by a
-    hand-written file of the same name-and-label. Nothing then stopped the next
-    regeneration from writing the stale numbers back over it and re-listing it
-    in the master, because both the table spec and the `order` entry were still
-    in the config. That is exactly what happened to tab_biasgen_dcop, whose
-    supply-current corner spread read 0.30 uA against a true 17.6 uA (the
-    imported corners pinned the degeneration resistor at typical in every
-    corner).
-
-    `superseded` is a map fragment-name -> reason. The fragment must not be
-    declared in `figures`/`tables` and must not appear in `order`; either one
-    is a hard error naming the reason, so the mistake is caught before any
-    LaTeX is written rather than after it is published.
+    """Refuse to regenerate a fragment that later work has corrected. `superseded` maps fragment
+    name to reason; the fragment must not be declared in figures or tables and must not appear in
+    order, and either is a hard error naming the reason before any LaTeX is written.
     """
     sup = cfg.get('superseded') or {}
     if not sup:
@@ -1866,15 +1760,9 @@ def emit_master(cfg, outdir, texroot, written, corners):
 
 
 def emit_preview(cfg, outdir):
-    """A standalone wrapper so the fragments can be proofed without the TRM.
-
-    Compile with `pdflatex preview_<block>.tex` from inside outdir. Redefining
-    \\MaestroRoot to empty is also the live test that the path indirection works
-    -- the same hook the TRM uses to reach these files from latex/TRM/.
-
-    The name carries the block because a chip's blocks all render into one
-    outdir; a fixed "preview.tex" meant generating the second block silently
-    replaced the first block's proof sheet.
+    """A standalone wrapper so the fragments can be proofed without the TRM, compiled with pdflatex
+    from inside outdir. Redefining \MaestroRoot to empty is also the live test of the path
+    indirection. The name carries the block, since a chip's blocks all render into one outdir.
     """
     block = cfg.get('block', 'block')
     path = os.path.join(outdir, 'preview_%s.tex' % slug(block))

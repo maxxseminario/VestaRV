@@ -1,31 +1,10 @@
 #!/usr/bin/env python3
-"""check_repo_hygiene.py -- catch EDA and build output leaking into git.
+"""VestaRV: catch EDA and build output leaking into git.
 
-WHY THIS EXISTS.
----------------------------------------------------------------------------
-The generated trees in this repo are enormous and the tooling writes into the
-source tree, so a wide "git add" is all it takes to commit a place-and-route
-dump or a firmware image.
-Once such a file is in history it is there for good, and the clone gets
-slower for everyone forever.
-
-Three things are policed:
-
-  1. *.rcf firmware images. They are globally gitignored on purpose; what
-     pins the firmware for review is the tracked testdata/*_golden.txt, not
-     the binary. .gitignore carries exactly one documented negation of that
-     rule, and this check carries the same one - see RCF_BLESSED_DIR below.
-  2. Oversized files. The ceiling is not a style rule - it is the line past
-     which a file is almost certainly generated output rather than source.
-  3. Files under a .bazelignore'd EDA tree. Those directories are ignored by
-     bazel precisely because nothing in them is an input, so nothing in them
-     should be tracked either.
-
-With --base the check looks only at what the branch added or modified, which
-is what a pull request wants. With no --base it grades the whole tree.
-
-Exit codes:  0 = pass.  1 = something unwanted is tracked.  2 = the
-instrument is not live (git missing or failing).
+Three things are policed: tracked *.rcf firmware images, which are globally gitignored with
+exactly one documented negation (RCF_BLESSED_DIR); files over a size ceiling, past which a
+file is almost certainly generated; and tracked files under a .bazelignore'd EDA tree. --base
+grades only what the branch touched. Exit 0 pass, 1 something unwanted, 2 not live.
 """
 
 import argparse
@@ -34,7 +13,6 @@ import re
 import subprocess
 import sys
 
-# ---------------------------------------------------------------------------
 # THE SIZE CEILING.
 #
 # 16 MiB, chosen by measurement rather than taste: the largest tracked file at
@@ -46,10 +24,8 @@ import sys
 # size of anything the EDA flows emit, which is what it is really aimed at.
 # Lowering it is a decision about those existing files and belongs in a
 # commit that deals with them.
-# ---------------------------------------------------------------------------
 DEFAULT_MAX_BYTES = 16 * 1024 * 1024
 
-# ---------------------------------------------------------------------------
 # THE ONE BLESSED *.rcf LOCATION.
 #
 # .gitignore excludes *.rcf globally and then negates it for exactly one
@@ -64,10 +40,8 @@ DEFAULT_MAX_BYTES = 16 * 1024 * 1024
 # This constant must stay in step with that negation. Widening it is how the
 # .rcf rule gets hollowed out, so a diff that adds a directory here needs the
 # matching .gitignore negation and a reason next to it.
-# ---------------------------------------------------------------------------
 RCF_BLESSED_DIR = "tools/cosim/gate"
 
-# ---------------------------------------------------------------------------
 # WHAT MAY BE TRACKED UNDER AN IGNORED TREE.
 #
 # KEPT IN STEP with TRACKED_CONTENT_ALLOWED in tools/ci/check_bazelignore.py.
@@ -81,8 +55,8 @@ RCF_BLESSED_DIR = "tools/cosim/gate"
 # Those same directories are also where every hand-written flow script in the
 # project lives - the Genus and Innovus run scripts, the signoff Makefile,
 # lvs.sh and its lvs_include_* files, the LVS netlist derivations, the OA
-# reference-library builders. Those were tracked between 2026-08-25 and
-# 2026-08-27 and are now untracked again by owner decision, so the EDA trees
+# reference-library builders. Those were tracked briefly and are
+# untracked again by owner decision, so the EDA trees
 # carry nothing tracked at all and git is not their backup.
 #
 # The rule here is NOT "this tree may carry tracked files". It is "this tree
@@ -99,16 +73,15 @@ RCF_BLESSED_DIR = "tools/cosim/gate"
 #
 # Patterns are shell globs matched against the workspace-relative path. "*"
 # does NOT cross a "/"; "**" does.
-# ---------------------------------------------------------------------------
 TRACKED_CONTENT_ALLOWED = {
     # The negative-control seed patches: hand-written inputs that happen to
     # live next to generated output. Exempt throughout, as they always were -
     # "**" is the whole-tree form and crosses directory separators.
     "verification/isa/negctrl": ("**",),
 
-    # genus / innovus / signoff_mp / cpf carried pattern lists here from
-    # 2026-08-25 (93da38c), when their flow scripts were tracked. Those trees
-    # were untracked again on 2026-08-27 at the owner's request and .gitignore
+    # genus / innovus / signoff_mp / cpf carried pattern lists here while their
+    # flow scripts were tracked. Those trees
+    # were untracked again at the owner's request and .gitignore
     # ignores them wholesale, so nothing under them may be tracked at all and
     # the lists are gone. Re-adding one needs the matching .gitignore negation
     # and a reason, in the same commit -- see the header above.

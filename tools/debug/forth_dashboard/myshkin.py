@@ -1,4 +1,4 @@
-"""
+"""VestaRV: the chip interface the Forth dashboard drives over UART.
 Myshkin Chip Interface
 Simplified version using peripherals_config.py for register definitions
 Communicates via UART using Forth commands
@@ -31,13 +31,7 @@ class Myshkin:
     """
     
     def __init__(self, port='/dev/ttyAMA0', baudrate=115200):
-        """
-        Initialize UART connection for Myshkin chip
-        
-        Args:
-            port: Serial port device (default: /dev/ttyAMA0 for RPi 4)
-            baudrate: UART baudrate (default: 115200)
-        """
+        """Open the UART to the chip; port defaults to the RPi 4's /dev/ttyAMA0 at 115200 baud."""
         self.uart = None
         self.register_cache = {}  # Cache for register values
         
@@ -60,15 +54,7 @@ class Myshkin:
             self.uart = None
 
     def send_forth_command(self, command):
-        """
-        Send a Forth command over UART and return the response
-        
-        Args:
-            command: Forth command string
-            
-        Returns:
-            Response string from the chip, or None if UART not available
-        """
+        """Send a Forth command over UART and return the chip's response, or None with no UART."""
         timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
         
         if self.uart is None:
@@ -132,15 +118,8 @@ class Myshkin:
             return None
 
     def read(self, addr, cached=False):
-        """
-        Read a value from a register address
-        
-        Args:
-            addr: Register address (hex)
-            cached: Use cached value if True
-            
-        Returns:
-            Register value (size depends on register definition)
+        """Read a register by hex address, from the cache when `cached`. The value's size follows the
+        register definition.
         """
         if cached and addr in self.register_cache:
             return self.register_cache[addr]
@@ -200,13 +179,7 @@ class Myshkin:
         return 0
 
     def write(self, addr, value):
-        """
-        Write a value to a register address
-        
-        Args:
-            addr: Register address (hex)
-            value: Value to write
-        """
+        """Write a value to a register by hex address."""
         addr = int(addr)
         value = int(value)
         
@@ -219,16 +192,7 @@ class Myshkin:
         print(f"Write {addr_to_forth(addr)}: {value} (0x{value:04X})")
 
     def read_register(self, peripheral, register, cached=False):
-        """
-        Read a named register from a peripheral
-        
-        Args:
-            peripheral: Peripheral name (e.g., 'GPIO0', 'UART0')
-            register: Register name (e.g., 'CR', 'SR', 'DATA')
-            cached: Use cached value if True
-            
-        Returns:
-            Register value, or None if not found
+        """Read a named register of a peripheral, from the cache when `cached`; None if not found.
         """
         addr = get_register_address(peripheral, register)
         if addr is None:
@@ -238,14 +202,7 @@ class Myshkin:
         return self.read(addr, cached=cached)
 
     def write_register(self, peripheral, register, value):
-        """
-        Write a value to a named register in a peripheral
-        
-        Args:
-            peripheral: Peripheral name (e.g., 'GPIO0', 'UART0')
-            register: Register name (e.g., 'CR', 'DATA')
-            value: Value to write
-        """
+        """Write a value to a named register of a peripheral."""
         addr = get_register_address(peripheral, register)
         if addr is None:
             print(f"Error: Unknown register {peripheral}.{register}")
@@ -283,12 +240,7 @@ class Myshkin:
 
 
 def get_command_history():
-    """
-    Get the current command history for GUI display
-    
-    Returns:
-        List of command log strings
-    """
+    """The command history, as a list of log strings, for GUI display."""
     return list(command_history)
 
 

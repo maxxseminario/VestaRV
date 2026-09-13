@@ -1,16 +1,17 @@
+// VestaRV: NPU (hardware MLP) driver interface
+// Weights and activations are Qx.15 fixed point; the accumulator is Q8.15. Buffers the NPU reads must be placed with ALLOCATE_IN_NN0SRAM, which pins them into the 16 KiB NN0SRAM window at 0x1C000: the NPU cannot reach ordinary RAM.
+
 #pragma once
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/** Includes **/
 #include <MemoryMap.h>
 #include <irq.h>
 
 
 
-/** Defines **/
 #define NN0SRAM_START	(0x1C000)	// SRAM07
 #define NN0SRAM_LENGTH	(16384)	// 16 KiB
 #define NN0SRAM_END		(NN0SRAM_START + NN0SRAM_LENGTH)
@@ -75,7 +76,6 @@ typedef uint64_t	Q0_40;	// Signed, 0 integer bits, 15 fractional bits, Range: [0
 
 
 
-/** External Function Declarations **/
 int8_t check_mlpnn_layer(uint16_t numInputs, uint16_t numOutputs, uint8_t useBiasTerms, Q0_15 *inputVector, uint8_t *weightsMatrix, Q0_15 *outputVector);
 void run_mlpnn_layer_without_check(uint16_t numInputs, uint16_t numOutputs, uint8_t useBiasTerms, Q0_15 *inputVector, uint8_t *weightsMatrix, Q0_15 *outputVector);
 int8_t run_mlpnn_layer(uint16_t numInputs, uint16_t numOutputs, uint8_t useBiasTerms, Q0_15 *inputVector, uint8_t *weightsMatrix, Q0_15 *outputVector);

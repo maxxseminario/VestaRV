@@ -1,14 +1,6 @@
-// ===========================================================================
-// onewire.rdl: the register map of hdl/common/periph/OneWire.vhd.
-//
-// THE VHDL IS THE AUTHORITY: seven slots from the block's SLOT_* constants,
-// every write lane-0 qualified, all resets zero. OWxSPU (slot 6) is reserved
-// -- it reads 0 and ignores writes.
-//
-// An OWxCMD write is the launch: it captures the descriptor (op, bit value,
-// and a SNAPSHOT of OWODS and OWxTX at write time) and flips launch_tgl when
-// OWEN = 1 and the engine is not busy. An OWxTX write never launches.
-// ===========================================================================
+// VestaRV: the register map of hdl/common/periph/OneWire.vhd
+// The VHDL is the authority: seven slots from the block's SLOT_* constants, every write lane-0 qualified, all resets zero. OWxSPU (slot 6) is reserved: it reads 0 and ignores writes.
+// An OWxCMD write is the launch: it captures the descriptor (op, bit value, and a SNAPSHOT of OWODS and OWxTX at write time) and flips launch_tgl when OWEN = 1 and the engine is not busy. An OWxTX write never launches.
 
 `include "vesta_udp.rdl"
 

@@ -1,53 +1,16 @@
 #!/usr/bin/python3.6
-"""stream.py -- build one constrained-random RV32 instruction stream.
+"""VestaRV: build one constrained-random RV32 instruction stream.
 
-THE THREE INVARIANTS, AND WHY EACH IS STRUCTURAL RATHER THAN CHECKED
---------------------------------------------------------------------
-On a default build a trap is TERMINAL: `TRAP_STATE` self-loops with no
-`ENABLE_` term (K0 oracle probe §1.3n), so an illegal encoding, a misaligned
-access or a stray branch does not FAIL, it HANGS until the 100 ms tb watchdog.
-"Generate and check afterwards" is therefore not available.  Every trap source
-is removed by construction instead:
-
-  1. **Legality.**  Only mnemonics `isa_model` says this config implements, and
-     `gas` refuses at build time under the config's own `-march` if that is ever
-     wrong -- a second, independent gate.
-
-  2. **Memory safety.**  Every load/store/AMO addresses `off(base)` where `base`
-     is one of TWO RESERVED registers no emitter ever writes, and `off` is drawn
-     from a window computed to keep the address inside a `.data` scratch block.
-     Alignment is a property of the drawn offset, not of a runtime value.  The
-     scratch block is bracketed by sixteen guard words on each side which the
-     epilogue verifies -- so the discipline is BOTH structural and witnessed.
-
-  3. **Termination.**  Conditional branches and `jal` are FORWARD ONLY, so the
-     main body is a DAG and cannot loop.  The single backward transfer in the
-     whole stream is a subroutine `jalr x0, 0(ra)` return, whose call site is
-     itself executed at most once.  No bounded-retry budget is needed because
-     there is no retry.
-
-WHAT A PASSING RUN OF ONE OF THESE STREAMS ACTUALLY SAYS
---------------------------------------------------------
-`RVTEST_PASS` is reached unconditionally except for the epilogue's discipline
-checks, so a behavioral-suite PASS states: the stream did not trap, it
-terminated, the base registers and `sp` survived, no store escaped the scratch
-window, and (for an IRQ profile) every msip that was ACTUALLY RAISED was taken
-and handled exactly once, and at least one was.  Both sides of that last
-comparison are RUNTIME counters -- see `_e_clint_irq` for the measured reason a
-static site count is the wrong thing to assert.
-It states NOTHING about whether any computed value was right.  That is
-the lockstep comparator's job, and `s5_ledger.md` §2.3's "has-a-bench is not
-has-coverage" is why the distinction is written here rather than left implied.
-
-Python 3.6 compatible.
+A trap is terminal on a default build, so it hangs rather than fails and generate-then-check
+is unavailable. Every trap source is removed by construction: only mnemonics isa_model says
+the config implements; every memory access is off(base) on one of two reserved registers into
+a guard-bracketed scratch block; branches and jal are forward only, so the body is a DAG.
 """
 
 import isa_model
 
-# --------------------------------------------------------------------------
 # Register discipline.  x-numbers, not ABI names: the emitted text is meant to
 # be read against the census output, and `x9` is unambiguous where `s1` is not.
-# --------------------------------------------------------------------------
 R_ZERO = 0
 R_RA = 1        # reserved: subroutine link, written only by `jal x1`
 R_SP = 2        # reserved: 0xBFF0.  MUST be valid before ANY interrupt --
@@ -84,7 +47,7 @@ SP_INIT = 0xBFF0
 CLINT_MSIP0 = 0x5000
 
 # Minimum number of emitted instructions between two IRQ arm sites.  Not a
-# calibrated delay (method rule 7 forbids calibrating a test to land on an
+# calibrated delay, since a test must never be tuned to land on an
 # instruction): it exists only so that two interrupts cannot plausibly coalesce
 # into one, which would make the epilogue's exact-count assertion wrong for a
 # benign reason.
@@ -95,14 +58,12 @@ IRQ_MIN_GAP = 12
 BRANCH_TARGET_WINDOW = 2
 
 
-# --------------------------------------------------------------------------
 # K5 queue item 4 -- geometry and encoders for the five new classes.
 #
 # EVERY NUMBER BELOW IS DERIVED FROM SOMETHING, and the derivation is written
 # next to it.  The one that matters most is CBOZ_MAX_OFF: it is not a tuned
 # value, it is the largest offset for which the RTL's rounded-down 64-byte
 # block is still a subset of the scratch window.
-# --------------------------------------------------------------------------
 CBOZ_BLOCK_BYTES = 64                       # constants.vhd CBOZ_BLOCK_SIZE
 # The block base is `rs1 and not 63` and the block runs 64 bytes from there, so
 # an offset `off` writes scratch bytes [off & ~63, (off & ~63) + 64).  The
@@ -131,12 +92,9 @@ ZCMT_JT_ENTRIES = 64                        # table words emitted; 0..63
 
 
 def zcmp_pushed_regs(rlist):
-    """The x-numbers `cm.push rlist` saves, in spec order.
-
-    Mirrors `vesta.vhd`'s `zcm_reg_at`: position 0 = x1 (ra), 1 = x8 (s0),
-    2 = x9 (s1), p >= 3 = x(15+p) (x18..x27).  Written from the spec here and
-    checked against the RTL function by eye AND against the directed tests'
-    literals by `test_randgen.py`.
+    """The x-numbers `cm.push rlist` saves, in spec order, mirroring vesta.vhd's zcm_reg_at:
+    position 0 is x1, 1 is x8, 2 is x9 and p >= 3 is x(15+p). Written from the spec here and
+    checked against the directed tests' literals by test_randgen.py.
     """
     n = 13 if rlist == 15 else rlist - 3
     out = []
@@ -171,19 +129,9 @@ def zcmp_rlist_text(rlist):
 
 
 def zcmp_push_pop_word(is_push, rlist, spimm):
-    """The 16-bit `cm.push`/`cm.pop` encoding.
-
-    C2 quadrant (bits 1:0 = 10), funct3 = 101 (bits 15:13), bit 12 = 1 selects
-    the push/pop family, bit 11 = 1 and bit 8 = 0 are required by the encoding
-    (and by `c_dec.vhd`, which refuses otherwise), bits 10:9 select
-    push/pop/popretz/popret, bits 7:4 are rlist and bits 3:2 are spimm[5:4].
-
-    KNOWN-NONZERO VALIDATION (method rule 4): this function must return
-    0xB852 for (push, rlist=5, spimm=0) and 0xBA52 for (pop, rlist=5, spimm=0),
-    the literals `verification/isa/tests/rv32ua/extzcmp.S` carries.  gas 2.41
-    cannot assemble these and objdump 2.41 cannot name them, so those two
-    literals are the only third party available and the unit tests assert
-    against them.
+    """The 16-bit cm.push/cm.pop encoding: C2 quadrant, funct3 101, bit 12 set, bits 11 and 8 fixed
+    as c_dec.vhd requires, bits 10:9 the operation, 7:4 rlist, 3:2 spimm[5:4]. gas and objdump
+    2.41 handle neither, so extzcmp.S's two literals are the only third party and are asserted.
     """
     if not 4 <= rlist <= 15:
         raise StreamBuildError('rlist %d is illegal (c_dec refuses 0-3)' % rlist)
@@ -238,7 +186,6 @@ class BranchTo(object):
         return '%s, %s' % (self.prefix, self.target)
 
 
-# --------------------------------------------------------------------------
 # Profiles.  A profile is an ORDERED sequence of (class, weight) pairs; order
 # reaches the emitted bytes through `Rng.weighted_choice`, so it is part of the
 # generator contract.  Classes the config cannot supply are dropped and the
@@ -250,7 +197,6 @@ class BranchTo(object):
 # exist on a default build -- Zcmp/Zcmt, Zicboz and Zfinx are OFF.  The
 # generator does not pretend otherwise; `blocked_classes` in the manifest says
 # so per stream.
-# --------------------------------------------------------------------------
 PROFILES = {
     # 'base' -- flat-ish, for shaking out the emitter itself.
     'base': (
@@ -297,8 +243,8 @@ PROFILES = {
         ('zba', 12), ('zbb', 24), ('zbs', 16), ('zbc', 10), ('zfinx', 0),
         ('clint_irq', 0),
     ),
-    # 'zext' -- K5 v1.3.0.  The DEMONSTRATION profile for the five classes
-    # R-K4-2 (2) dropped from the campaign: dense enough that one stream of a
+    # 'zext'.  The DEMONSTRATION profile for the five classes
+    # once dropped from the campaign: dense enough that one stream of a
     # few hundred instructions carries tens of sites of its config's class, and
     # a base-ISA spine so the stream is still a stream (branches, loads, stores,
     # a subroutine) rather than a straight run of one encoding.
@@ -343,8 +289,8 @@ class StreamBuildError(Exception):
 class StreamBuilder(object):
 
     # Deliberate discipline violations, used ONLY to make the epilogue's guard
-    # checks fire (method rule 1: a detector never seen to fail proves
-    # nothing).  These are NOT the acceptance mutants of k3_spec.md item 6 --
+    # checks fire, a detector never seen to fail proving
+    # nothing.  These are NOT the spec's acceptance mutants --
     # those target the generator's LEGALITY and are authored by a second agent
     # that has not seen this code.  Each is placed immediately before
     # `.Lk3_body_end`, the one point every path in the DAG converges on, so
@@ -401,7 +347,7 @@ class StreamBuilder(object):
                 % (profile, cfg.knob_line()))
         self.weights = weights
 
-    # -- small helpers -----------------------------------------------------
+    # -- small helpers
     def _r(self):
         return self.rng.choice(POOL)
 
@@ -434,7 +380,7 @@ class StreamBuilder(object):
             raise StreamBuildError('empty offset window')
         return self.rng.between(n_lo, n_hi) * align
 
-    # -- per-class emitters -------------------------------------------------
+    # -- per-class emitters
     def _e_alu_reg(self):
         m = self.rng.choice(isa_model.M_ALU_REG)
         self._emit('alu_reg', '%-8s x%d, x%d, x%d'
@@ -501,15 +447,9 @@ class StreamBuilder(object):
                    % (m, self._r(), self._r(), self._r()))
 
     def _e_div(self):
-        """Divide, with the two architecturally-defined edge cases DELIBERATELY
-        reachable rather than left to chance.
-
-        RISC-V defines both: `x/0` yields all-ones (rem yields x) and
-        `INT_MIN/-1` yields INT_MIN (rem yields 0).  Neither traps, and both
-        sides model both -- so they are free coverage of the DIV sequencer's
-        early-out paths.  The setup instructions are ordinary `lui`/`addi` and
-        the manifest counts them as such; nothing here is a pseudo-instruction
-        (see the census contract in `census.py`).
+        """Divide, with both architecturally-defined edge cases deliberately reachable: x/0 yields
+        all-ones and INT_MIN/-1 yields INT_MIN, neither traps, and both sides model both, so they are
+        free coverage of the DIV sequencer's early-out paths.
         """
         m = self.rng.choice(isa_model.M_DIV)
         rd, rs1, rs2 = self._r(), self._r(), self._r()
@@ -525,11 +465,9 @@ class StreamBuilder(object):
         self._emit('div', '%-8s x%d, x%d, x%d' % (m, rd, rs1, rs2))
 
     def _amo_addr_reg(self, excl=()):
-        """Materialise a word-aligned in-window scratch address in a pool reg.
-
-        RV32A has no offset field -- `amoadd.w rd, rs2, (rs1)` addresses rs1
-        exactly -- so varying the address needs a real `addi`.  Emitted
-        immediately before its consumer so nothing can overwrite it in between.
+        """Materialise a word-aligned in-window scratch address in a pool register. RV32A has no offset
+        field, so varying the address needs a real addi; it is emitted immediately before its
+        consumer so nothing can overwrite it in between.
         """
         base, lo, hi = self._base_and_window()
         off = self._off(lo, hi, 4, 4)
@@ -545,25 +483,9 @@ class StreamBuilder(object):
         self._emit('amo', '%-8s x%d, x%d, (x%d)' % (m, rd, rs2, rt))
 
     def _e_lrsc(self):
-        """An IMMEDIATELY-ADJACENT lr.w / sc.w pair, and nothing else.
-
-        Two things are deliberately not emitted:
-          * a locally-FAILED SC (an intervening same-hart store, or a bare SC
-            with no reservation).  Whether a same-hart store kills a reservation
-            is implementation-defined, so the RTL and the reference may
-            legitimately disagree -- a random generator emitting it would
-            manufacture divergences.  The consequence is stated in
-            k3_predictions.md P9: the fixpass residue item "no locally-failed-SC
-            witness" is NOT retired by K3.
-          * anything between the LR and the SC.  A branch target may never land
-            there either (labels are placed only at template boundaries), so the
-            pair cannot be entered half-way.
-
-        The `lr.w` destination IS a live pool register whose value flows on into
-        later instructions, so every retire of it is compared.  That is the
-        `s2_c11_validation.md` LR-rd coverage hole -- "rv32ua-p-lrsc cannot
-        observe an LR rd suppression" -- and a lockstep cell over this stream
-        does observe it.
+        """An immediately adjacent lr.w / sc.w pair and nothing else. A locally-failed SC is not emitted,
+        because whether a same-hart store kills a reservation is implementation-defined and the two
+        models may legitimately disagree; nothing may sit between the pair, and no label may either.
         """
         rt = self._amo_addr_reg()
         rd = self._r_not(rt)
@@ -607,22 +529,9 @@ class StreamBuilder(object):
                    % (m, self._r(), self._r(), self._r()))
 
     def _e_zfinx(self):
-        """One Zfinx single-precision op on pool registers.
-
-        Zfinx puts the FP operands and results in the INTEGER registers, so
-        this needs no new register discipline: the pool's seeded values are
-        reinterpreted as float bit patterns, which is precisely the point --
-        the interesting inputs (NaNs, subnormals, +-0, huge exponents) arrive
-        for free from the same 32-bit words `div` and `zbb` are fed.
-
-        Nothing here can trap: an IEEE exception sets a sticky `fflags` bit, it
-        does not raise.  So a Zfinx stream stays trap-free by construction on a
-        non-TRAPCSR config, which is the k3_spec requirement-4 rule.
-
-        The class is ORACLE VERDICT E: its record stream is only judgeable when
-        the comparator runs with the K2b `zfinx-fflags` amendment, and
-        `isa_model.required_amendments()` puts that requirement in the
-        manifest.
+        """One Zfinx single-precision op on pool registers, whose seeded integer values are reinterpreted
+        as float bit patterns, so NaNs and subnormals arrive for free. Nothing here can trap: an IEEE
+        exception sets a sticky fflags bit. Judgeable only with the zfinx-fflags amendment.
         """
         if self.rng.bool_with(1, 3):
             m = self.rng.choice(isa_model.M_ZFINX_UN)
@@ -632,42 +541,14 @@ class StreamBuilder(object):
             self._emit('zfinx', '%-8s x%d, x%d, x%d'
                        % (m, self._r(), self._r(), self._r()))
 
-    # ----------------------------------------------------------------------
     # K5 queue item 4 -- the five emitter-less state-bearing Z rows.
     # Each one's SAFETY argument is structural, in the sense the module
     # docstring means: the trap/hang source is removed by construction rather
     # than checked afterwards, because a trap is TERMINAL on a default build.
-    # ----------------------------------------------------------------------
     def _e_zicboz(self):
-        """One `cbo.zero` on a block that is a SUBSET of the scratch window.
-
-        THE ROUNDING IS THE WHOLE DIFFICULTY.  The RTL latches
-        `cboz_base = rs1 and not (CBOZ_BLOCK_SIZE-1)` once at dispatch
-        (vesta.vhd's cboz_seq_proc), so the block a `cbo.zero rs1` writes need
-        not START at rs1 -- it starts at rs1 rounded DOWN to 64.  A generator
-        that drew rs1 anywhere in the 256-byte scratch block would therefore
-        zero bytes BELOW its own window whenever it drew an offset in the first
-        64 bytes of... no: it would zero bytes ABOVE the window whenever it drew
-        an offset in the LAST block, because the block extends 63 bytes past
-        rs1.  Either way the guard words are one draw away.
-
-        The bound is taken on the OFFSET rather than on the address: `k3_scratch`
-        is `.align 6` (emit.py), so scratch + off has block base
-        scratch + (off and not 63); restricting off to [0, CBOZ_MAX_OFF] with
-        CBOZ_MAX_OFF = 191 puts every block inside scratch bytes [0,192) --
-        clear of both guard bands AND of the reserved tail at offset 248, which
-        holds the dynamic IRQ-arm counter the epilogue compares.  Nothing is
-        calibrated (method rule 7): the edge is structural arithmetic on the
-        block size and the scratch geometry, both of which are constants here.
-
-        THE BURST IS UNINTERRUPTIBLE in the RTL (CBOZ_WRITE has no irq_save
-        check), which is real sequencer coverage and is why this class is worth
-        having at all rather than being a decode-surface tick.
-
-        ORACLE VERDICT E: the RTL emits 1 R + SIXTEEN `M S` and the reference
-        emits 1 + 0, reconciled by the K2b `cboz-stores` amendment, which is
-        count- AND geometry-checked.  `required_amendments()` puts that in the
-        manifest so a lockstep run cannot quietly drop it.
+        """One `cbo.zero` on a block that is a subset of the scratch window. The RTL rounds rs1 down to
+        the block size, so the bound is taken on the offset: k3_scratch is .align 6 and an offset in
+        [0, CBOZ_MAX_OFF] puts every block clear of the guard bands and the reserved tail.
         """
         off = self.rng.between(0, CBOZ_MAX_OFF)
         rt = self._r()
@@ -675,46 +556,17 @@ class StreamBuilder(object):
         self._emit('zicboz', '%-8s (x%d)' % ('cbo.zero', rt))
 
     def _e_zawrs(self):
-        """One `wrs.nto` or `wrs.sto`, at a site where it CANNOT park.
-
-        The K0 oracle probe §2.2 records the trap plainly: a `wrs.nto` with no
-        wake never retires, and on a default build that is a watchdog hang, not
-        a FAIL.  The RTL's wake is
-        `wrs_wake <= '1' when (resv_valid_ext = '0' or wrs_int_pending = '1' or
-        wrs_timeout = '1')`, and `wrs.nto` has no timeout arm -- so the ONLY
-        structural guarantee available is the first term.
-
-        It holds here, and it holds for a reason that is a property of the
-        GENERATOR rather than of any particular stream: the only instruction
-        this generator emits that can set a reservation is `lr.w`; `_e_lrsc`
-        emits it ONLY as an immediately-adjacent `lr.w`/`sc.w` pair; a label may
-        be placed only at a template boundary, so no branch can land between
-        them; and `sc.w` clears the reservation whether it succeeds or fails.
-        Therefore at every point OUTSIDE that two-instruction template -- which
-        is every point a `wrs` can be emitted -- `resv_valid_ext` is '0', the
-        wake is already asserted when the wrs dispatches, and it retires.
-
-        `wrs.sto` is emitted too and needs no such argument (it has the
-        timeout), but it is drawn less often because the interesting state is
-        the one with no escape hatch.
+        """One `wrs.nto` or `wrs.sto` at a site where it cannot park. wrs.nto has no timeout arm, so the
+        only structural guarantee is resv_valid_ext = '0'; that holds because lr.w is emitted only as
+        an adjacent lr/sc pair no branch can enter, and sc.w clears the reservation either way.
         """
         m = 'wrs.sto' if self.rng.bool_with(1, 3) else 'wrs.nto'
         self._emit('zawrs', '%s' % m)
 
     def _e_zihint(self):
-        """`pause`, or one of the four `ntl` hints.
-
-        Both are architectural NOPs and both retire in EITHER polarity of the
-        knob (k0 §1.3b), which is precisely why the class is SUITE-ONLY here
-        (`isa_model.SUITE_ONLY_CLASSES` carries the reason).  What it buys is
-        decode-surface coverage of two encodings that sit inside spaces the core
-        decodes for other purposes: `pause` is a FENCE encoding and `ntl.*` are
-        `add x0, x0, x{2..5}` -- an OP-format instruction with rd = x0.
-
-        The `ntl` rs2 MUST be x2/x3/x4/x5; that IS the hint encoding, and x2 is
-        `sp`.  Reading `sp` is harmless (RESERVED means never WRITTEN), and
-        `add x0, ...` discards its result by definition, so no register
-        discipline is touched.
+        """`pause`, or one of the four `ntl` hints. Both are architectural NOPs in either polarity of the
+        knob, so the class is suite-only; what it buys is decode-surface coverage of two encodings
+        inside spaces the core decodes for other purposes. The ntl rs2 must be x2 to x5.
         """
         if self.rng.bool_with(1, 2):
             self._emit('zihint', 'pause')
@@ -724,36 +576,9 @@ class StreamBuilder(object):
                        % ('add', R_ZERO, R_ZERO, ZIHINT_NTL_RS2[hint], hint))
 
     def _e_zcmp(self):
-        """One BALANCED `cm.push` / `cm.pop` frame, emitted as ONE template.
-
-        gas 2.41 has no `cm.*` mnemonic and no `_zcmp` march (measured), so the
-        16-bit words are encoded here and emitted as `.short`.  The encoder is
-        `zcmp_push_pop_word()` below and it is validated against the X3 directed
-        tests' hand-verified literals.
-
-        THREE THINGS THIS TEMPLATE GUARANTEES, each of them a hazard §H.2 named:
-
-        * `sp` survives.  push and pop carry the SAME rlist and the SAME spimm,
-          so the stack adjustment is exactly undone, and they are emitted
-          together so no branch can separate them (labels sit at template
-          boundaries only, exactly as for `lr.w`/`sc.w`).
-        * the frame cannot collide with the stream's scratch band.  The frame
-          lives at `sp` (0xBFF0 downward, TCM stack); the scratch block is a
-          `.data` object.  Different objects, and neither emitter can address
-          the other's.
-        * no RESERVED register is written, even transiently.  The pushed list is
-          {ra, s0, s1, s2..s11} = {x1, x8, x9, x18..x27}; x1/x8/x9 are reserved
-          and are RESTORED by the pop, but the intermediate clobber -- which is
-          what makes the pop's loads verifiable instead of a copy of what was
-          already in the registers -- is drawn ONLY from x18..x27, which are
-          ordinary POOL registers.
-
-        The clobber matters more than it looks.  K4-L3 recorded `cm.pop` as
-        UNVERIFIED: with nothing writing the saved registers between push and
-        pop, a `cm.pop` that loaded nothing at all would leave identical
-        architectural state and no comparator could tell.  With the clobber the
-        pop's loads are the only thing that can restore the pre-push values, so
-        a lockstep cell over this template observes them.
+        """One balanced cm.push / cm.pop frame as one template, encoded here as .short since gas 2.41
+        has no cm.* mnemonic. Push and pop carry the same rlist and spimm so sp survives, and the
+        intermediate clobber is drawn only from pool registers, so the pop's loads are verifiable.
         """
         rlist = self.rng.between(ZCMP_RLIST_MIN, ZCMP_RLIST_MAX)
         spimm = self.rng.below(4)
@@ -772,31 +597,9 @@ class StreamBuilder(object):
                       zcmp_rlist_text(rlist), zcmp_stack_adj(rlist, spimm)))
 
     def _e_zcmt(self):
-        """One `cm.jt` or `cm.jalt` through the jump-vector table.
-
-        Both are REAL control transfers -- `zcm_jt_addr = jvt + 4*index`, load
-        the word, redirect to it -- so the DAG invariant has to be preserved by
-        where the table POINTS, not by anything about the instruction.  Two
-        shapes, and the emitter picks between them:
-
-        * `cm.jt` (index < 32, no link): the table entry is made to hold the
-          address of the instruction IMMEDIATELY AFTER the cm.jt.  The transfer
-          therefore lands exactly where a fall-through would, and the control
-          flow of the stream is unchanged while the table load, the redirect and
-          the no-link property are all exercised.  The landing label is NOT
-          registered in `self.labels`, so no branch can target it.
-        * `cm.jalt` (index >= 32, links ra): the table entry holds a subroutine
-          that ends in `jalr x0, 0(ra)`, which is the `_e_jal` shape exactly --
-          the one backward transfer the module docstring already allows.
-
-        jvt is written ONCE, in the prologue, from a `.align 6` table symbol, so
-        the FORBIDDEN row is satisfied by construction: the RTL pins jvt[5:0] to
-        zero and the reference stores what it is given, and for a 64-byte
-        aligned base those are the same 32 bits.
-
-        ORACLE VERDICT E via `cmjt-load`: the RTL logs the table load as an
-        `M L` record and the reference logs nothing, and the amendment drops it
-        bounded by `addr == jvt + 4*index`.
+        """One `cm.jt` or `cm.jalt` through the jump-vector table. Both are real control transfers, so
+        the DAG is preserved by where the table points: a cm.jt entry holds the address of the next
+        instruction, unregistered as a label, and a cm.jalt entry a subroutine ending in jalr x0.
         """
         if self.rng.bool_with(1, 2) and self._njt < ZCMT_JT_LINK_BASE:
             # cm.jt: aim the entry at the next instruction.  The index counter
@@ -833,33 +636,9 @@ class StreamBuilder(object):
             self.subs.append((sub, body))
 
     def _e_clint_irq(self):
-        """Raise msip[0] -- a LEVEL interrupt on IVT slot 83 (M19: the CLINT
-        slots are hardwire-enabled on every hart, so there is no unmask step).
-
-        The store is the whole injection; the ISR clears the level and counts.
-        Only a STORE is emitted and never a load: after the bracketed handler
-        runs, the RTL's CLINT holds 0 while the reference's plain memory at
-        0x5000 still holds 1, so a load would diverge on a harness artefact.
-
-        Where the interrupt is actually TAKEN is not controlled here, and
-        deliberately so -- method rule 7 forbids calibrating a test to land on
-        an instruction.  What is controlled is PLACEMENT: the arm is emitted
-        immediately before a multi-cycle sequencer instruction.  Arrival is a
-        measurement K3 does not make; see k3_predictions.md P16.
-
-        THE ARMED COUNTER, AND WHY IT EXISTS -- a MEASURED correction.
-        The first cut had the epilogue assert `handled == <number of arm sites
-        EMITTED>`, and `k3i01` FAILED at the a0 gate on its first behavioral
-        run.  Cause: forward branches skip code, so the count of arms EXECUTED
-        is dynamic and strictly smaller.  Measured on that stream: 9 arm sites
-        emitted, 8 of them jumped over by at least one forward branch, so the
-        executed count could legally be as low as 1.  The static/dynamic
-        confusion this generator's own manifest warns about (a manifest counts
-        what is IN the image, not what RAN) was present in the runtime check
-        itself.  The fix is to count what happens: each arm bumps a reserved
-        scratch word, and the epilogue compares THAT against the handler's
-        count.  The assertion is now exactly "every msip that was actually
-        raised was taken and handled exactly once".
+        """Raise msip[0], a level interrupt on an always-enabled CLINT slot. Only a store is emitted,
+        never a load, since afterwards the RTL's CLINT holds 0 and the reference's memory 1. Each arm
+        bumps a reserved scratch word, because forward branches skip arm sites.
         """
         rt = self._r()
         rv = self._r_not(rt)
@@ -889,7 +668,7 @@ class StreamBuilder(object):
         'zcmp': '_e_zcmp', 'zcmt': '_e_zcmt',
     }
 
-    # -- construction ------------------------------------------------------
+    # -- construction
     def build(self):
         while len(self.items) < self.length:
             # A label may only be placed at a TEMPLATE boundary, never inside
@@ -932,27 +711,9 @@ class StreamBuilder(object):
         return self
 
     def _resolve_branches(self, end_label):
-        """Every branch gets a target that comes STRICTLY LATER in the item
-        list, drawn from the NEXT `BRANCH_TARGET_WINDOW` labels only.
-
-        THE WINDOW IS THE WHOLE POINT, and it is there because of a
-        measurement, not a hunch.  The first cut drew uniformly from ALL later
-        labels, which meant one taken branch could skip most of the body.
-        Measured on the v1.1.0 campaign, dynamic retires with a PC inside the
-        census range as a fraction of instructions EMITTED there:
-
-            k3b01   4 / 392   =  1.0 %
-            k3s01  66 / 384   = 17.2 %
-            k3s02  83 / 383   = 21.7 %
-            k3z01 123 / 399   = 30.8 %
-            k3i02 278 / 398   = 69.8 %
-
-        A stream that PASSES the a0 gate having executed 1 % of its own body is
-        precisely the green-cell-covering-nothing shape this programme exists to
-        find (`s5_ledger.md` 2.3), and a manifest counting 392 instructions
-        alongside it would be false precision (method rule 9).  Bounding the
-        skip keeps the DAG -- targets are still strictly forward, so termination
-        is unchanged -- while making the executed fraction a usable number.
+        """Every branch gets a target strictly later in the item list, drawn from the next
+        BRANCH_TARGET_WINDOW labels only. Drawing from all later labels let one taken branch skip
+        most of the body; bounding the skip keeps the DAG, since targets are still forward.
         """
         for pos, br in self.branches:
             later = [name for (at, name) in self.labels if at > pos]
@@ -960,7 +721,7 @@ class StreamBuilder(object):
                 raise AssertionError('no forward label after position %d' % pos)
             br.target = self.rng.choice(later[:BRANCH_TARGET_WINDOW])
 
-    # -- shape manifest ----------------------------------------------------
+    # -- shape manifest
     def class_counts(self):
         counts = {}
         for it in self.items:

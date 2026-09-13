@@ -1,122 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# d5sess.S   (D-series, D5 -- the SESSION image: three live harts, one victim)
-#-----------------------------------------------------------------------------
-# THE SIBLING IMAGE d5_spec.md section 5.1 MAKES MANDATORY (R-D5-2(1c)).
-#
-# NEEDS A HARNESS, AND A DEBUGGER.  This image is one third of an instrument.
-# The other two thirds are dbg_sessrun.tcl (the bridge + the graders, in the
-# simulator) and a real OpenOCD/gdb session driven from outside.  Run it as:
-#
-#   D5_PROFILE=d5sess D5_PORTFILE=... ./xrun_dbg_verify.sh \
-#       verify_castaliadebug ../kba/xrv32ua-p-d5sessmp.rcf dbg_sessrun.tcl
-#
-# WHY IT EXISTS, MEASURED RATHER THAN ARGUED.  The D4 image `dbgtrpmp` carries
-# exactly ONE liveness counter (hart 1's SH_RAN at 0x10074).  d5_spec 5.2's
-# headline clause is "halt hart 2 while THE OTHERS keep running, proven by
-# their liveness counters advancing across the halt window", and the acceptance
-# author measured that clause coming out NOT-GRADED for every hart but one on
-# the dbgtrpmp profile.  Three counters make it gradeable with TWO independent
-# witnesses (harts 0 and 1) while hart 2 is the victim.
-#
-# -------------------------------------------------------------------------
-# THIS IMAGE HAS NO a0 VERDICT, AND THAT IS THE DESIGN, NOT AN OMISSION.
-#   riscv_tb ends the run when hart 0 writes 0xCAFEBABE/0xDEADBEEF to a0.  A
-#   real gdb session over the remote_bitbang bridge takes MINUTES of simulated
-#   time and its instants are chosen by a human-paced driver, so an image that
-#   could terminate on its own schedule would be able to end the session
-#   half-way through and leave the graders reading a stopped chip.  So:
-#
-#       hart 0 NEVER writes a0 and NEVER terminates.
-#
-#   The verdict of this instrument is dbg_sessrun.tcl's grader summary, not a0.
-#   Setup failures are PUBLISHED to the DIAG word (0x10070) and the image keeps
-#   running, so a broken setup is visible in every snapshot and in the oracle
-#   dump instead of silently ending the run.  A run of this image ALWAYS ends
-#   with the tb's 100 ms watchdog banner; the bridge header documents that
-#   banner as expected, and the harness exits after grading.
-#
-#   Consequence, stated because it is a real limitation: this image must never
-#   be added to any standing gate list (xrun_parallel.sh / verify_stage.py
-#   CATALOG).  It has no PASS to report and would show as a watchdog hang.  It
-#   is built out of tree by tools/build_one_rcf.sh for exactly that reason,
-#   like every other D-series debug image.
-#
-# -------------------------------------------------------------------------
-# SHARED WORDS CLAIMED -- NONE THAT ARE NEW.  Everything below is inside the
-# D-series debug acceptance band 0x10050-0x1007C (12 words), already claimed in
-# CLAUDE.md for exactly this reuse-with-different-meanings under the
-# one-image-per-sim rule.  The layout is NOT this file's invention: it is
-# specified by the acceptance author in dbg_sess_lib.tcl's own header (profile
-# `d5sess`) and is transcribed here so claim and use are the same document
-# (the F-ID2-1 lesson).
-#
-#     0x10050  PHASE   hart 0 progress
-#     0x10054  READY   image -> harness: all three live harts are running.
-#                      d4_wait_ready polls exactly this word.
-#     0x10058  LIVE0   hart 0's monotonic liveness counter
-#     0x1005C  LIVE1   hart 1's monotonic liveness counter
-#     0x10060  LIVE2   hart 2's monotonic liveness counter (THE VICTIM)
-#     0x10064  MEMW    seeded here, overwritten by gdb with 0xD5EE7A11
-#     0x10068  SEED    the seed MEMW was given, so the grader can require
-#                      "held the seed before AND the cookie after" -- two
-#                      nonzero values, so neither "it was already zero" nor
-#                      "everything is zero" can pass
-#     0x1006C  SPARE   written once with a marker, then never touched
-#     0x10070  DIAG    setup diagnosis (0 = setup completed)
-#     0x10074  -----   LEFT FREE.  This is dbgtrpmp's RAN word, deliberately
-#                      untouched so the two images share the band unambiguously
-#     0x10078  REL     declared by the profile; see below -- NOT consumed here
-#     0x1007C  MARK    0xD5000001, the image identity magic
-#
-#   REL IS DELIBERATELY NOT CONSUMED.  dbgtrpmp waits on REL for the harness to
-#   release it.  This image cannot: the bridge's control channel is PASSIVE-ONLY
-#   by design (no force, no run, no DMI), so nothing in the graded architecture
-#   is able to write REL, and a release wait that can never be satisfied is a
-#   hang with a friendly name.  The word is cleared and left alone.
-#
-#   THE LIVENESS COUNTERS ARE MONOTONIC AND ARE NEVER RESET BY THIS IMAGE.
-#   Every progress grader in dbg_sess_lib.tcl is "strictly greater than", which
-#   is immune to sampling instants; a counter this image reset would make a
-#   correct chip FAIL.  There is no wrap handling and none is needed: 2^32
-#   increments is far beyond any session.
-#
-#   THE HARNESS MUST NOT FORCE ANY BAND WORD BEFORE READY.  hart 0 clears all
-#   twelve words and reads them back at entry; a word forced before that check
-#   reads back non-zero and hart 0 publishes DIAG = 0x0D5E0001 instead of
-#   completing setup.
-#
-# -------------------------------------------------------------------------
-# THE BREAKPOINT SITE.  d5_spec 5.2 asks for a SOFTWARE breakpoint hit and one
-# `stepi`.  The graders take the address, the site's ORIGINAL opcode and the
-# successor address, and they assert the pre-session word equals the original,
-# so a wrong address FAILS LOUDLY instead of silently covering nothing.
-#
-#   `d5_bp_site` is a single 32-bit `addi t1, zero, 1493` inside hart 2's
-#   counting loop, immediately AFTER the counter store and immediately BEFORE
-#   the loop's backward jump.  Three properties, each load-bearing:
-#     * it has no effect on any graded word, so a breakpoint on it changes
-#       nothing but control flow;
-#     * it is reached ONCE PER COUNTER INCREMENT, so "the hart RAN into the
-#       breakpoint" (SG-G3: the counter advanced between the resume and the
-#       hit) holds no matter where in the loop the asynchronous halt caught it;
-#     * under `.option norvc` both it and its successor are 32-bit, so the
-#       stepi successor is site+4 -- BUT THAT IS A PREDICTION, NOT EVIDENCE.
-#       The three numbers the harness is given are read off OBJDUMP of the
-#       built ELF, never off a directive (`.balign` is a silent no-op inside a
-#       norvc region; method rule 7).
-#
-#   NOTE FOR THE DEBUGGER-FACING WRITE-UP: gdb sees ONE flat address space, but
-#   0x8000-0xBFFC is PER-TILE PRIVATE TCM on this chip.  A breakpoint planted
-#   while hart 2 is selected lands in hart 2's TCM and in no other hart's.
-#
-# -------------------------------------------------------------------------
-# N-AGNOSTIC.  Harts 1 and 2 are launched by number and hart 3 is DELIBERATELY
-# left parked in the boot ROM; no word is indexed by hartid, so the layout is
-# identical at N=4 and N=18, where harts 3..17 are all parked.  The band does
-# not overlap anything at either N (CLAUDE.md's ledger row for it says so).
-#*****************************************************************************
+# VestaRV: debug-session image, three live harts and one victim
+# ONE THIRD OF AN INSTRUMENT. The other two thirds are dbg_sessrun.tcl, the bridge and graders inside the simulator, and a real OpenOCD and gdb session driven from outside. Run it as `D5_PROFILE=d5sess D5_PORTFILE=... ./xrun_dbg_verify.sh verify_castaliadebug ../kba/xrv32ua-p-d5sessmp.rcf dbg_sessrun.tcl`. Three liveness counters make "halt one hart while the others keep running" gradeable with two independent witnesses, harts 0 and 1, while hart 2 is the victim.
+# THIS IMAGE HAS NO a0 VERDICT AND NEVER TERMINATES, BY DESIGN. riscv_tb ends the run when hart 0 writes a0, but a real gdb session takes minutes of simulated time at a human-paced driver's instants, so an image able to end on its own schedule could stop the chip half way through grading. Setup failures are published to DIAG and the image keeps running, so a broken setup is visible in every snapshot instead of silently ending the run. A run ALWAYS ends with the tb's 100 ms watchdog banner, which the harness expects. CONSEQUENCE: this image must never be added to a standing gate list, where it would show as a watchdog hang; it is built out of tree by tools/build_one_rcf.sh for that reason.
+# Shared words, all inside the D-series debug acceptance band 0x10050-0x1007C, whose layout is specified by dbg_sess_lib.tcl's `d5sess` profile and transcribed here so claim and use are the same document: 0x10050 PHASE, 0x10054 READY (the word the harness polls), 0x10058/5C/60 LIVE0/LIVE1/LIVE2 with LIVE2 the victim, 0x10064 MEMW (seeded here, overwritten by gdb with 0xD5EE7A11), 0x10068 SEED (so the grader can require the seed before and the cookie after, two nonzero values, so neither "already zero" nor "everything is zero" can pass), 0x1006C SPARE, 0x10070 DIAG (0 means setup completed), 0x10074 LEFT FREE because it is another image's word, 0x10078 REL, 0x1007C MARK = 0xD5000001.
+# REL IS DELIBERATELY NOT CONSUMED: the bridge's control channel is passive-only, so nothing in the graded architecture can write REL and a release wait would be a hang with a friendly name. The LIVENESS COUNTERS ARE MONOTONIC AND ARE NEVER RESET HERE, because every progress grader is a strict increase, which is immune to sampling instants; a reset would make a correct chip fail. THE HARNESS MUST NOT FORCE ANY BAND WORD BEFORE READY: hart 0 clears all twelve and reads them back at entry, and a word forced before that check makes hart 0 publish DIAG = 0x0D5E0001 instead of completing setup.
+# THE BREAKPOINT SITE `d5_bp_site` is a single 32-bit `addi t1, zero, 1493` inside hart 2's counting loop, immediately after the counter store and before the backward jump. Three properties are load-bearing: it affects no graded word, so a breakpoint changes only control flow; it is reached once per counter increment, so "the hart ran into the breakpoint" holds wherever an asynchronous halt caught it; and under `.option norvc` both it and its successor are 32 bits. The address, the original opcode and the successor address handed to the harness are READ OFF OBJDUMP OF THE BUILT ELF, never off a directive, because `.balign` is a silent no-op inside a norvc region. gdb sees one flat address space, but 0x8000-0xBFFC is per-tile private TCM, so a breakpoint planted while hart 2 is selected lands in hart 2's TCM alone.
+# N-agnostic: harts 1 and 2 are launched by number, hart 3 is deliberately left parked in the boot ROM, and no word is indexed by hartid, so the layout is identical at N=4 and N=18.
 
 #include "riscv_test.h"
 #include "test_macros.h"

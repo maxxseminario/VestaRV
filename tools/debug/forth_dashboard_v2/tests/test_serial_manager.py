@@ -1,4 +1,4 @@
-"""SerialManager tests driven against the byte-level SimChip transport.
+"""VestaRV: SerialManager tests driven against the byte-level SimChip transport.
 
 These exercise the WHOLE framing path (echo consumption, prompt detection,
 length-counted binary reads) plus the state machine, timeout/retry, and the
@@ -52,7 +52,7 @@ def manager():
     mgr.stop()
 
 
-# --- basic round trips ------------------------------------------------------
+# basic round trips
 
 def test_connect_sets_banner(manager):
     assert _wait(lambda: manager.banner_seen)
@@ -83,7 +83,7 @@ def test_status_shape(manager):
     assert st["uptime"] >= 0.0
 
 
-# --- events / WS stream -----------------------------------------------------
+# events / WS stream
 
 def test_events_include_tx_rx_state_and_banner(manager):
     manager.submit("1 2 + .").result(timeout=3)
@@ -95,7 +95,7 @@ def test_events_include_tx_rx_state_and_banner(manager):
     assert "info" in types  # banner info event
 
 
-# --- binary + ascii mr via memops (length-counted framing) ------------------
+# binary + ascii mr via memops (length-counted framing)
 
 def test_memory_write_read_ascii_and_binary(manager):
     words = [0x11223344, 0x55667788, 0x00000000, 0xFFFFFFFF]
@@ -124,7 +124,7 @@ def test_binary_mr_survives_gt_byte_in_payload(manager):
     assert res["hex"] == "3e3e3e3e"
 
 
-# --- erase ------------------------------------------------------------------
+# erase
 
 def test_memory_erase(manager):
     manager.submit(forth.build_write(0x10030, 0xABCDEF01)).result(timeout=3)
@@ -133,7 +133,7 @@ def test_memory_erase(manager):
     assert forth.parse_hex_word(rx) == 0
 
 
-# --- flash handshake --------------------------------------------------------
+# flash handshake
 
 def test_flash_erase_write_read_roundtrip(manager):
     page = 0x200                                   # page INDEX -> byte addr 0x20000
@@ -152,7 +152,7 @@ def test_flash_page_index_out_of_range_rejected(manager):
 
 
 def test_sim_fw_masks_nonaligned_byte_address(manager):
-    # Fable ruling: fw/fe mask their forth argument like the ROM SPI driver
+    # fw and fe mask their forth argument like the ROM SPI driver
     # (addr & 0x00FFFF00).  A raw "fw" to a non-aligned byte address must land
     # at the masked page base -- same as hardware.
     payload = bytes((i ^ 0x5A) & 0xFF for i in range(256))
@@ -175,7 +175,7 @@ def test_sim_fw_masks_nonaligned_byte_address(manager):
     assert memops.flash_read(manager, 0x400, 4)["hex"] == "ffffffff"
 
 
-# --- exec / clk -------------------------------------------------------------
+# exec / clk
 
 def test_exec_returns_canned_value(manager):
     rx = manager.submit(forth.build_exec(0x8200, [1, 2, 3])).result(timeout=3)
@@ -187,7 +187,7 @@ def test_clk_returns_frequency(manager):
     assert forth.parse_decimal(rx) == 32768  # LFXT canned value
 
 
-# --- timeout / UNRESPONSIVE (no SimChip: a silent transport) ----------------
+# timeout / UNRESPONSIVE (no SimChip: a silent transport)
 
 class _SilentTransport:
     description = "silent"
@@ -225,7 +225,7 @@ def test_channel_read_until_and_exact_are_deadline_bounded():
         ch.read_until(b">")
 
 
-# --- retry resynchronisation (Fable G2 FIX 2) -------------------------------
+# retry resynchronisation
 
 class _ResyncProbeTransport:
     """Preloaded with stale bytes; answers a lone '\n' write with a prompt."""
@@ -265,9 +265,10 @@ def test_resync_drains_stale_and_reestablishes_prompt():
 
 
 class _StaleRetryTransport:
-    """Attempt 1 stays silent (forces a timeout); the timed-out attempt's stale
-    bytes are released during the resync drain/prompt phase, and the retry gets
-    a clean echo+output.  Records whether the resync '\n' was ever written."""
+    """Attempt 1 stays silent to force a timeout; the timed-out attempt's stale bytes are released
+    during the resync drain and prompt phase, and the retry gets a clean echo and output. Records
+    whether the resync newline was ever written.
+    """
 
     def __init__(self):
         self.cond = threading.Condition()

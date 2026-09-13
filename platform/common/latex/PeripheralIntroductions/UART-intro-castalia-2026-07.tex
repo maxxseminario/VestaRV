@@ -1,7 +1,7 @@
-% UART chapter. Section order is the per-peripheral template enforced by
+% VestaRV: UART chapter of the TRM.
+% Section order is the per-peripheral template enforced by
 % python/check_intro_names.py. Vector numbers are frozen by the generator
-% (python/generate.py, _mcuMpIrqVectors). Pin lists are generated, not
-% written here.
+% (python/generate.py, _mcuMpIrqVectors). Pin lists are generated, not written here.
 \section{Overview}
 
 The Universal Asynchronous Receiver/Transmitter (\peripheral{UARTx}) is a two-wire, full-duplex asynchronous serial interface with hardware parity. \peripheral{UART0} is the console port used by the boot ROM's Forth interpreter; \peripheral{UART1}, in configurations that include it, is identical.

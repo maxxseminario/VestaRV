@@ -1,22 +1,8 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extzihint.S   (X1 Zihintpause + Zihintntl ext-probe)
-#-----------------------------------------------------------------------------
-# Single-hart nop-safety + forward-progress probe for the hint extensions.
-#
-# WHY THIS PROBE IS BOTH-POLARITY IDENTICAL (unlike the misa/CORE_ENABLE
-# dispatch probes): the Zihint encodings are LEGAL in BOTH polarities and NEVER
-# trap either way --
-#   * PAUSE = `fence w,0` (0x0100000F) is a FENCE encoding: always a legal nop.
-#     ENABLE_ZIHINT gates only its MULTI-HART arbiter-yield side-effect, which a
-#     single hart cannot observe. So there is nothing for a single-hart probe to
-#     branch on -- it asserts NOP-SAFETY + FORWARD PROGRESS in either build.
-#   * ntl.p1/pall/s1/all = `add x0,x0,x2/x3/x4/x5` are pure ADD-to-x0 nops today
-#     through the base ALU path -- the probe asserts NO architectural effect.
-# The observable ON/OFF side-effect (PAUSE de-asserts the arbiter request) is
-# carried by the directed multi-hart test shpause.S, not here.
-#*****************************************************************************
+# VestaRV: Zihintpause and Zihintntl nop-safety probe
+# THIS PROBE IS IDENTICAL IN BOTH POLARITIES, unlike the dispatch probes, because the hint encodings are LEGAL in both and never trap either way. PAUSE is `fence w,0`, a FENCE encoding and therefore always a legal nop, and ENABLE_ZIHINT gates only its multi-hart arbiter-yield side effect, which a single hart cannot observe; ntl.p1, ntl.pall, ntl.s1 and ntl.all are `add x0,x0,x2` through `x5`, pure add-to-x0 nops through the base ALU path. So there is nothing for a single-hart probe to branch on: it asserts nop-safety and forward progress in either build, and asserts no architectural effect from the ntl forms.
+# The observable on/off side effect, PAUSE de-asserting the arbiter request, is carried by the directed multi-hart test shpause.S, not here.
 
 #include "riscv_test.h"
 #include "test_macros.h"

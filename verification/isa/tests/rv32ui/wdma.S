@@ -1,43 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# wdma.S  (wound-config firmware smoke — digperiphs Stage E)
-#-----------------------------------------------------------------------------
-# DMA0 @0x6800 single-hart firmware smoke: a mem-to-mem CRC copy (polled, CRC
-# constant checked) and the DMA0_ERR interrupt (vector 119) delivered through
-# the REAL meip path (irq_router HhENX bit23 -> meip -> MEIP_DISPATCHER -> IVT
-# slot 119 -> plain-ret handler -> CLAIM/COMPLETE). Companion to the multi-hart
-# shdma.S (the DONE/vector-118 + deny-guard + NCH-agnostic legs live there);
-# wdma is the ERROR-path + Stage-E rider companion. Hart 0 only; tiles parked.
-#
-# STAGE-E RIDER PROOF (irq_router RO words for sources 96-127):
-#   * PENDX  @0x781C bit23 (source 119) — read with the ROUTE STILL OFF after
-#     the LEN=0 reject sets CH0ERR: PEND reflects the RAW source level, not the
-#     enable, so it is deterministic (no delivery yet). Then enable the route.
-#   * INSVCX @0x782C bit23 — read INSIDE the handler (claimed, before W1C) and
-#     require the claimed source's in_service bit is set.
-#
-# DMA register map (dma_spec.md / DMA.vhd AS-BUILT; RegSlotDMAx*):
-#   CR 0x6800  SR 0x6804  C0SRC 0x6808  C0DST 0x680C  C0LEN 0x6810
-#   C0CFG 0x6814  CRC 0x6848(slot18)
-#   CR : DMAEN[0] CHnGO[4:1] CHnABORT[8:5] DONEIE[12] ERRIE[13]
-#   SR : BUSY[0] CHnDONE[4:1] CHnERR[8:5] ACTIVECH[11:9]  (DONE/ERR W1C)
-#   CFG: SINC[0] DINC[1] TRIG[5:2](0=mem2mem) PRIO[6] CRCEN[7]
-#   irq_done (118) = (any CHnDONE) & DONEIE ; irq_err (119) = (any CHnERR) & ERRIE
-#   CRC16-CDMA2000 (poly 0xC857, seed 0xFFFF, MSB-first, no reflect/xor), folded
-#   over the transferred bytes b0..b3 per word (little-endian). DMA0 is mclk —
-#   NO SYS_CLK_CR write is needed.
-#
-# LEDGER (CLAUDE.md shared-window rule; window free at N=4 AND N=18): this
-# single-hart test reuses shdma.S's proven-free band [0x100E0..0x1011C]
-# (shdma and wdma NEVER coexist — one image per sim, isolation), sub-range
-# 0x100E0..0x10104. Below it (shmem_mp/shlrsc/shcount hammers) tops at 0x100D4;
-# above it shboot/shspin DONE start at 0x10120. All < 0x10500 (loader rows) and
-# < 0x10800 (bootrom zero range -> write-before-read holds).
-#   SRC_BUF = 0x100E0 (4 words)  DST_BUF = 0x100F0 (4 words)
-#   FLAG    = 0x10100 (ISR exactly-once counter)
-#   ISVC    = 0x10104 (handler's masked INSVCX readback)
-#*****************************************************************************
+# VestaRV: DMA0 error-path firmware smoke
+# Hart 0 only, tiles parked. DMA0 sits at 0x6800 and this file covers a polled mem-to-mem CRC copy with the CRC constant checked, plus the DMA0_ERR interrupt on vector 119 delivered through the real meip path: irq_router HhENX bit 23, meip, the MEIP_DISPATCHER, IVT slot 119 and a plain-ret handler that claims and completes. The DONE vector, deny-guard and channel-count legs live in the multi-hart shdma.S; this is the error-path companion. It also reads PENDX at 0x781C bit 23 WITH THE ROUTE STILL OFF after the LEN = 0 reject sets the channel error, which is deterministic because PEND reflects the raw source level rather than the enable, and reads INSVCX at 0x782C bit 23 inside the handler before the W1C.
+# Register map: CR 0x6800 = DMAEN[0] CHnGO[4:1] CHnABORT[8:5] DONEIE[12] ERRIE[13]; SR 0x6804 = BUSY[0] CHnDONE[4:1] CHnERR[8:5] ACTIVECH[11:9], with DONE and ERR write-1-to-clear; C0SRC 0x6808, C0DST 0x680C, C0LEN 0x6810, C0CFG 0x6814 = SINC[0] DINC[1] TRIG[5:2] with 0 meaning mem-to-mem, PRIO[6] and CRCEN[7]; CRC at 0x6848. irq_done on vector 118 is any channel DONE and DONEIE, and irq_err on 119 is any channel ERR and ERRIE.
+# THE CRC IS CRC16-CDMA2000: polynomial 0xC857, seed 0xFFFF, MSB first, no reflection and no final XOR, folded over the transferred bytes b0 to b3 per word, little-endian. DMA0 is mclk-domain, so no SYS_CLK_CR write is needed.
+# Shared words, reusing the band shdma.S proved free at both N=4 and N=18, which is safe because the two never coexist under the one-image-per-sim rule, and all below 0x10500 and inside the bootrom zero range: SRC_BUF = 0x100E0 and DST_BUF = 0x100F0, four words each, FLAG = 0x10100 as the ISR exactly-once counter, and ISVC = 0x10104 for the handler's masked INSVCX readback.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,22 +1,10 @@
 #!/usr/bin/env python3
-"""check_bazelignore.py -- keep the EDA output trees out of the bazel graph.
+"""VestaRV: keep the EDA output trees out of the bazel graph.
 
-WHY THIS EXISTS.
----------------------------------------------------------------------------
-The EDA working trees at the repo root hold roughly 450 GB of generated
-output.
-.bazelignore is the only thing that stops bazel walking all of it looking for
-BUILD files, so deleting a single line there turns every "bazel build //..."
-into a multi-minute crawl over signoff and place-and-route dumps, and the
-person who deletes it usually sees nothing wrong on their own machine.
-
-So the required set lives HERE, in a constant, rather than being inferred
-from whatever .bazelignore happens to say today.
-Dropping a guarded directory then means editing this file too, which is a
-visible, reviewable act instead of a one-line deletion nobody reads.
-
-Exit codes:  0 = pass.  1 = an entry is missing or output leaked into git.
-             2 = the instrument is not live (.bazelignore unreadable).
+.bazelignore is the only thing stopping bazel walking roughly 450 GB of generated output, and
+deleting one line looks harmless on the machine that does it. The required set lives here in a
+constant rather than being inferred from the file, so dropping a guarded directory means a
+visible edit. Exit 0 pass, 1 an entry is missing or output leaked, 2 not live.
 """
 
 import argparse
@@ -25,7 +13,6 @@ import re
 import subprocess
 import sys
 
-# ---------------------------------------------------------------------------
 # THE REQUIRED SET. Every entry below must be present in .bazelignore.
 #
 # Block one is the root-level EDA working trees - the ~450 GB the header
@@ -40,7 +27,6 @@ import sys
 # individually required: they are created and retired as campaigns come and
 # go. They are still covered by the tracked-content check below, which walks
 # whatever .bazelignore actually lists.
-# ---------------------------------------------------------------------------
 REQUIRED_ENTRIES = (
     # Root-level EDA working trees.
     "signoff_mp",
@@ -69,7 +55,6 @@ REQUIRED_ENTRIES = (
     "opensource_sim/.venv",
 )
 
-# ---------------------------------------------------------------------------
 # WHAT MAY BE TRACKED UNDER AN IGNORED TREE.
 #
 # The EDA trees above are ignored by bazel because ~374 GB of what is in them
@@ -78,8 +63,8 @@ REQUIRED_ENTRIES = (
 # But those same directories are where every hand-written flow script in the
 # project lives - the Genus and Innovus run scripts, the signoff Makefile,
 # lvs.sh and its lvs_include_* files, the LVS netlist derivations, the OA
-# reference-library builders - and until 2026-08-25 none of it was in version
-# control at all. .gitignore now tracks that source (222 files, 2.4 MB, out of
+# reference-library builders - and none of it was ever in version
+# control. .gitignore now tracks that source (222 files, 2.4 MB, out of
 # 70,657 files and 374 GB on disk).
 #
 # So the rule here is NOT "this tree may carry tracked files". It is "this
@@ -96,16 +81,15 @@ REQUIRED_ENTRIES = (
 #
 # Patterns are shell globs matched against the workspace-relative path. "*"
 # does NOT cross a "/"; "**" does.
-# ---------------------------------------------------------------------------
 TRACKED_CONTENT_ALLOWED = {
     # The negative-control seed patches: hand-written inputs that happen to
     # live next to generated output. Exempt throughout, as they always were -
     # "**" is the whole-tree form and crosses directory separators.
     "verification/isa/negctrl": ("**",),
 
-    # genus / innovus / signoff_mp / cpf carried pattern lists here from
-    # 2026-08-25 (93da38c), when their flow scripts were tracked. Those trees
-    # were untracked again on 2026-08-27 at the owner's request and .gitignore
+    # genus / innovus / signoff_mp / cpf carried pattern lists here while their
+    # flow scripts were tracked. Those trees
+    # were untracked again at the owner's request and .gitignore
     # ignores them wholesale, so nothing under them may be tracked at all and
     # the lists are gone. Re-adding one needs the matching .gitignore negation
     # and a reason, in the same commit -- see the header above.

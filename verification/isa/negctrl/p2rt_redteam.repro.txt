@@ -1,5 +1,4 @@
-P2 RED TEAM — seeded-bug negative controls (red-team agent, 2026-07-28)
-========================================================================
+VestaRV: P2 RED TEAM, seeded-bug negative controls
 
 FIVE committed seeds, two new ON-only attack tests.  All five are RTL-ONLY (no
 image rebuild between clean/seeded/reverted) and all five are caught by a
@@ -23,9 +22,7 @@ NEITHER in the default behavioral_mp runner array):
   verification/isa/tests/rv32ua/privrt1.S  -> ../rcf/xxrv32ua-p-privrt1.rcf
   verification/isa/tests/rv32ua/privrt2.S  -> ../rcf/xxrv32ua-p-privrt2.rcf
 
-----------------------------------------------------------------------------
 (1) p2rt_sleepentry_seed.patch — hdl/common/vesta/vesta.vhd
-----------------------------------------------------------------------------
 The `sleep_cpu` flop loses its `if trap_entry_seq = '0'` guard.  A U-mode
 `extinguish` then TRAPS (maindec's u_gate clears sleep_rq in EXECUTE) and STILL
 SETS sleep_cpu one cycle later: the faulting encoding is still on read_data
@@ -55,9 +52,7 @@ seeded escape sets sleep_cpu and then immediately clears it again — privrt1
 PASSED with the seed applied.  extinguish must be the LAST custom-opcode
 poison before the witness.  The X3 `jvtmask` lesson, re-learned.
 
-----------------------------------------------------------------------------
 (2) p2rt_csrentry_seed.patch — hdl/common/vesta/vesta.vhd
-----------------------------------------------------------------------------
 `csr_valid_eff <= csr_valid and not trap_entry_seq` is reverted to a bare
 `csr_valid`, leaving maindec's u_csr_denied gate INTACT.  This is the exact
 complement of the P2 agent's p2_csrcommit seed (which reverts the maindec half
@@ -73,9 +68,7 @@ Deliberately NOT mtvec/mepc/mtrapctl: a committed write to any of those would
 derail the trap path itself into an unbounded hang instead of a bounded
 miscompare.
 
-----------------------------------------------------------------------------
 (3) p2rt_mppush_seed.patch — hdl/common/vesta/csr_unit.vhd
-----------------------------------------------------------------------------
 The trap-entry privilege PUSH `mst_mpp <= priv_m & priv_m` becomes
 `mst_mpp <= MPP_M`, i.e. a trap always records M as the interrupted privilege.
 A U-mode trap then MRETs back to M and the hart silently escalates out of
@@ -86,17 +79,13 @@ U-MODE interrupt, the U code executes a machine-CSR read (`csrr mstatus`) that
 MUST still trap.  Seeded, the read succeeds (we are in M), the trap count does
 not advance, and the bounded `bne s3, t3` fires.
 
-----------------------------------------------------------------------------
 (4) p2rt_ucnttm_seed.patch — hdl/common/vesta/maindec.vhd
-----------------------------------------------------------------------------
 The mcounteren.TM term is dropped from `ucnt_denied`, so U-mode reads of
 time/timeh are permitted unconditionally.  privrt2 PHASE D2 runs U with
 mcounteren = 0x04 (IR only) after a phase where TM WAS set, so `time` must
 flip from readable to trapping.  Seeded, it stays readable and CHECK 71 fires.
 
-----------------------------------------------------------------------------
 (5) p2rt_wfiudeny_seed.patch — hdl/common/vesta/maindec.vhd
-----------------------------------------------------------------------------
 The SYSTEM PRIV WFI arm's `u_gate = '1' and status_tw = '1'` becomes
 `u_gate = '1'`: WFI is denied in U-mode even with mstatus.TW = 0.  This is the
 PERMISSIVE direction of the TW rule — the P2 agent's p2_twignore seed only
@@ -110,9 +99,7 @@ WFI+4 with NOTHING delivered.  Seeded, it traps instead, the handler skips it,
 s3 advances and CHECK 78's bounded `bne s3, s7` fires.  It can never hang: the
 wake source is pending before the WFI issues.
 
-----------------------------------------------------------------------------
 Proven results (ON build, CORE_ENABLE_TRAPCSR = CORE_ENABLE_UMODE = true)
-----------------------------------------------------------------------------
   clean RTL                     -> TEST PASSED - ../rcf/xxrv32ua-p-privrt1.rcf
   clean RTL                     -> TEST PASSED - ../rcf/xxrv32ua-p-privrt2.rcf
   clean RTL                     -> TEST PASSED - ../rcf/rv32ua-p-privumode.rcf
@@ -134,9 +121,7 @@ Proven results (ON build, CORE_ENABLE_TRAPCSR = CORE_ENABLE_UMODE = true)
                                    (t4 = 78, a0 = 0xDEADBEEF)
   reverted                      -> TEST PASSED
 
-----------------------------------------------------------------------------
 Exact repro (from the repo root; privrt1/privrt2 are ON-ONLY tests)
-----------------------------------------------------------------------------
 Identical staging to p2_umode_seeds.repro.txt — the ON hardware is a
 `make chip` product, and the test arms are selected by the phase-standard
 EXPLICIT-APPEND dispatch (both -D flags appended to RISCV_GCC_OPTS).
@@ -194,10 +179,8 @@ WARNING: verification/isa/rcf is the ONE real image directory and OTHER
 SESSIONS BUILD THROUGH IT.  Check `ps -ef | grep [b]uild_mp_images` and
 `cat verification/isa/rcf/.nharts` (= 4) before trusting ANY suite result.
 
-============================================================================
 APPENDIX — amorsv.S: a REAL, pre-existing side-effect leak found by the same
 hunt, OUTSIDE the U-mode scope (legacy delivery only)
-============================================================================
 verification/isa/tests/rv32ua/amorsv.S  -> ../rcf/xxxrv32ua-p-amorsv.rcf
 
 A WORD-width AMO with a RESERVED funct5 (0x3005A02F, funct5 = 00110) takes the

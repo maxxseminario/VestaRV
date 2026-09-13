@@ -1,14 +1,6 @@
-// ===========================================================================
-// pwm.rdl: the register map of hdl/common/periph/PWM.vhd.
-//
-// THE VHDL IS THE AUTHORITY: nine slots from the block's SLOT_* constants,
-// all resets zero. Slots 4, 5 and 7 (DTY2, DTY3, DT) are reserved headroom
-// for the 4-channel and dead-time bolt-ons: they read 0 and ignore writes.
-//
-// PWMxPER, PWMxDTY0 and PWMxDTY1 are BUFFERED: a write stages the value and
-// arms UPDF, and the shadow commits at the next period boundary. PWMxPOL is
-// immediate.
-// ===========================================================================
+// VestaRV: the register map of hdl/common/periph/PWM.vhd
+// The VHDL is the authority: nine slots from the block's SLOT_* constants, all resets zero. Slots 4, 5 and 7 (DTY2, DTY3, DT) are reserved headroom for the 4-channel and dead-time bolt-ons: they read 0 and ignore writes.
+// PWMxPER, PWMxDTY0 and PWMxDTY1 are BUFFERED: a write stages the value and arms UPDF, and the shadow commits at the next period boundary. PWMxPOL is immediate.
 
 `include "vesta_udp.rdl"
 

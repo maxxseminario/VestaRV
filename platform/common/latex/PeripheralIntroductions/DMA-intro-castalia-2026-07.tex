@@ -1,7 +1,7 @@
-% DMA chapter. Section order is the per-peripheral template enforced by
+% VestaRV: DMA chapter of the TRM.
+% Section order is the per-peripheral template enforced by
 % python/check_intro_names.py (Overview / Functional description / Interrupts
-% and events / Programming / Usage notes). Restructured 2026-09-05; the prose
-% is unchanged apart from the headings it now sits under.
+% and events / Programming / Usage notes).
 \section{Overview}
 
 The DMA controller (\peripheral{DMAx}) is a configurable multi-channel single-shot direct-memory-access engine. It moves words from a source to a destination over the shared multi-core arbiter as a stream of single-word transactions, either flat-out under software command (memory-to-memory) or paced one word per peripheral data-ready event, with per-channel source and destination auto-increment, a two-level priority with word-granular round-robin between channels, an optional \mbox{CRC16-CDMA2000} ride-along accumulated over the transferred data, and a hardware read-side-effect guard. The channel count is a build-time generic (\{2, 4\}); the register map is always the four-channel superset, so on a two-channel build the upper channel blocks and their status bits read 0. The whole transfer engine (the master-port state machine, the per-channel working counters, the round-robin picker, the CRC datapath, the pacing edge-detectors, the sticky event flags, and the two interrupt combiners) rides the free-running fabric clock (MCLK), while the register file rides the gated bus clock. It has \emph{no pins}. The main features are listed below:

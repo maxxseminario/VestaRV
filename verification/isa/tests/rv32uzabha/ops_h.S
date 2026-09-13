@@ -1,13 +1,7 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# ops_h.S      (X2 Zabha directed suite — halfword AMOs, both lanes)
-#-----------------------------------------------------------------------------
-# Directed functional check of Zabha halfword AMOs (funct3=001): rd receives the
-# SIGN-EXTENDED old halfword, memory's addressed half gets the truncated result,
-# and the OTHER half stays intact. Exercises half0 (addr+0) and half1 (addr+2).
-# ON-POLARITY ONLY. Encodings via `.insn` (see ops_b.S header).
-#*****************************************************************************
+# VestaRV: Zabha halfword AMO directed suite
+# Directed functional check of Zabha halfword AMOs, funct3 001: rd receives the SIGN-EXTENDED old halfword, memory's addressed half gets the truncated result, and the OTHER half stays intact. Both half positions are exercised. ON-POLARITY ONLY, with the encodings written as `.insn`; see ops_b.S for the encoding form.
 
 #include "riscv_test.h"
 #include "test_macros.h"

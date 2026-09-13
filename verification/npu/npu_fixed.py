@@ -1,63 +1,10 @@
 #!/usr/bin/env python3
-"""npu_fixed.py -- bit-exact golden model of the VestaRV NPU's fixed-point
-arithmetic (Python 3.6+, no third-party deps, no floats in the arithmetic
-path).
+"""VestaRV: bit-exact golden model of the NPU's fixed-point arithmetic.
 
-This reproduces, in pure integer math, exactly what the synthesizable RTL
-computes:
-
-  hdl/common/periph/NPU.vhd    -- MLP FSM (bias-first MAC walk, sigmoid gate)
-  hdl/common/commune/FPMac.vhd -- multiply-accumulate: one exact widen +
-                                   one fixed_pkg resize (round + saturate)
-  hdl/common/commune/FPSigmoid.vhd -- piecewise-quadratic sigmoid (RHO=2)
-
-The rounding/saturation rule being replicated is the David Bishop
-`fixed_pkg` compatibility fork actually compiled into this repo:
-    hdl/common/commune/fixed_pkg_c.vhdl
-Defaults (package constants, lines 28/30):
-    fixed_round_style    := fixed_round      (round to nearest)
-    fixed_overflow_style := fixed_saturate   (saturate on overflow)
-
-The exact rounding tie-break is in `round_fixed` (fixed_pkg_c.vhdl lines
-2272-2308, sfixed overload): the discarded bits are inspected as a
-remainder; if the remainder's MSB is '1' AND (any lower remainder bit is
-'1' OR the kept LSB is '1'), round up (add 1 ULP); a bare tie (remainder
-== exactly half, kept LSB == 0) does NOT round up. That is:
-
-    ROUND-HALF-TO-EVEN (banker's rounding), NOT round-half-up.
-
-  - remainder > half            -> always round up
-  - remainder == half, LSB==1   -> round up   (result becomes even)
-  - remainder == half, LSB==0   -> stays put  (already even)
-  - remainder <  half           -> stays put
-
-Saturation after rounding (round_fixed, `round_overflow`) and saturation
-from integer-bit truncation (`resize`, lines 5603-5697, sfixed overload)
-both saturate to the two's-complement extremes of the TARGET format:
-    max = 2^(M+N) - 1   (0111...1)
-    min = -2^(M+N)      (1000...0)
-(fixed_pkg_c.vhdl `saturate`, lines 5139-5149: all-ones with the sign bit
-forced to '0'; the negative extreme is its bitwise NOT.)
-
-Number-representation convention used throughout this file
--------------------------------------------------------------
-A fixed-point value in format Q(M).(N) (M integer bits + 1 implicit sign
-bit + N fraction bits, two's-complement, (M+N+1) bits total) is carried
-around as a plain Python integer "raw" such that
-
-    real_value = raw / 2**N
-
-`raw` is NEVER masked/truncated to (M+N+1) bits implicitly -- Python ints
-are arbitrary precision, and the VHDL `+`/`-`/`*`/`abs`/`scalb` operators
-on sfixed are THEMSELVES always exact (the package widens the result type
-to hold the full-precision answer; only an explicit `resize` call rounds
-or saturates). So every "exact" VHDL operation below is a plain Python
-`+`/`-`/`*`/`abs` on `raw`, tracking the implied (M, N) format only far
-enough to know how to `resize` when the RTL explicitly does so. This is
-the ONLY way both sides can produce identical bits: we are not emulating
-finite registers, we are computing the exact rational the hardware's
-exact combinational network computes, then rounding at the exact points
-the RTL rounds.
+Reproduces NPU.vhd, FPMac.vhd and FPSigmoid.vhd in integer math under the rounding and
+saturation rules of hdl/common/commune/fixed_pkg_c.vhdl: round half to even, then saturate
+to the target format's two's-complement extremes. A Q(M).(N) value is a plain Python int
+`raw` with real_value = raw / 2**N, never masked, and resized only where the RTL resizes.
 """
 
 ROUND_NEAREST = 'round'      # fixed_round     (package default)
@@ -76,17 +23,9 @@ def _sat_bounds(m_out, n_out):
 
 def resize_sfixed(raw_in, n_in, m_out, n_out,
                    round_style=ROUND_NEAREST, overflow_style=SAT_SATURATE):
-    """Bit-exact replica of fixed_pkg's `resize` for UNRESOLVED_sfixed
-    (fixed_pkg_c.vhdl lines 5603-5697).
-
-    raw_in is an exact two's-complement value at fraction scale n_in
-    (real = raw_in / 2**n_in); there is deliberately NO m_in parameter --
-    the VHDL structural "extra integer bits" overflow check and the
-    value-magnitude check against the target format are mathematically
-    identical once raw_in is known exactly (see module docstring), so we
-    just compare against the target's own saturation bounds.
-
-    Returns raw_out at fraction scale n_out, format Q(m_out).(n_out).
+    """Bit-exact replica of fixed_pkg's `resize` for UNRESOLVED_sfixed. raw_in is exact at fraction
+    scale n_in, so there is no m_in parameter: the structural overflow check and the magnitude
+    check against the target format coincide. Returns raw_out at scale n_out.
     """
     min_out, max_out = _sat_bounds(m_out, n_out)
     shift = n_in - n_out
@@ -119,7 +58,7 @@ def resize_sfixed(raw_in, n_in, m_out, n_out,
 
     result = floor_val
 
-    # --- Step 2: rounding (round_fixed, fixed_pkg_c.vhdl 2272-2308) ---
+    # Step 2: rounding (round_fixed, fixed_pkg_c.vhdl 2272-2308)
     if shift > 0 and round_style == ROUND_NEAREST:
         half = 1 << (shift - 1)
         if remainder > half:
@@ -149,19 +88,9 @@ def resize_sfixed(raw_in, n_in, m_out, n_out,
 
 
 def int_to_sfixed(value, m, n, overflow_style=SAT_SATURATE):
-    """Bit-exact replica of fixed_pkg's `to_sfixed(arg: INTEGER; left_index;
-    right_index)` (fixed_pkg_c.vhdl lines 4744-4797), specialised to
-    right_index = -n (the only form the RTL uses).
-
-    Converts the *mathematical integer* `value` into the raw Q(m).(n)
-    representation. NOTE: this is emphatically NOT the same as
-    `value << n` when `value` does not fit in the (m+1)-bit integer
-    part -- e.g. int_to_sfixed(1, 0, N) does NOT give 2**N (an exact
-    1.0); with 0 integer bits, integer 1 overflows a 1-bit signed field
-    ([-1, 0]) and SATURATES to 2**N - 1 (just under 1.0). This exact
-    quirk is load-bearing: NPU.vhd's bias tap is
-    `to_sfixed(1, X_M_BITS, -N_BITS)`, and at the bench's X_M_BITS=0 the
-    "bias input" is actually 0.999969..., not 1.0.
+    """Bit-exact replica of fixed_pkg's to_sfixed(INTEGER) at right_index = -n. Not `value << n`:
+    with 0 integer bits, integer 1 overflows a 1-bit signed field and saturates to 2**n - 1. That
+    quirk is load-bearing, since NPU.vhd's bias tap is to_sfixed(1, X_M_BITS, -N_BITS).
     """
     if value == 0:
         return 0
@@ -182,16 +111,9 @@ def int_to_sfixed(value, m, n, overflow_style=SAT_SATURATE):
 
 
 def mac_step(acc_raw, a_raw, b_raw, acc_m, n_bits):
-    """One FPMac.vhd combinational step + its registered latch, i.e. the
-    Q7.24-style accumulator update:
-
-        Y = resize(acc + A*B, ACC_M_BITS, -N_BITS)
-
-    acc_raw : Q(acc_m).(n_bits) raw accumulator (pre-step)
-    a_raw   : Q(*).(n_bits) raw "A" operand (any A_M_BITS -- untracked,
-              since the product is exact regardless of the nominal width)
-    b_raw   : Q(*).(n_bits) raw "B" operand
-    Returns the new Q(acc_m).(n_bits) raw accumulator.
+    """One FPMac.vhd combinational step and its registered latch:
+    Y = resize(acc + A*B, ACC_M_BITS, -N_BITS). The operand widths are untracked because the
+    product is exact regardless. Returns the new Q(acc_m).(n_bits) raw accumulator.
     """
     prod_raw_2n = a_raw * b_raw               # exact, scale 2*n_bits
     sum_raw_2n = (acc_raw << n_bits) + prod_raw_2n   # exact, scale 2*n_bits
@@ -262,24 +184,17 @@ def sigmoid(x_raw, x_m, n_bits, rho=2):
 
 
 def relu(x_raw):
-    """ACTF=1 (P4.4 D2): ReLU on the signed Q(y_m).(n_bits) accumulator --
-    `max(0, x)`, no FPSigmoid involvement. Output format is the SAME
-    Q(y_m).(n_bits) as the accumulator (full range, NOT clamped to [0,1) --
-    a ReLU'd accumulator can still be up to +128 real at the MCU generics)."""
+    """ACTF=1, ReLU on the signed accumulator, max(0, x), with no FPSigmoid involvement. The output
+    keeps the accumulator's own Q(y_m).(n_bits) full range and is not clamped to [0,1).
+    """
     return x_raw if x_raw >= 0 else 0
 
 
 def tanh_approx(x_raw, y_m, n_bits, rho=2):
-    """ACTF=2 (P4.4 D3): `2*sigma(2x) - 1`, built ENTIRELY on the exact
-    FPSigmoid replica (`sigmoid()`) plus the two literal, exact primitives
-    already validated for the MAC path -- no new arithmetic.
-
-    `pre` reproduces the RTL's saturating pre-shift bit-for-bit: `scalb(x,
-    +1)` (same raw bits, scale becomes n_bits-1) then a saturating resize
-    back to the FPSigmoid input format Q(y_m).(n_bits) -- this is exactly
-    what keeps the sign correct for |x| >= 64 (GA4). The post-map `2y - 1`
-    is exact (a left-shift and a subtract only, no rounding of its own --
-    sigmoid()'s own output already fits Q0.(n_bits))."""
+    """ACTF=2, 2*sigma(2x) - 1, built entirely on the exact FPSigmoid replica plus two exact
+    primitives. `pre` reproduces the RTL's saturating pre-shift bit for bit, which is what keeps
+    the sign correct at large |x|; the post-map is a shift and a subtract, so it is exact.
+    """
     pre = resize_sfixed(x_raw, n_bits - 1, y_m, n_bits,
                          round_style=ROUND_NEAREST,
                          overflow_style=SAT_SATURATE)
@@ -288,32 +203,25 @@ def tanh_approx(x_raw, y_m, n_bits, rho=2):
 
 
 def clamp01(x_raw, n_bits):
-    """ACTF=3 (P4.4 D4): hardtanh -- saturating resize of the Q(y_m).
-    (n_bits) accumulator down to Q0.(n_bits) (clamp to [-1, 1-2**-n_bits]).
-    Reuses the same saturating-resize primitive already validated for the
-    MAC path (resize_sfixed) -- no new arithmetic."""
+    """ACTF=3, hardtanh: a saturating resize of the accumulator down to Q0.(n_bits), reusing the
+    same primitive already validated for the MAC path.
+    """
     return resize_sfixed(x_raw, n_bits, 0, n_bits,
                           round_style=ROUND_NEAREST,
                           overflow_style=SAT_SATURATE)
 
 
 def exp_approx(x_raw, y_m, n_bits, rho=2):
-    """ACTF=4 (P4.4 D5): the softmax-leg surrogate `exp~(x) = 2*sigma(x)`
-    (no pre-shift, unlike tanh -- straight into FPSigmoid, same as the
-    sigmoid path). Exact: a left-shift of sigmoid()'s own output, which
-    already fits Q0.(n_bits), so `2*sigma(x)` fits Q1.(n_bits) with no
-    further rounding/saturation."""
+    """ACTF=4, the softmax-leg surrogate 2*sigma(x), straight into FPSigmoid with no pre-shift. It is
+    exact: a left shift of an output that already fits Q0.(n_bits), so the result fits Q1.(n_bits).
+    """
     return sigmoid(x_raw, y_m, n_bits, rho) << 1
 
 
 def activate(acc, aen, actf, y_m, n_bits, rho=2):
-    """P4.4 D9 dispatcher: the golden-side equivalent of the RTL's
-    ACTF-selected `act_out` mux (TP1), gated by the AEN master enable (D1).
-
-    aen=0            -> passthrough (acc unchanged), ACTF is a don't-care.
-    aen=1, actf=0     -> sigmoid (legacy).
-    aen=1, actf=1..4  -> relu / tanh_approx / clamp01 / exp_approx.
-    aen=1, actf=5..7  -> reserved: decode as sigmoid, no trap (D6).
+    """The golden-side equivalent of the RTL's ACTF-selected output mux, gated by AEN. aen=0 is
+    passthrough and ACTF a don't-care; actf 0 to 4 select sigmoid, relu, tanh, clamp and exp;
+    actf 5 to 7 are reserved and decode as sigmoid without trapping.
     """
     if not aen:
         return acc
@@ -330,27 +238,9 @@ def activate(acc, aen, actf, y_m, n_bits, rho=2):
 
 def think_layer(x_list, w_list, ni, nn, ben, aen, x_m, w_m, y_m, n_bits,
                  rho=2, w_offset=0, trace=None, actf=0):
-    """One NPU THINK over one layer, exactly matching NPU.vhd's FSM weight
-    walk: weight pointer runs contiguously from WVSAR across ALL neurons,
-    bias tap first (if BEN) then inputs 0..ni in order, per neuron.
-
-    x_list  : list of Q(x_m).(n_bits) raw inputs, length >= ni+1
-    w_list  : full weight raw array (as loaded in the staging RAM); reading
-              starts at w_offset (mirrors WVSAR) and walks forward
-    ni, nn  : NPUNI/NPUNN register values (per-neuron loop count is ni+1,
-              neuron count is nn+1)
-    ben,aen : NPUBEN/NPUAEN
-    actf    : NPUCR ACTF field (P4.4 D9; default 0 = sigmoid-legacy). When
-              aen and actf==0 this calls the SAME `sigmoid(acc, y_m, n_bits,
-              rho)` line the pre-P4.4 golden always called (the 4-legacy-set
-              validation stays bit-for-bit untouched); nonzero actf
-              dispatches through `activate()`.
-    trace   : optional list to append (neuron_index, acc_raw) tuples to,
-              for debug (pre-activation accumulator per neuron)
-
-    Returns (outputs, next_w_offset) where outputs has length nn+1, each
-    entry Q(y_m).(n_bits) raw (post-activation if aen else the accumulator
-    itself, pass-through).
+    """One NPU THINK over one layer, matching NPU.vhd's weight walk: the pointer runs contiguously
+    from w_offset across all neurons, bias tap first when ben, then inputs 0..ni. Returns
+    (outputs, next_w_offset); `trace` collects (neuron_index, acc_raw) before activation.
     """
     outputs = []
     widx = w_offset
@@ -379,9 +269,7 @@ def think_layer(x_list, w_list, ni, nn, ben, aen, x_m, w_m, y_m, n_bits,
     return outputs, widx
 
 
-# --------------------------------------------------------------------------
 # Debug helpers (never used in the arithmetic path itself -- display only)
-# --------------------------------------------------------------------------
 
 def raw_to_float(raw, n_bits):
     """For human-readable trace printing ONLY -- never fed back into the

@@ -1,47 +1,11 @@
 #!/usr/bin/python3.6
-# -*- coding: utf-8 -*-
-"""Spike `--log-commits` parser: one commit line -> 1xR + nxM + nxC records.
+# coding: utf-8
+"""VestaRV: Spike --log-commits parser, one commit line to one R plus n M plus n C records.
 
-Phase V2 (Agent A).  Implements `tools/cosim/RECORD_FORMAT.md` §1-§3 and §6
-against the pinned Spike `3d8eb089bd289c59dcb506f197a172e02beb7b5b`
-("Spike RISC-V ISA Simulator 1.1.1-dev", v0_report §5).  Stdlib only,
-Python 3.6 syntax only.
-
-Line grammar (`core%4d: %1d 0x<pc> (0x<insn>)` + trailing write fields):
-
-    core   0: 3 0x00008200 (0xa011)
-    core   0: 3 0x00008204 (0x4081) x1  0x00000000
-    core   0: 3 0x00008264 (0x00110023) mem 0x00008690 0xaa
-    core   0: 3 0x00008268 (0x00010703) x14 0xffffffaa mem 0x00008690
-    core   0: 3 0x00008262 (0x00b6a72f) x14 0x80000000 mem 0x00008308 mem 0x00008308 0x7ffff800
-    core   0: 3 0x0000827a (0xb0041a73) x20 0x00000029 c2816_mcycle 0x00000000
-
-All six shapes above are VERBATIM from runs of that binary on this host
-(rv32ui-p-add / -sb / -sw, rv32ua-p-amoadd_w, rv32ziscr-p-csr).
-
-Load-bearing rules, each of them a documented trap:
-
-* **Tokenize on whitespace RUNS, not columns** — Spike pads single-digit
-  register numbers with two spaces (`x1  0x…`).
-* **Classify every trailing field by its PREFIX, never by position** — the
-  write map is keyed `(number << 4) | type`, so `c1_fflags` (key 20) prints
-  BEFORE `x20` (key 320).  RECORD_FORMAT §3 "ORDERING TRAP".
-* **` mem 0x<addr>` alone is a LOAD** (address only, no data, no size);
-  ` mem 0x<addr> 0x<data>` is a STORE whose size is len(data)/2 bytes.  An AMO
-  line carries both, and the load is emitted first.
-* **Writes to x0 never appear** (Spike's map key for x0 is exactly 0 and is
-  skipped), which is what makes `rd=00` unambiguously mean "no write".  An x0
-  write would therefore be a *changed reference model* and is raised, not
-  normalised away.
-* **`cycle` on this side is the 0-based retire ordinal** (§0) — Spike's commit
-  log has no cycle concept.  Never compared.
-
-Not represented, by design: `f<n>` FPR writes (the frozen format has no F
-record; Zfinx is off in the V2 config and Zfinx writes GPRs anyway) — they are
-counted and reported, never silently dropped.  Trap information does not exist
-in this log at all (§4): a trapping instruction prints NO line and the run can
-end with `rc=0`, which is why "Spike exhausted while RTL continues" must never
-be read as success.
+Tokenize on whitespace runs, not columns, and classify each trailing field by its prefix:
+the write map is keyed (number << 4) | type, so `c1_fflags` prints before `x20`. A bare
+` mem 0x<addr>` is a load, ` mem 0x<addr> 0x<data>` a store of len(data)/2 bytes. Writes
+to x0 never appear, so rd=00 means no write; one that did appear is raised, not normalised.
 """
 
 from __future__ import print_function
@@ -88,20 +52,16 @@ def _csr_number(tok):
 
 
 def parse_spike_line(line, source="spike", lineno=0, ordinal=0):
-    """Explode one commit line into the wire-format records it implies.
-
-    Returns `(records, n_fpr)`.  Records are in the mandatory per-retire order
-    (RECORD_FORMAT §0): all `R`, then every `M L`, then every `M S`, then
-    every `C`.  Returns `([], 0)` for a blank line.
-    Raises ParseError for anything that is not a commit line — deliberately
-    strict, so a new Spike output shape is examined rather than swallowed.
+    """Explode one commit line into the wire-format records it implies, returning (records, n_fpr) in
+    the mandatory per-retire order: all R, then every M L, then every M S, then every C. A blank
+    line gives ([], 0); anything else that is not a commit line raises, deliberately strictly.
     """
     stripped = line.rstrip("\n").rstrip("\r")
     if stripped.strip() == "":
         return [], 0
     toks = stripped.split()
 
-    # --- header: core<pad>N: priv 0xPC (0xINSN) -------------------------
+    # header: core<pad>N: priv 0xPC (0xINSN)
     if toks[0] == "core":
         hart_tok, i = (toks[1] if len(toks) > 1 else ""), 2
     elif toks[0].startswith("core"):
@@ -140,7 +100,7 @@ def parse_spike_line(line, source="spike", lineno=0, ordinal=0):
                          % len(insn), stripped)
     i += 1
 
-    # --- trailing write fields, classified by PREFIX --------------------
+    # trailing write fields, classified by PREFIX
     gprs = []          # (rd_int, rdval_hex8)
     csrs = []          # (csr_int, val_hex8)
     loads = []         # addr_hex8
@@ -230,7 +190,7 @@ def parse_spike_line(line, source="spike", lineno=0, ordinal=0):
                          "by prefix: mem / x<n> / f<n> / c<n>_<name>)" % tok,
                          stripped)
 
-    # --- emit, in the mandatory order (§0) -----------------------------
+    # emit, in the mandatory order (§0)
     out = []
     if gprs:
         # Amendment A2: n consecutive R records with identical pc/insn, one per
@@ -258,13 +218,9 @@ def parse_spike_line(line, source="spike", lineno=0, ordinal=0):
 
 
 def parse_spike_log(path, hart=None):
-    """Parse a whole Spike commit log.
-
-    Returns `(records, stats)`.  `stats` is a dict with `lines` (commit lines
-    consumed), `fpr` (FPR write fields ignored) and `harts` (set of hart ids
-    seen).  When `hart` is given (2-hex-digit string) only that hart's records
-    are returned — per-hart streams are compared independently (§6); V2 is
-    single-hart so the filter is normally unnecessary.
+    """Parse a whole Spike commit log into (records, stats), where stats counts the commit lines
+    consumed, the FPR write fields ignored and the hart ids seen. With `hart` given as two hex
+    digits only that hart's records are returned, per-hart streams being compared independently.
     """
     recs = []
     stats = {"lines": 0, "fpr": 0, "harts": set()}

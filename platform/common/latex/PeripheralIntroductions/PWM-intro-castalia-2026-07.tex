@@ -1,7 +1,7 @@
-% PWM chapter. Section order is the per-peripheral template enforced by
+% VestaRV: PWM chapter of the TRM.
+% Section order is the per-peripheral template enforced by
 % python/check_intro_names.py (Overview / Functional description / Interrupts
-% and events / Programming / Usage notes). Restructured 2026-09-05; the prose
-% is unchanged apart from the headings it now sits under.
+% and events / Programming / Usage notes).
 \section{Overview}
 
 The PWM generator (\peripheral{PWMx}) is a glitch-free two-channel edge-aligned pulse-width-modulation engine: a prescaled 16-bit up-counter with two 16-bit per-channel duty comparators, a double-buffered waveform update, per-channel polarity and an absolute programmable safe level, a software fault trip, and a period-event tick. Its reason to exist over the general-purpose timer compare path is the double buffering: a mid-period change to the period or a duty takes effect only at the next period boundary, so it can never produce a runt or double pulse. The whole engine runs on the free-running fabric clock (MCLK) through a power-of-two prescaler; there is no LFXT and no generated or gated clock anywhere in the block. It has \emph{no input pins}. The main features are listed below:

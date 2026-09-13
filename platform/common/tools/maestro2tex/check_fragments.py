@@ -1,37 +1,10 @@
 #!/usr/bin/env python3
-"""check_fragments.py -- audit the generated LaTeX chapter against its configs.
+"""VestaRV: audit the generated LaTeX chapter against the configs that would regenerate it.
 
-maestro2tex rewrites a block's master `.tex` from its config's `order` on every
-run, and rewrites every fragment its `figures`/`tables` declare. Nothing else
-checks that what is PUBLISHED still matches what would be REGENERATED, and the
-two drift apart in three ways that all fail silently:
-
-  1. A generated fragment is superseded by later work the config cannot
-     reproduce, replaced by a hand-written file of the same name, and the swap
-     is made in the master by hand -- where the next regeneration undoes it.
-     (tab_biasgen_dcop: a supply-current corner spread of 0.30 uA against a
-     true 17.6 uA, because every imported corner pinned the degeneration
-     resistor at typical.)
-  2. A fragment named in `order` does not exist, and emit_master skips it
-     without a word, so a section quietly loses a table.
-  3. A published fragment or intro paragraph is edited by hand; regeneration
-     reverts the edit and nobody sees the revert in a diff of the config.
-
-This script reports all three. It reads only; it never writes LaTeX.
-
-    python3 check_fragments.py                    # audit + exit status
-    python3 check_fragments.py --outdir DIR       # a different chapter copy
-    python3 check_fragments.py --quiet            # errors only
-
-Exit status is 1 if any ERROR was found, 0 otherwise -- so it can gate a build
-or a CI step. WARNINGs (a dead generated file left on disk, a hand-written
-fragment) do not fail it.
-
-VALUE GUARDS. `guards.json` beside this script lists literal strings that must
-not appear anywhere in the published chapter -- the actual wrong numbers, not
-the file that carried them. That check survives any config edit, including
-deleting the `superseded` key that made maestro2tex itself refuse to write the
-fragment: the number cannot come back through any route without failing here.
+Reports three silent drifts: a hand-written file standing in for a generated fragment, a name
+in `order` with no file behind it, and a hand edit regeneration would revert. guards.json
+beside this script lists literal strings that must not appear in the published chapter, so a
+withdrawn number cannot return by any route. Reads only. Exit 1 on an ERROR, WARNINGs do not.
 """
 
 import argparse
@@ -62,11 +35,8 @@ def warn(msg):
 
 
 def strip_comments(text):
-    """Drop LaTeX comments.
-
-    The generated master's own header carries a commented usage line,
-    `%     \\input{include/analog/<Block>.tex}` -- read literally it makes every
-    block look as though it inputs itself.
+    """Drop LaTeX comments. The generated master's header carries a commented usage line naming the
+    block's own file, which read literally makes every block look as though it inputs itself.
     """
     out = []
     for line in text.split('\n'):

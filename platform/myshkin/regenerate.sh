@@ -1,22 +1,22 @@
 #!/bin/bash
-# Regenerate all Myshkin RISC-V microcontroller toolchain files
-# This script regenerates headers, linker scripts, and documentation
+# VestaRV: regenerate the Myshkin toolchain files: firmware headers, linker
+# scripts and the user-guide LaTeX sources.
+# The emitter is platform/myshkin/python/generate.py; everything it writes is
+# tracked, so review with git status afterwards.
 
-set -e  # Exit on error
+set -e
 
 echo "=========================================="
 echo "VestaRV Toolchain Generator"
 echo "=========================================="
 echo ""
 
-# Navigate to generator/python directory
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR/python"
 
 echo "Generating toolchain files from generate.py..."
 echo ""
 
-# Run the generator
 python3 generate.py
 
 echo ""

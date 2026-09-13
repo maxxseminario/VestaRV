@@ -1,37 +1,10 @@
 #!/usr/bin/env python3
-"""Assert that every firmware image more than one hart executes stays inside the
-tile ISA subset the chip configuration declares.
+"""VestaRV: assert every image more than one hart executes stays inside the tile ISA subset.
 
-WHY THIS EXISTS. Castalia is asymmetric: hart 0 is the soft orchestrator and
-carries the full chip ISA, harts 1..N-1 are four instances of one hardened
-hart_tile macro built rv32iac. The generator states that in exactly one place
-(ChipGenerator.py emits a TILE_ENABLE_<X> constant for every knob under isa.*
-and priv.*, and MCU.vhd hands the tile instances those rather than the
-CORE_ENABLE_* set hart 0 takes; a minimal tile drops M, Zb, every Z-series
-extension, U-mode and PMP, and keeps A, C and the trap CSRs), and it publishes
-it as derived.hartClasses in
-config/ChipConfig.resolved.json. Nothing connected that statement to the
-firmware. A shared image compiled -march=rv32imac assembles a `mul` without a
-word, and the first evidence is an illegal-instruction trap on a tile, in
-silicon, months later.
-
-WHAT IT GRADES. The linked ELF, not the source and not the flags: flags are the
-cause, the ELF is the fact. Every image in SHARED_IMAGES is disassembled and
-every instruction in it must be one the narrowest hart class implements. An
-instruction from an extension that class dropped is named with its address and
-the extension it came from; an instruction this script cannot place in the
-declared subset at all is named as unknown, which is the fail-closed half.
-
-WHAT IT DOES NOT GRADE. Images that run on hart 0 alone. They are listed in
-HART0_ONLY_IMAGES with the reason each one never reaches a tile, so the
-exemption is reviewable rather than implicit, and a name may not appear in both
-tables.
-
-The tile subset is read from the resolved configuration, never hardcoded: a
-build whose tiles keep the full ISA (isa.minimalTiles false, or a one-hart chip)
-degenerates to a single hart class and this gate accepts it.
-
-Plain runner, no pytest: exit 0 is a pass.
+Grades the linked ELF, not the flags: every instruction in a SHARED_IMAGES image must be one
+the narrowest hart class implements, and one that cannot be placed in the declared subset is
+named as unknown. HART0_ONLY_IMAGES carries the exemptions with a reason each, and a name may
+not appear in both. The subset comes from derived.hartClasses, never hardcoded. Exit 0 passes.
 """
 
 import argparse
@@ -42,9 +15,7 @@ import subprocess
 import sys
 
 
-# ---------------------------------------------------------------------------
 # The image tables.
-# ---------------------------------------------------------------------------
 
 # Images more than one hart executes. The BUILD file passes one --elf per entry;
 # a missing one, or an --elf naming something absent here, fails the run, so the
@@ -105,9 +76,7 @@ ENCODING_ALLOWLIST = {
 CUSTOM0_OPCODE = 0x0B
 
 
-# ---------------------------------------------------------------------------
 # Mnemonic tables, in the spellings binutils prints under -M no-aliases.
-# ---------------------------------------------------------------------------
 
 # RV32I, plus the three things this core family always builds and no isa.* knob
 # removes: Zicsr (the CSR instructions), Zifencei, and the M-mode system
@@ -182,9 +151,7 @@ def parseMarch(isaString):
     return tokens
 
 
-# ---------------------------------------------------------------------------
 # Disassembly.
-# ---------------------------------------------------------------------------
 
 _SECTION = re.compile(r"^Disassembly of section (\S+):")
 _INSN = re.compile(r"^\s*([0-9a-fA-F]+):\t([0-9a-fA-F ]+)\t(\S+)")
@@ -252,7 +219,6 @@ def checkImage(name, elf, objdump, allowed, denied):
     return bad
 
 
-# ---------------------------------------------------------------------------
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--resolved", required=True,

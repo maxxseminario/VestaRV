@@ -1,24 +1,11 @@
 #!/usr/bin/python3.6
-# -*- coding: utf-8 -*-
-"""The frozen lockstep wire format: record object + RTL-trace parser.
+# coding: utf-8
+"""VestaRV: the frozen lockstep wire format, as a record object plus the RTL-trace parser.
 
-Phase V2 (Agent A).  Implements `tools/cosim/RECORD_FORMAT.md` (frozen
-2026-07-29) including Amendments A1-A5.  Stdlib only, Python 3.6 syntax only.
-
-    R <hart> <cycle> <pc> <insn> <rd> <rdval>
-    M <hart> <cycle> <L|S> <addr> <size> <data>
-    C <hart> <cycle> <csr> <val>
-    T <hart> <cycle> <cause> <epc> <tval> <priv>
-    X <hart> <cycle> <kind>
-
-Field widths (RECORD_FORMAT §0): hart 2, cycle 8, pc/addr/epc/tval/rdval/val/
-data 8, insn 4 **or** 8, rd 2, size 1, csr 3, cause 8, priv 1, kind a keyword.
-All numeric fields are lowercase hex with no `0x` prefix.
-
-Amendment A5: a literal `x` nibble in a hex field means the tracer sampled a
-non-0/1 std_logic there.  Such a field is a legal *parse* (the record is
-well-formed) but is never a match — that policy lives in compare.py.  This
-parser therefore accepts `x` inside hex fields and sets `Rec.has_x`.
+Records are R/M/C/T/X, all numeric fields lowercase hex with no 0x prefix. Field widths:
+hart 2, cycle 8, pc/addr/epc/tval/rdval/val/data 8, insn 4 or 8, rd 2, size 1, csr 3, cause 8,
+priv 1, kind a keyword. A literal `x` nibble means the tracer sampled a non-0/1 std_logic: it
+parses and sets Rec.has_x, and never matching is compare.py's policy. Stdlib, Python 3.6.
 """
 
 from __future__ import print_function
@@ -28,10 +15,8 @@ HEXCHARS_X = set("0123456789abcdefx")
 
 
 class ParseError(Exception):
-    """A stream line that does not conform to RECORD_FORMAT §0.
-
-    Raised rather than skipped: silently dropping a malformed record would let
-    a broken tracer or a truncated file masquerade as a match.
+    """A stream line that does not conform to the wire format. Raised rather than skipped: silently
+    dropping a malformed record would let a broken tracer or a truncated file pass as a match.
     """
 
     def __init__(self, source, lineno, message, line=None):
@@ -62,16 +47,9 @@ def _hexfield(source, lineno, line, name, tok, widths, allow_x):
 
 
 class Rec(object):
-    """One wire-format event.
-
-    `f` holds the record-specific fields as *strings*, in wire order:
-        R : (pc, insn, rd, rdval)
-        M : (dir, addr, size, data)      dir in {'L','S'}; size/data may be
-                                         None on the Spike side of an `L`
-                                         (Spike emits address only, §2)
-        C : (csr, val)
-        T : (cause, epc, tval, priv)
-        X : (kind,)
+    """One wire-format event. `f` holds the record-specific fields as strings in wire order: R is
+    (pc, insn, rd, rdval), M is (dir, addr, size, data) with size and data None on the Spike side
+    of a load, C is (csr, val), T is (cause, epc, tval, priv) and X is (kind,).
     """
 
     __slots__ = ("kind", "hart", "cycle", "f", "lineno", "source", "has_x")
@@ -85,13 +63,11 @@ class Rec(object):
         self.source = source
         self.has_x = has_x
 
-    # -- comparison ------------------------------------------------------
+    # -- comparison
     def key(self):
-        """The COMPARED projection, RECORD_FORMAT §8.
-
-        `cycle` and `hart` are never part of it (hart selects the stream);
-        an `M L` compares on `addr` only (Spike produces no size/data for a
-        load); `T` and `X` have no compared projection at all in V2.
+        """The compared projection. `cycle` and `hart` are never part of it, since hart selects the
+        stream; an `M L` compares on addr only, because Spike produces no size or data for a load;
+        T and X have no compared projection at all.
         """
         k = self.kind
         if k == "R":
@@ -120,14 +96,11 @@ class Rec(object):
             return self.f[0]
         return None
 
-    # -- rendering -------------------------------------------------------
+    # -- rendering
     def wire(self):
-        """Render back to the wire format.
-
-        Used for BOTH sides of the context dump so a human sees one shape.
-        A field Spike cannot produce prints as `-` padded to its width, which
-        is deliberately NOT valid wire syntax: it must be impossible to mistake
-        comparator display output for a real trace line.
+        """Render back to the wire format, used for both sides of the context dump so a human sees one
+        shape. A field Spike cannot produce prints as `-` padded to its width, deliberately not valid
+        wire syntax, so display output cannot be mistaken for a real trace line.
         """
         k = self.kind
         if k == "R":
@@ -234,20 +207,9 @@ def parse_rtl_line(line, source="rtl", lineno=0):
 
 
 def parse_rtl_trace(path):
-    """Parse an RTL trace file.
-
-    Returns `(records, comments, header_seen)` where
-
-      * `records`  — list of Rec in file order (T/X included; the comparator
-                     decides what to do with them).
-      * `comments` — dict tag -> count over every `#` line, keyed by the token
-                     after `#`.  `# CSRLEAK`/`# SCFAILRD`/`# TRAPSTORE`/
-                     `# ADDRMISMATCH`/`# LANEMISMATCH`/`# INIT` (and the other
-                     v1 diagnostics) are findings-surface, never silently
-                     dropped: the comparator summarises this dict on stderr.
-      * `header_seen` — True if the tracer provenance header line
-                     (`# vesta_tracer TRACE_ENABLE=true ...`, v1_report §5) is
-                     present.  Its absence means an OFF/stale snapshot ran.
+    """Parse an RTL trace into (records, comments, header_seen): records in file order with T and X
+    included, a tag-to-count dict over every `#` line, which is findings surface the comparator
+    summarises, and whether the tracer provenance header is present. Its absence means a stale run.
     """
     recs = []
     comments = {}
@@ -267,9 +229,7 @@ def parse_rtl_trace(path):
     return recs, comments, header
 
 
-# --------------------------------------------------------------------------
 # Amendment A7 diagnostics — the two trap-path memory events
-# --------------------------------------------------------------------------
 
 A7_TAGS = ("IRQPUSH", "IRETPOP", "IRQPUSHBAD", "IRETPOPBAD")
 
@@ -291,12 +251,9 @@ _A7_MIN_ONLY = ("IRQPUSHBAD", "IRETPOPBAD")
 
 
 class Diag(object):
-    """One `#`-comment diagnostic that carries fields (amendment A7).
-
-    These lines are COMMENTS, so they have no position in the record stream —
-    `lineno` is the only thing that ties a diagnostic to the records around it,
-    and that is exactly how the comparator associates an `# IRETPOP` with the
-    `X iret` it precedes.
+    """One `#`-comment diagnostic that carries fields. These lines have no position in the record
+    stream, so lineno is the only thing tying a diagnostic to the records around it, which is how
+    an IRETPOP is associated with the `X iret` it precedes.
     """
 
     __slots__ = ("tag", "lineno", "hart", "cycle", "f")
@@ -318,18 +275,9 @@ class Diag(object):
 
 
 def parse_rtl_diags(path):
-    """Parse the A7 trap-path diagnostics out of an RTL trace, in file order.
-
-        # IRQPUSH <hart> <cycle> <addr> <size> <data>   legacy IRQ_SV push
-        # IRETPOP <hart> <cycle> <addr>                 the `iret` stack pop
-        # IRQPUSHBAD / IRETPOPBAD                       the A7 equality failures
-
-    Everything else (including every other `#` tag) is ignored here —
-    `parse_rtl_trace` already counts every comment tag for the findings
-    surface.  A MALFORMED A7 line RAISES rather than being skipped: these
-    diagnostics are load-bearing inputs to the ISR-bracket mechanism, so a
-    tracer that emits a short one must not be able to degrade the bracket
-    silently into its `SEQUENTIAL` default.
+    """Parse the trap-path diagnostics (IRQPUSH, IRETPOP and their BAD forms) out of an RTL trace in
+    file order; every other tag is ignored here, parse_rtl_trace having counted them all. A
+    malformed line raises rather than being skipped, since these feed the ISR-bracket mechanism.
     """
     out = []
     with open(path, "r") as fh:
@@ -356,10 +304,10 @@ def parse_rtl_diags(path):
 
 
 def field_matches_x(rtl_tok, spk_tok):
-    """Amendment A9: compare one field with `x` nibbles in the RTL token acting
-    as WILDCARDS.  Defined nibbles are still compared EXACTLY, and the widths
-    must still match, so this is strictly weaker than equality only at the
-    positions the RTL itself reported as undriven."""
+    """Compare one field with `x` nibbles in the RTL token acting as wildcards. Defined nibbles are
+    still compared exactly and the widths must still match, so this is weaker than equality only
+    at the positions the RTL itself reported as undriven.
+    """
     if rtl_tok == spk_tok:
         return True
     if rtl_tok is None or spk_tok is None:

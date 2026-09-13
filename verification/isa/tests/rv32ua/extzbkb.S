@@ -1,23 +1,8 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extzbkb.S   (X3 Stage B Zbkb ext-probe, 2026-07-17)
-#-----------------------------------------------------------------------------
-# Build-time dispatch on CORE_ENABLE_ZBKB (extprobe_template.S convention — the
-# macro is supplied EXPLICITLY via -DCORE_ENABLE_ZBKB when staging the ON
-# polarity, NEVER auto-derived from a make-chip header or platform/common/out/).
-#
-#   ON  (#ifdef CORE_ENABLE_ZBKB): execute the real pack/packh/brev8 encodings
-#       and CHECK the architectural results -> PASS.
-#   OFF (#else): the SAME packh encoding executed UNCONDITIONALLY. On a build
-#       without Zbkb (the extoff POISON build, all CORE_ENABLE_* false) the
-#       encoding MUST take the illegal-instruction trap; run_extoff.sh +
-#       trap_watch.tcl report TRAP_OK, executing past it -> FAIL. packh
-#       (funct7=0000100,funct3=111) is illegal on a Zbb-ON build too (it is not
-#       a Zbb encoding), so this is a clean Zbkb-specific poison.
-#
-# `.insn` encodings — gas 13.2 has no zbk* mnemonics.
-#*****************************************************************************
+# VestaRV: Zbkb extension probe
+# BUILD-TIME DISPATCH on CORE_ENABLE_ZBKB, supplied EXPLICITLY with -DCORE_ENABLE_ZBKB when staging the ON polarity and never auto-derived from a generated header. With it defined, the real pack, packh and brev8 encodings execute and their architectural results are checked. Without it the SAME packh encoding executes unconditionally and must take the illegal-instruction trap on a build without Zbkb; run_extoff.sh with trap_watch.tcl reports TRAP_OK, and executing past it is a FAIL.
+# packh, funct7 0000100 with funct3 111, is illegal on a Zbb-ON build too, since it is not a Zbb encoding, so this is a clean Zbkb-specific poison. Every operation is an explicit `.insn`, because gas 13.2 has no zbk* mnemonics.
 
 #include "riscv_test.h"
 #include "test_macros.h"

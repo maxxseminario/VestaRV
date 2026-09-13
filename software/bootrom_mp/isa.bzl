@@ -1,23 +1,12 @@
-"""Single authority for the boot ROM's ISA string and its size-coupled flags.
+"""VestaRV: the single authority for the boot ROM's ISA string and its size-coupled flags.
 
-Two independent build paths produce this image.
-software/bootrom_mp/makefile is the bench recipe.
-software/bootrom_mp/BUILD.bazel is the hermetic one.
-Each used to carry its own copy of the -march string, so flipping one left the
-other silently compiling a different instruction set while every gate stayed
-green.
-
-This file is that string, once.
-BUILD.bazel loads it as Starlark.
-The makefile reads the same two assignments back out with sed, and errors out
-if it cannot, so there is no path where one side quietly keeps the old ISA.
-
-Keep the two assignments below on one line each, in exactly this form.
-The makefile's sed patterns are anchored to them.
+The bench makefile and the hermetic BUILD.bazel both build this image and each used to carry
+its own -march string. BUILD.bazel loads this as Starlark; the makefile reads the same two
+assignments back with sed and errors out if it cannot. Keep both assignments on one line each
+in exactly this form: the makefile's sed patterns are anchored to them.
 """
 
 # The RISC-V ISA string the mask ROM is compiled and linked for.
-# 2026-08-23: rv32i became rv32ic.
 # The C extension is a pure encoding change, adding no architectural state and
 # no new arithmetic, so it is safe for all five harts that reset into this one
 # ROM.

@@ -1,17 +1,9 @@
-"""Bazel rules for the verification/cpi measurement harness.
+"""VestaRV: bazel rules for the verification/cpi measurement harness.
 
-Image builds are the same pipeline //verification/isa uses, at the same
-pinned @xpack_riscv_gcc 13.2.0-2 toolchain, for the same reason: the -march,
-the -mabi, the option list and the linker script are all arguments of the
-compile action, so they are part of the action key and a polarity change
-rebuilds exactly the images it affects. A CPI number is only worth recording
-if the image it was measured on is reproducible bit for bit, which rules out
-building anything here from a host toolchain.
-
-The RAM window, the load offset and the word count are the ISA harness's, not
-new ones: verification/cpi/vesta_cpi_tb.vhd keeps opensource_sim/isa's bus
-contract exactly, so the numbers describe the core rather than a new memory
-model.
+Images are built by the same pipeline and pinned toolchain //verification/isa uses, with the
+march, mabi, options and linker script all arguments of the compile action: a CPI number is
+worth recording only if its image is reproducible bit for bit. The RAM window, load offset and
+word count are the ISA harness's, so the numbers describe the core, not a new memory model.
 """
 
 load("@rules_python//python:defs.bzl", "py_test")
@@ -93,17 +85,8 @@ def _rcf_rules(name, elf, tags, visibility):
     return rcf
 
 def cpi_micro_image(name, march = MARCH_C, tags = [], visibility = None):
-    """Assemble one generated micro-kernel .S into a .rcf image.
-
-    Args:
-      name: the kernel base name, e.g. "micro_alu32_64". The .S of that name
-        must be produced by the :micro_sources genrule.
-      march: the -march string, without the -march= prefix.
-      tags: tags applied to every generated target.
-      visibility: visibility applied to every generated target.
-
-    Returns:
-      The .rcf output file name.
+    """Assemble one generated micro-kernel .S into a .rcf image and return its file name. `name` is
+    the kernel base name, whose .S must be produced by the :micro_sources genrule.
     """
     elf = name + ".elf"
     src = "micro/" + name + ".S"
@@ -131,23 +114,9 @@ def cpi_micro_image(name, march = MARCH_C, tags = [], visibility = None):
     return _rcf_rules(name, elf, tags, visibility)
 
 def cpi_bmark_image(name, benchmark, march = MARCH_C, tags = [], visibility = None):
-    """Compile one riscv-tests benchmark against the CPI harness runtime.
-
-    crt_bmark.S provides the bare-metal entry and translates main()'s return
-    value into the a0 sentinel the testbench watches. bmark_stubs.c defines
-    setStats() as the store the testbench decodes as the kernel-window marker,
-    which is how the benchmarks' OWN existing setStats(1)/setStats(0) calls
-    become the measurement window with no edit to any benchmark source.
-
-    Args:
-      name: target/image base name, e.g. "median" or "median_noc".
-      benchmark: the verification/benchmarks subdirectory name.
-      march: the -march string, without the -march= prefix.
-      tags: tags applied to every generated target.
-      visibility: visibility applied to every generated target.
-
-    Returns:
-      The .rcf output file name.
+    """Compile one riscv-tests benchmark against the CPI harness runtime and return the .rcf name.
+    crt_bmark.S turns main()'s return value into the a0 sentinel the testbench watches, and
+    bmark_stubs.c defines setStats() as the kernel-window marker store the testbench decodes.
     """
     elf = name + ".elf"
     srcs = "//verification:benchmark_%s_srcs" % benchmark
@@ -197,21 +166,9 @@ def cpi_test(
         sim_timeout_s = 600,
         tags = [],
         visibility = None):
-    """Run one image under vesta_cpi_tb and assert its counts against expected.json.
-
-    Args:
-      name: the image base name, which is also the expected.json key and the
-        TEST_NAME generic the testbench prints in its CPIRESULT line.
-      image: label of the .rcf to run.
-      vhdl_srcs: label of the vhdl_source_set holding the RTL.
-      vhdl_paths: the same files as workspace-relative paths, in analysis
-        order. GHDL analysis order is load bearing, and a filegroup's
-        DefaultInfo is an unordered depset, so the order travels as argv.
-      size: bazel test size.
-      timeout: bazel test timeout, if the size default is not enough.
-      sim_timeout_s: wall-clock cap on the ghdl -r step.
-      tags: tags applied to the test.
-      visibility: visibility applied to the test.
+    """Run one image under vesta_cpi_tb and assert its counts against expected.json. `name` is the
+    image base name, the expected.json key and the TEST_NAME generic. vhdl_paths travels as argv
+    because GHDL analysis order is load bearing and a filegroup's DefaultInfo is unordered.
     """
     py_test(
         name = name,

@@ -1,55 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# pmprt4.S   (P3 RED TEAM — EXHAUSTIVE NAPOT / NA4 / TOR BOUNDARY + PRIORITY)
-#-----------------------------------------------------------------------------
-# ON-ONLY DIRECTED TEST (needs a trapCsr+umode+pmp build).  privpmp probes ONE
-# NAPOT size (16 byte) from two sides; this file walks the whole decode of
-# pmp_unit.vhd's `pmp_match` / `pmp_check` (hdl/common/vesta/pmp_unit.vhd:
-# 137-223) with a two-sided probe at EVERY boundary it owns:
-#
-#   A  NA4 exactness                       (a = pmpaddr, 4 bytes, both sides)
-#   B  entry 8 and entry 15                (pmpcfg2/pmpcfg3 packing + the
-#                                           30-bit pmp_addr_flat slicing at
-#                                           the TOP index — an off-by-one in
-#                                           the flattening shifts the bank)
-#   C  NAPOT 8 byte    (pmpaddr low bit 0 clear)
-#   D  NAPOT 4 KiB     (nine low ones then a zero)
-#   E  NAPOT pmpaddr = 0    THE DEGENERATE CASE: `P xor (P+1)` = 1, so this is
-#                           an 8-BYTE region at address 0, not NA4-at-0 and not
-#                           the whole space.  Probed on both sides.
-#   F  NAPOT all-ones       the full-span rule (P+1 wraps to 0, mask = all
-#                           ones), with a lower NA4 hole punched through it
-#   G  TOR entry 0's implicit base 0, and the exclusive/inclusive boundary
-#      pair: a == pmpaddr[i-1] is IN, a == pmpaddr[i] is OUT
-#   H  TOR NULL REGION      pmpaddr[i-1] > pmpaddr[i] must match NOTHING
-#   I  TOR predecessor OFF  the predecessor's VALUE is still the base (the
-#                           discriminator is an address BELOW the base, which
-#                           a "base = 0 when the predecessor is OFF" reading
-#                           would wrongly cover)
-#   J  PRIORITY, 3+ deep, both polarities: lowest-numbered match decides ALONE
-#   K  LOCKED HIGH MUST NOT RESCUE A LOWER DENY, in M-mode.  LAST in the file
-#      (a lock releases only at reset).
-#
-# METHOD.  Every probe is the same subroutine: a load performed with
-# mstatus.MPRV=1 / MPP=U, i.e. the DATA privilege is U while the instruction
-# fetch stays M (the privpmpmx trick — no U code region, no fetch fence, and
-# the unlocked entries never constrain M so the test's own machinery is
-# untouched).  The subroutine returns a1 = 0 GRANTED / 1 DENIED.  PHASE K
-# additionally uses an M-view probe (MPRV=0) because a LOCK is the only thing
-# that constrains M.
-#
-# All probe addresses are in the shared bulk RAM (0x10000-0x1FFFF) or the boot
-# ROM (0x0-0x3FFF) — never >= 0x20000, which is the XIP flash window.
-#
-# BOUNDEDNESS: no loop anywhere; every probe returns through `ret`, from the
-# fault path as well as the clean path.
-#
-# REGISTER CONTRACT:
-#   a0 probe address   a1 probe verdict   ra probe return
-#   s3 trap counter    s4/s5/s6 cause/mepc/mtval    s7 handler resume PC
-#   t4 CHECK ID
-#*****************************************************************************
+# VestaRV: red team, exhaustive NAPOT, NA4 and TOR boundary and priority sweep
+# ON-ONLY, needing a trapCsr, umode and pmp build. privpmp probes one NAPOT size from two sides; this file walks the whole decode of pmp_unit.vhd's pmp_match and pmp_check with a two-sided probe at every boundary it owns.
+# The phases: A NA4 exactness, four bytes, both sides. B entries 8 and 15, covering pmpcfg2 and pmpcfg3 packing and the 30-bit pmp_addr_flat slicing at the TOP index, where an off-by-one in the flattening shifts the bank. C NAPOT 8 byte. D NAPOT 4 KiB. E NAPOT with pmpaddr = 0, THE DEGENERATE CASE, where P xor (P+1) is 1, so it is an 8-BYTE region at address 0, neither NA4-at-0 nor the whole space, probed on both sides. F NAPOT all-ones, the full-span rule where P+1 wraps to 0 and the mask is all ones, with a lower NA4 hole punched through it. G TOR entry 0's implicit base 0 and the exclusive/inclusive boundary pair, where a == pmpaddr[i-1] is in and a == pmpaddr[i] is out. H the TOR NULL REGION, where pmpaddr[i-1] > pmpaddr[i] must match nothing. I TOR with the predecessor OFF, where the predecessor's VALUE is still the base, and the discriminator is an address BELOW that base, which a "base = 0 when the predecessor is OFF" reading would wrongly cover. J priority three or more deep in both polarities, where the lowest-numbered match decides alone. K a LOCKED HIGH entry must not rescue a lower deny in M-mode, and it runs LAST because a lock releases only at reset.
+# METHOD: every probe is the same subroutine, a load performed with mstatus.MPRV = 1 and MPP = U, so the DATA privilege is U while the instruction fetch stays M. That needs no U code region and no fetch fence, and the unlocked entries never constrain M, so the test's own machinery is untouched. The subroutine returns a1 = 0 for granted and 1 for denied. Phase K additionally uses an M-view probe with MPRV = 0, because a lock is the only thing that constrains M.
+# ALL PROBE ADDRESSES LIE IN THE SHARED BULK RAM 0x10000-0x1FFFF OR THE BOOT ROM 0x0-0x3FFF, never at or above 0x20000, which is the XIP flash window.
+# Boundedness: no loop anywhere, and every probe returns through `ret`, from the fault path as well as the clean path. REGISTER CONTRACT: a0 the probe address, a1 the probe verdict, ra the probe return, s3 the trap counter, s4, s5 and s6 cause, mepc and mtval, s7 the handler resume PC, t4 the CHECK ID.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,17 +1,7 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extrvc.S  (core-features work, 2026-07-08)
-#-----------------------------------------------------------------------------
-# C-extension adaptive probe — see extprobe.S for the group contract. The
-# file is built norvc, so the ONLY compressed encodings in the image are the
-# two hand-emitted .half words below. Dispatches on misa.C (bit 2 <-
-# ENABLE_COMPRESSED):
-#   * C advertised  -> execute the raw c.li pair, verify the result -> PASS
-#   * C absent      -> fetching the first 16-bit encoding must take the
-#                      illegal-instruction trap (c_dec is if-generated away;
-#                      instr_decomp is tied to the all-zeros illegal opcode).
-#*****************************************************************************
+# VestaRV: C-extension adaptive probe
+# The file is built norvc, so the ONLY compressed encodings in the image are the two hand-emitted .half words below. It dispatches on misa.C, bit 2, which follows ENABLE_COMPRESSED: with C advertised the raw c.li pair executes and its result is verified, and with C absent fetching the first 16-bit encoding must take the illegal-instruction trap, since c_dec is generated away and instr_decomp is tied to the all-zeros illegal opcode. See extprobe.S for the group contract.
 
 #include "riscv_test.h"
 #include "test_macros.h"

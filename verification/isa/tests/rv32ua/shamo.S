@@ -1,44 +1,10 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shamo.S  (M8 — the grant-locking signature test; M12 single-ROM boot rework)
-#-----------------------------------------------------------------------------
-# CROSS-HART AMO ATOMICITY: all four harts run this image. M12: tiles are NO
-# LONGER preloaded — hart 0 stages this TCM image once, launches all three
-# tiles into tile_entry through the bootrom loader (mp_boot.h), then falls
-# through and runs the same body itself. Harts 1-3 hammer 64 amoadd.w
-# increments EACH into one shared counter once launched — a full 3-way AMO
-# contention storm — and hart 0 adds its own 64 under whatever traffic remains
-# and requires the counter to equal EXACTLY 4*64 = 256.
-#
-# An AMO is a read+write TRANSACTION PAIR on the mp_arbiter; without M8
-# grant-locking another master can slip a write between a pair's read and
-# write and the increment is LOST (counter < 256 -> bounded poll expires ->
-# FAIL). Overshoot (> 256) fails explicitly. Hart 0 also runs a deterministic
-# amoswap.w old-value chain on a word nobody else touches, plus a DIRECTED
-# PROBE for the M8 EXECUTE-phase garbage-address bug: an amoadd whose rs1+rs2
-# lands in REGION 4 at a DIFFERENT word (pre-fix, the dispatch-cycle access
-# read THAT word into sh_rdata_reg and AMO_READ consumed it — old value
-# corrupt). NEGATIVE-CONTROL PROVEN both ways: with the vesta.vhd fix disabled
-# the probe FAILS and with it enabled it PASSES. (The swap chain alone CANNOT
-# catch it: amoswap's dispatch ALU is pass-B = the swap DATA, off-region; and
-# small-rs2 amoadds alias into the SAME word.)
-#
-# NO retry loops here — an AMO always completes (that is the point) — so no
-# backoff/livelock machinery is needed, unlike every LR/SC test.
-#
-# Shared-window map (next free was 0x103A0; RAM ends 0x103FF):
-#     CTR     = 0x103A0   (must end EXACTLY NHARTS*64)
-#     SWP     = 0x103A4   (hart 0's private amoswap chain)
-#     PROBE   = 0x103B0   (garbage-address probe; DONE's h=0 slot, unused)
-#     DONE[h] = 0x103B0 + 4*h, h=1..NHARTS-1  (0xA30D0000+h)
-# The probe also READS 0x103D0 (= PROBE + 0x20, the garbage address): that
-# word must never hold 0x22222222 (it is only read, never written, by the
-# probe). At N=18 DONE[8] == 0x103D0 (0xA30D0008 != 0x22222222, so the probe
-# stays valid both fix-present and fix-absent); the array ends at DONE[17] =
-# 0x103F4 (< the 0x103FF window end). CTR/SWP sit below the DONE base.
-# Next free: 0x103C0 (N=4) — but at N=18 the DONE array itself reaches 0x103F4.
-#*****************************************************************************
+# VestaRV: cross-hart AMO atomicity and arbiter grant locking
+# All harts run this image: hart 0 stages it once, launches the tiles through the boot ROM loader, then falls through and runs the same body itself. Each tile hammers 64 amoadd.w increments into one shared counter and hart 0 adds its own 64 under the remaining traffic, and THE COUNTER MUST EQUAL EXACTLY NHARTS*64. An AMO is a read and write TRANSACTION PAIR on the mp_arbiter, so without grant locking another master can slip a write between a pair's read and write and the increment is lost, giving an undercount and a bounded-poll failure; an overshoot fails explicitly.
+# Hart 0 also runs a deterministic amoswap.w old-value chain on a word nobody else touches, plus a DIRECTED PROBE for the EXECUTE-phase garbage-address bug: an amoadd whose rs1 + rs2 lands in the shared region at a DIFFERENT word, which before the fix had the dispatch-cycle access read that word into sh_rdata_reg for AMO_READ to consume, corrupting the old value. THE SWAP CHAIN ALONE CANNOT CATCH IT, because amoswap's dispatch ALU passes the swap data, which is off-region, and small-rs2 amoadds alias into the same word. The probe is negative-control proven both ways.
+# There are NO RETRY LOOPS here, because an AMO always completes, which is the point, so none of the backoff and livelock machinery the LR/SC tests need is present.
+# Shared words: CTR = 0x103A0, which must end at exactly NHARTS*64; SWP = 0x103A4 for hart 0's swap chain; PROBE = 0x103B0; DONE[h] = 0x103B0 + 4*h for h = 1..NHARTS-1, value 0xA30D0000 + h. CTR and SWP sit below the DONE base. The probe also READS PROBE + 0x20 = 0x103D0, the garbage address, and THAT WORD MUST NEVER HOLD 0x22222222, since the probe only reads it; at N=18 DONE[8] lands there with a value that satisfies the constraint, and the array ends at 0x103F4, inside the window.
 
 #include "riscv_test.h"
 #include "test_macros.h"

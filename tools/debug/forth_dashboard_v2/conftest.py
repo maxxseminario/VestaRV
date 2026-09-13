@@ -1,4 +1,4 @@
-"""pytest bootstrap: make the `server` package importable from the repo dir."""
+"""VestaRV: pytest bootstrap making the `server` package importable from the repo directory."""
 import os
 import sys
 

@@ -1,20 +1,10 @@
 #!/usr/bin/env python3
-"""Guard the "THIS LIST MUST STAY IN SYNC" comment on the vesta source order.
+"""VestaRV: keep the four copies of the curated vesta source order in sync.
 
-Four places name the curated vesta source list, and the comments in three of
-them say so out loud:
-
-  opensource_sim/isa/run_isa.sh   SOURCES array          (simulation, Zfinx on)
-  opensource_sim/isa/defs.bzl     VESTA_ISA_RTL          (this bazel port)
-  sky130/synth.sh                 FILES array            (yosys synthesis)
-  sky130/sim/Makefile             VHDL_SOURCES           (cocotb smoke test)
-
-The order is load bearing (three `regfile` entities, two `ClkGate` entities),
-so drift here is a real defect, not a style nit. The two sky130 lists are the
-same sequence MINUS the Zfinx FPU pair, which only the ISA testbench enables;
-that difference is asserted explicitly rather than ignored.
-
-Plain runner: exit 0 means pass. No pytest.
+The list is named by opensource_sim/isa/run_isa.sh, opensource_sim/isa/defs.bzl,
+sky130/synth.sh and sky130/sim/Makefile. Order is load bearing (three regfile entities, two
+ClkGate entities), so drift is a defect. The two sky130 lists are the same sequence minus the
+Zfinx FPU pair, which only the ISA testbench enables; that difference is asserted explicitly.
 """
 
 import re

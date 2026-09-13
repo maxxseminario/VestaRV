@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# VestaRV: remove the metal geometry from a LEF, leaving the abstract.
 import argparse
 
 def removeBetween(string, startKey, endKey, required=False, printout=False):

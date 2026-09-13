@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# VestaRV: emit the Innovus pin-placement file for the myshkin pad ring.
+# Geometry is in micrometres on a 0.005 grid; a path whose edge lands off grid raises.
+# Pad terminal offsets are counter-clockwise, taken from the tphn65pgpv2od3_sl cells.
 
 # Global constants
 outputFile = '../innovus/myshkin/in/MCU.io'

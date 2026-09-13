@@ -1,13 +1,7 @@
 # See LICENSE for license details.
-#*****************************************************************************
-# extzcmt.S   (X3 Zcmt ext-probe — cm.jt encoding)
-#   ON  (#ifdef CORE_ENABLE_ZCMT): build a jvt, csrw jvt, fence.i, cm.jt to a
-#       target and confirm control reached it -> PASS.
-#   OFF (#else, extoff POISON): the cm.jt encoding executed unconditionally MUST
-#       take the illegal-instruction trap (C2 funct3=101 reserved without Zcmt).
-#       Reached-past -> FAIL. Wired ONLY into run_extoff.sh. (The jvt-CSR-access
-#       trap has its own poison, extjvt.S.)
-#*****************************************************************************
+
+# VestaRV: Zcmt cm.jt encoding probe
+# With CORE_ENABLE_ZCMT defined the test builds a jump-vector table, writes jvt, issues fence.i, executes cm.jt to a target and confirms control reached it. Without it the cm.jt encoding executes unconditionally and MUST take the illegal-instruction trap, since C2 funct3 = 101 is reserved without Zcmt, and reaching past it is a FAIL; that arm is wired ONLY into run_extoff.sh. The jvt CSR access has its own poison in extjvt.S.
 #include "riscv_test.h"
 #include "test_macros.h"
 .option norvc

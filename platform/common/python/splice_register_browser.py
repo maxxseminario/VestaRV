@@ -1,32 +1,10 @@
 #!/usr/bin/env python3
-"""splice_register_browser.py -- inject out/web/MemoryMap.json into the register
-browser page between its splice markers. This is the repair tool for the
-tools/python/check_register_browser.py provenance gate (the K7/F-K5-2 lesson:
-a gate the project's own tooling cannot satisfy strands the first person to
-move the schema -- see the `web` target in platform/common/Makefile).
+"""VestaRV: inject out/web/MemoryMap.json into the register browser between its splice markers.
 
-The page declares an inline region inside <script id="regdata"
-type="application/json">:
-
-    /*VESTA_REGDATA_BEGIN*/ ... /*VESTA_REGDATA_END*/
-
-and this tool replaces everything between those markers with the current
-generator output, so the page never carries a hand-maintained second copy of
-the memory map.
-
-Usage:
     python3 python/splice_register_browser.py [--data out/web/MemoryMap.json] TARGET.html
-    python3 python/splice_register_browser.py --check TARGET.html   # up to date?
+    python3 python/splice_register_browser.py --check TARGET.html
 
-Contract / guarantees:
-  * Markers are matched ONLY at the start of a line. The page's loader JS
-    contains both tokens again inside string literals (the strip step at parse
-    time); those mid-line occurrences are data, not markers, and are ignored.
-  * IDEMPOTENT: splicing the same data twice produces the identical file.
-  * Exit 0 on success; non-zero if the markers are missing or (with --check)
-    the region is stale.
-
-Python 3.6 compatible; no external deps.
+Markers match only at line start: the loader JS holds both tokens mid-line as data.
 """
 
 import io

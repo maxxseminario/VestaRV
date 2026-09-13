@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# VestaRV: load a program into the chip over the rv4th Forth REPL on UART.
 
 import sys
 import os

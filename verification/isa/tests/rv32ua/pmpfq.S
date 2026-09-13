@@ -1,104 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# pmpfq.S   (K4 R-DK1 row A3 -- F5.5: the is_compressed latch's EXPOSED PATH)
-#-----------------------------------------------------------------------------
-# F5.5 is the last unreached item of the F-series residue list
-# (`method_rules.md` §5: "the `is_compressed` inferred latch -- exposed only in
-# an ENABLE_PMP build").  vesta.vhd states the exposure in its own words
-# (re-grepped at ac8b40a; every line number in every document is stale):
-#
-#     the ONLY reader is `instr_to_decomp`, qualified `EXECUTE and pc(1)='1'
-#     and repeat_if='0'`; the value is OBSERVABLE only when `instr_curr`
-#     selects `instr_decomp`, i.e. additionally `quadrant_upper /= "11"` ...
-#     EXCEPT on one path: the hoisted PMP instruction-access-fault arm, which
-#     does NOT assign is_compressed and can run with pc(1)='1', repeat_if='0',
-#     quadrant_upper /= "11".
-#
-# So the shape needs FOUR things at once, and this file constructs three of
-# them by layout and inherits the fourth from the RTL:
-#
-#   ENABLE_PMP        the build (tag `pmp umode trapCsr atomics`)
-#   pmp_f_deny_r='1'  a PMP-denied INSTRUCTION fetch
-#   pc(1)='1'         the denied fetch's PC is an ODD halfword
-#   repeat_if='0'     we arrive by a JUMP, not by a straddle completion --
-#                     which is what makes this a DIFFERENT shape from
-#                     pmprt6.S, whose fault is on the UPPER half of a
-#                     straddling instruction and therefore has repeat_if='1'
-#   quadrant_upper/="11"   NOT constructible from software: on a denied fetch
-#                     `pmp_if_park` re-aims the fetch at PC_RST_VAL, so the
-#                     word the decode sees is the boot ROM's word 0 =
-#                     0xF14022F3 (`csrr t0, mhartid`), whose bits 17:16 are
-#                     "00".  DERIVED, not calibrated -- and MEASURED rather
-#                     than argued by the W_F55_EXPOSED witness in
-#                     verification/formal/core_pmp_witness.psl.
-#
-# THE GEOMETRY.  entry0 fences ONE word (NA4, no permissions); the jump lands
-# on the ODD halfword INSIDE it, so the very first fetch after the jump is the
-# denied one:
-#
-#     B+0    j f55_odd            32-bit, permitted word
-#     B+4    <-- THE FENCED WORD (NA4, no permissions)
-#     B+4    c.nop                never fetched
-#     B+6    c.li s11, 7          <-- THE TARGET.  Must NEVER execute.
-#     B+8    c.nop                permitted word; the handler resumes here
-#     B+10   c.li s10, 5          a COMPRESSED instruction at an ODD halfword,
-#                                 executed AFTER the fault -- the post-fault
-#                                 decode check (pmprt6's check-14 idiom)
-#     B+12   la s7, fq_uexit      (auipc+addi, 8 bytes) re-aim the resume point
-#     B+20   lw t3, 4(s2)         a DATA read INTO the fenced word: the D5
-#                                 load/store arm, cause 5, mtval = B+4
-#     B+24   ecall                back to M
-#
-# WHAT IS UNDER TEST
-#   (a) the fault fires on this shape at all, with cause 1;
-#   (b) mepc = mtval = B+6.  The denied fetch's address IS the faulting PC
-#       here (unlike pmprt6, where mepc=B+2 and mtval=B+4), because
-#       pmp_f_addr_r takes pc_next and the jump made pc_next = B+6;
-#   (c) the denied instruction COMMITTED NOTHING: s11 stays 0;
-#   (d) the next compressed instruction at an odd halfword still decodes as
-#       itself (s10 = 5) -- i.e. the trap left no decode residue;
-#   (e) THE D5 ARM ITSELF: a denied LOAD raises cause 5 with mtval = the
-#       byte-precise data address.  This leg exists so ONE test drives both
-#       PMP denial arms -- it is the stimulus the D5 suppression property
-#       (verification/formal/core_pmp_props.psl) needs, and without it that
-#       property's data-side witness cannot fire and its green is
-#       uninterpretable (R-S4-2's standing rule).
-#
-# WHAT THIS FILE DOES NOT PROVE, and no a0-watching test can:
-# that the HELD `is_compressed` value is harmless.  The arm's trap observables
-# are decode-INDEPENDENT (mtrap_disp_code's first arm is x"1" gated on
-# pmp_f_deny_r, mtrap_disp_val is pmp_f_addr_r, mepc is pc), and the held value
-# reaches only `instr_curr_prev`.  This file's honest claim is "the exposed
-# path is EXERCISED and the architectural result is correct" -- never "the
-# latch is harmless".  That needs the clocked property, which is why
-# verification/formal/core_pmp_props.psl exists.
-#
-# BOUNDEDNESS: the U fragment is straight-line into `ecall`, and the handler
-# BAILS to M after 8 traps, so a mis-decoded instruction cannot loop.
-#
-# Compressed encodings are raw `.half` words (the extrvc/pmprt6 idiom) so the
-# file can stay `.option norvc` and the layout is byte-exact:
-#   0x0001 = c.nop     0x4D9D = c.li s11, 7     0x4D15 = c.li s10, 5
-#
-# VERDICT CODES (a1 at the failure):
-#   0x0F550001  an mtvec / mtrapctl / pmpcfg precondition failed
-#   0x0F550002  the fenced word is not where the layout says it is
-#   0x0F550003  the jump target is not 4n+2 -- the layout moved
-#   0x0F550010  no fault fired at all: the shape was never entered
-#   0x0F550011  wrong cause (expected 1, instruction access fault)
-#   0x0F550012  wrong mepc  (expected B+6)
-#   0x0F550013  wrong mtval (expected B+6)
-#   0x0F550014  s11 != 0: THE DENIED INSTRUCTION EXECUTED
-#   0x0F550015  s10 != 5: the post-fault odd-halfword decode is corrupted
-#   0x0F550016  wrong total trap count
-#   0x0F550020  the denied LOAD did not fault (the D5 arm never fired)
-#   0x0F550021  wrong cause on the denied load (expected 5)
-#   0x0F550022  wrong mtval on the denied load (expected B+4)
-#   0x5E10BAD0  built on the wrong polarity
-#
-# SHARED WORDS CLAIMED: NONE.  Single hart, TCM and CSRs only.
-#*****************************************************************************
+# VestaRV: PMP instruction-fault on an odd-halfword fetch, the is_compressed exposed path
+# ON-ONLY, needing a pmp, umode, trapCsr build. The is_compressed inferred latch is observable only when instr_curr selects instr_decomp, EXCEPT on one path: the hoisted PMP instruction-access-fault arm, which does not assign is_compressed and can run with pc(1) = '1', repeat_if = '0' and quadrant_upper /= "11". Four things must hold at once, and this file constructs three of them by layout: a PMP-denied INSTRUCTION fetch, a denied PC on an ODD halfword, and arrival by a JUMP rather than a straddle completion, so repeat_if is 0, which is what makes this a different shape from pmprt6.S, whose fault is on the upper half of a straddling instruction. THE FOURTH IS NOT CONSTRUCTIBLE FROM SOFTWARE: on a denied fetch pmp_if_park re-aims the fetch at PC_RST_VAL, so the decode sees the boot ROM's word 0, 0xF14022F3, whose bits 17:16 are "00". That is derived, not calibrated, and is measured by the W_F55_EXPOSED witness in verification/formal/core_pmp_witness.psl.
+# THE GEOMETRY, with entry 0 fencing ONE word NA4 with no permissions and the jump landing on the ODD halfword inside it, so the very first fetch after the jump is the denied one: B+0 `j f55_odd`, a 32-bit permitted word; B+4 THE FENCED WORD, holding a c.nop that is never fetched; B+6 `c.li s11, 7`, THE TARGET, which must never execute; B+8 c.nop, permitted, where the handler resumes; B+10 `c.li s10, 5`, a compressed instruction at an odd halfword executed after the fault; B+12 `la s7, fq_uexit`, 8 bytes, re-aiming the resume point; B+20 `lw t3, 4(s2)`, a DATA read into the fenced word; B+24 `ecall` back to M.
+# Under test: that the fault fires on this shape at all with cause 1; that mepc = mtval = B+6, since pmp_f_addr_r takes pc_next and the jump made pc_next = B+6, unlike pmprt6 where the two differ; that the denied instruction COMMITTED NOTHING, so s11 stays 0; that the next compressed instruction at an odd halfword still decodes as itself, so s10 = 5 and the trap left no decode residue; and the load arm, where a denied load raises cause 5 with mtval the byte-precise data address. THAT LOAD LEG EXISTS SO ONE TEST DRIVES BOTH DENIAL ARMS: it is the stimulus the suppression property in verification/formal/core_pmp_props.psl needs, and without it that property's data-side witness cannot fire and its green is uninterpretable.
+# WHAT THIS FILE DOES NOT PROVE, and no a0-watching test can: that the HELD is_compressed value is harmless. The arm's trap observables are decode-independent and the held value reaches only instr_curr_prev, so the honest claim is that the exposed path is exercised and the architectural result is correct, never that the latch is harmless. That needs the clocked property.
+# Compressed encodings are raw `.half` words, so the file can stay `.option norvc` and the layout is byte-exact: 0x0001 is c.nop, 0x4D9D is `c.li s11, 7` and 0x4D15 is `c.li s10, 5`. Boundedness: the U fragment is straight-line into `ecall` and the handler bails to M after 8 traps, so a mis-decoded instruction cannot loop.
+# Verdict codes in a1: 0x0F550001 an mtvec, mtrapctl or pmpcfg precondition failed; 0x0F550002 the fenced word is not where the layout says; 0x0F550003 the jump target is not 4n+2, so the layout moved; 0x0F550010 no fault fired at all; 0x0F550011 wrong cause; 0x0F550012 wrong mepc; 0x0F550013 wrong mtval; 0x0F550014 s11 is nonzero, so THE DENIED INSTRUCTION EXECUTED; 0x0F550015 s10 is not 5, so the post-fault odd-halfword decode is corrupted; 0x0F550016 wrong total trap count; 0x0F550020 the denied load did not fault; 0x0F550021 wrong cause on the denied load; 0x0F550022 wrong mtval on it; 0x5E10BAD0 built on the wrong polarity. No shared words are claimed: single hart, TCM and CSRs only.
 
 #include "riscv_test.h"
 #include "test_macros.h"

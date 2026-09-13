@@ -1,109 +1,13 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shorch.S  (CPR4 REWRITE — Castalia-Penta ORCHESTRATOR test, hart-0 shape)
-#-----------------------------------------------------------------------------
-# ORCHESTRATOR-ONLY test (verify_stage tags `tiles cqAfeStubs orch`). shafe.S is
-# its N<=4 ancestor and is deselected on this config by the `harts_le4`
-# structural tag (its per-hart stub addressing has no site for a fifth hart).
-# This file is NOT the tape-out-config orchestrator test: the AFE/EIS stub bank
-# is dropped on the tape-out configuration, so `shtcm` -- which keys on the TCM
-# apertures, and those exist wherever the orchestrator does -- carries that duty.
-#
-# WHAT CPR3/R2 INVERTED, AND WHY THE CP3 VERSION HAD TO BE REWRITTEN RATHER
-# THAN RE-TAGGED. The CP2/CP3 shape put the orchestrator at hart NHARTS-1, made
-# hart 0 a plain CHANNEL that had LOST the fabric privilege, and carried the
-# privilege in afe_stub's MGMT_HART generic. Every one of those is now false:
-#   * THE MANAGEMENT HART IS HART 0, in both chip shapes, so `MGMT_HART` is
-#     never overridden again (the entity default 0 is correct everywhere) and
-#     the privilege is once more the literal `s_master = 0`.
-#   * The four AFE sites belong to the four TILES: hart h owns
-#     AFE0 + 0x40*(h-1), h = 1..4. The orchestrator has NO site of its own —
-#     it has REACH INTO ALL OF THEM.
-#   * EIS (OWNER_HART => 0) is hart-0's own engine and is denied to every tile.
-#   * The IRQ relay comes home: sources 55 (OR of the four AFE IFs) and 56
-#     (EIS) route to HART 0's own irq_router row, and hart 0 demuxes by reading
-#     all four AFE IF words — the management privilege exercised in the IRQ
-#     path — then msips the owner.
-#   * THE NEGATIVE CONTROL THEREFORE INVERTS. In the CP3 file hart 0 was the
-#     denied prober; here a TILE is, and hart 0 is the one master that can look
-#     at what the tiles could not touch. Running this file against MGMT_HART=4
-#     RTL fails at CHECK A2-h, which is the point.
-#
-# HART 0 IS THREE ROLES IN ONE HART NOW (CPR3/R2): the launcher (it is the boot
-# master), the manager (the only master the AFE bank and EIS answer in full),
-# and the testbench a0 gate. The tiles report through a0_1..a0_4 (emitted and
-# monitored). It is deliberately NOT a channel — a hart cannot be both the
-# subject and the sole judge of a privilege test.
-#
-# NEGATIVE CONTROL (a test that cannot fail its negative control is not a
-# test). Two halves, and the second is what makes the first load-bearing:
-#   (a) DENIAL: every TILE reads a FOREIGN tile's stub +8 and MUST read 0, then
-#       writes POISON there. The victim populated that word with a distinct
-#       nonzero pattern at A1, so a 0 read proves the GATE, not an empty
-#       register. Victims rotate n = h+1 wrapped into 1..4 — never the tile
-#       itself. Each tile also probes EIS +8 (seeded nonzero by hart 0, and
-#       hart-0-only) and poisons it, then re-reads its OWN +8 to prove no
-#       foreign poison landed on it.
-#   (b) MANAGEMENT READ-BACK: hart 0 — the only master that can see all five
-#       blocks — walks AFE0..3 +8 and EIS +8 and asserts every word still holds
-#       its OWNER's pattern. A dropped write is only proven by someone who can
-#       look. Hart 0 additionally reads NEGRPT (published by TILE 1 with the
-#       poison it attempted) and FAILs if it is zero: a vacuous negative
-#       control — one where no poison was ever written — cannot pass this file.
-#
-# PHASES (barriers: PHASE and TURN are both hart-0-owned now — the manager and
-# the relay are the same hart)
-#   A1  populate. Hart 0 seeds EIS +8 and opens GO. Tiles 1-4 populate their
-#       own AFE (config +1..6 and scratch +8..F = PAT_BASE|h<<8|reg, each read
-#       back — no two (hart,reg) values alias, so a leak cannot hide) and mark
-#       DONE[h]=A1. Hart 0 gathers, then PHASE=1.
-#   A2  deny (negative control half (a)). Every tile probes as above; tile 1
-#       also publishes NEGRPT. Tiles mark DONE[h]=A2; hart 0 gathers.
-#   A3  management walk (hart 0, negative control half (b) + privilege proof).
-#       Read AFE n +8 == owner pattern for n=0..3, write AFE n +15 and read
-#       back (management WRITE reach), EIS +8 == seed, EIS +9 write/read-back,
-#       NEGRPT nonzero. Then program H0ENM (0x7000 + 4) with sources 55/56 and
-#       open PHASE=2.
-#   B   msip relay (hart 0 = the relay; one owner round per TILE, h=1..4).
-#       Hart 0 sets TURN=h; owner h soft-fires its AFE IF via CTRL bit 0
-#       (raising afe_eis_irq(h-1) -> source 55) and SLEEPS on the very next
-#       instruction. Hart 0 takes meip -> CLAIM -> IVT slot 55 -> the source-55
-#       handler, which reads the four AFE IF words to demux, W1C-clears the
-#       fired IF (drops the LEVEL before the dispatcher COMPLETEs — a still-high
-#       level would re-pend) and msips the owner. The owner's slot-83 CLINT ISR
-#       clears its msip level, ignites (so iret resumes MAINLINE on a sleeping
-#       hart) and irets; the owner records DONE[h]=B. Hart 0 waits for it and
-#       verifies that AFE's IF really cleared. Finally hart 0 self-fires EIS
-#       (source 56) and its handler W1C-clears EIS IF + sets a private flag.
-#       RACE (same guarantee as shwfi/shafe): the owner extinguishes ONE
-#       private instruction after its IF store, while hart 0's msip needs the
-#       whole meip+claim+four-reads path AFTER that store lands — the owner is
-#       always asleep before its msip arrives.
-#
-# CLINT ADDRESSES ARE DERIVED FROM NHARTS (K5 precedent, CP1 D7): the msip
-# array is 4*NHARTS bytes and mtime starts at 0x5000 + roundup16(4*NHARTS), so
-# at NHARTS=5 mtime is 0x5020, NOT 0x5010. This file only touches MSIP[h] =
-# 0x5000 + 4h (N-agnostic), but never hardcodes a 0x5010-class constant.
-#
-# Shared-word ledger (CP3 band, UNCHANGED at CPR4 — only the OWNERS of two of
-# the words move; all < 0x10500, arrays 4*NHARTS so a bigger N cannot overrun
-# the control words):
-#     GO      = 0x104A0                  tiles may start A1
-#     DONE[h] = 0x104A4 + 4*h            per-tile phase progress (N=5: ..0x104B4)
-#     PHASE   = 0x104A4 + 4*NHARTS       hart-0 phase barrier    (N=5: 0x104B8)
-#     TURN    = PHASE + 4                hart-0 owner round      (N=5: 0x104BC)
-#     NEGRPT  = PHASE + 8                poison a TILE attempted (N=5: 0x104C0)
-#   (next free shared word 0x104C4 at N=5; the block is shared with shafe's
-#    N=18 tail, which is benign and unreachable — shorch selects only on an
-#    orchestrator config and shafe only at numHarts <= 4, so they can never
-#    coexist, and tests run one image per sim anyway.)
-#
-# No smclk-domain peripheral is touched (AFE/EIS/CLINT/irq_router are all
-# mclk), so the bootrom SMCLK->LFXT trap does not apply. Bounded waits 20000
-# (100000 for the first gather, which covers the tiles' ROM copy) all trip
-# inside the 100 ms tb watchdog.
-#*****************************************************************************
+# VestaRV: orchestrator privilege test over the AFE and EIS stub bank
+# Orchestrator-only (verify_stage tags `tiles cqAfeStubs orch`), so it is not the tape-out-configuration orchestrator test: the stub bank is dropped there, and shtcm carries that duty by keying on the TCM apertures instead.
+# THE MANAGEMENT HART IS HART 0 in both chip shapes, so MGMT_HART is never overridden and the privilege is the literal s_master = 0. The four AFE sites belong to the four TILES, hart h owning AFE0 + 0x40*(h-1) for h = 1..4; the orchestrator has no site of its own, only reach into all of them. EIS is hart 0's own engine and is denied to every tile. Sources 55 (the OR of the four AFE IF lines) and 56 (EIS) route to hart 0's own router row, and hart 0 demuxes by reading all four AFE IF words, then msips the owner. Running this file against MGMT_HART = 4 RTL fails at check A2-h, which is the point.
+# Hart 0 is three roles in one hart: boot master, management hart and the tb a0 gate. It is deliberately NOT a channel, because a hart cannot be both the subject and the sole judge of a privilege test; the tiles report through a0_1..a0_4.
+# NEGATIVE CONTROL, in two halves, the second of which makes the first load-bearing. (a) Each tile reads a foreign tile's stub +8, which MUST read 0, then writes poison there; the victim populated that word with a distinct nonzero pattern at A1, so a 0 read proves the gate rather than an empty register. Victims rotate n = h+1 wrapped into 1..4, never the tile itself, and each tile also probes and poisons EIS +8 before re-reading its own +8. (b) Hart 0 then walks AFE0..3 +8 and EIS +8 and requires every word to still hold its owner's pattern, and requires NEGRPT, the poison tile 1 attempted, to be nonzero: a vacuous negative control in which no poison was ever written cannot pass this file.
+# Phases: A1 populate (hart 0 seeds EIS +8 and opens GO, tiles fill their own AFE config +1..6 and scratch +8..F with PAT_BASE|h<<8|reg so no two (hart, reg) values alias); A2 deny; A3 management walk plus the write-reach check, then program H0ENM at 0x7004 with sources 55 and 56; B msip relay, one owner round per tile through TURN. In B the owner soft-fires its IF and sleeps on the very next instruction, while hart 0's handler needs the whole meip, claim and four-read path after that store lands, so the owner is always asleep before its msip arrives. The handler W1C-clears the fired IF BEFORE the dispatcher completes, since a still-high level would re-pend.
+# CLINT addresses are derived from NHARTS: the msip array is 4*NHARTS bytes and mtime starts at 0x5000 + roundup16(4*NHARTS), so at NHARTS = 5 mtime is 0x5020 and a hardcoded 0x5010 would be wrong. Only MSIP[h] = 0x5000 + 4h is used here.
+# Shared words, all below 0x10500, with the arrays sized 4*NHARTS so a bigger N cannot overrun the control words: GO = 0x104A0, DONE[h] = 0x104A4 + 4*h, PHASE = 0x104A4 + 4*NHARTS, TURN = PHASE + 4, NEGRPT = PHASE + 8. Nothing smclk-domain is touched, so the boot ROM's SMCLK-to-LFXT trap does not apply. Bounded waits are 20000, or 100000 for the first gather, which covers the tiles' ROM copy, and all trip inside the 100 ms tb watchdog.
 
 #include "riscv_test.h"
 #include "test_macros.h"

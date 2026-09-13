@@ -1,4 +1,4 @@
--- Two-flop clock-domain-crossing synchronizer for a single bit.
+-- VestaRV: two-flop clock-domain-crossing synchronizer for a single bit
 -- Sync1 is the first stage and may still be metastable; only Sync2 is safe to use as data.
 library ieee;
 use ieee.std_logic_1164.all;

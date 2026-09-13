@@ -1,38 +1,9 @@
-# The TRM PDF build.
+# VestaRV: the TRM PDF build.
 #
-# WHY THIS PACKAGE IS HERE AND NOT AT //platform/common/latex.
-# //platform/common globs latex/*.tex, latex/figures/**, latex/matplotlib/**,
-# latex/PeripheralIntroductions/*.tex and latex/TRM/include/*_man.tex into its
-# own filegroups.  A BUILD file at platform/common/latex/ would cut latex/ out
-# of that package and break every one of those globs.  A BUILD file one level
-# down, in latex/bazel/, is crossed by none of them, so the PDF targets live
-# here instead.
-#
-# TWO BUILD PATHS, ONE RECIPE.
-#   smoke/:smoke     hermetic, vendored TeX Live from bazel_latex.  Proves the
-#                    toolchain runs on this host.  Cannot build the TRM itself
-#                    (see the two blockers below).  It sits in its own package
-#                    so that its load-time dependency on the autoload flag does
-#                    not reach the targets here.
-#   :trm_pdf_local   the real TRM, built with the HOST TeX the Makefile finds.
-#                    Tagged manual/local/no-sandbox: it reads a TeX Live install
-#                    outside the sandbox and so is a bench target, not a CI one.
-#
-# WHY THE TRM IS NOT ON THE HERMETIC PATH.
-# 1. Engine.  bazel_latex hardcodes lualatex (latex.bzl sets _engine to
-#    luahbtex and its engine map holds no other entry).  The TRM is a pdflatex
-#    document and the whole publish gate is a byte-diff against pdflatex output,
-#    which lualatex cannot reproduce.  The vendored TeX Live does ship a pdftex
-#    binary, so an adapter is possible, but it would have to rebuild the format
-#    file and the environment that bazel_latex builds for lualatex.
-# 2. Packages.  bazel_latex curates 153 latex_package targets.  The TRM loads 45
-#    packages, of which 21 have no such target: acronym, bm, bytefield,
-#    circuitikz, cite, epstopdf, floatrow, fontenc, hhline, inconsolata,
-#    libertine, libertinust1math, lipsum, ltablex, mathrsfs, mathtools,
-#    multirow, rotating, svg, textcomp and tikz-timing.  The .sty files are all
-#    present in the vendored texmf tree; what is missing is the dependency
-#    closure each latex_package wrapper encodes, plus the font map and Type 1
-#    font directories that libertine and inconsolata need.
+# The package sits at latex/bazel/ because a BUILD file at platform/common/latex/ would cut
+# latex/ out of //platform/common and break its globs. smoke/:smoke is hermetic, vendored TeX
+# Live, and proves the toolchain runs; :trm_pdf_local builds the real TRM with the host TeX,
+# tagged manual/local/no-sandbox. bazel_latex hardcodes lualatex, so the TRM is not hermetic.
 
 load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 
@@ -51,9 +22,7 @@ exports_files([
 # Keep this in step with PUBLISH_PDF in platform/common/Makefile.
 PUBLISHED_TRM_PATH = "implementations/asic/castalia/docs/TRM.pdf"
 
-# ---------------------------------------------------------------------------
 # The local (host TeX) PDF build.
-# ---------------------------------------------------------------------------
 
 # The Bazel port of the Makefile's `pdf` recipe: stage the tree, drop the stale
 # auxiliary files, three pdflatex passes with SOURCE_DATE_EPOCH pinned.
@@ -90,9 +59,7 @@ genrule(
     tools = [":build_trm_pdf"],
 )
 
-# ---------------------------------------------------------------------------
 # Gates over the built PDF.
-# ---------------------------------------------------------------------------
 
 # The Makefile's `check-publish`: is the committed TRM the PDF the current
 # sources produce, or is it stale?
@@ -149,9 +116,7 @@ py_test(
     ],
 )
 
-# ---------------------------------------------------------------------------
 # Bench entry points.
-# ---------------------------------------------------------------------------
 
 # The same three scripts, reachable with `bazel run` against the WORKTREE's
 # latex/TRM/ tree instead of the generated one.  That tree is generator output

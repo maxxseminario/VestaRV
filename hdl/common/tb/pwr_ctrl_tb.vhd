@@ -219,7 +219,7 @@ begin
         field_detect <= '0';
         do_reset;
 
-        -- === 1. backward-compat: reset is a no-op, PWRCR gates and wakes ======
+        -- 1. backward-compat: reset is a no-op, PWRCR gates and wakes
         check(pgood_rstn = '1', "1: pgood_rstn not released after reset");
         bus_read(PWRCR, rd);
         check(rd = x"00000000", "1: PWRCR not 0 at reset");
@@ -246,7 +246,7 @@ begin
         check(pd_sleep(1)  = '0', "1: pd_sleep(1) not released");
         check(pd_rstn(1)   = '1', "1: pd_rstn(1) not released");
 
-        -- === 2. strap sample, latch-once =====================================
+        -- 2. strap sample, latch-once
         strap_pad    <= '1';
         pgood_pad    <= '0';
         field_detect <= '0';
@@ -263,7 +263,7 @@ begin
         check(rd(B_STRAP)     = '1', "2: STRAP cleared on pad drop (not one-shot)");
         check(rd(B_BOOT_HOLD) = '1', "2: BOOT_HOLD released without PGOOD");
 
-        -- === 3. self-arm release + brownout re-hold ==========================
+        -- 3. self-arm release + brownout re-hold
         pgood_pad <= '1';          -- PGOOD arrives, so the self-armed gate should release
         tick(6);
         bus_read(PWRSTS, rd);
@@ -279,7 +279,7 @@ begin
         bus_read(PWRSTS, rd);
         check(rd(B_BOOT_HOLD) = '0', "3: BOOT_HOLD not released on PGOOD return");
 
-        -- === 4. software-arm path (no strap) =================================
+        -- 4. software-arm path (no strap)
         strap_pad    <= '0';
         pgood_pad    <= '0';
         field_detect <= '0';
@@ -300,7 +300,7 @@ begin
         check(rd(B_BOOT_HOLD)   = '0', "4: one-shot re-held on PGOOD drop");
         check(rd(B_RLS_LATCHED) = '1', "4: RLS_LATCHED lost after drop");
 
-        -- === 5. negctrl: disabled source does not release ====================
+        -- 5. negctrl: disabled source does not release
         strap_pad    <= '0';
         pgood_pad    <= '0';
         field_detect <= '0';
@@ -317,7 +317,7 @@ begin
         bus_read(PWRSTS, rd);
         check(rd(B_BOOT_HOLD) = '0', "5: enabled field did not release");
 
-        -- === 6. negctrl: armed gate with no release source holds =============
+        -- 6. negctrl: armed gate with no release source holds
         strap_pad    <= '0';
         pgood_pad    <= '0';
         field_detect <= '0';
@@ -337,7 +337,7 @@ begin
         check(rd(B_BOOT_HOLD) = '0', "6: SW_RELEASE did not release");
         check(pgood_rstn = '1', "6: pgood_rstn not released by SW_RELEASE");
 
-        -- === 7. PWRWAKE readback + reserved words ============================
+        -- 7. PWRWAKE readback + reserved words
         strap_pad <= '0';
         pgood_pad <= '1';
         do_reset;
@@ -361,7 +361,7 @@ begin
             check(rd = x"00000000", "7: PWRSR word above NSRW not 0");
         end if;
 
-        -- === 8. boot-gate / tile-FSM independence ============================
+        -- 8. boot-gate / tile-FSM independence
         strap_pad    <= '0';
         pgood_pad    <= '1';
         field_detect <= '0';
@@ -385,7 +385,7 @@ begin
         bus_read(PWRSTS, rd);
         check(rd(B_BOOT_HOLD) = '0', "8: tile activity disturbed the boot gate");
 
-        -- === 9. task-wake tap ================================================
+        -- 9. task-wake tap
         strap_pad    <= '0';
         pgood_pad    <= '1';
         field_detect <= '0';
@@ -523,7 +523,7 @@ begin
         check(rd(B_RLS_LATCHED) = '0', "9f: RLS_LATCHED disturbed by task_wake pulses");
         bus_write(TASKWKM, x"00000000", "1111");       -- clean up
 
-        -- === 10. PWRCR readback and the byte-lane qualifier ==================
+        -- 10. PWRCR readback and the byte-lane qualifier
         -- Section 9a proves TASKWKM; PWRCR is the same field and had no readback
         -- case at all. The lane cases are the other half of "every write in this
         -- block is byte-lane-0 qualified, so software uses full-word stores":
@@ -596,7 +596,7 @@ begin
             end loop;
         end if;
 
-        -- === verdict =========================================================
+        -- verdict
         tick(2);
         if fails = 0 then
             report "ALL TESTS PASSED" severity note;

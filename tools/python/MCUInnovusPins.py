@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# VestaRV: the MCU pin order Innovus places the pad ring from.
+# Rows are [name, pin count, optional reversed flag], listed clockwise from the left edge.
 
 pinsForBiasGen = [	# [name, number of pins, (optionally reversed boolean)]
 	# From left to right (cw)

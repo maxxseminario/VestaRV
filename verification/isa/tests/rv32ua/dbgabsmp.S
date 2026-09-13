@@ -1,118 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# dbgabsmp.S   (D-series, D2 -- ABSTRACT COMMANDS: GPR, CSR, progbuf memory,
-#               postexec, and the EXCEPTION cmderr)
-#-----------------------------------------------------------------------------
-# BLIND-AUTHORED against d2_spec.md sections 3-4, FROZEN 2026-08-05, by an agent
-# that has not seen and will never see the D2 implementation.  Committed
-# polarity: CORRECT RTL = PASS (R-K5-8).
-#
-# NEEDS A HARNESS:  ./xrun_dbg.sh rv32ua-p-dbgabsmp dbg_abs.tcl
-#
-# ---------------------------------------------------------------------------
-# THE SHAPE OF THE PROOF, AND WHY IT IS TWO-SIDED
-#   An abstract command has two observable faces and a DM can get one right
-#   while getting the other wrong:
-#     * the DMI face -- data0 comes back with the right value, cmderr is 0,
-#       busy cleared.  The harness checks that half (dbg_abs.tcl, A-checks).
-#     * the ARCHITECTURAL face -- the victim's register file and memory really
-#       changed, and really did NOT change in any other way.  A DM that
-#       answers data0 from a cache, or that writes the wrong register, or that
-#       leaves the hart's state mangled, passes the DMI face.
-#   This file is the architectural face.  The victim sets up known state,
-#   parks, is worked on by the debugger, is resumed, and then READS BACK its
-#   OWN state with ordinary instructions and publishes what it found.  hart 0
-#   grades it.  Neither half is redundant, and neither can be forged by the
-#   other.
-#
-# THE FIVE THINGS BEING PROVED, and the code that proves each
-#   1. ABSTRACT GPR READ.  The victim leaves s1 = GPR_MAGIC before parking.
-#      The harness abstract-reads x9 and must get GPR_MAGIC.  After the
-#      resume, the victim publishes s1 AGAIN: an abstract READ must not be
-#      destructive, and OBS_S1 is what catches a DM whose dscratch save/
-#      restore drops a register.
-#   2. ABSTRACT GPR WRITE.  s2 starts at 0.  The harness abstract-writes
-#      x18 = ABS_WR_MAGIC.  The victim publishes s2 after resume.
-#   3. ABSTRACT CSR READ+WRITE.  mscratch (0x340) starts at CSR_MAGIC; the
-#      harness reads it, then writes CSR_WR_MAGIC; the victim publishes what
-#      it reads back.  mscratch is chosen because it is architecturally inert
-#      -- writing it cannot perturb anything else the test depends on.
-#   4. PROGBUF MEMORY ROUND TRIP -- DD5's memory answer, exercised.  There is
-#      no access-memory abstract command on this chip (cmdtype 2 returns
-#      NOT_SUPPORTED by design), so a debugger moves memory by loading a
-#      program buffer with `lw`/`sw` and running it on the hart.  The harness
-#      points a6/a7 at MEM_SRC/MEM_DST by abstract GPR writes, loads progbuf0
-#      = lw / progbuf1 = sw, and issues a POSTEXEC command.  MEM_DST must
-#      contain MEM_MAGIC afterwards -- and the victim reads it back in band,
-#      so the word really landed in the shared RAM the hart sees and not just
-#      in the DM.
-#      NOTE this also exercises impebreak: progbufsize is 2 and the sequence
-#      needs a third word to return, which is the implicit ebreak's whole job.
-#   5. THE EXCEPTION cmderr.  An abstract read of an unimplemented CSR must
-#      set cmderr = EXCEPTION and leave the hart HALTED -- not wedged, not
-#      resumed, not silently zero.  The harness checks cmderr and re-reads
-#      dmstatus; this file's contribution is that everything AFTER it still
-#      works, which is the real requirement: a hart that survives a debug-mode
-#      exception must still answer the next abstract command and must still
-#      resume.  So the exception leg is issued BEFORE the resume, and a
-#      correct run reaches DONE anyway.
-#
-# THE VICTIM'S PARK, and the register discipline it needs
-#   The victim spins reading the shared word REL, which the HARNESS plants
-#   (a forced shared word -- the measured mechanism; see dbg_bfm.tcl).  The
-#   loop body recomputes its address with `li` every round and holds no live
-#   register, so the debugger's visits -- which clobber t-registers, a6, a7
-#   and whatever the DM's own sequence uses -- cannot perturb it.  It touches
-#   NO s0: Spike's reference sequence saves s0 to dscratch0, and a victim that
-#   depended on s0 would be testing the DM's save/restore with an assertion
-#   that could not distinguish it from a clobber.
-#
-# ---------------------------------------------------------------------------
-# VERDICT.  a0 = 0xCAFEBABE => every abstract face landed architecturally.
-#   a1 = 0x0D220001   a shared word did not read back
-#   a1 = 0x0D220002   base-ISA sanity failed
-#   a1 = 0x0D220003   THE VICTIM NEVER FINISHED (a2 = PROG).  Under
-#                     xrun_batch.sh this is the expected result and means
-#                     nothing; under dbg_abs.tcl it is THE finding -- PROG
-#                     names how far it got: 1 = set up and parked (so the
-#                     debugger never released it), 2 = released.
-#   a1 = 0x0D220004   abstract GPR WRITE did not land (a2 = s2 observed,
-#                     a3 = expected)
-#   a1 = 0x0D220005   abstract CSR WRITE did not land (a2 = mscratch observed)
-#   a1 = 0x0D220006   the progbuf lw/sw round trip did not move the word
-#                     (a2 = MEM_DST, a3 = MEM_MAGIC)
-#   a1 = 0x0D220007   an abstract READ was DESTRUCTIVE: s1 no longer holds
-#                     GPR_MAGIC after the visits (a2 = s1 observed)
-#   a1 = 0x0D220008   MEM_SRC was corrupted (a2 = MEM_SRC): the progbuf wrote
-#                     the wrong way round
-#
-# NEGATIVE CONTROL -- how the non-DM half was SEEN TO WORK at unimplemented
-#   HEAD:  -DDBGABS_NC_SELF.  The victim performs, ON ITSELF, exactly the
-#   architectural effects the debugger would have performed (s2, mscratch,
-#   MEM_SRC -> MEM_DST) and then releases itself instead of waiting for REL.
-#   Every publish, hart 0's whole assertion chain and the verdict path then
-#   run for real.  A PASS on that arm proves the instrument is LIVE (method
-#   rule 5).  It is a CONTROL: it makes no claim about the DM and must never
-#   be quoted as a D2 result.
-#
-# N-AGNOSTIC.  ONE victim, hart 1, at any NHARTS; no shared word is indexed by
-#   hartid.  Argus harts 2-17 stay parked in the bootrom.
-#
-# SHARED WORDS CLAIMED -- the D-series debug acceptance band 0x10050-0x1007C,
-#   REUSED with this file's meanings (one image per sim; the D-series debug
-#   instruments never coexist):
-#     0x10050  READY     victim: state set up, about to park
-#     0x10054  REL       the harness plants 1 here to release the victim
-#     0x10058  DONE      victim: verification complete
-#     0x1005C  OBS_S2    s2 as the victim read it after the resume
-#     0x10060  OBS_MSCR  mscratch as the victim read it after the resume
-#     0x10064  MEM_SRC   the progbuf load's source word (holds MEM_MAGIC)
-#     0x10068  MEM_DST   the progbuf store's destination word
-#     0x1006C  OBS_S1    s1 after the visits (must still be GPR_MAGIC)
-#     0x10070  PROG      victim progress (1 = parked, 2 = released, 3 = done)
-#     0x10074-0x1007C  unused by this file
-#*****************************************************************************
+# VestaRV: abstract-command architectural-effect test
+# NEEDS A HARNESS: ./xrun_dbg.sh rv32ua-p-dbgabsmp dbg_abs.tcl. An abstract command has two observable faces and a DM can get one right while getting the other wrong: the DMI face, where data0 returns the right value with cmderr 0 and busy cleared, which dbg_abs.tcl checks, and the ARCHITECTURAL face, where the victim's registers and memory really changed and really did not change in any other way. THIS FILE IS THE ARCHITECTURAL FACE: the victim sets up known state, parks, is worked on by the debugger, resumes, reads back its own state with ordinary instructions and publishes what it found, and hart 0 grades it. Neither half can be forged by the other.
+# Five things proved. (1) An abstract GPR READ of x9 must return GPR_MAGIC AND must not be destructive, which OBS_S1 catches if the DM's dscratch save and restore drops a register. (2) An abstract GPR WRITE of x18 must land in s2, which starts at 0. (3) An abstract CSR read and write of mscratch, chosen because it is architecturally inert. (4) A PROGBUF MEMORY ROUND TRIP, since there is no access-memory abstract command on this chip and cmdtype 2 returns NOT_SUPPORTED by design: the harness points a6 and a7 at MEM_SRC and MEM_DST by abstract writes, loads progbuf0 with lw and progbuf1 with sw, and issues a postexec, and the victim reads MEM_DST back in band so the word really landed in the RAM the hart sees. That also exercises impebreak, since progbufsize is 2 and the sequence needs a third word to return. (5) THE EXCEPTION cmderr: an abstract read of an unimplemented CSR must set cmderr EXCEPTION and leave the hart HALTED, and this file's contribution is that everything after it still works, so the exception leg is issued BEFORE the resume and a correct run still reaches DONE.
+# THE VICTIM'S PARK NEEDS REGISTER DISCIPLINE. It spins reading the shared word REL, which the harness plants; the loop body recomputes its address with `li` every round and holds no live register, so the debugger's visits, which clobber t-registers, a6, a7 and whatever the DM's own sequence uses, cannot perturb it. IT TOUCHES NO s0, because the reference sequence saves s0 to dscratch0 and a victim that depended on s0 could not distinguish a save-and-restore failure from a clobber.
+# Verdicts: a0 = 0xCAFEBABE means every abstract face landed architecturally. a1 = 0x0D220001 a shared word did not read back; 0x0D220002 base-ISA sanity failed; 0x0D220003 the victim never finished, with a2 = PROG naming how far it got (1 parked, 2 released), which is the expected result under a plain batch run and the finding under dbg_abs.tcl; 0x0D220004 the abstract GPR write did not land; 0x0D220005 the abstract CSR write did not land; 0x0D220006 the progbuf round trip did not move the word; 0x0D220007 an abstract read was DESTRUCTIVE, since s1 no longer holds GPR_MAGIC; 0x0D220008 MEM_SRC was corrupted, so the progbuf wrote the wrong way round.
+# NEGATIVE CONTROL -DDBGABS_NC_SELF: the victim performs on itself exactly the architectural effects the debugger would have performed and releases itself instead of waiting for REL, so every publish, hart 0's assertion chain and the verdict path run for real. A pass on that arm proves the instrument is LIVE. It makes no claim about the DM and must never be quoted as a result.
+# N-agnostic: one victim, hart 1, at any NHARTS, and no shared word is indexed by hartid. Shared words, in the D-series debug acceptance band 0x10050-0x1007C, reused with this file's meanings under the one-image-per-sim rule: 0x10050 READY, 0x10054 REL (the harness plants 1 to release the victim), 0x10058 DONE, 0x1005C OBS_S2, 0x10060 OBS_MSCR, 0x10064 MEM_SRC, 0x10068 MEM_DST, 0x1006C OBS_S1, 0x10070 PROG.
 
 #include "riscv_test.h"
 #include "test_macros.h"

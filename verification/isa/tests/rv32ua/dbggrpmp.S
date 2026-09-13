@@ -1,89 +1,13 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# dbggrpmp.S   (D-series, D2 -- HALT GROUPS: halt one member, the other member
-#               halts with it, and the non-member does not)
-#-----------------------------------------------------------------------------
-# BLIND-AUTHORED against d2_spec.md section 3 (`dmcs2`, halt groups) and
-# section 4, FROZEN 2026-08-05, by an agent that has not seen and will never
-# see the D2 implementation.  Committed polarity: CORRECT RTL = PASS.
-#
-# NEEDS A HARNESS:  ./xrun_dbg.sh rv32ua-p-dbggrpmp dbg_grp.tcl
-#
-# ---------------------------------------------------------------------------
-# WHY A HALT GROUP NEEDS AN IN-BAND INSTRUMENT AT ALL
-#   The DMI face of a halt group is easy to fake: dmstatus can report hart 2
-#   halted because the DM decided it should be, without hart 2 ever stopping.
-#   The observable that cannot be faked is FORWARD PROGRESS, and only the
-#   harts can report that.  So, exactly as in dbgdmimp.S, harts 1, 2 and 3
-#   each spin incrementing their own shared counter and hart 0 reads the
-#   pattern out of the three deltas.
-#
-#   The pattern this file demands is SPECIFIC and it is the whole test:
-#       CNT[1] flat  AND  CNT[2] flat  AND  CNT[3] still advancing.
-#   Three distinguishable ways to get it wrong, three verdict codes:
-#     * only the requested member stops        -> the group broadcast is
-#       dropped                                   (0x0D230005, map = 0x02)
-#     * all three stop                         -> the broadcast went to
-#       everybody, i.e. membership is not read   (0x0D230006, map = 0x0E)
-#     * the non-member stops and a member does not -> membership is decoded
-#       wrong                                     (0x0D230005 with the map)
-#   The bitmap is published either way, so the log names which shape occurred
-#   rather than merely saying "not the expected one".
-#
-# GROUP ASSIGNMENT IS THE HARNESS'S JOB (dmcs2 is DMI-only; no software can
-#   reach it).  The harness puts harts 1 and 2 in group 1 and leaves hart 3 in
-#   group 0 -- "no group" and the reset value, so hart 3 is a non-member by
-#   the DM's own default and not by anything this test did.  It then halts
-#   hart 1 ONLY.
-#
-# WHY HART 1 IS THE ONE REQUESTED AND HART 2 THE ONE PULLED IN
-#   A DM that ignores dmcs2 and simply halts everything passes if the
-#   requested hart and the pulled-in hart are indistinguishable.  Requesting
-#   the LOWER-numbered member and asserting on the HIGHER one means the
-#   broadcast has to travel, and the non-member sits between them in neither
-#   direction -- hart 3 is outside the group and above both, so a
-#   "halt hartsel and everything above it" bug is caught too.
-#
-# ---------------------------------------------------------------------------
-# VERDICT.  a0 = 0xCAFEBABE => halting one group member halted the other and
-# left the non-member running.
-#   a1 = 0x0D230001   a shared word did not read back
-#   a1 = 0x0D230002   base-ISA sanity failed
-#   a1 = 0x0D230003   the three victims never all started counting
-#                     (a2 = bitmap, bit h set = hart h advanced)
-#   a1 = 0x0D230004   NOTHING EVER STOPPED.  Expected under xrun_batch.sh and
-#                     meaningless there; under dbg_grp.tcl it is THE finding.
-#   a1 = 0x0D230005   the wrong SET of harts stopped (a2 = the flat bitmap;
-#                     0x02 = only the requested member -- broadcast dropped;
-#                     0x08 or 0x0A = the non-member stopped -- membership
-#                     decoded wrong)
-#   a1 = 0x0D230006   ALL THREE stopped (a2 = 0x0E): the broadcast ignores
-#                     membership entirely
-#   a1 = 0x0D230007   the non-member's advance across the halted window was
-#                     below MINADV (a2 = the advance): hart 3 was disturbed
-#                     without being halted outright
-#
-# NEGATIVE CONTROL -- how the non-DM half was SEEN TO WORK at unimplemented
-#   HEAD:  -DDBGGRP_NC_SELFSTOP.  Harts 1 AND 2 stop themselves together once
-#   their counters pass a threshold, dwell, and rejoin; hart 3 is untouched.
-#   That reproduces exactly the observable a correct halt group produces, so
-#   hart 0's snapshot machinery, the bitmap classifier, every verdict code
-#   path and the whole grading run for real.  A PASS proves the instrument is
-#   LIVE (method rule 5) and makes no claim about the DM.
-#
-# N-AGNOSTIC.  Three victims at any NHARTS; no shared word indexed past hart 3.
-#
-# SHARED WORDS CLAIMED -- the D-series debug acceptance band 0x10050-0x1007C,
-#   REUSED with this file's meanings (one image per sim):
-#     0x10050  PHASE      hart 0 progress
-#     0x10054  CNT[1]  ) CNT[h] = 0x10050 + 4*h
-#     0x10058  CNT[2]  )
-#     0x1005C  CNT[3]  )
-#     0x10060  FLATMAP    the deciding round's flat-counter bitmap
-#     0x10064  ADV3       hart 3's advance across the halted window
-#     0x10068-0x1007C  unused by this file
-#*****************************************************************************
+# VestaRV: halt-group test
+# NEEDS A HARNESS: ./xrun_dbg.sh rv32ua-p-dbggrpmp dbg_grp.tcl. THE DMI FACE OF A HALT GROUP IS EASY TO FAKE, since dmstatus can report hart 2 halted because the DM decided it should be, without hart 2 ever stopping. The observable that cannot be faked is FORWARD PROGRESS, and only the harts can report it, so harts 1, 2 and 3 each spin incrementing their own shared counter and hart 0 reads the pattern out of the three deltas.
+# The demanded pattern is CNT[1] flat AND CNT[2] flat AND CNT[3] still advancing. Three distinguishable failures get three codes: only the requested member stops, so the group broadcast was dropped; all three stop, so membership is not read at all; or the non-member stops while a member does not, so membership is decoded wrong. The bitmap is published either way, so the log names which shape occurred rather than saying only that it was unexpected.
+# GROUP ASSIGNMENT IS THE HARNESS'S JOB, since dmcs2 is DMI-only and no software can reach it. It puts harts 1 and 2 in group 1 and leaves hart 3 in group 0, which is both "no group" and the reset value, so hart 3 is a non-member by the DM's own default rather than by anything this test did. It then halts hart 1 only.
+# HART 1 IS REQUESTED AND HART 2 IS THE ONE PULLED IN, on purpose: a DM that ignores dmcs2 and halts everything passes if the two are indistinguishable. Requesting the lower-numbered member and asserting on the higher one forces the broadcast to travel, and hart 3 is outside the group and above both, so a "halt hartsel and everything above it" bug is caught as well.
+# Verdicts: a0 = 0xCAFEBABE means halting one group member halted the other and left the non-member running. a1 = 0x0D230001 a shared word did not read back; 0x0D230002 base-ISA sanity failed; 0x0D230003 the three victims never all started counting; 0x0D230004 NOTHING EVER STOPPED, expected under a plain batch run and the finding under dbg_grp.tcl; 0x0D230005 the wrong set stopped, with a2 the flat bitmap, 0x02 meaning only the requested member and 0x08 or 0x0A meaning the non-member stopped; 0x0D230006 all three stopped, bitmap 0x0E; 0x0D230007 the non-member's advance across the halted window was below MINADV, so hart 3 was disturbed without being halted outright.
+# NEGATIVE CONTROL -DDBGGRP_NC_SELFSTOP: harts 1 and 2 stop themselves together once their counters pass a threshold, dwell and rejoin, while hart 3 is untouched, reproducing exactly the observable a correct halt group produces. Hart 0's snapshot machinery, the bitmap classifier and every verdict path then run for real, so a pass proves the instrument is LIVE. It makes no claim about the DM.
+# N-agnostic: three victims at any NHARTS and no shared word indexed past hart 3. Shared words, in the D-series debug acceptance band 0x10050-0x1007C, reused with this file's meanings under the one-image-per-sim rule: 0x10050 PHASE, CNT[h] = 0x10050 + 4*h for h = 1..3, 0x10060 FLATMAP, 0x10064 ADV3.
 
 #include "riscv_test.h"
 #include "test_macros.h"

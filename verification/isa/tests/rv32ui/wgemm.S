@@ -1,103 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# wgemm.S  (wound-config firmware smoke -- digperiphs P4.3 Stage S5)
-#-----------------------------------------------------------------------------
-# NPU GEMM (MODE=3) firmware smoke, hart 0 only (single-hart directed; tiles
-# stay parked -- no MP_STAGE_IMAGE, no mp_boot.h; the SAME majority w*
-# precedent shape as wnpuconv.S/wxnpu.S). Companion to shnpu.S (the shared-NPU
-# MLP + vector-120 IRQ-leg precedent), wnpuconv.S (CONV1D) and wxnpu.S
-# (XNOR/popcount): proves the GEMM sequencer (npu_gemm_design.md D1-D12)
-# end-to-end through firmware, at the SAME MCU/silicon generics as the RTL
-# bench (X_M=0, W_M=7, Y_M=7, N=24, RHO=2), taking the SAME vector-120
-# think-done IRQ leg the family precedent takes (mirrored EXACTLY: PENDX
-# rider with the route OFF first -- deterministic, no delivery race -- then
-# enable ENX, INSVCX-in-handler rider, exactly-once, negctrl-lite settle,
-# un-route).
-#
-# TWO CHAINED GEMMs (design-doc ADJUDICATION ADDENDUM A2 -- the chaining leg
-# is REQUIRED and layer 1 MUST run AEN=1: chaining C->A needs |C|<1, and the
-# sigmoid's zero-extended Q0.24 output words chain exactly):
-#
-#   Layer 1 (chaining source): M1=2 K1=3 N1=4 BEN=0 AEN=1 (sigmoid, ACTF=0)
-#     A1 row-major (Q0.24), B1 column-major (Q7.24) -> C1 (Q0.24 sigmoid out)
-#     T1 = 1 + M1*N1*(5*K1+1) + 2 = 1 + 8*16 + 2 = 131 NpuClk cycles
-#
-#   Layer 2 (chained, ZERO REPACK): A2 = C1 IN PLACE -- IVSAR2 = OVSAR1, the
-#     D2 row-major zero-repack proof (no firmware copy of C1 into a new
-#     region). M2=2 K2=4(=N1) N2=2 BEN=0 AEN=0. B2 column-major (Q7.24) at
-#     its own WVSAR2 -> C2 (Q7.24 passthrough). Takes the vector-120
-#     think-done IRQ (NPUCR.TDIE) leg.
-#     T2 = 1 + M2*N2*(5*K2+1) + 2 = 1 + 4*21 + 2 = 87 NpuClk cycles
-#
-# Golden values: computed by ~/vestarv/verification/npu/gen_wgemm_golden.py
-# (a throwaway script built entirely on the VALIDATED npu_fixed.py arithmetic
-# core -- think_layer(), reused verbatim per npu_gemm_design.md D10, once per
-# output row per layer; never reimplements the MAC/sigmoid arithmetic). A1/B1
-# magnitudes were chosen so every layer-1 pre-activation accumulator lands
-# well inside the sigmoid's active band (|acc| < 4) with a genuine mix of
-# positive and negative accumulators (verified by that script's trace/
-# self-check) -- all 8 pre-activation accs land at |acc| ~= 0.0003-0.0006,
-# i.e. deep in-range, not near the +-4 boundary; that script also asserts
-# every C1 word satisfies the Q0.24 |C|<1 chaining-legal range before
-# printing anything (the D2 zero-repack proof).
-#
-# Register interface (npu_gemm_design.md D5/D7 -- ZERO entity changes; the
-# SAME 8-word MMR bank wnpuconv.S/wxnpu.S exercise, per-mode reinterpretation
-# only):
-#   NPUCR   0x4A00 (+0)   ACTF[25:23] MODE[22:20] TDIE[19] BEN[18] AEN[17]
-#                          THINK[16] NI[15:8]=K-1 NN[7:0]=N-1
-#   IVSAR   0x4A04 (+4)   WVSAR 0x4A08 (+8)   OVSAR 0x4A0C (+C)  (12-bit
-#                          staging-RAM WORD indices)
-#   NPUSR   0x4A10 (+10)  bit0 THINKDONE, sticky W1C (sets on NpuDone
-#                          regardless of TDIE -- TDIE only gates delivery)
-#   NPUCFG1 0x4A14 (+14)  GEMM reinterpretation (D5): (M-1) in bits[7:0]
-#                          (conv reads S/D/L/Cin-1 packed; xnor reads THRESH)
-#   NPUCFG2 0x4A18 (+18)  GEMM ignores this register entirely (D9) -- write/
-#                          readback smoked once below purely as a generic MMR
-#                          storage proof (conv reads Lout, xnor reads K here)
-#   NPUCFG3 0x4A1C (+1C)  AS-BUILT: no storage, reads 0 (unchanged, D7)
-#   +0x20 (offset 8)      out of the 8-word decode ("when others"), reads 0
-# This test's L2/L5 readbacks double as the same 4-bit MabMmrA decode smoke
-# wnpuconv.S/wxnpu.S's headers document (CFG3 + offset-8 both known-zero
-# corners) -- the entity is untouched (D7), so the decode behaves identically
-# per mode.
-#
-# Staging-RAM layout (word index = (addr-0xC000)/4), clear of shnpu's
-# 0xC100-0xC110 band, wnpuconv's 0xC400/0xC500/0xC600 bands, and wxnpu's
-# 0xC700/0xC740/0xC780 bands:
-#   IV1_ADDR = 0xC800 (word 0x200): M1*K1=6 words, A1 row-major (A1[m][k] at
-#              m*K1+k) -- ALSO layer 2's IVSAR (IV2_ADDR), see below
-#   WV1_ADDR = 0xC840 (word 0x210): K1*N1=12 words, B1 column-major
-#              (w_list[n*K1+k] = B1[k][n])
-#   OV1_ADDR = 0xC880 (word 0x220): M1*N1=8 words, C1 row-major (C1[m][n] at
-#              m*N1+n) -- this SAME region is layer 2's IVSAR (IV2_ADDR =
-#              OV1_ADDR, the D2 zero-repack chaining proof: layer 2 reads
-#              A2[m][k] from exactly where layer 1 wrote C1[m][n], M2*K2 ==
-#              M1*N1 == 8, no firmware copy)
-#   WV2_ADDR = 0xC8C0 (word 0x230): K2*N2=8 words, B2 column-major
-#              (w_list[n*K2+k] = B2[k][n])
-#   OV2_ADDR = 0xC900 (word 0x240): M2*N2=4 words, C2 row-major (C2[m][n] at
-#              m*N2+n)
-#
-# Scratch: private TCM 0xA000/0xA004 (single-hart directed -- the wnpuconv/
-# wxnpu/wrtc/wow/wi2ct/wqspi/wgpio/wi3c/wtrng precedent; no shared-window word
-# needed, there is no second hart to rendezvous with).
-#   TD_FLAG = 0xA000   (ISR exactly-once counter)
-#   TD_ISVC = 0xA004   (handler's masked INSVCX readback)
-#
-# NPU is mclk-domain (like DMA0/TRNG0) -- NO SYS_CLK_CR write needed (that
-# rule is only for the smclk peripherals: UART/I2C/...).
-#
-# IVT gotcha (shnpu.S/wnpuconv.S/wxnpu.S precedent, unchanged for this test):
-# this test's .ivt extension also stops at slot 120 (same vector, NPU0_TD) --
-# WITHOUT parking slots 121-127 the trailing zero-run to the fixed
-# .text.init link address (0x8200) is only 7 zero words, one short of
-# flash_prepend.sh's GAP_MIN(8) region-split threshold, and gets silently
-# MERGED into one oversized segment (proven to corrupt the boot copy in
-# simulation -- see shnpu.S's header for the full forensics). Slots 121-127
-# are parked here for the same reason.
-#*****************************************************************************
+# VestaRV: NPU GEMM firmware smoke
+# Hart 0 only, tiles parked; MODE = 3 at the silicon generics X_M = 0, W_M = 7, Y_M = 7, N = 24, RHO = 2, taking the same vector-120 think-done IRQ leg in the same order as the rest of the family (PENDX rider with the route OFF first, then enable ENX, INSVCX in the handler, exactly-once, negctrl-lite settle, un-route).
+# TWO CHAINED GEMMs, and the chaining is the point. Layer 1: M1 = 2, K1 = 3, N1 = 4, BEN = 0, AEN = 1 with sigmoid (ACTF = 0), A1 row-major Q0.24 and B1 column-major Q7.24 into C1, T1 = 131 NpuClk cycles. LAYER 1 MUST RUN AEN = 1, because chaining C into A needs |C| < 1 and only the sigmoid's zero-extended Q0.24 output words chain exactly. Layer 2 reads A2 = C1 IN PLACE with IVSAR2 = OVSAR1, which is the zero-repack proof: M2 = 2, K2 = 4 = N1, N2 = 2, BEN = 0, AEN = 0, B2 column-major into C2 in Q7.24, T2 = 87 cycles.
+# Register bank: NPUCR 0x4A00 = ACTF[25:23] MODE[22:20] TDIE[19] BEN[18] AEN[17] THINK[16] NI[15:8] = K-1 NN[7:0] = N-1; IVSAR 0x4A04, WVSAR 0x4A08, OVSAR 0x4A0C are 12-bit staging-RAM WORD indices; NPUSR 0x4A10 bit 0 THINKDONE is sticky W1C and sets regardless of TDIE, which only gates delivery; NPUCFG1 0x4A14 carries (M-1) in bits [7:0] under GEMM; NPUCFG2 0x4A18 is ignored by GEMM and is written and read back only as a generic MMR storage proof; NPUCFG3 0x4A1C has no storage and reads 0; offset +0x20 is outside the 8-word decode and reads 0. The L2 and L5 readbacks of those two known-zero corners are the 4-bit MabMmrA decode smoke.
+# Staging RAM, word index = (addr - 0xC000)/4, clear of shnpu's 0xC100-0xC110, wnpuconv's 0xC400/0xC500/0xC600 and wxnpu's 0xC700/0xC740/0xC780 bands: IV1 0xC800 holds M1*K1 = 6 words of A1 row-major; WV1 0xC840 holds K1*N1 = 12 words of B1 column-major as w_list[n*K1 + k] = B1[k][n]; OV1 0xC880 holds M1*N1 = 8 words of C1 row-major AND IS ALSO layer 2's IVSAR, since M2*K2 == M1*N1 == 8; WV2 0xC8C0 holds K2*N2 = 8 words of B2 column-major; OV2 0xC900 holds M2*N2 = 4 words of C2 row-major.
+# Golden values come from verification/npu/gen_wgemm_golden.py, built on the validated npu_fixed.py arithmetic core. The A1 and B1 magnitudes put every layer-1 pre-activation accumulator deep inside the sigmoid's active band with a genuine mix of signs, and the script asserts every C1 word satisfies the |C| < 1 chaining-legal range before printing anything.
+# Scratch lives in private TCM, TD_FLAG = 0xA000 and TD_ISVC = 0xA004. The NPU is mclk-domain, so no SYS_CLK_CR write is needed. IVT GOTCHA: this file's .ivt extension stops at slot 120, and slots 121-127 MUST stay parked, or the trailing zero run to the fixed .text.init link address 0x8200 is one word short of flash_prepend.sh's GAP_MIN of 8 and the regions merge into one oversized segment that corrupts the boot copy.
 
 #include "riscv_test.h"
 #include "test_macros.h"

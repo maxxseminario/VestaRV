@@ -1,12 +1,8 @@
-/* =============================================================================
-   fpu.vhd: iterative multi-cycle single-precision (Zfinx) FPU
-   =============================================================================
-   A shared FMA backend (fadd/fsub/fmul, fmadd/fmsub/fnmsub/fnmadd), a radix-2 iterative div/sqrt engine and unpack-only fcvt all feed ONE normalize+round back-end doing a single rounding with G/R/S, all 5 modes, full subnormal support both ways, and UF = tininess-after-rounding AND NX.
-     fp_op[3:0] : 0 FADD 1 FSUB 2 FMUL 3 FDIV 4 FSQRT 5 FMADD 6 FMSUB 7 FNMSUB 8 FNMADD 9 FCVT_W_S 10 FCVT_WU_S 11 FCVT_S_W 12 FCVT_S_WU
-     rm[2:0]    : EFFECTIVE mode, dynamic already resolved and illegal never arriving: 000 RNE 001 RTZ 010 RDN 011 RUP 100 RMM;  fp_flags = {NV,DZ,OF,UF,NX}
-   fp_a/fp_b/fp_c are latched at the start edge and the whole run consumes ONLY those copies, never a live port mid-run; fpu_done, result and flags hold until the next start.
-   Registered stage boundaries unpack, product, align-add, normalize, round keep any combinational chain from running the whole length of the datapath; the FMA carries a full 48-bit product into a 128-bit aligner/accumulator and div/sqrt takes at most one radix-2 step per cycle.
-   ============================================================================= */
+-- VestaRV: iterative multi-cycle single-precision (Zfinx) FPU
+-- A shared FMA backend (fadd/fsub/fmul, fmadd/fmsub/fnmsub/fnmadd), a radix-2 iterative div/sqrt engine and unpack-only fcvt all feed ONE normalize-and-round back end doing a single rounding with G/R/S, all 5 modes, full subnormal support both ways, and UF = tininess-after-rounding AND NX.
+-- fp_op[3:0]: 0 FADD 1 FSUB 2 FMUL 3 FDIV 4 FSQRT 5 FMADD 6 FMSUB 7 FNMSUB 8 FNMADD 9 FCVT_W_S 10 FCVT_WU_S 11 FCVT_S_W 12 FCVT_S_WU. rm[2:0] is the EFFECTIVE mode, dynamic already resolved and illegal never arriving: 000 RNE 001 RTZ 010 RDN 011 RUP 100 RMM. fp_flags = {NV,DZ,OF,UF,NX}.
+-- fp_a/fp_b/fp_c are latched at the start edge and the whole run consumes ONLY those copies, never a live port mid-run; fpu_done, result and flags hold until the next start.
+-- Registered stage boundaries (unpack, product, align-add, normalize, round) keep any combinational chain from running the whole length of the datapath: the FMA carries a full 48-bit product into a 128-bit aligner/accumulator and div/sqrt takes at most one radix-2 step per cycle.
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;
@@ -29,7 +25,7 @@ end entity;
 
 architecture rtl of fpu is
 
-    -- ---------------------------- op encodings ------------------------------
+    -- op encodings
     constant OP_FADD     : std_logic_vector(3 downto 0) := "0000";
     constant OP_FSUB     : std_logic_vector(3 downto 0) := "0001";
     constant OP_FMUL     : std_logic_vector(3 downto 0) := "0010";
@@ -74,7 +70,7 @@ architecture rtl of fpu is
         is_zero : boolean;
     end record;
 
-    -- ---------------------------- helpers -----------------------------------
+    -- helpers
     function unpack(x : std_logic_vector(31 downto 0)) return unpacked_t is
         variable u  : unpacked_t;
         variable e  : integer;
@@ -239,7 +235,7 @@ architecture rtl of fpu is
         return r;
     end function;
 
-    -- ------------------------------ FSM -------------------------------------
+    -- FSM
     type st_t is (S_IDLE, S_UNPACK, S_MUL, S_ALIGN, S_DIVI, S_SQRTI, S_CVT, S_NORM, S_ROUND, S_DONE);
     signal state : st_t;
 
@@ -378,7 +374,6 @@ begin
             done_r <= '0';
             case state is
 
-                -- ---------------------------------------------------------
                 -- wait for a start pulse, then latch operands, op and rm for the whole run
                 when S_IDLE =>
                     if fpu_start = '1' and start_reg = '0' then
@@ -391,7 +386,6 @@ begin
                     end if;
                     start_reg <= fpu_start;
 
-                -- ---------------------------------------------------------
                 -- unpack + dispatch + special-case resolution
                 when S_UNPACK =>
                     start_reg <= fpu_start;
@@ -400,7 +394,7 @@ begin
                     sflags := (others => '0');
 
                     case op_lat is
-                        -------------------------------------------------- FMA family
+                        -- FMA family
                         when OP_FADD | OP_FSUB | OP_FMUL |
                              OP_FMADD | OP_FMSUB | OP_FNMSUB | OP_FNMADD =>
                             -- operand mapping to (m1*m2) +/- addend
@@ -481,7 +475,7 @@ begin
                                 state <= S_MUL;
                             end if;
 
-                        -------------------------------------------------- FDIV
+                        -- FDIV
                         when OP_FDIV =>
                             ua := unpack(a_lat); ub := unpack(b_lat);
                             rs := ua.sign xor ub.sign;
@@ -519,7 +513,7 @@ begin
                                 state <= S_DIVI;
                             end if;
 
-                        -------------------------------------------------- FSQRT
+                        -- FSQRT
                         when OP_FSQRT =>
                             ua := unpack(a_lat);
                             if ua.is_nan then
@@ -556,7 +550,7 @@ begin
                                 state <= S_SQRTI;
                             end if;
 
-                        -------------------------------------------------- FCVT
+                        -- FCVT
                         when OP_FCVT_W_S | OP_FCVT_WU_S | OP_FCVT_S_W | OP_FCVT_S_WU =>
                             state <= S_CVT;
 
@@ -567,7 +561,6 @@ begin
                             state <= S_DONE;
                     end case;
 
-                -- ---------------------------------------------------------
                 -- FMA: 24x24 combinational multiply, registered into product stage
                 when S_MUL =>
                     start_reg <= fpu_start;
@@ -575,7 +568,6 @@ begin
                     pexp_r   <= m1_r.exp + m2_r.exp - 46;   -- LSB exponent of prod48
                     state <= S_ALIGN;
 
-                -- ---------------------------------------------------------
                 -- FMA: wide align + add/sub (single rounding preserved via GRS)
                 when S_ALIGN =>
                     start_reg <= fpu_start;
@@ -630,7 +622,6 @@ begin
                     zsign_r   <= zsgn;
                     state <= S_NORM;
 
-                -- ---------------------------------------------------------
                 -- radix-2 restoring division, one quotient bit per cycle
                 when S_DIVI =>
                     start_reg <= fpu_start;
@@ -655,7 +646,6 @@ begin
                         iter_cnt <= iter_cnt - 1;
                     end if;
 
-                -- ---------------------------------------------------------
                 -- radix-2 restoring square root, one root bit per cycle
                 when S_SQRTI =>
                     start_reg <= fpu_start;
@@ -686,7 +676,6 @@ begin
                         iter_cnt <= iter_cnt - 1;
                     end if;
 
-                -- ---------------------------------------------------------
                 -- shared normalize (feeds the round stage)
                 when S_NORM =>
                     start_reg <= fpu_start;
@@ -705,7 +694,6 @@ begin
                         state <= S_ROUND;
                     end if;
 
-                -- ---------------------------------------------------------
                 -- shared round + pack
                 when S_ROUND =>
                     start_reg <= fpu_start;
@@ -715,13 +703,12 @@ begin
                     done_r   <= '1';
                     state    <= S_DONE;
 
-                -- ---------------------------------------------------------
                 -- conversions (unpack + round only)
                 when S_CVT =>
                     start_reg <= fpu_start;
                     sflags := (others => '0');
                     if op_lat = OP_FCVT_S_W or op_lat = OP_FCVT_S_WU then
-                        ---------------------------------------------- int to float
+                        -- int to float
                         signed_in := (op_lat = OP_FCVT_S_W);
                         neg := signed_in and (a_lat(31) = '1');
                         if neg then
@@ -750,7 +737,7 @@ begin
                             state    <= S_DONE;
                         end if;
                     else
-                        ---------------------------------------------- float to int
+                        -- float to int
                         signed_in := (op_lat = OP_FCVT_W_S);
                         uc := unpack(a_lat);
                         if uc.is_nan then
@@ -851,7 +838,6 @@ begin
                         end if;
                     end if;
 
-                -- ---------------------------------------------------------
                 -- one drain cycle: result/flags already hold, so just return to idle
                 when S_DONE =>
                     start_reg <= fpu_start;

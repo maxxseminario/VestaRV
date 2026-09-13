@@ -1,3 +1,5 @@
+# VestaRV: repository python tools and their gates.
+
 load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 
 package(default_visibility = ["//visibility:public"])
@@ -11,9 +13,7 @@ exports_files([
     "theme_sync.py",
 ])
 
-# ---------------------------------------------------------------------------
 # Documentation link integrity
-# ---------------------------------------------------------------------------
 
 py_binary(
     name = "check_doc_links",
@@ -54,9 +54,7 @@ py_test(
     main = "check_doc_links.py",
 )
 
-# ---------------------------------------------------------------------------
 # The theme splicer THEME_ADOPTION.md section 1 promises
-# ---------------------------------------------------------------------------
 
 # Writer: run it in the workspace to re-splice vesta_theme.css into every
 # marked page. The --check side of it is tested by //docs:theme_sync_test.
@@ -66,9 +64,7 @@ py_binary(
     main = "theme_sync.py",
 )
 
-# ---------------------------------------------------------------------------
 # The entity-default axis scanner
-# ---------------------------------------------------------------------------
 
 # THE GRADED GATE. It bites: no --report-only. The bare invocation holds
 # ENABLE_DEBUG to its two-class contract -- false at every core-side
@@ -78,7 +74,7 @@ py_binary(
 # requirement is read out of hdl/common/MemoryMap.vhd rather than written into
 # the checker, so a knob flip moves the requirement with it instead of leaving
 # a stale literal behind (which is what --report-only was papering over from
-# 2026-08-21 until this target was re-armed).
+# before this target was re-armed).
 #
 # The scanner's own liveness is still asserted underneath: it exits 2, not 1,
 # if the ENABLE_TRAPCSR control comes back under --control-min sites, so a
@@ -103,7 +99,7 @@ py_test(
 )
 
 # THE SAME GATE, SECOND GENERIC: the C-extension fetch-ahead, shipped ON
-# 2026-08-23. It is a separate target rather than a second flag on the one
+# It is a separate target rather than a second flag on the one
 # above because the DECL-site floor is per-generic and each target must state
 # its own measured value: ENABLE_IF_AHEAD is consumed wholly inside vesta.vhd,
 # so it has 4 declaration sites (entity vesta, entity hart_tile, the component

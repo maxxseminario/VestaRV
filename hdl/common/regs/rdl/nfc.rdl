@@ -1,17 +1,6 @@
-// ===========================================================================
-// nfc.rdl: the register map of hdl/common/periph/NFC.vhd.
-//
-// THE VHDL IS THE AUTHORITY and THREE of this block's reset values are not
-// zero, all in the reg_write reset branch:
-//   NFCxCR  = 0x00001000   NFCAUTOREAD = 1
-//   NFCxCFG = 0x00000044   ATQA = 0x0044, SAK = 0x00
-//   NFCxTIM = 0x088004D4   SUBCDIV = 8, ETU = 128, FDT = 1236
-// The generator models all three as resetting to 0, which would come up as a
-// tag that answers no ATQA and has no frame-delay time.
-//
-// NFCxCR.NFCHALTCLR is a self-clearing write pulse: the write case forces
-// `NFCxCR(3 downto 2) <= "00"` and toggles halt_req_tgl, so the bit reads 0.
-// ===========================================================================
+// VestaRV: the register map of hdl/common/periph/NFC.vhd
+// The VHDL is the authority and THREE of this block's reset values are not zero, all in the reg_write reset branch: NFCxCR = 0x00001000 (NFCAUTOREAD = 1), NFCxCFG = 0x00000044 (ATQA 0x0044, SAK 0x00) and NFCxTIM = 0x088004D4 (SUBCDIV 8, ETU 128, FDT 1236). The generator models all three as resetting to 0, which would come up as a tag that answers no ATQA and has no frame-delay time.
+// NFCxCR.NFCHALTCLR is a self-clearing write pulse: the write case forces `NFCxCR(3 downto 2) <= "00"` and toggles halt_req_tgl, so the bit reads 0.
 
 `include "vesta_udp.rdl"
 

@@ -1,19 +1,10 @@
 #!/usr/bin/env python3
-"""rdl_cheader.py -- the MemoryMap.h fragment of an .rdl block.
+"""VestaRV: the MemoryMap.h fragment of an .rdl block.
 
-Byte-identical to the "Register Offsets and Bit Fields" section
-ChipGenerator.generateCHeader emits for a peripheral today, because it is the
-same loop over the same objects with the same TabbedTable: `<REG>_OFFSET`,
-`<REG>_PTR(_<PERIPH>_BASE)`, then `<FIELD>_BIT`/`<FIELD>_MASK` plus `<FIELD>_LSB`
-and one `#define` per NAMED value description. Hex width follows the register
-size (2 / 4 / 8 digits), and a field whose name equals the register's is skipped,
-as it is there -- the struct member covers it.
-
-Reset values are NOT in the tracked header today. They are emitted here as a
-separate, clearly delimited `<REG>_RESET` block, because a firmware writer who
-has to restore a register after a soft re-init currently has to read the TRM for
-values the generator already knows (AFExCR resets to 0x00000700, AFExMUX to
-0x000000F0, and getting either wrong parks a site on the shared test pads).
+Byte-identical to the section ChipGenerator.generateCHeader emits today, being the same loop
+over the same objects: <REG>_OFFSET, <REG>_PTR, <FIELD>_BIT/_MASK/_LSB and one define per named
+value. Hex width follows the register size, and a field whose name equals the register's is
+skipped. Reset values are not in the tracked header and are emitted as a delimited block.
 """
 
 import os

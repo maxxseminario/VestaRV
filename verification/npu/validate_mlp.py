@@ -1,48 +1,10 @@
 #!/usr/bin/env python3
-"""validate_mlp.py -- validates npu_fixed.py against the existing NPU MLP
-bench golden files, bit-exactly.
+"""VestaRV: validate npu_fixed.py bit-exactly against the NPU MLP bench golden files.
 
-Network under test (see hdl/common/tb/NPU_tb.vhd, the SIM_PROCESS, and its
-RISC-V-assembly re-creation verification/isa/tests/periph/NPU.S):
-  Layer 1: NI=0 (1 input), NN=4 (5 neurons), BEN=1, AEN=1, weights @ word 2048
-  Layer 2: NI=4 (5 inputs), NN=0 (1 output), BEN=0, AEN=0, weights @ word 2058
-  201 input points, x in [-1, 1], target y = 2x^2 + 1.
-
-TWO golden-file sets exist in this repo for this SAME network, at two
-different fixed-point configurations:
-
-  'bench' -- hdl/common/tb/NPU_tb.vhd's own generic DEFAULTS (X_M_BITS=0,
-             W_M_BITS=3, Y_M_BITS=3, N_BITS=15, RHO=2). Confirmed by grep:
-             nothing in xrun_parallel.sh / cell_list_npu.txt overrides
-             them. Produced the files under xcelium/NPU/{behavioral,genus}
-             and xcelium/periph_test/behavioral (the periph_test copies are
-             symlinks to xcelium/NPU/behavioral).
-
-  'chip'  -- the MCU_MP chip instantiation's generics (hdl/common/MCU.vhd
-             line ~4071: X_M_BITS=0, W_M_BITS=7, Y_M_BITS=7, N_BITS=24,
-             RHO=2 -- matching the task brief). Confirmed two ways: (a)
-             npu_fp_inputs.txt values are multiples consistent with
-             Q0.24 (e.g. -16777216 = -2^24 = -1.0 exactly, vs the bench
-             set's -32768 = -2^15); (b) NPU_data/npu_data2rv.sh invokes
-             the hex-mask converter with "25" bits for inputs (0+24+1)
-             and "32" for weights/outputs (7+24+1 = 32, i.e. a no-op
-             mask -- the full word). Produced
-             verification/isa/tests/periph/NPU_data's golden files (which
-             verification/isa/tests/periph/NPU.S's test_run consumes via
-             npu0_x.s/npu0_w.s/npu0_yhat.s).
-
-NOTE (repo inconsistency found while building this validator): NPU.S's
-get_y_loop comment says "Mask for 19 bits (3 integer + 15 fractional + 1
-sign)" and uses 0x7FFFF -- that is the OLD 'bench' width (M=3,N=15,
-total 19 bits), stale relative to the actual 'chip' dataset it now reads
-(M=7,N=24, total 32 bits, i.e. no masking needed/correct at all). Harmless
-today only because 0x7FFFF happens to not corrupt any of these particular
-201 expected values enough to flip the PASS/FAIL outcome by coincidence of
-the test's own tolerance -- NOT verified here, flagged for the RTL owner.
-
-Usage:
-    /usr/bin/python3 validate_mlp.py                  # validates all known dirs
-    /usr/bin/python3 validate_mlp.py --data-dir DIR --config {bench,chip}
+One network, two fixed-point configurations: 'bench' is NPU_tb.vhd's generic defaults
+(X_M=0, W_M=3, Y_M=3, N=15, RHO=2), 'chip' is the MCU instantiation's (W_M=7, Y_M=7,
+N=24). NPU.S's get_y_loop still masks to 19 bits, the stale bench width, against the
+chip dataset it now reads; harmless on these 201 points but not verified here.
 """
 import os
 import sys

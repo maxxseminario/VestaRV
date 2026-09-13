@@ -1,95 +1,14 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# ignleak.S   (F-series fix pass, W2 -- the DETECTOR for finding F3++)
-#-----------------------------------------------------------------------------
-# F3++ is the MIRROR IMAGE of F3+, and the second consumer of the same live
-# IRQ_SV decode:
-#
-#   F3+  (slpleak.S)  an `extinguish` encoding decoded in IRQ_SV SETS sleep_cpu,
-#                     so a RUNNING hart is sent to SLEEPING by IRQ_REST -- a hang.
-#   F3++ (this test)  an `ignite` encoding decoded in IRQ_SV CLEARS sleep_cpu,
-#                     so a SLEEPING hart RESUMES instead of re-parking.
-#
-# Mechanism, re-anchored to the RTL (hdl/common/vesta/vesta.vhd, rtl-fixpass):
-#   * instr_curr <= instr when current_state = IRQ_SV is the FIRST matching arm
-#     of the instr_curr mux, so IRQ_SV decodes the RAW unified-bus word.
-#   * maindec: wake_rq <= '1' when (op = CUSTOM_OPCODE and funct3 = SLP_FN3 and
-#     funct7 = WAKE_FN7 and u_gate = '0') -- a PURE DECODE, no state
-#     qualification at all.
-#   * the sleep_cpu flop is on the FREE-RUNNING clk and was gated only by
-#     dec_squash, which is '0' on the legacy path.  So wake_rq='1' in IRQ_SV
-#     clears sleep_cpu for a word the hart never executed.
-#   * IRQ_REST's `elsif sleep_cpu = '1' then next_state <= SLEEPING` arm is then
-#     NOT taken, and the hart resumes.
-#
-# WHY THAT MATTERS ON SILICON (this is not a synthetic shape): the bootrom park
-#   contract is built on iret-WITHOUT-ignite meaning "go back to sleep".
-#   software/bootrom_mp/src/start.S:582-585 says so in as many words for the
-#   harvested-boot stray-msip ISR, and the tile park at :468 relies on the same
-#   rule.  A parked tile that silently wakes spins in its `j <park>` paranoia
-#   loop, burning power and shared-bus bandwidth on a chip that has just gated
-#   its rails.
-#
-# HOW THE BUS WORD IS MADE DETERMINISTIC (no interrupt-latency calibration):
-#   the same SLEEPING -> IRQ_SV edge csrleak.S uses.  In SLEEPING, pc_next is
-#   held at pc_next_reg and the fetch of that word has been issued from
-#   data_addr every SLEEPING cycle already, so `extinguish` followed by the
-#   word under test makes the leaked encoding a COMPILE-TIME CONSTANT.
-#   (This is why F3++ needs none of slpleak.S's two-pass self-patching: F3+
-#   must catch an AWAKE hart, which forces a calibration; F3++ wants a SLEEPING
-#   one, which is exactly the edge that is structurally determined.)
-#
-# THE TEST, and the reason it is a COUNT and not a timeout:
-#   park; mtip #1 fires; the ISR irets WITHOUT ignite and re-arms mtip far out.
-#     * pre-fix   the IRQ_SV leak already cleared sleep_cpu, so IRQ_REST
-#                 RESUMES.  The hart reaches the verdict having seen ONE ISR.
-#     * post-fix  sleep_cpu survives, IRQ_REST re-parks, and mtip #2 wakes the
-#                 hart -- that ISR does ignite.  The verdict sees TWO ISRs.
-#   So the polarity is count==1 FAIL / count==2 PASS, and neither polarity is a
-#   watchdog timeout: both ends of the test render a real a0.
-#
-# THE ANTI-VACUOUS GATE, and it is the load-bearing part:
-#   a green count==2 could also be produced by a hart that resumed, ran on, and
-#   took the second mtip somewhere else entirely.  So BOTH pushed return PCs are
-#   recorded and BOTH must equal &f3pp_word:
-#     * retpc1 == &f3pp_word  =>  the word IRQ_SV decoded really was the `ignite`
-#     * retpc2 == &f3pp_word  =>  the hart was STILL PARKED AT THE SAME PC when
-#                                 the second interrupt arrived, i.e. it really
-#                                 did re-park.  A resumed hart cannot produce
-#                                 this address.
-#
-# THE RACE, and how it is sized:  the re-arm delta must be long enough that the
-#   PRE-fix path (iret -> resume -> execute the ignite -> disarm mtip, ~4
-#   instructions of which one is a shared-window store) cannot be overtaken by
-#   mtip #2, or a pre-fix run would falsely count 2.  Measured from csrleak.S's
-#   green run, mtime advances ~64 ticks while mcycle advances ~55, i.e. mtime
-#   runs at about the core clock rate.  The exposure window is <100 cycles;
-#   MTIP_REARM is 4096, an ~40x margin.  The verdict path DISARMS FIRST, before
-#   it reads anything.  In the post-fix direction 4096 ticks of extra sleep is
-#   ~170 us against the 100 ms testbench watchdog.
-#
-# Verdict / a1 codes:
-#   a0=0xCAFEBABE                   PASS  (the hart re-parked; post-fix)
-#   a0=0xDEADBEEF, a1=0xF3F30001    F3++ FIRED -- exactly ONE ISR ran, i.e. the
-#                                   iret-without-ignite resumed the hart
-#                                   (a2 = the count, a3/a4 = the two retpcs)
-#   a0=0xDEADBEEF, a1=0x5E800001    setup: no ISR ran at all
-#   a0=0xDEADBEEF, a1=0x5E800002    setup: retpc1 != &f3pp_word -- the leaked
-#                                   bus word was not the encoding under test
-#   a0=0xDEADBEEF, a1=0x5E800003    setup: retpc2 != &f3pp_word -- the second
-#                                   interrupt did not find the hart parked
-#   a0=0xDEADBEEF, a1=0x5E800004    setup: more than two ISRs (the re-arm looped)
-#
-# Shared window: NONE claimed.  The only non-private addresses touched are the
-#   CLINT registers themselves (0x5000 page).
-#
-# Conventions: `.option arch, +zicsr` (rv32ua's -march has no zicsr);
-#   `.option norvc` throughout with ONE rvc-enabled `.balign 4` at the top, so
-#   every instruction is 4-byte aligned and the F7 half-fetch bubble
-#   (csrrevrt.S) is kept OUT of this image entirely.
-#   RVTEST_CODE_END is `unimp` in this env, so every path spins.
-#*****************************************************************************
+# VestaRV: detector for an `ignite` leaked by the legacy interrupt-entry state
+# THE DEFECT is the mirror image of the `extinguish` leak slpleak.S covers, and the second consumer of the same live IRQ_SV decode: an `ignite` encoding decoded in IRQ_SV CLEARS sleep_cpu, so a SLEEPING hart RESUMES instead of re-parking. `instr_curr <= instr when current_state = IRQ_SV` is the first matching arm of the mux, so IRQ_SV decodes the raw bus word; maindec's wake_rq is a PURE DECODE with no state qualification; and the sleep_cpu flop is on the free-running clock, gated only by dec_squash, which is low on the legacy path. IRQ_REST's re-park arm is then not taken.
+# THAT MATTERS ON SILICON: the boot ROM park contract is built on iret-WITHOUT-ignite meaning "go back to sleep", both for the harvested-boot stray-msip ISR and for the tile park. A parked tile that silently wakes spins in its paranoia loop, burning power and shared-bus bandwidth on a chip that has just gated its rails.
+# THE BUS WORD IS MADE DETERMINISTIC with no interrupt-latency calibration, using the SLEEPING to IRQ_SV edge: in SLEEPING pc_next is held at pc_next_reg and the fetch of that word has already been issued every sleeping cycle, so `extinguish` followed by the word under test makes the leaked encoding a compile-time constant. That is also why this file needs none of slpleak.S's two-pass self-patching, which exists because its subject must catch an AWAKE hart.
+# THE TEST IS A COUNT, NOT A TIMEOUT: park, let mtip fire, and have the ISR iret WITHOUT ignite while re-arming mtip far out. With the leak the hart resumes and reaches the verdict having seen ONE ISR; without it sleep_cpu survives, IRQ_REST re-parks, and a second mtip wakes the hart into an ISR that does ignite, so the verdict sees TWO. Neither polarity is a watchdog timeout.
+# THE ANTI-VACUOUS GATE IS THE LOAD-BEARING PART: a count of two could also come from a hart that resumed, ran on and took the second mtip elsewhere. So BOTH pushed return PCs are recorded and both must equal &f3pp_word, the first proving the word IRQ_SV decoded really was the `ignite` and the second proving the hart was STILL PARKED AT THE SAME PC when the second interrupt arrived. A resumed hart cannot produce that address.
+# THE RE-ARM DELTA IS SIZED, NOT GUESSED: it must be long enough that the leaking path, iret, resume, execute the ignite and disarm mtip, about four instructions of which one is a shared-window store, cannot be overtaken by the second mtip, or a leaking run would falsely count two. mtime runs at about the core clock rate, the exposure window is under 100 cycles, and MTIP_REARM is 4096, roughly a 40x margin; in the other direction 4096 ticks of extra sleep is about 170 us against the 100 ms watchdog. THE VERDICT PATH DISARMS FIRST, before it reads anything.
+# Verdicts: a0 = 0xCAFEBABE means the hart re-parked. a0 = 0xDEADBEEF with a1 = 0xF3F30001 means exactly one ISR ran, so the iret without ignite resumed the hart, with a2 the count and a3 and a4 the two return PCs; a1 = 0x5E800001 no ISR ran at all; 0x5E800002 the first return PC is not &f3pp_word, so the leaked bus word was not the encoding under test; 0x5E800003 the second return PC is not &f3pp_word, so the second interrupt did not find the hart parked; 0x5E800004 more than two ISRs, so the re-arm looped.
+# No shared window is claimed; the only non-private addresses touched are the CLINT registers. `.option arch, +zicsr` is needed because rv32ua's -march has none, and `.option norvc` throughout with ONE rvc-enabled `.balign 4` at the top keeps every instruction 4-byte aligned, which keeps the half-fetch bubble out of this image. RVTEST_CODE_END is `unimp` here, so every path spins.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,21 +1,7 @@
-// ===========================================================================
-// evfab.rdl: the register map of hdl/common/periph/EVFAB.vhd.
-//
-// THE VHDL IS THE AUTHORITY, and EVFCAP is a HARDWIRED CONSTANT, not a
-// zero-reset register: CAP_CONST = VER & N_TASK & N_EV & N_CH, which at this
-// chip's generics (VER 1, N_TASK 10, N_EV 16, N_CH 8, none overridden at the
-// instance) is 0x010A1008. The generator models all four fields as reading 0.
-//
-// Slots 7 to 11 are NON-IDEMPOTENT and are therefore decoded in the
-// free-running clk domain behind one shared write-level edge detector, so a
-// held select produces EXACTLY ONE action; slots 0, 4, 5, 6 and 15 are
-// idempotent stores handled on ClkMem. EVFCHENSET and EVFCHENCLR are write-
-// one-to-set and write-one-to-clear aliases of EVFCHEN and both READ EVFCHEN.
-//
-// EVFIE (slot 2) is reserved -- the block ties irq_evfab to '0' and spends
-// no vector -- and CH8CFG..CH15CFG (slots 24-31) are the register array's
-// dead upper half at N_CH = 8: all read 0 and ignore writes.
-// ===========================================================================
+// VestaRV: the register map of hdl/common/periph/EVFAB.vhd
+// The VHDL is the authority, and EVFCAP is a HARDWIRED CONSTANT, not a zero-reset register: CAP_CONST = VER & N_TASK & N_EV & N_CH, which at this chip's generics (VER 1, N_TASK 10, N_EV 16, N_CH 8, none overridden at the instance) is 0x010A1008. The generator models all four fields as reading 0.
+// Slots 7 to 11 are NON-IDEMPOTENT and are therefore decoded in the free-running clk domain behind one shared write-level edge detector, so a held select produces EXACTLY ONE action; slots 0, 4, 5, 6 and 15 are idempotent stores handled on ClkMem. EVFCHENSET and EVFCHENCLR are write-one-to-set and write-one-to-clear aliases of EVFCHEN and both READ EVFCHEN.
+// EVFIE (slot 2) is reserved, because the block ties irq_evfab to '0' and spends no vector, and CH8CFG..CH15CFG (slots 24-31) are the register array's dead upper half at N_CH = 8: all read 0 and ignore writes.
 
 `include "vesta_udp.rdl"
 

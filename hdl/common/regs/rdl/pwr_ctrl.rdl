@@ -1,37 +1,8 @@
-// ===========================================================================
-// pwr_ctrl.rdl: the register map of hdl/common/pwr_ctrl.vhd.
-//
-// THE VHDL IS THE AUTHORITY, and it carries ONE REGISTER THE GENERATOR DID
-// NOT MODEL AT ALL until R3: TASKWKM at word 7 (0x1C), the event-fabric
-// task-wake mask, one bit per gateable tile. It is read (`elsif widx =
-// W_TASKWKM then rdata_reg(PD_HI downto 1) <= task_wkm`) and written (`if
-// widx = W_TASKWKM and we(0) = '1'`) exactly like PWRCR, and the task_wake
-// pulse clears the gate_req bits it selects.
-//
-// Every write in this block is byte-lane-0 qualified, so software uses
-// full-word stores; the gate mask is ONE field even where it spans lanes.
-// Bit 0 of PWRCR and of TASKWKM has no storage: hart 0 is always on.
-//
-// PARAMETERISED (report R7), on NHARTS alone:
-//
-//   PWRCR.PWRGATE and TASKWKM.PWRTASKWKM span harts NHARTS-1 downto 1, a
-//   range that is EMPTY at NHARTS = 1 (fpga, mcu_hart). SystemRDL has no
-//   conditional instantiation, so the field is declared one bit wide there
-//   and removed by `vesta_live = NHARTS > 1`; its bits fall into the
-//   reserved run, which is the truth on a chip whose only hart is the
-//   always-on management hart.
-//
-//   PWRSR is ceil(NHARTS/8) consecutive words of one 4-bit state nibble per
-//   hart. A SystemRDL field cannot be an array and the LAST word is short
-//   (harts 16-17 on argus), so the word 0 register -- the only one that
-//   carries hart 0's special nibble -- is declared on its own and the rest
-//   follow as a full-word array plus a short last word, all three under the
-//   guard VESTA_PWR_MULTIWORD. That guard is ABSENT below 9 harts, which is
-//   every configuration but argus, so a bare compile of this file is the
-//   default five-hart chip. VESTA_PWR_MIDWORDS additionally guards the
-//   full-word array, because a SystemRDL array dimension "must be greater
-//   than zero" and there are no middle words at 9..16 harts.
-// ===========================================================================
+// VestaRV: the register map of hdl/common/pwr_ctrl.vhd
+// The VHDL is the authority, and carries one register the generator did not model at all: TASKWKM at word 7 (0x1C), the event-fabric task-wake mask, one bit per gateable tile. It is read (`elsif widx = W_TASKWKM then rdata_reg(PD_HI downto 1) <= task_wkm`) and written (`if widx = W_TASKWKM and we(0) = '1'`) exactly like PWRCR, and the task_wake pulse clears the gate_req bits it selects.
+// Every write in this block is byte-lane-0 qualified, so software uses full-word stores; the gate mask is ONE field even where it spans lanes. Bit 0 of PWRCR and of TASKWKM has no storage: hart 0 is always on.
+// Parameterised on NHARTS alone. PWRCR.PWRGATE and TASKWKM.PWRTASKWKM span harts NHARTS-1 downto 1, a range that is EMPTY at NHARTS = 1 (fpga_default, asic_default); SystemRDL has no conditional instantiation, so the field is declared one bit wide there and removed by `vesta_live = NHARTS > 1`, its bits falling into the reserved run, which is the truth on a chip whose only hart is the always-on management hart.
+// PWRSR is ceil(NHARTS/8) consecutive words of one 4-bit state nibble per hart. A SystemRDL field cannot be an array and the LAST word is short (harts 16-17 on argus), so the word 0 register, the only one that carries hart 0's special nibble, is declared on its own and the rest follow as a full-word array plus a short last word, all three under the guard VESTA_PWR_MULTIWORD. That guard is ABSENT below 9 harts, which is every configuration but argus, so a bare compile of this file is the default five-hart chip. VESTA_PWR_MIDWORDS additionally guards the full-word array, because a SystemRDL array dimension "must be greater than zero" and there are no middle words at 9..16 harts.
 
 `include "vesta_udp.rdl"
 

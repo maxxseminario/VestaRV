@@ -1,47 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shi2c.S  (M7c.2; M12 single-ROM boot rework; Argus A3 claim-based rework)
-#-----------------------------------------------------------------------------
-# HART-GENERIC shared I2C0/I2C1 test.
-#
-# M12: tiles are NO LONGER preloaded. Hart 0 stages this TCM image once and
-# launches all tiles 1..NHARTS-1 into tile_entry through the bootrom loader
-# (mp_boot.h); each tile then parks on the GO gate.
-#
-# M7c.2 moved both I2Cs onto the mp_arbiter; M11 put them back at their legacy
-# addresses: I2C0 = 0x4E00, I2C1 = 0x4F00 (offsets CR/FCR/SR/MTX/MRX/STX/SRX/
-# AR/AMR at +0/4/8/C/10/14/18/1C/20); the windows are LIVE for all harts.
-#
-# THE AUDIT FINDING THIS TEST GUARDS: I2C.vhd's register read is COMBINATIONAL
-# (rdata collapses to CR when enable deasserts), so the MCU-side bridge REGISTERS
-# it at the LATCH->DATA edge (i2c_rdata_bridge). The AR reset readbacks
-# (I2C0=0x79, I2C1=0x23 — nonzero, per-instance distinct, != CR reset 0) fail
-# loudly if that bridge register is ever lost. Each role's dance runs the AR
-# check for its OWN instance, so both bridge paths are covered.
-#
-# ARGUS A3 CLAIM-BASED OWNERSHIP (user decision 2026-07-10): the two I2Cs are a
-# POOL of claimable roles. Any hart may atomically CLAIM a free I2C through the
-# HW mutex bank (0x6000, 1-insn acquire); the winner owns it EXCLUSIVELY (mutex
-# never released) and runs the FULL self-contained dance once (AR bridge proof +
-# AMR/STX/CR write-readback + CR restore), then records ROLEDONE[i]. Harts that
-# find both taken just park. With NHARTS >= NROLES claimers the mutex bank
-# guarantees BOTH I2Cs are exercised EXACTLY once. Verified at N=4 AND N=18.
-#
-#   Role 0 = I2C0 dance (SAD 0x79)   Role 1 = I2C1 dance (SAD 0x23)
-#
-# No SMCLK dependence (nothing is enabled; the register file is on the free-
-# running arbiter clock). The dance never sets SEN/MEN/SCS; only IE (12:0) and
-# MDIV (16:13). Register-level test (the tb has no I2C bus devices).
-#
-# Shared words (>= 0x10200, clear of earlier tests' words, all < 0x10500):
-#     GO            = 0x10200            0x12C60000 after hart 0 opens the gate
-#     DONE[h]       = 0x10204 + 4*h      0x12C00000+h after hart h finishes
-#     ROLEDONE[i]   = 0x10204 + 4*NHARTS + 4*i   0x12CD0000+i after role i runs
-#   (mutex bank 0x6000+4*i provides the atomic claim; nothing in shared RAM)
-# ROLEDONE sits at DONE_BASE + 4*NHARTS so the DONE array can't overrun it
-# (N=18: DONE 0x10204..0x10248, ROLEDONE 0x1024C..0x10250).
-#*****************************************************************************
+# VestaRV: shared I2C0 and I2C1 test
+# Both I2Cs are on the mp_arbiter at their legacy addresses, I2C0 at 0x4E00 and I2C1 at 0x4F00, with CR, FCR, SR, MTX, MRX, STX, SRX, AR and AMR at +0 through +0x20, and the windows are live for all harts.
+# THE FINDING THIS TEST GUARDS: I2C.vhd's register read is COMBINATIONAL and collapses to CR when enable deasserts, so the MCU-side bridge must REGISTER it at the latch-to-data edge. The AR reset readbacks, 0x79 for I2C0 and 0x23 for I2C1, are nonzero, per-instance distinct and different from the CR reset value, so they fail loudly if that bridge register is ever lost. Each role runs the AR check for its OWN instance, so both bridge paths are covered.
+# CLAIM-BASED OWNERSHIP: the two I2Cs are a POOL of claimable roles. Any hart atomically claims a free one through the HW mutex bank at 0x6000 with a one-instruction acquire; the winner owns it exclusively, never releases the mutex, runs the full self-contained dance once and records ROLEDONE[i], while harts that find both taken park. With NHARTS >= NROLES claimers the bank guarantees both are exercised exactly once. Role 0 is I2C0 with slave address 0x79 and role 1 is I2C1 with 0x23.
+# There is no SMCLK dependence, since nothing is enabled and the register file is on the free-running arbiter clock, and the dance never sets SEN, MEN or SCS, touching only the interrupt enables and the divider. It is a register-level test, because the tb has no I2C bus devices.
+# Shared words, all below 0x10500: GO = 0x10200, DONE[h] = 0x10204 + 4*h, ROLEDONE[i] = 0x10204 + 4*NHARTS + 4*i. ROLEDONE follows the NHARTS-sized DONE array so it cannot be overrun.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,41 +1,13 @@
 #!/usr/bin/env python3
-# VestaRV: X4 Stage 2c: softfloat-referenced directed FP vectors.
+# VestaRV: softfloat-referenced directed FP vectors for the Zfinx suite.
 #
-# REFERENCE DISCIPLINE (gatekeeper correction C4):
-#   The oracle for every ROUNDED result + fflags is a REAL IEEE-754 single-
-#   precision engine: glibc's `fmaf` / `sqrtf` (genuine correctly-rounded
-#   single-precision ops) reached through ctypes, with libm `fesetround` for
-#   the rounding mode and `feclearexcept`/`fetestexcept` for the sticky
-#   exception flags. x87 is NOT used (it double-rounds through 80-bit) and no
-#   host C compiler is required. FMA is glibc `fmaf` per C4.
-#     add(a,b) = fmaf(1,a, b)     sub(a,b) = fmaf(1,a,-b)
-#     mul(a,b) = fmaf(a,b, 0)     fma      = fmaf(a,b,c)     sqrt = sqrtf(a)
-#   round_to_single(N) for an integer N is computed as fmaf(1, hi, lo) where
-#   hi+lo = N split into two EXACTLY-representable floats -- so int->float ties
-#   (fcvt.s.w) are referenced by the same real engine.
-#   Values that are exact / spec-fixed (fmin/fmax, fsgnj, the fcvt.w.s invalid
-#   table [frozen ruling Q5], and the div-by-zero / invalid specials) need no
-#   rounding and are written from the architectural definition directly.
-#   Every NaN RESULT is forced to the RISC-V canonical qNaN 0x7fc00000 (the
-#   host returns a sign-set 0xffc00000), and mul preserves sign-of-zero.
-#   Round-to-nearest-max-magnitude (RMM) has no libm mode; it is applied ONLY
-#   to exact-tie vectors, where RMM == round-away-from-zero (derived from the
-#   RUP/RDN results by magnitude).
-#
-# The generated tests run on the VestaRV core (Zfinx) and are SELF-CHECKING:
-# each embeds the reference result/flags and `bne`s to `fail` on mismatch, so
-# a wrong value gives a BOUNDED failure (a0=0xDEADBEEF), never a hang -- this
-# is what makes the three Stage-3 negative-control seeds observable.
-#
-# Deterministic: re-running overwrites the committed .S byte-for-byte.
-#   python3 gen_directed.py [output_dir]        (default ../tests/rv32uzf)
-#   python3 gen_directed.py --check [output_dir]  (CI determinism gate)
-#
-# Categories (one .S each): dround dsubnrm dnan dpmzero dfcvttab daccum
-#                           drdx0 dsgnj    (see per-emitter comments)
+# The oracle for every rounded result and fflags is glibc's fmaf and sqrtf through ctypes, with
+# fesetround and fetestexcept; x87 is not used, as it double-rounds through 80 bits. Exact and
+# spec-fixed values come from the architectural definition, every NaN result is forced to the
+# canonical 0x7fc00000, and RMM, which has no libm mode, is applied only to exact-tie vectors.
 import ctypes, struct, sys, os, tempfile, difflib
 
-# ---- glibc single-precision engine via ctypes ----------------------------
+# glibc single-precision engine via ctypes
 _m = ctypes.CDLL("libm.so.6", use_errno=True)
 for _n, _rt, _at in [("fmaf", ctypes.c_float, [ctypes.c_float]*3),
                      ("sqrtf", ctypes.c_float, [ctypes.c_float]),
@@ -103,7 +75,7 @@ def ref(op, a, b=0, c=0, rm="rne"):
 def ref_round_int(hi_bits, lo_bits, rm):
     return ref("add", hi_bits, lo_bits, rm=rm)
 
-# ---- assembly emit -------------------------------------------------------
+# assembly emit
 class T:
     def __init__(self, name, desc):
         self.name, self.desc, self.n = name, desc, 0
@@ -144,7 +116,7 @@ class T:
 "\n  TEST_PASSFAIL\n\nRVTEST_CODE_END\n\n"
 "  .data\nRVTEST_DATA_BEGIN\n  TEST_DATA\nRVTEST_DATA_END\n")
 
-# ---- categories ----------------------------------------------------------
+# categories
 def gen_dround():
     t = T("dround", "corner rounding RNE/RTZ/RDN/RUP/RMM on exact ties")
     # exact ties via fcvt.s.w AND fadd of the two exact components.

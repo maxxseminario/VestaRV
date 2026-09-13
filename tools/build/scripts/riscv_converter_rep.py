@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# VestaRV: ELF-to-image converter variant that reports each section it extracts.
 import os
 import sys
 from elftools.elf.elffile import ELFFile

@@ -1,24 +1,10 @@
 #!/usr/bin/python3.6
-"""VestaRV: unit tests for the K3 generator and its census.
+"""VestaRV: unit tests for the random generator and its census. Exit 0 is all pass.
 
-    /usr/bin/python3.6 tools/randgen/test_randgen.py
-
-No test framework (there is none installed and the tree's precedent --
-`tools/cosim/test_compare.py`, `test_oracle_isa.py` -- is a plain runner).
-Exit 0 == all pass.
-
-The load-bearing tests, named so a reader knows which ones matter:
-
-  * `test_decoder_agrees_with_objdump` -- the CENSUS INSTRUMENT VALIDATION.
-    Every mnemonic the generator can emit is assembled by `gas` and decoded by
-    `census.decode`, and `objdump -M no-aliases` is the referee.  Method rule 4:
-    validated against KNOWN NONZERO values, one per mnemonic, never against an
-    expected zero.
-  * `test_naive_suffix_census_is_wrong` -- the WRONG instrument, demonstrated
-    live on a real stream rather than cited (R-K2-5's `200f` lesson).
-  * `test_census_catches_a_mutated_manifest` -- the manifest checker seen to
-    FAIL, so its OK verdicts mean something (method rule 1).
-  * `test_reproducible` / `test_no_ambient_state` -- R-DK5.
+No test framework, following the tree's precedent. The load-bearing cases:
+test_decoder_agrees_with_objdump validates the census instrument against a known-nonzero per
+mnemonic with objdump as referee; test_naive_suffix_census_is_wrong demonstrates the wrong
+instrument live; test_census_catches_a_mutated_manifest makes the checker be seen to fail.
 """
 
 from __future__ import print_function
@@ -73,9 +59,7 @@ def ok(c, what=''):
         raise AssertionError(what or 'assertion failed')
 
 
-# --------------------------------------------------------------------------
 # helpers
-# --------------------------------------------------------------------------
 def _cfg():
     return k3config.load()
 
@@ -297,7 +281,7 @@ def test_config_gate_removes_classes():
     # `zfinx` is blocked on the default-shaped config because its KNOB is off,
     # which is gate 1 (config-legality), not gate 2 (oracle-judgeability). The
     # distinction is the point: the reason string has to name the knob.
-    # K5: five more knob-off classes joined the table (the emitters R-K4-2 (2)
+    # Five more knob-off classes joined the table (the emitters once
     # filed for this wave), so the list grew.  What is asserted is unchanged in
     # substance and is deliberately stated as a SET plus a property, not as a
     # literal that has to be re-typed every time a class is added: on a
@@ -315,24 +299,19 @@ def test_config_gate_removes_classes():
 
 @test
 def test_oracle_gate_blocks_verdict_b():
-    """A verdict-B knob's class must not reach a stream by default.
-
-    K2b UPDATE. In K3 this could only be tested INDIRECTLY -- no class needed a
-    verdict-B knob, so the refusal arm in `available_classes` had never
-    executed (R-K3-2 D-3). K2b adds a `zfinx` CLASS and DERIVES the class
-    verdict from the knob verdicts, so the arm is now reachable: the assertions
-    below run it for real, on a synthetic B knob, and the K2b implementation
-    report quotes the same transition on the live table.
+    """A verdict-B knob's class must not reach a stream by default. The refusal arm is reachable now
+    that a class derives its verdict from its knob's, so these assertions run it for real on a
+    synthetic B knob.
     """
     for k in ('zihpm', 'trapCsr', 'umode', 'pmp'):
         eq(isa_model.KNOB_ORACLE_STATUS[k], isa_model.B, '%s is verdict B' % k)
     eq(isa_model.KNOB_ORACLE_STATUS['zfinx'], isa_model.E,
        'zfinx is verdict E -- eligible via the K2b `zfinx-fflags` amendment')
-    # K2b amendment 2: zicboz and zcmt leave B for E.
-    # K5 CORRECTION to this comment (method rule 12 -- a wrong rationale is
-    # worse than none, and this one would have read as current): at K2b these
+    # Amendment 2: zicboz and zcmt leave B for E.
+    # A wrong rationale is
+    # worse than none, and this one would have read as current: at first these
     # two had NO emitter class, so the flip bought JUDGEABILITY and not
-    # coverage.  K5 queue item 4 adds the emitters, so from v1.3.0 the flip
+    # coverage.  The emitters came later, so from v1.3.0 the flip
     # buys both, and the tail of this test now asserts the OPPOSITE of what it
     # asserted at K2b.  The change is recorded here rather than made silently.
     eq(isa_model.KNOB_ORACLE_STATUS['zicboz'], isa_model.E,
@@ -368,8 +347,8 @@ def test_oracle_gate_blocks_verdict_b():
         isa_model.CLASS_ORACLE['zfinx'] = saved_cls
     # The knob-on-with-no-emitter report still works, and the class that
     # DEMONSTRATES it changed: `zicboz` had no emitter at K2b and has one now,
-    # so the standing example is `zihpm` -- verdict B, no emitter, and R-K4-2
-    # (2)'s reason for that (a stream that reads an HPM counter diverges by
+    # so the standing example is `zihpm` -- verdict B, no emitter, and the
+    # reason for that (a stream that reads an HPM counter diverges by
     # construction) is unchanged.
     ne = isa_model.knobs_on_without_emitter(_fake_cfg(zihpm=True).isa,
                                             _fake_cfg().priv)
@@ -626,17 +605,9 @@ def test_every_emittable_mnemonic_has_a_class():
 
 @test
 def test_decoder_rejects_what_it_cannot_name():
-    """`None`, never a guess.  0x0000000b is the VestaRV custom opcode -- the
-    one family k3_spec.md forbids outright -- and it must NOT decode.
-
-    K5 UPDATE, and the reason is recorded rather than the list quietly edited:
-    `0x0045a00f` (`cbo.zero a1`) was in this list because until v1.3.0 nothing
-    could emit it, so naming it would have been a decoder guessing beyond the
-    generator.  v1.3.0 has a Zicboz emitter, the decode is a full field decode
-    (funct3=010, rd=x0, imm=0x004) and objdump referees it, so it MOVES from
-    this list to `test_zicboz_and_zawrs_round_trip_through_gas_and_objdump`.
-    `0x00000073` (`ecall`) stays: the SYSTEM arm added for Zawrs names the two
-    wrs encodings and nothing else.
+    """`None`, never a guess. 0x0000000b is the custom opcode, the one family the spec forbids
+    outright, and it must not decode. `ecall` stays in the list because the SYSTEM arm added for
+    Zawrs names the two wrs encodings and nothing else.
     """
     for w in (0x0000000b, 0x0000100b, 0x0200100b, 0x00000073):
         eq(census.decode(w), None, 'refuses to name 0x%08x' % w)
@@ -685,12 +656,9 @@ def test_census_catches_a_mutated_manifest():
 
 @test
 def test_naive_suffix_census_is_wrong():
-    """R-K2-5, demonstrated instead of cited.
-
-    The S5 ledger's "ends `200f`" shorthand generalises to "match the low
-    sixteen bits", and rs1 lives in bits 19:15 -- inside those sixteen.  On a
-    real K3 stream, whose rd/rs1/rs2 come from a 25-register pool, the naive
-    matcher must both MISS real instances and FALSELY HIT unrelated ones.
+    """The naive suffix census demonstrated wrong rather than cited. Matching the low sixteen bits
+    puts rs1, which lives in bits 19:15, inside the match, so on a stream drawing registers from a
+    25-register pool the matcher must both miss real instances and falsely hit unrelated ones.
     """
     cfg = _cfg()
     _b, text = randgen.build_stream(cfg, 'k3u', 4242, 'base', 1200, True)
@@ -713,10 +681,10 @@ def test_naive_suffix_census_is_wrong():
 
 @test
 def test_naive_suffix_census_also_FALSE_HITS():
-    """The sharper half of the claim (k3_predictions.md P6): the naive matcher
-    does not merely undercount, it CONFLATES.  Bits 15:0 hold opcode, rd,
-    funct3 and rs1's low bit -- but NOT funct7 -- so `add`/`sub`,
-    `srli`/`srai`/`rori`/`bexti` and friends are indistinguishable to it."""
+    """The sharper half: the naive matcher does not merely undercount, it conflates. Bits 15:0 hold
+    opcode, rd, funct3 and rs1's low bit but not funct7, so add and sub, or srli and srai and
+    rori and bexti, are indistinguishable to it.
+    """
     cfg = _cfg()
     _b, text = randgen.build_stream(cfg, 'k3u', 4242, 'base', 1200, True)
     elf = _compile_stream(text)
@@ -761,11 +729,10 @@ def test_census_refuses_a_compressed_encoding_in_the_range():
 # the negative controls for the STREAM's own runtime detector
 @test
 def test_negative_controls_are_constructible():
-    """The epilogue guard checks must be seen to FAIL, which needs a stream
-    that violates the discipline on purpose.  These are NOT the acceptance
-    mutants of k3_spec.md 6 (those are authored by a second, blind agent and
-    target the generator's LEGALITY); they are the method-rule-1 controls for
-    the guard words and the base-register check."""
+    """The epilogue guard checks must be seen to fail, which needs a stream that violates the
+    discipline on purpose. These are the controls for the guard words and the base-register check,
+    not the acceptance mutants, which are authored blind and target legality.
+    """
     cfg = _cfg()
     for kind in randgen.NEGCTRL_KINDS:
         b, text = randgen.build_stream(cfg, 'k3n', 5, 'base', 120, True,
@@ -842,8 +809,9 @@ def test_zcm_decoder_refuses_what_it_must_not_name():
 
 @test
 def test_pause_is_not_fence_and_ntl_is_not_add():
-    """Both are the R-K2-5 lesson one field deeper: the opcode alone conflates
-    them, and the discriminator is in the fields."""
+    """Both are the suffix-matching lesson one field deeper: the opcode alone conflates them, and
+    the discriminator is in the fields.
+    """
     words, obj = _assemble(['pause', 'fence iorw, iorw',
                             'add x0, x0, x2', 'add x0, x0, x5',
                             'add x10, x11, x12'],
@@ -1023,12 +991,10 @@ def test_zawrs_is_never_emitted_with_a_live_reservation():
 
 @test
 def test_forbidden_text_check_is_seen_to_fail():
-    """A scan that has never rejected anything is worth nothing (method rule 1).
-
-    One synthetic violation per FORBIDDEN pattern, each placed in the scope the
-    row is enforced over, plus the case that FOUND the row's own defect: an
-    `iret` in the ISR is LEGAL (bracket channel) and an `iret` in the census
-    range is not."""
+    """A scan that has never rejected anything is worth nothing. One synthetic violation per
+    forbidden pattern, each placed in the scope the row is enforced over, plus the case that found
+    the row's own defect: an iret in the ISR is legal and one in the census range is not.
+    """
     head = 'k3_stream_begin:\n'
     tail = 'k3_stream_end:\n'
     cases = [
@@ -1055,10 +1021,9 @@ def test_forbidden_text_check_is_seen_to_fail():
 
 @test
 def test_the_verdict_b_refusal_arm_fires_for_a_real_class():
-    """R-K3-2's D-3 recorded that this arm had never fired; R-K4-3 (4) measured
-    that no CONFIGURATION could make it fire and named it an emitter question.
-    With a class whose knob is verdict B, it fires -- and re-admits exactly that
-    class under `allow_unmodelled`, and nothing else."""
+    """The verdict-B refusal arm fires for a real class, and re-admits exactly that class under
+    allow_unmodelled and nothing else.
+    """
     saved = isa_model.KNOB_ORACLE_STATUS['zcmp']
     savedc = dict(isa_model.CLASS_ORACLE)
     try:
@@ -1132,11 +1097,10 @@ def test_arch_fragments_follow_the_config_not_the_group_march():
 
 @test
 def test_default_config_streams_are_unmoved_by_the_new_classes():
-    """The five classes are APPENDED to the profile tuples, and every one of
-    them is filtered out by `available_classes` on a config whose knob is off --
-    so the weight list `weighted_choice` consumes on the DEFAULT config is the
-    v1.2.0 one and the emitted BODY cannot move.  Checked against the tracked
-    campaign, not asserted."""
+    """The five classes are appended to the profile tuples and every one is filtered out by
+    available_classes on a config whose knob is off, so the weight list weighted_choice consumes
+    on the default config is unchanged and the emitted body cannot move. Checked, not asserted.
+    """
     cfg = _cfg()
     idx = json.load(open(os.path.join(randgen.CAMPAIGN_INDEX)))
     # DIAGNOSE THE CONFIG BEFORE DIAGNOSING THE BYTES.

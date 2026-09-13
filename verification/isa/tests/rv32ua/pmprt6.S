@@ -1,64 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# pmprt6.S   (P3 RED TEAM — THE HALF-FETCH QUALIFIER: a PMP instruction access
-#             fault on the UPPER HALF of a STRADDLING 32-bit instruction)
-#-----------------------------------------------------------------------------
-# ON-ONLY DIRECTED TEST (needs a trapCsr+umode+pmp build).  privpmp is
-# `.option norvc` throughout, so NOTHING in the P3 suite ever takes a fetch
-# fault on the upper half of a split fetch.  That is exactly the kickoff §6b.5
-# class ("any new strobe keyed on EXECUTE + a decode signal re-fires on
-# compressed half-fetch cycles").
-#
-# THE GEOMETRY.  With C enabled a 32-bit instruction may start at an odd
-# halfword, so its two halves live in DIFFERENT words and are TWO separately
-# checked fetch transactions (p0_specs.md §4.1).  This file builds exactly
-# that and fences ONLY the upper word:
-#
-#     B+0   c.nop                       (word B+0 — permitted)
-#     B+2   addi s10, s10, 1            32-bit, occupies B+2 .. B+5
-#     B+4   <-- THE FENCED WORD (NA4, no permissions): holds the UPPER HALF
-#     B+6   c.nop                       (same fenced word, never fetched)
-#     B+8   c.nop                       (word B+8 — permitted)
-#     B+10  c.li s11, 7                 <-- the RESUME point: a COMPRESSED
-#                                           instruction at an ODD halfword
-#
-# THREE THINGS ARE UNDER TEST:
-#   (a) the fault fires at all on a half-fetch cycle, with cause 1;
-#   (b) the frozen mepc/mtval rule for a straddling instruction —
-#       "mepc = the LOWER half's address even when the UPPER half is the
-#       denied one" (vesta.vhd:2006-2012), mtval = the denied half's address;
-#   (c) THE RESIDUE.  The half-fetch cycle asserted `repeat_if_req <= '1'`
-#       (vesta.vhd:2253-2260).  Every OTHER trap out of a split fetch is
-#       dispatched from INSIDE the `repeat_if = '1'` branch, which clears the
-#       flag first (`clr_repeat_if <= '1'`, vesta.vhd:2047-2049).  The P3
-#       instruction-access-fault arm is deliberately HOISTED to the very top
-#       of EXECUTE (vesta.vhd:2013-2024) and does NOT clear it.  If
-#       `repeat_if` survives trap entry, then the first time the hart later
-#       executes a COMPRESSED instruction at an odd halfword it is decoded as
-#       the completion of a split fetch (instr = decomp(assembled), pc += 4
-#       instead of 2 — vesta.vhd:1311-1322 / 1372-1374).  CHECK 14 catches
-#       that: `c.li s11, 7` at B+10 must actually set s11 to 7.
-#
-# CLASSIFICATION IF (c) BITES: instruction-stream corruption after a
-# legitimate, recoverable PMP fetch fault — a MIS-EXECUTION / PC-desync bug
-# (and the natural handler action, MRET back to mepc to re-run the
-# instruction, hits the same stale flag).  Not an escape.
-#
-# BOUNDEDNESS: the U fragment is straight-line into `ecall`, every landing
-# slot inside it is a c.nop chain that falls into `j rt6_uexit`, and the
-# handler BAILS to M after 8 traps, so a mis-decoded instruction that traps
-# repeatedly cannot loop.
-#
-# Compressed encodings are raw `.half` words (the extrvc idiom) so the file
-# can stay `.option norvc` and the layout is byte-exact.
-#   0x0001 = c.nop        0x4D9D = c.li s11, 7
-#
-# REGISTER CONTRACT:
-#   s2 = B (the split base)   s3 trap counter   s4/s5/s6 FIRST fault's
-#   cause/mepc/mtval (captured once)   s7 handler resume PC   s9 M
-#   continuation after ECALL   s10 straddle-commit witness   s11 c.li witness
-#*****************************************************************************
+# VestaRV: red team, a PMP fetch fault on the upper half of a straddling instruction
+# ON-ONLY, needing a trapCsr, umode and pmp build. privpmp is `.option norvc` throughout, so nothing else in the suite ever takes a fetch fault on the upper half of a split fetch, which is exactly the class where a new strobe keyed on EXECUTE plus a decode signal re-fires on compressed half-fetch cycles.
+# THE GEOMETRY: with C enabled a 32-bit instruction may start at an odd halfword, so its two halves live in DIFFERENT words and are TWO separately checked fetch transactions. Only the upper word is fenced. B+0 c.nop, in the permitted word B+0; B+2 `addi s10, s10, 1`, 32-bit, occupying B+2 through B+5; B+4 THE FENCED WORD, NA4 with no permissions, holding the UPPER HALF; B+6 c.nop in that same fenced word, never fetched; B+8 c.nop in the permitted word B+8; B+10 `c.li s11, 7`, the RESUME point, a compressed instruction at an odd halfword.
+# Three things are under test. (a) The fault fires at all on a half-fetch cycle, with cause 1. (b) The frozen rule for a straddling instruction: mepc is the LOWER half's address even when the UPPER half is the denied one, and mtval is the denied half's address. (c) THE RESIDUE. The half-fetch cycle asserted repeat_if_req, and every other trap out of a split fetch is dispatched from inside the repeat_if branch, which clears the flag first, but the instruction-access-fault arm is deliberately HOISTED to the top of EXECUTE and does not clear it. If repeat_if survives trap entry, the first compressed instruction the hart later executes at an odd halfword is decoded as the completion of a split fetch, with the PC advancing 4 instead of 2. Check 14 catches that by requiring `c.li s11, 7` at B+10 actually to set s11 to 7.
+# CLASSIFICATION IF (c) BITES: instruction-stream corruption after a legitimate, recoverable PMP fetch fault, a mis-execution and PC-desync bug, and the natural handler action of MRETing back to mepc to re-run the instruction hits the same stale flag. Not an escape.
+# Boundedness: the U fragment is straight-line into `ecall`, every landing slot inside it is a c.nop chain falling into the exit jump, and the handler bails to M after 8 traps, so a mis-decoded instruction that traps repeatedly cannot loop. Compressed encodings are raw `.half` words so the file can stay `.option norvc` and the layout is byte-exact: 0x0001 is c.nop and 0x4D9D is `c.li s11, 7`.
+# REGISTER CONTRACT: s2 = B, the split base; s3 the trap counter; s4, s5 and s6 the FIRST fault's cause, mepc and mtval, captured once; s7 the handler resume PC; s9 the M continuation after ECALL; s10 the straddle-commit witness; s11 the c.li witness.
 
 #include "riscv_test.h"
 #include "test_macros.h"

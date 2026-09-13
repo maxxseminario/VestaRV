@@ -1,4 +1,4 @@
-"""Forth Dashboard v2 backend package (WP2).
+"""VestaRV: Forth Dashboard v2 backend package, talking to the on-chip rv4th REPL over UART.
 
 Talks to the Myshkin chip's on-chip rv4th Forth REPL over UART.  All modules
 here are pure Python + the three declared runtime deps (fastapi / uvicorn /

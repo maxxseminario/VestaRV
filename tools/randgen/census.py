@@ -1,33 +1,10 @@
 #!/usr/bin/python3.6
-"""census.py -- count what is ACTUALLY in a built image, by field decode.
+"""VestaRV: count what is actually in a built image, by field decode.
 
-WHY THIS IS A SEPARATE INSTRUMENT
----------------------------------
-k3_spec.md requirement 5 (witness-first): *"prove the generator actually emitted
-the shapes it claims -- count them from the DECODED image ... A per-stream shape
-manifest is part of the output, and the census validates the manifest, not the
-other way round."*
-
-So this module must not be able to agree with the generator by construction.
-It shares nothing with `isa_model.py` except the class NAMES: the generator
-emits mnemonic TEXT, `gas` encodes it, and this file decodes the resulting BYTES
-back to a mnemonic from its own opcode/funct3/funct7 table, written from the
-RISC-V encodings and checked against `objdump -M no-aliases` in the unit tests.
-`gas` and `objdump` are the third parties that make the loop honest.
-
-R-K2-5 IS THE REASON IT IS A FIELD DECODE AND NOT A PATTERN MATCH.
-The S5 ledger's census shorthand "ends `200f`" for `cbo.zero` was ruled WRONG as
-a detector: it holds only for `rs1 in {x0,x1}`, because `rs1` sits in bits 19:15
--- inside the low sixteen -- so a real `cbo.zero a1` ends `a00f`.  A K3 stream
-draws rd/rs1/rs2 from a 25-register pool, so ANY low-bits pattern match is
-confidently wrong here.  `naive_suffix_count()` below exists solely so the unit
-tests can demonstrate that live rather than cite it.
-
-`tools/cosim/disasm.py` is deliberately NOT reused: its own docstring says "the
-caller must never make a comparison decision from this module's output; it is
-presentation only."
-
-Python 3.6 compatible.
+Must not be able to agree with the generator by construction: it shares only the class names
+with isa_model.py, decoding the built bytes from its own opcode table, with gas and objdump
+as the third parties. A field decode, not a pattern match: a low-bits suffix depends on rs1,
+so it is wrong for a stream drawing registers from a 25-register pool. Python 3.6.
 """
 
 import os
@@ -38,13 +15,11 @@ import sys
 
 PREFIX = os.environ.get('RISCV_PREFIX', 'riscv-none-elf-')
 
-# --------------------------------------------------------------------------
 # The decode table.  Written from the RISC-V base + M + A + Zba/Zbb/Zbc/Zbs
 # encodings; every entry is asserted against `objdump -M no-aliases` by
 # test_randgen.test_decoder_agrees_with_objdump, which is the instrument
-# validation method rule 4 asks for -- against KNOWN NONZERO values, one per
+# validation this needs -- against KNOWN NONZERO values, one per
 # mnemonic, not against an expected zero.
-# --------------------------------------------------------------------------
 _BRANCH = {0: 'beq', 1: 'bne', 4: 'blt', 5: 'bge', 6: 'bltu', 7: 'bgeu'}
 _LOAD = {0: 'lb', 1: 'lh', 2: 'lw', 4: 'lbu', 5: 'lhu'}
 _STORE = {0: 'sb', 1: 'sh', 2: 'sw'}
@@ -88,10 +63,10 @@ _AMO_F5 = {0x00: 'amoadd.w', 0x01: 'amoswap.w', 0x02: 'lr.w', 0x03: 'sc.w',
 
 
 def decode(w):
-    """32-bit encoding -> mnemonic string, or None if this decoder does not
-    name it.  `None` is a census FAILURE inside the stream range, never a
-    silent skip: an encoding the instrument cannot name is an encoding it
-    cannot count."""
+    """32-bit encoding to mnemonic string, or None if this decoder does not name it. None is a census
+    failure inside the stream range, never a silent skip: an encoding the instrument cannot name
+    is one it cannot count.
+    """
     op = w & 0x7F
     rd = (w >> 7) & 0x1F
     f3 = (w >> 12) & 7
@@ -113,9 +88,9 @@ def decode(w):
     if op == 0x23:
         return _STORE.get(f3)
     if op == 0x0F:
-        # K5 Zicboz: MISC-MEM funct3=010, rd=x0, imm[11:0]=0x004, rs1 free.
-        # rs1 IS free, which is the entire content of R-K2-5's correction: the
-        # S5 ledger's "ends 200f" shorthand is true only for rs1 in {x0,x1}
+        # Zicboz: MISC-MEM funct3=010, rd=x0, imm[11:0]=0x004, rs1 free.
+        # rs1 IS free, which is why an "ends 200f" shorthand is wrong: it is
+        # true only for rs1 in {x0,x1},
         # because rs1 sits in bits 19:15, inside the low sixteen.  This decode
         # reads the fields and does not care.  cbo.clean/flush/inval (imm 1/2/0)
         # are deliberately NOT named: the RTL traps them (cbozill.S is the
@@ -126,10 +101,10 @@ def decode(w):
                 else None
         if f3 != 0:
             return None
-        # K5: `pause` IS a FENCE encoding -- fm=0, pred=W, succ=0, rd=rs1=0,
+        # `pause` IS a FENCE encoding -- fm=0, pred=W, succ=0, rd=rs1=0,
         # i.e. the whole word 0x0100000F.  A decoder that stopped at
         # `op == 0x0F and f3 == 0` would count it as `fence` and put it in the
-        # wrong class, which is R-K2-5's lesson one field deeper: the
+        # wrong class, which is the same lesson one field deeper: the
         # discriminator is in the fields, so read the fields.
         if w == 0x0100000F:
             return 'pause'
@@ -238,12 +213,11 @@ def decode(w):
     return None
 
 
-# --------------------------------------------------------------------------
 # K5: the 16-bit half of the decoder.
 #
 # gas 2.41 cannot assemble `cm.*` and objdump 2.41 cannot disassemble it
 # (measured), so this table has NO third-party referee of its own.  What it has
-# instead is a known-NONZERO cross-check (method rule 4): the X3 wave's directed
+# instead is a known-NONZERO cross-check: the X3 wave's directed
 # tests carry hand-verified literals -- extzcmp.S 0xB852 / 0xBA52 and
 # extzcmt.S 0xA016 -- and `test_randgen.py` asserts this decoder names all three
 # correctly AND that `stream.zcmp_push_pop_word`/`zcmt_word` reproduce them.
@@ -255,7 +229,6 @@ def decode(w):
 # None, and `stream_words` turns that into the same hard CensusError it has
 # always raised, so `.option norvc` keeps precisely the guarantee it had before
 # this file learned to read 16 bits at all.
-# --------------------------------------------------------------------------
 def decode16(h):
     """16-bit encoding -> mnemonic, or None if this decoder does not name it."""
     if (h & 0x3) != 0x2:
@@ -393,11 +366,9 @@ def _section(elf, sec):
 
 def stream_words(elf, section='.text.init',
                  begin='k3_stream_begin', end='k3_stream_end'):
-    """The machine words between the two range symbols, as (addr, word) pairs.
-
-    Bounds come from the ELF SYMBOL TABLE, not from a marker instruction or a
-    fixed offset: the range is structurally determined and there is nothing to
-    calibrate (method rule 7).
+    """The machine words between the two range symbols, as (addr, word) pairs. Bounds come from the
+    ELF symbol table, not from a marker instruction or a fixed offset, so the range is
+    structurally determined and there is nothing to calibrate.
     """
     lo = symbol_addr(elf, begin)
     hi = symbol_addr(elf, end)
@@ -473,10 +444,8 @@ def census(elf, **kw):
 
 
 def check_against_manifest(cen, manifest):
-    """Return an ordered list of human-readable MISMATCH lines; empty == clean.
-
-    The census validates the manifest, not the reverse: every discrepancy is
-    reported in the census's terms ("image has N, manifest claims M").
+    """An ordered list of human-readable MISMATCH lines; empty means clean. The census validates the
+    manifest, not the reverse, so every discrepancy is reported in the census's terms.
     """
     bad = []
     if cen['undecoded']:
@@ -502,18 +471,11 @@ def check_against_manifest(cen, manifest):
     return bad
 
 
-# --------------------------------------------------------------------------
 # THE WRONG WAY, kept on purpose.
-# --------------------------------------------------------------------------
 def naive_suffix_count(elf, suffix_hex, **kw):
-    """Count words whose LOW SIXTEEN BITS equal `suffix_hex`.
-
-    This is the S5 ledger's "ends `200f`" shorthand generalised, and it is
-    WRONG for any instruction whose rs1/funct3/rd vary -- R-K2-5 placed a
-    correction marker at the ledger site for exactly this.  It lives here, in
-    the tree, so that `test_randgen.py` can DEMONSTRATE the wrong answer on a
-    real stream instead of citing the lesson.  Nothing in the census path calls
-    it.
+    """Count words whose low sixteen bits equal `suffix_hex`. This is the wrong instrument for any
+    instruction whose rs1, funct3 or rd vary; it lives here so the unit tests can demonstrate the
+    wrong answer on a real stream. Nothing in the census path calls it.
     """
     want = int(suffix_hex, 16) & 0xFFFF
     return sum(1 for _a, w in stream_words(elf, **kw) if (w & 0xFFFF) == want)

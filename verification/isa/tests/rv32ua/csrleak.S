@@ -1,73 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# csrleak.S   (F-series fix pass, W2 -- the DETECTOR for finding F3)
-#-----------------------------------------------------------------------------
-# F3: the legacy interrupt-entry state IRQ_SV DECODES A LIVE BUS WORD, and
-# csr_valid is not suppressed there, so an unexecuted instruction commits a
-# CSR write.
-#
-# Mechanism, re-anchored to the RTL (hdl/common/vesta/vesta.vhd, rtl-fixpass):
-#   * instr_curr <= instr when current_state = IRQ_SV  is the FIRST matching
-#     arm of the instr_curr mux, so it WINS over the instr_curr_prev hold arm
-#     further down. IRQ_SV therefore decodes the raw unified-bus word.
-#   * csr_addr <= instr_curr(31 downto 20) and csr_valid_eff = csr_valid and
-#     not dec_squash; dec_squash is trap_entry_seq/pmp_if_squash only, both
-#     '0' on the legacy path. So csr_write_en fires in IRQ_SV with csr_wdata
-#     read LIVE from rf[rs1].
-#   * IRQ_SV's own FSM arm forces reg_write_dp <= '0', so the phantom decode
-#     writes NO register -- the CSR write is the only escaping side effect,
-#     which is exactly why it survived twelve months of regression.
-#
-# HOW THE BUS WORD IS MADE DETERMINISTIC (this is the design of the test):
-#   In every state that precedes IRQ_SV, data_addr falls through to pc_next,
-#   so the word that lands on read_data during IRQ_SV is the instruction at
-#   the resume PC. Rather than race an interrupt against a running pipeline,
-#   this test uses the SLEEPING -> IRQ_SV edge: the SLEEPING arm holds
-#   pc_next = pc_next_reg and the RTL's own comment states that the fetch of
-#   that word "has been issued from data_addr every SLEEPING cycle already".
-#   So `extinguish` followed by the trap word makes the leaked encoding a
-#   COMPILE-TIME CONSTANT, with no interrupt-latency calibration at all.
-#
-# THE SYMMETRY TRAP, and how it is broken:
-#   The leaked word is the same encoding, with the same source register, that
-#   the hart will legitimately execute after iret -- so both writes would
-#   carry the same value and the leak would be invisible. The observation is
-#   therefore made INSIDE the ISR, BEFORE the trap word has ever executed:
-#     * mcycle read at ISR entry ~= the payload  => the leak already wrote it
-#     * the trap word's rd (t1) still 0          => it has NOT executed
-#     * the hardware-pushed return PC == the trap word's address
-#   All three are required; the last two are the anti-vacuous-pass gate.
-#
-# WHY mcycle AND NOT mscratch/minstret: see csrrevrt.S -- in the DEFAULT build
-#   csr_unit.vhd's csr_addr_stores() admits only mcycle/mcycleh/minstret/
-#   minstreth, and minstret is finding F1's subject (wave W3 changes how it
-#   counts), so a detector built on it would couple two waves' evidence.
-#   mcycle free-runs; the payload 0xC5C5C5C5 is ~137 s of 24 MHz counting away
-#   from any value this test can otherwise produce. RANGE check, never equality.
-#
-# Verdict / a1 codes:
-#   a0=0xCAFEBABE                   PASS  (no leak; post-fix expectation)
-#   a0=0xDEADBEEF, a1=0xF3F3F3F3    F3 FIRED -- mcycle already held the payload
-#                                   at ISR entry (a2 = the value read there)
-#   a0=0xDEADBEEF, a1=0x5E800001    setup: the mtip ISR never ran
-#   a0=0xDEADBEEF, a1=0x5E800002    setup: the pushed return PC is not the trap
-#                                   word (a3 = what was pushed) -- the leaked
-#                                   bus word was NOT the encoding under test
-#   a0=0xDEADBEEF, a1=0x5E800003    setup: the trap word's rd was already
-#                                   written (a4) -- it executed before the ISR,
-#                                   so the observation proves nothing
-#
-# Shared window: NONE claimed. The only non-private addresses touched are the
-#   CLINT registers themselves (0x5000 page); no shared scratch word is used.
-#
-# Conventions: `.option arch, +zicsr` (rv32ua's -march has no zicsr);
-#   `.option norvc` throughout with ONE rvc-enabled `.balign 4` at the top so
-#   every instruction in this image is 4-byte aligned -- that keeps the F7
-#   half-fetch bubble (csrrevrt.S) OUT of this test entirely, so any CSRLEAK
-#   this image emits is attributable to IRQ_SV (tracer state 09) alone.
-#   RVTEST_CODE_END is `unimp` in this env, so every path spins.
-#*****************************************************************************
+# VestaRV: detector for a CSR write leaked by the legacy interrupt-entry state
+# THE DEFECT: IRQ_SV decodes a LIVE BUS WORD and csr_valid is not suppressed there, so an instruction that never executes commits a CSR write. `instr_curr <= instr when current_state = IRQ_SV` is the first matching arm of the instr_curr mux and wins over the hold arm, csr_addr comes from instr_curr(31:20), and csr_valid_eff is only squashed by trap_entry_seq or pmp_if_squash, both low on the legacy path. IRQ_SV forces reg_write_dp low, so the phantom decode writes no register and the CSR write is the only escaping side effect, which is why it survived a year of regression.
+# THE BUS WORD IS MADE DETERMINISTIC BY CONSTRUCTION. In every state preceding IRQ_SV data_addr falls through to pc_next, so the word on read_data during IRQ_SV is the instruction at the resume PC. This test uses the SLEEPING to IRQ_SV edge, where the SLEEPING arm holds pc_next = pc_next_reg and the fetch of that word has already been issued every sleeping cycle, so `extinguish` followed by the trap word makes the leaked encoding a compile-time constant with no interrupt-latency calibration.
+# THE SYMMETRY TRAP: the leaked word is the same encoding with the same source register the hart will legitimately execute after iret, so both writes carry the same value and the leak would be invisible. The observation is therefore made INSIDE the ISR, BEFORE the trap word has ever executed, and all three conditions are required: mcycle at ISR entry already holds the payload, the trap word's rd is still 0, and the hardware-pushed return PC is the trap word's address. The last two are the anti-vacuous-pass gate.
+# mcycle, NOT mscratch OR minstret: in the default build csr_unit's csr_addr_stores admits only mcycle, mcycleh, minstret and minstreth, and minstret is another finding's subject, so a detector built on it would couple two waves' evidence. mcycle free-runs, and the payload 0xC5C5C5C5 is about 137 s of 24 MHz counting away from anything this test can otherwise produce. ALWAYS RANGE-CHECK IT, NEVER COMPARE FOR EQUALITY.
+# Verdicts: a0 = 0xCAFEBABE passes; a0 = 0xDEADBEEF with a1 = 0xF3F3F3F3 means the leak fired and a2 holds the value read at ISR entry; a1 = 0x5E800001 means the mtip ISR never ran; 0x5E800002 means the pushed return PC is not the trap word, in a3, so the leaked bus word was not the encoding under test; 0x5E800003 means the trap word's rd was already written, in a4, so it executed before the ISR and the observation proves nothing.
+# No shared window is claimed; the only non-private addresses touched are the CLINT registers. `.option arch, +zicsr` is needed because rv32ua's -march has none, and `.option norvc` throughout with ONE rvc-enabled `.balign 4` at the top keeps every instruction 4-byte aligned, which keeps the half-fetch bubble out of this test so any leak is attributable to IRQ_SV alone. RVTEST_CODE_END is `unimp` here, so every path spins.
 
 #include "riscv_test.h"
 #include "test_macros.h"

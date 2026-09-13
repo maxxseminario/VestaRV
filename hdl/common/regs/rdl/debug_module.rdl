@@ -1,30 +1,8 @@
-// ===========================================================================
-// debug_module.rdl: the DMI register file of hdl/common/debug_module.vhd.
-//
-// THIS BLOCK IS NOT MEMORY-MAPPED, which is why it is absent from
-// castalia_penta_wound.rdl and from the generator's peripheral table
-// entirely. Its registers live in the DMI address space the JTAG DTM drives
-// (dmi_req_addr, 7 bits, word-indexed), so they cannot be reached with a load
-// or a store and have no base address in the shared window.
-//
-// ADDRESS CONVENTION. SystemRDL addresses are bytes, DMI addresses are words,
-// so every register here sits at 4 * its DMI address: DMI 0x10 (dmcontrol) is
-// at byte offset 0x40. rdl_model divides the offset by 4 again, so the slot
-// number it reports IS the DMI address.
-//
-// THE VHDL IS THE AUTHORITY. Every address is one of the block's own A_*
-// constants (which the file says are debug_defines.h's), and every field below
-// is one the decode actually reads or writes -- the debug-spec fields this
-// implementation does not have (hasel, ndmreset, System Bus Access, triggers)
-// are NOT written here, because reading 0 from a bit nothing implements is a
-// fact about this DM, not a field.
-//
-// THREE REGISTERS ANSWER READ-ZERO-SUCCESS RATHER THAN FAILING, deliberately:
-// hartinfo (the null claim: no scratch registers, no shadowed data region, so
-// a debugger uses the program buffer), haltsum1 and sbcs ("no system bus
-// access"). DMI addresses 0x39-0x3F and every other unimplemented address
-// answer `failed` instead.
-// ===========================================================================
+// VestaRV: the DMI register file of hdl/common/debug_module.vhd
+// THIS BLOCK IS NOT MEMORY-MAPPED, which is why it is absent from castalia_penta_wound.rdl and from the generator's peripheral table entirely. Its registers live in the DMI address space the JTAG DTM drives (dmi_req_addr, 7 bits, word-indexed), so they cannot be reached with a load or a store and have no base address in the shared window.
+// Address convention: SystemRDL addresses are bytes and DMI addresses are words, so every register here sits at 4 * its DMI address (DMI 0x10, dmcontrol, is at byte offset 0x40). rdl_model divides the offset by 4 again, so the slot number it reports IS the DMI address.
+// The VHDL is the authority: every address is one of the block's own A_* constants and every field below is one the decode actually reads or writes. The debug-spec fields this implementation does not have (hasel, ndmreset, System Bus Access, triggers) are NOT written here, because reading 0 from a bit nothing implements is a fact about this DM, not a field.
+// Three registers answer read-zero-success rather than failing, deliberately: hartinfo (the null claim: no scratch registers, no shadowed data region, so a debugger uses the program buffer), haltsum1 and sbcs ("no system bus access"). DMI addresses 0x39-0x3F and every other unimplemented address answer `failed` instead.
 
 `include "vesta_udp.rdl"
 

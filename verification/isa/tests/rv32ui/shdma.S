@@ -1,74 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shdma.S  (digperiphs Phase 3 -- DMA controller integration proof, ritual
-#           step 6)
-#-----------------------------------------------------------------------------
-# HART-0 DIRECTED test of the DMA0 controller inside the full MCU. DMA0 exists
-# ONLY in dma-enabled configs (castalia_dma NCH=2, wound NCH=4), so this test
-# runs via `make verify CONFIG=...` and is gated by the `dma` tag in
-# verify_stage.py -- it is NOT in the default behavioral_mp suite.
-#
-# This is a PLAIN single-hart test: hart 0 runs the whole exercise while harts
-# 1-3 stay parked in the bootrom (like irqctx.S / shmem.S -- no MP_STAGE /
-# MP_LAUNCH; the tb reports "tile hart(s) silent/parked", expected). DMA0 is
-# reached through the arbiter at 0x6800 (mutex-page sub-slot 8, design doc D5).
-# It is an mclk block (register file on gated ClkMem), so NO SYS_CLK_CR=0 is
-# needed (that rule is for smclk peripherals; this touches none).
-#
-# LEGS (check-heavy; each leg ends in a bounded poll that trips inside the
-# 100ms tb watchdog -- budgets 20000, shirq/shperiph precedent):
-#   L0 reset defaults : DMA0CR=0, DMA0SR=0, DMA0CRC=0xFFFF (D5).
-#   L1 mem-to-mem+CRC : CH0 SINC/DINC/CRCEN copy of a 4-word buffer; GO then
-#      IMMEDIATELY read SR and require BUSY=1 -- the D8 same-cycle blind-window
-#      guarantee (BUSY = engine_busy OR go_pending, no assert gap); poll
-#      CHnDONE; DST==SRC; DMA0CRC == a PRECOMPUTED CRC16-CDMA2000 constant;
-#      W1C CHnDONE.
-#   L2 IRQ delivery   : route vector 118 (source 118) to hart 0, DONEIE=1,
-#      copy again, `extinguish` (WFI-park); the DMA-done meip (IVT slot 85 ->
-#      MEIP_DISPATCHER -> CLAIM 118 -> jalr IVT slot 118 -> plain-ret handler
-#      that W1Cs CHnDONE + increments FLAG + ignites -> ret -> dispatcher
-#      COMPLETE(118) -> iret) wakes hart 0; FLAG must be EXACTLY 1
-#      (exactly-once via the router's in_service gateway); re-check after a
-#      delay that no second delivery bumped it.
-#   L3 error model    : CH0 GO with LEN=0 -> CHnERR sets (reject-at-GO, D13),
-#      no BUSY hang; W1C clears it.
-#   L4 deny-guard     : CH0 SRC=0x6000 (mutex window) -> the engine SUPPRESSES
-#      the read, CHnERR + abort, NO master txn (D12/A5); PROVE the mutex was
-#      never claimed (a hart lw of 0x6000 returns 0 = was free), then RESTORE
-#      (release). W1C.
-#   L5 NCH-agnostic   : CH2/CH3 SR bits (CHnDONE/CHnERR) and register slots read
-#      0 -- valid at BOTH NCH=2 (absent, D6) and NCH=4 (real but never armed).
-#
-# LEDGER DERIVATION (CLAUDE.md shared-window ledger; window free at N=4 AND
-# N=18 -- though dma configs are 4-hart Castalia only, both shapes checked per
-# the ritual). Claimed WINDOW = 0x100E0-0x1011C (16 words), used sub-range
-# 0x100E0-0x10100. Below it: shmem_mp/shcount hammer 0x10090+4*hartid tops at
-# 0x1009C (N=4) / 0x100D4 (N=18); shlrsc tile hammer 0x10040+4*h tops at
-# 0x1004C / 0x10084; shcount counter 0x10080 -- ALL < 0x100E0. Above it: shboot
-# DONE 0x10120+4*h (first 0x10124) and shspin DONE/LOCK at 0x10120+ -- ALL
-# >= 0x10120 > 0x1011C. So [0x100E0,0x1011C] is free at both shapes; < 0x10500
-# (loader rows) and < 0x10800 (bootrom zero range -> write-before-read holds).
-#     SRC_BUF = 0x100E0  (4 words)   DST_BUF = 0x100F0  (4 words)
-#     FLAG    = 0x10100  (ISR exactly-once counter)
-#
-# CRC DERIVATION: CRC16-CDMA2000 (poly 0xC857, seed 0xFFFF, MSB-first, NO
-# reflection, NO final XOR -- CRC16.vhd VERBATIM), folded over the transferred
-# words' bytes b0->b3 (little-endian first, D14). Over SRC = {0x11223344,
-# 0xAABBCCDD, 0x0F1E2D3C, 0x76543210} the byte stream is
-# 44 33 22 11 DD CC BB AA 3C 2D 1E 0F 10 32 54 76 -> CRC = 0x61C3. Computed
-# offline by scratchpad/dma_crc.py (a script file, not `python3 -c` -- the
-# aoj_cal quote-strip gotcha). The byte-asymmetric words prove the fold order.
-#
-# EN WORD/BIT for source 118 (irq_router row layout, M19 + irq_router.vhd):
-# per-hart row stride 0x10 = 4 enable words {ENL,ENM,ENU,ENX} at +0/4/8/C;
-# NUM_EN_WORDS = ceil(119/32) = 4. Source 118 -> word 118/32 = 3 (ENX), bit
-# 118 mod 32 = 22. Hart-0 row 0 (LIVE): H0ENX @ 0x7000+0x10*0+0xC = 0x700C,
-# value 1<<22 = 0x00400000.
-#
-# NOTE: RVTEST_CODE_END is 'unimp' (traps) in this env -- every path ends in a
-# spin; the test never falls through.
-#*****************************************************************************
+# VestaRV: DMA0 controller integration test
+# Hart 0 directed with the tiles parked in the boot ROM, so the tb reporting them silent is expected. DMA0 exists only in dma-enabled configurations and this file is gated by the `dma` tag, so it is not in the default suite. It is reached through the arbiter at 0x6800 and is an mclk block, so no SYS_CLK_CR write is needed.
+# Legs: L0 proves the reset defaults DMA0CR = 0, DMA0SR = 0, DMA0CRC = 0xFFFF. L1 is a mem-to-mem copy with SINC, DINC and CRCEN over four words, and READS SR IMMEDIATELY AFTER GO REQUIRING BUSY = 1, which is the same-cycle blind-window guarantee that BUSY is engine_busy OR go_pending with no assert gap; then it polls CHnDONE, compares DST to SRC and DMA0CRC to a precomputed constant. L2 routes vector 118 to hart 0 with DONEIE, copies again, extinguishes, and requires FLAG to be EXACTLY 1 after the wake and still 1 after a delay, which is the router's exactly-once in_service gateway. L3 arms CH0 with LEN = 0 and requires CHnERR to set at GO with no BUSY hang. L4 points CH0 SRC at the mutex window 0x6000 and requires the engine to SUPPRESS the read and abort, then proves the mutex was never claimed by reading it free, and restores it. L5 requires the CH2 and CH3 status bits and register slots to read 0, which holds at both NCH = 2 and NCH = 4.
+# Shared words, inside a claimed 16-word window 0x100E0-0x1011C that is free at both N=4 and N=18, below the loader rows at 0x10500 and inside the bootrom zero range: SRC_BUF = 0x100E0, DST_BUF = 0x100F0, FLAG = 0x10100.
+# THE CRC CONSTANT IS CRC16-CDMA2000 taken verbatim from CRC16.vhd: polynomial 0xC857, seed 0xFFFF, MSB first, no reflection, no final XOR, folded over the transferred words' bytes b0 to b3, little-endian first. Over SRC = {0x11223344, 0xAABBCCDD, 0x0F1E2D3C, 0x76543210} the byte stream is 44 33 22 11 DD CC BB AA 3C 2D 1E 0F 10 32 54 76 and the CRC is 0x61C3. The words are byte-asymmetric on purpose, so the fold order is proven rather than assumed.
+# Route for source 118: the per-hart router row stride is 0x10 with four enable words {ENL, ENM, ENU, ENX} at +0/4/8/C, so source 118 falls in word 3 (ENX) at bit 22. Hart 0's row gives H0ENX at 0x700C and a value of 0x00400000.
+# Every leg ends in a bounded poll of 20000 iterations, inside the 100 ms tb watchdog. RVTEST_CODE_END is `unimp` in this environment, so every path ends in a spin and the test never falls through.
 
 #include "riscv_test.h"
 #include "test_macros.h"

@@ -1,50 +1,10 @@
 #!/usr/bin/env python3
-"""gen_actf_vectors.py -- FROZEN golden-vector generator for the NPU ACTF
-activation mux (MODE=0/MLP,
-`~/work/chip_docs/castalia/digperiphs/npu_actf_design.md` D9/D10, adjudicated
-2026-07-23 with amendments A1/A2), built entirely on npu_fixed.py's validated,
-bit-exact MAC/sigmoid/activate model. Emits one case per design-doc GROUP into
-actf_vectors/, at the FROZEN MCU/chip generics:
+"""VestaRV: frozen golden-vector generator for the NPU activation mux, Q0.24 in, Q7.24 out.
 
-    X_M=0  W_M=7  Y_M=7  N=24  RHO=2      (Q0.24 in, Q7.24 weight/acc/out)
-
-Golden-file interface (D10, FROZEN):
-    npu_actf_<case>_cfg.txt  -- 8 scalars, one per line, in order:
-                                NI NN BEN AEN ACTF IVSAR WVSAR OVSAR
-    npu_actf_<case>_in.txt   -- NI+1 lines (raw Q0.24 signed) -- every case
-                                here uses NI=0 (ONE shared input, X_HALF =
-                                0.5 real, reused by every neuron -- only the
-                                per-neuron WEIGHT varies).
-    npu_actf_<case>_w.txt    -- (NN+1)*(NI+1) lines (BEN always 0 in this
-                                bench -- activation, not bias, is under
-                                test), one weight per neuron, walked
-                                contiguously exactly as think_layer() reads
-                                it.
-    npu_actf_<case>_exp.txt  -- NN+1 lines, one post-activation (or
-                                passthrough) output per neuron.
-    All data values are raw fixed-point words reinterpreted as signed
-    decimal ints (the conv/xnor/gemm idiom -- no comment lines).
-
-THE x=0.5 EXACT-ACCUMULATOR TRICK (design-doc D9 kickoff note): X is Q0.24
-(|x|<1, so X cannot itself reach an accumulator target). Fixing the ONE
-shared input at X_HALF = 0.5 (raw 2**23) and choosing each neuron's OWN
-weight as `w_raw = 2 * target_raw` makes the single MAC tap's exact product
-equal `target_raw << N_BITS` with ZERO remainder (see `build_case`'s
-in-line proof), so `mac_step` lands EXACTLY on the desired signed
-accumulator with no rounding to reason about -- every boundary/knee value
-below is therefore exact, not "close to". Legal range of the trick: since
-`w_raw = 2*target_raw` must fit the Q7.24 signed range [-2**31, 2**31),
-`target_raw` (and hence the real accumulator magnitude) must stay under 64.
-
-MANDATORY SELF-TESTS (family A1 discipline, this doc's own list): this
-generator builds every case's data IN MEMORY first, runs six self-tests
-against that data, and ONLY IF ALL PASS does it write the golden files to
-disk.
-
-Usage:
-    /usr/bin/python3 gen_actf_vectors.py
-    (no arguments -- builds every case, self-tests, then regenerates every
-    case into ./actf_vectors/)
+One shared input fixed at X_HALF = 0.5 (raw 2**23) with each neuron's weight chosen as
+2 * target_raw makes the single MAC tap's exact product target_raw << N_BITS with zero
+remainder, so every knee value is exact. The trick needs 2*target_raw inside signed Q7.24,
+so the accumulator magnitude stays under 64. Only an all-pass self-test run writes files.
 """
 import os
 import sys
@@ -54,9 +14,7 @@ from npu_fixed import (think_layer, mac_step, sigmoid, activate,           # noq
                         relu, tanh_approx, clamp01, exp_approx,
                         resize_sfixed, _sat_bounds)
 
-# ---------------------------------------------------------------------------
 # Frozen MCU/chip generics (npu_actf_design.md binding inputs)
-# ---------------------------------------------------------------------------
 X_M = 0
 W_M = 7
 Y_M = 7
@@ -84,9 +42,7 @@ FIFTY    = 50 * ONE                   # real 50.0
 EPS      = 1                          # real 2**-24 (smallest raw unit)
 
 
-# ---------------------------------------------------------------------------
 # Address allocation (conv/gemm/xnor idiom: sequential, staggered).
-# ---------------------------------------------------------------------------
 class AddrAlloc(object):
     def __init__(self, start=64):
         self.cursor = start
@@ -117,17 +73,10 @@ def write_cfg(case, values):
 
 
 def build_case(case, targets, aen, actf, note=""):
-    """Builds one case IN MEMORY: NI=0 (single shared X_HALF input), NN =
-    len(targets)-1, BEN=0. Each neuron's weight is `2*target` -- proven
-    (via mac_step, the SAME primitive npu_fixed uses everywhere else) to
-    land the accumulator EXACTLY on `target` with zero remainder:
-
-        real(X_HALF) = 0.5, real(w) = 2*target/2**N_BITS = 2*real(target)
-        exact product = 0.5 * 2*real(target) = real(target)   (no rounding)
-
-    Then computes the case's true expected outputs via think_layer() (the
-    ONE arithmetic entry point -- never reimplemented), which now (P4.4 D9)
-    threads `actf` through to `activate()` when aen."""
+    """Build one case in memory: NI=0 with a single shared X_HALF input, NN one less than the target
+    count, BEN=0. Each neuron's weight is 2*target, which lands the accumulator exactly on target
+    with zero remainder. Expected outputs come from think_layer(), the one arithmetic entry point.
+    """
     for t in targets:
         assert -(1 << 30) < t < (1 << 30), \
             "%s: target %d exceeds the x=0.5 trick's |real|<64 legal range" % (case, t)
@@ -180,9 +129,7 @@ def write_case_files():
         write_lines(os.path.join(OUT_DIR, "npu_actf_%s_exp.txt" % case), d['outs'])
 
 
-# ---------------------------------------------------------------------------
 # GROUP builders (npu_actf_design.md D10 GROUPs)
-# ---------------------------------------------------------------------------
 def gen_sigregress():
     # G-SIGMOID-REGRESS (also G-XCOLLAPSE: run FIRST, no warm-up pokes, all
     # outputs checked for definedness by the tb): AEN=1, ACTF=0. zero,
@@ -245,20 +192,15 @@ def gen_aen0():
                     "must equal the raw accumulator")
 
 
-# ---------------------------------------------------------------------------
 # MANDATORY SELF-TESTS (family A1 discipline; the kickoff's explicit list)
-# ---------------------------------------------------------------------------
 SELFTEST_SUMMARY = {}
 
 
 def test_relu_vs_sigmoid_neg():
-    """(a) relu(neg) != sigmoid(neg): the 'relu' case's small IN-RANGE
-    negative output (-eps, where plain sigmoid is nonzero) must differ from
-    what sigmoid would have produced at the SAME accumulator -- proves
-    ReLU is not silently aliasing sigmoid. (The large -50.0 negative is
-    EXCLUDED from this particular check: it is deep out-of-range, where
-    sigmoid's own OOR branch also emits 0 -- both 0, no discriminance
-    there; -50.0's job is the separate "Q7.24 not clamped" proof.)"""
+    """relu(neg) must differ from sigmoid(neg) at the same accumulator, which proves ReLU is not
+    silently aliasing sigmoid. The large -50.0 negative is excluded: it is deep out of range,
+    where sigmoid's own branch also emits 0, so there is no discriminance there.
+    """
     d = CASE_DATA['relu']
     checked = 0
     for t, out in zip(d['targets'], d['outs']):

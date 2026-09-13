@@ -1,18 +1,10 @@
 #!/usr/bin/env python3
-"""Recompute the three published CPI tables from the recorded raw counts.
+"""VestaRV: recompute the three published CPI tables from the recorded raw counts.
 
-expected.json holds two kinds of number. The `images` map is RAW: four
-counters per image, each proven against the RTL by its own cpi_test target.
-Everything else is DERIVED from those counters by the same arithmetic the TRM
-prints, and is recorded so that a reader can diff expected.json against TRM
-Section 12 by eye.
-
-This test proves the derived half follows from the raw half. It runs no
-simulation, so it is cheap enough to stay in the default test set, and it
-therefore covers the manual long-benchmark images too: a hand edit to
-expected.json that no longer adds up is caught without simulating anything.
-
-It does NOT prove the raw counters. That is each cpi_test target's job.
+expected.json's `images` map is raw, four counters per image, each proven by its own cpi_test
+target; everything else is derived by the arithmetic the TRM prints. This proves the derived
+half follows from the raw half and runs no simulation, so it also covers the manual
+long-benchmark images. It does not prove the raw counters.
 """
 
 import json

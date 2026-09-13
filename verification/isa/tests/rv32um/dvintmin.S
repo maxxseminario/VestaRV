@@ -1,36 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# dvintmin.S
-#-----------------------------------------------------------------------------
-#
-# DET-A: the divide family's signed restoring loop, at INT_MIN.
-#
-# K5 BLIND DETECTOR.  Authored at unfixed HEAD 5c91e35 by an agent that has
-# never seen the fix (root-cause report sections 1-9 only; section 10, the fix
-# design, was not read).  Every expected value below is the RISC-V ISA value,
-# computed by an independent oracle -- not copied from any report.
-#
-# Self checking, and it does NOT stop at the first wrong row: each row ORs a
-# bit into x31 (value failures) or x30 (structural/alignment failures), and the
-# verdict is taken once at the end.  So a single run exercises and reports on
-# every row, and the accumulators give per row attribution.
-#
+# VestaRV: divide family at INT_MIN
+# Covers the signed restoring loop when the magnitudes and the partial remainder are held in 32-bit SIGNED registers, so abs(INT_MIN) stays negative and the loop comparison is decided on the wrong side. Rows 0-10 sit inside that predicate; rows 11-26 are immune, several by one LSB (|b| = 2^30 exactly against 2^30 + 1), and exist to catch an over-wide fix.
+# Self-checking and non-stopping: each row ORs a bit into x31 for a value failure or x30 for a structural one, and the verdict is taken once at the end, so one run reports every row.
+# THE TEST MUST CONTAIN NO SPLIT-FETCH BUBBLE, so that it isolates the arithmetic defect from the control-path one. `.balign 4' is placed OUTSIDE any `.option norvc' region, because alignment directives are silent no-ops inside one (gas cannot emit a 2-byte pad with compression off), and every instruction in the region is 4 bytes. The alignment is also asserted at run time, so the test cannot silently stop covering.
+# Expected values are the RISC-V ISA values from an independent oracle.
 
-# WHAT IT COVERS.  div/rem magnitudes and the partial remainder live in
-# 32-bit SIGNED registers, so abs(INT_MIN) stays negative and the loop's
-# comparison is decided on the wrong side.  Rows 0-10 are inside that
-# predicate and are WRONG at 5c91e35.  Rows 11-26 are immune, several of
-# them by one LSB (|b| = 2^30 exactly vs 2^30+1), and they must stay
-# correct -- they are what an OVER WIDE fix would break.
-#
-# STRUCTURAL REQUIREMENT.  This test must contain NO split-fetch bubble,
-# so that it isolates the arithmetic defect from the control-path one.
-# It gets that by construction: `.balign 4' OUTSIDE a `.option norvc'
-# region (measured: alignment directives are SILENT NO-OPS inside norvc,
-# because gas cannot emit a 2-byte pad when compression is off), and then
-# every instruction in the region is exactly 4 bytes.  The parity is also
-# ASSERTED AT RUN TIME below, so the test can never silently stop covering.
 
 #include "riscv_test.h"
 #include "test_macros.h"

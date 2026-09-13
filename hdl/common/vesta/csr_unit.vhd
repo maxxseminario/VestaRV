@@ -1,3 +1,6 @@
+-- VestaRV: control and status register file
+-- Owns the machine-mode CSRs, the trap entry and return state, the counters, and the pmpcfg/pmpaddr storage the combinational pmp_unit is handed.
+-- misa is read-only and advertises the ISA feature switches, so software can probe what this chip was built with.
 library IEEE;
 use IEEE.STD_LOGIC_1164.all;
 use IEEE.NUMERIC_STD.all;

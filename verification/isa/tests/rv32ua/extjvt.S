@@ -1,12 +1,7 @@
 # See LICENSE for license details.
-#*****************************************************************************
-# extjvt.S   (X3 Zcmt ext-probe — jvt CSR access)
-#   ON  (#ifdef CORE_ENABLE_ZCMT): jvt (0x017) is a known URW CSR: write a
-#       64B-aligned base, read it back (mode WARL-pinned 0) -> PASS.
-#   OFF (#else, extoff POISON): jvt is an unknown CSR (csr_valid map) so the
-#       csrrw MUST take the illegal-instruction trap. Reached-past -> FAIL.
-#       Wired ONLY into run_extoff.sh.
-#*****************************************************************************
+
+# VestaRV: Zcmt jvt CSR access probe
+# With CORE_ENABLE_ZCMT defined, jvt (0x017) is a known URW CSR: the test writes a 64-byte-aligned base and reads it back, with the mode field WARL-pinned to 0. Without it, jvt is an unknown CSR in the csr_valid map, so the csrrw MUST take the illegal-instruction trap and reaching past it is a FAIL. That arm is wired ONLY into run_extoff.sh.
 #include "riscv_test.h"
 #include "test_macros.h"
 .option norvc

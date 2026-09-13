@@ -1,8 +1,8 @@
-# cocotb 2.x smoke test for the `vesta` core on GHDL (TOPLEVEL_LANG=vhdl).
-# Run from this directory:  make        (needs ghdl + cocotb 2.x + gcc/make)
-# Sources come straight from ../../hdl/common in the curated dependency order
-# (same list as ../synth.sh — regfile_sbirq.vhd is the only `regfile`,
-# sim/ClkGate.vhd the only `ClkGate`; keep the two lists in sync).
+# VestaRV: cocotb 2.x smoke test for the vesta core on GHDL. Run `make` from this
+# directory; it needs ghdl, cocotb 2.x and a host gcc and make.
+# The sources come from ../../hdl/common in a curated dependency order that must
+# stay in step with ../synth.sh: regfile_sbirq.vhd is the only regfile and
+# sim/ClkGate.vhd the only ClkGate.
 SIM ?= ghdl
 TOPLEVEL_LANG = vhdl
 
@@ -33,12 +33,12 @@ VHDL_SOURCES = \
 COCOTB_TOPLEVEL = vesta_harness
 COCOTB_TEST_MODULES = test_vesta_smoke
 
-# --std=08 matches the documented sim target; -fsynopsys resolves the
-# ieee.std_logic_arith / std_logic_unsigned use-clauses in constants.vhd and
-# regfile_sbirq.vhd. Both must ride EXTRA_ARGS — cocotb folds it into
-# GHDL_ARGS for analyze AND run, the only spot that reaches the runtime
-# library lookup (SIM_ARGS goes after the unit name and would only be design
-# runtime args -> "cannot find entity vesta_harness").
+# --std=08 matches the documented sim target and -fsynopsys resolves the
+# ieee.std_logic_arith and std_logic_unsigned use-clauses in constants.vhd and
+# regfile_sbirq.vhd. Both must ride EXTRA_ARGS: cocotb folds that into GHDL_ARGS
+# for analyse and for run, which is the only place that reaches the runtime
+# library lookup. SIM_ARGS goes after the unit name, where it is design runtime
+# args only, and the elaboration fails with "cannot find entity vesta_harness".
 EXTRA_ARGS += --std=08 -fsynopsys
 SIM_ARGS ?= --vcd=vesta_smoke.vcd
 

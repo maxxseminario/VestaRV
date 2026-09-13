@@ -1,45 +1,10 @@
 #!/usr/bin/env python3
-"""Assert the RCF image contract on a sample of the generated ISA images.
+"""VestaRV: assert the RCF image contract on a sample of the generated ISA images.
 
-There is no tracked golden for these images: .gitignore ignores *.rcf globally
-and re-includes only tools/cosim/gate/*.rcf, whose single member is the MP
-bootrom image, not an ISA test image.  Byte identity against the on-disk
-verification/isa/rcf/ set is therefore a hand measurement.  What is testable
-here without an untracked input is the contract every consumer depends on, and
-it is the contract a stale or double-staged image breaks first:
-
-  * an unflashed image is exactly WORD_COUNT lines of 32 '0'/'1' characters
-    (the Makefile's `wc -l` guard, MEM_SIZE 0x14000 / 4),
-  * a flashed image starts with the 0x10adbeef command word, then the 0x8000
-    and 0x8200 vector-area bounds, then 128 zero words,
-  * a flashed image ends with the 0xcafebabe execute word,
-  * a flashed image carries exactly ONE vector-area header; a second one is
-    the K5 double-prepend that traps at 0x8200 with instr_curr = 0,
-  * the flashed file name is exactly 22 characters, the TARGET_RCF_NAMELEN the
-    29-character TEST_FILE generic of riscv_tb requires.
-
-It also carries the TILE ISA gate, which is about the chip and not the staging.
-Harts 1-4 are the hardened hart_tile macro at rv32iac: MCU.vhd:3264-3291 passes
-the per-hart-class TILE_ENABLE_* set, every member of it false but A, C and the
-trap CSRs, and MemoryMap.vhd:1324-1348 states the same contract.  The images are assembled
--march=rv32imc / rv32imac all the same, so gas accepts a `mul` or a `bseti` in
-tile-executed code without a word and the first evidence is an
-illegal-instruction trap on a tile inside a licensed regression.  The gate reads
-the objdump listings of the three suites whose tests ignite tiles (rv32ui,
-rv32ua, rv32uc) and rejects every M and Zb mnemonic in them.
-
-It is deliberately stricter than "tile sections only".  Tile code and hart-0
-code share one .text in these sources -- shexec.S puts `orchestrator` AFTER
-`tile_entry`, and shboot.S hand-rolls the launch with no tile-named label at all
--- so there is no section, and no symbol convention, that separates them
-mechanically.  Whole-image is the boundary that can actually be checked, and it
-costs nothing: rv32ui/rv32ua/rv32uc are the base-integer and atomics suites, and
-exactly two sites in 176 images use M or Zb today.  Both are allowlisted below
-by image, symbol and mnemonic, with the reason.  rv32um and rv32uzb* are NOT in
-the checked set: those suites exist to exercise the extensions and hart 0 runs
-them alone.
-
-Plain runner, no pytest: exit 0 is a pass.
+No tracked golden exists (*.rcf is gitignored), so what is graded is the contract a stale or
+double-staged image breaks first: line count and width, the command/bounds/execute words,
+exactly one vector-area header, and a 22-character flashed name. It also rejects every M and
+Zb mnemonic in the three tile-igniting suites, whole-image, since no section separates them.
 """
 
 import os
@@ -175,11 +140,7 @@ def check_tile_isa(dumps, fails):
 
 
 def collect():
-    """Find the sampled images in the runfiles tree.
-
-    Returns:
-      (unflashed, flashed) lists of paths.
-    """
+    """Find the sampled images in the runfiles tree; returns (unflashed, flashed) path lists."""
     unflashed = []
     flashed = []
     for root, _dirs, files in os.walk("."):

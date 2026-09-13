@@ -1,30 +1,10 @@
 #!/usr/bin/env python3
-"""check_line_endings.py -- the CRLF preservation gate.
+"""VestaRV: the CRLF preservation gate.
 
-WHY THIS EXISTS.
----------------------------------------------------------------------------
-Much of this repo's VHDL is stored with CRLF line endings, and that is
-load-bearing rather than accidental.
-A script that rewrites such a file in text mode silently strips every CR,
-which turns a one-line change into a whole-file diff and has burned this
-project before.
-Review does not catch it, because the diff looks like a reformat and the
-build still passes.
-
-This gate makes the regression unmergeable.
-tools/ci/crlf_manifest.txt names every file that is CRLF today, and any
-listed file that stops being CRLF-only - or that disappears without the
-manifest being regenerated in the same commit - fails the check.
-
-THE THREE GATES.
----------------------------------------------------------------------------
-  A  Every manifest entry still classifies as crlf-only, and still exists.
-  B  No file classifies as MIXED unless it is in the mixed allowlist.
-  C  Advisory only: how many crlf-only files are NOT in the manifest, so the
-     manifest can be kept current without this gate blocking on it.
-
-Exit codes:  0 = pass.  1 = a gate failed.  2 = the instrument is not live
-(git missing, manifest unreadable, tree unreadable).
+Much of this repo's VHDL is CRLF and that is load-bearing; a script rewriting such a file in
+text mode strips every CR and turns one line into a whole-file diff that review reads as a
+reformat. Gate A: every crlf_manifest.txt entry still exists and is still crlf-only. Gate B:
+no MIXED file outside the allowlist. Gate C is advisory. Exit 0, 1 failed, 2 not live.
 """
 
 import argparse

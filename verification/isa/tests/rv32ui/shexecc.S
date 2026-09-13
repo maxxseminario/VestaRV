@@ -1,71 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shexecc.S  (C3: COMPRESSED execute-from-shared)
-#-----------------------------------------------------------------------------
-# RVC EXECUTE-FROM-SHARED proof — the compressed twin of shexec.S.
-#
-# shexec.S proved that a core can FETCH from the shared window at all, but its
-# payload is `.option norvc` on purpose: every fetch is a full, word-aligned
-# word. That left the roadmap C3 gap — compressed/misaligned execution from
-# shared was never proven end to end, even though ENABLE_COMPRESSED defaults
-# true and the whole rv32ui suite builds -march=rv32imc.
-#
-# THE HAZARD this test aims at is not compression as such: it is a 32-bit
-# instruction whose two halves live in DIFFERENT shared words. That fetch must
-# re-arbitrate mid-instruction, which loads three mechanisms at once:
-#   * `sh_acked_addr` — the master-side ack is qualified by WORD ADDRESS, so
-#     the second half has to win the arbiter again (M10);
-#   * `sh_rdata_cpu`  — the clk_cpu consumption stage that stops an in-flight
-#     completion from rewriting the instruction a frozen core is executing;
-#   * the half-fetch decode class — X4 (2026-07-18) found a live instance of it
-#     (`fp_flags_we` re-firing on half-fetch cycles where `instr_curr` still
-#     held the PREVIOUS instruction), so the family is demonstrably not
-#     exhausted.
-#
-#     payload @0x103C0 (4 words, copied there by hart 0) — byte offsets:
-#         +0x00  nop               [c.nop ]  push the body off word alignment
-#     rvc_loop:
-#         +0x02  lw   t2, 0(s0)    [32-bit]  ** STRADDLES the +0x04 boundary **
-#         +0x06  add  a4, a4, t2   [c.add ]  shared DATA load amid RVC fetches
-#         +0x08  addi a1, a1, -1   [c.addi]
-#         +0x0A  bnez a1, rvc_loop [c.bnez]  ** backward branch, target 2 mod 4 **
-#         +0x0C  jr   ra           [c.jr  ]  return to private code
-#         +0x0E  nop               [c.nop ]  padding: block is exactly 4 words
-#
-# Every iteration RE-ENTERS at +0x02, so the straddling fetch and the
-# misaligned branch target are exercised iters times per hart, not once.
-# `lw` is forced to 32 bits by addressing t2 (x7) — outside the c.lw rd'
-# register set (x8-x15) — so no .option norvc toggling is needed and the
-# encodings stay readable. VERIFY WITH objdump after any edit: the whole point
-# of this test evaporates if the assembler quietly compresses that load.
-#
-# Per-hart iteration counts differ (4+hartid), so each hart proves its OWN
-# loop really ran: a4 must equal iters*0x00010001 (CHK holds 0x00010001).
-# Accumulator/temp are a4/t2 here (shexec used t1/t2) — a4 is in the compressed
-# register set, which is what lets `add` shrink to c.add.
-#
-# Shared words: this test REUSES shexec.S's band verbatim. Tests run in
-# ISOLATION (one image per sim) and shexecc never coexists with shexec, so the
-# overlap is benign — the same dispensation the ledger already grants the N=18
-# per-test bands. Nothing new is claimed:
-#     CODE    = 0x103C0..0x103CC  4 payload words (one word shorter than
-#                                 shexec's 5; 0x103D0 is left ZERO, so shamo's
-#                                 probe constraint 0x22222222 stays safe)
-#     CHK     = 0x103D4           0x00010001, written by hart 0
-#     TOKEN   = 0x103D8           turn word, hart-0 owned: h = hart h's turn
-#     DONE[h] = 0x103D8 + 4*h     0xE0CC0000+h, h=1..NHARTS-1
-# All inside the bootrom zero range (<0x10800) and below the loader rows
-# (0x10500+). N=18 DONE top = 0x1041C, identical to shexec.
-#
-# Harts 1-3 (launched by hart 0 at tile_entry): PARK polling TOKEN (reads
-# only), then run the payload, check a4, write DONE[h], set a0 = PASS inline,
-# verify DONE forever (shboot pattern).
-# Hart 0 (SPI boot, arrives late): copy payload + CHK into shared RAM
-# (read-back verified), prove DONE[1..3]==0 (tiles parked cleanly), run the
-# payload ITSELF (the gate hart fails fast if RVC fetch-from-shared is broken),
-# then release tiles one at a time via TOKEN with a bounded DONE budget.
-#*****************************************************************************
+# VestaRV: compressed execute-from-shared proof
+# The compressed twin of shexec.S, whose payload is `.option norvc` so every fetch is a full word. The hazard here is a 32-bit instruction whose two halves live in DIFFERENT shared words: that fetch re-arbitrates mid-instruction and exercises sh_acked_addr (the master-side ack is qualified by word address, so the second half must win the arbiter again), sh_rdata_cpu (the clk_cpu consumption stage that stops an in-flight completion rewriting the instruction a frozen core is executing), and the half-fetch decode class.
+# Payload at 0x103C0, four words: +0x00 c.nop pushes the body off word alignment; rvc_loop at +0x02 `lw t2, 0(s0)` STRADDLES the +0x04 boundary; +0x06 c.add, +0x08 c.addi, +0x0A c.bnez back to rvc_loop (a backward branch to a target 2 mod 4), +0x0C c.jr, +0x0E c.nop padding. Every iteration re-enters at +0x02, so both the straddling fetch and the misaligned target run iters times per hart.
+# `lw` is forced to 32 bits by addressing t2 (x7), outside the c.lw rd' set x8-x15. VERIFY WITH objdump AFTER ANY EDIT: the test is worthless if the assembler quietly compresses that load. The accumulator a4 is inside the compressed set, which is what lets `add` shrink to c.add.
+# Per-hart iteration counts differ (4 + hartid): a4 must equal iters * 0x00010001, and CHK holds 0x00010001.
+# Shared words, reused from shexec.S verbatim because the two images never coexist in one simulation: CODE 0x103C0..0x103CC (one word shorter than shexec's, and 0x103D0 is left ZERO so shamo's probe constraint 0x22222222 stays safe), CHK 0x103D4, TOKEN 0x103D8, DONE[h] 0x103D8 + 4*h = 0xE0CC0000 + h. N=18 DONE tops at 0x1041C, below the loader rows at 0x10500.
 
 #include "riscv_test.h"
 #include "test_macros.h"

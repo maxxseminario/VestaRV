@@ -1,21 +1,17 @@
+// VestaRV: rv4th Forth interpreter public interface
+// GCC_DIAG_OFF/ON wrap the function-pointer casts the callX words need; the push/pop form is only available from GCC 4.6, so older compilers get the non-nesting variant and MSP430 gets no-ops.
+// After Patrick Horgan, "Suppressing GCC Warnings", http://dbp-consulting.com/tutorials/SuppressingGCCWarnings.html
+
 #pragma once
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/** External Function Declarations **/
 void rv4th_init();
 int16_t rv4th_processLoop();
 
 
-
-/* Suppress specific warnings (callX words use function pointers)
- *
- * from:
- * Suppressing GCC Warnings, by Patrick Horgan
- * http://dbp-consulting.com/tutorials/SuppressingGCCWarnings.html
- */
 
 #if !defined(MSP430) && ((__GNUC__ * 100) + __GNUC_MINOR__) >= 402
 #define GCC_DIAG_STR(s) #s

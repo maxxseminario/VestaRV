@@ -1,39 +1,15 @@
-"""Forth command builders + response parsers for the rv4th REPL.
+"""VestaRV: Forth command builders and response parsers for the rv4th REPL.
 
-Every function here is PURE (string/bytes in -> typed value out) so it is
-trivially unit-testable against real transcript lines.  Nothing in this module
-touches a serial port.
-
-Ground truth for the on-chip output formats (verified 2026-07-18):
-
-  software/rv4th/src/rv4th.c
-    case  6  ".":   printNumberInt32(pop)  -> uart_puti(n) then ' '
-                    => SIGNED decimal followed by a single trailing space.
-    case 28  "h.":  printHex32(pop) then ' '
-                    => 8 UPPERCASE hex digits, NO "0x" prefix, trailing space.
-    case 13  "hb.": printHex8(pop) then ' '  => 2 hex digits + space.
-    case 83  "fe":  pushes 1/0 (erase_successful) to TOS  -> read with ".".
-    case 80  "clk": leaves measured frequency on TOS      -> read with ".".
-    case 92  "mr":  memoryReadFunc(): mode 0 = ASCII hex bytes then 4-hex CRC16;
-                    mode 1 = raw bytes then 2-byte LSB-first CRC16;
-                    mode 2 = 2-byte LSB-first length, then LZW payload.
-    case 81  "fr":  flashReadFunc(): mode 0 = ASCII hex bytes (NO CRC);
-                    mode 1 = raw bytes (NO CRC).
-
-  software/rv4th/src/uart.c
-    uart_puth4:  values > 9 map to 'A'..'F'  => hex output is UPPERCASE.
-    uart_puti :  '-' then unsigned decimal   => signed decimal, no padding.
-
-  software/rv4th/src/main.c + bootrom/src/rv4th.c:1842
-    reset banner = ASIC_NAME + " rv4th-rom!"  => "myshkin rv4th-rom!\n".
+Every function is pure, string or bytes in and a typed value out, and nothing here touches a
+serial port. The on-chip formats it parses: `.` signed decimal plus one trailing space, `h.`
+eight uppercase hex digits with no 0x prefix plus a space, `hb.` two hex digits plus a space,
+`mr` mode 0 ASCII hex then a 4-hex CRC16, mode 1 raw bytes then a 2-byte LSB-first CRC16.
 """
 
 import re
 from typing import List, Optional, Tuple
 
-# ---------------------------------------------------------------------------
 # Constants
-# ---------------------------------------------------------------------------
 
 PROMPT = b">"          # getLine() prints "\n>" every time it wants input.
 BANNER_MARK = "rv4th-rom!"   # substring that identifies the reset banner.
@@ -46,9 +22,7 @@ _SIGNED_DEC_RE = re.compile(r"-?\d+")
 _HEX_TOKEN_RE = re.compile(r"[0-9A-Fa-f]+")
 
 
-# ---------------------------------------------------------------------------
 # 32-bit helpers
-# ---------------------------------------------------------------------------
 
 def to_u32(value: int) -> int:
     """Reduce an int to an unsigned 32-bit value."""
@@ -62,21 +36,17 @@ def to_i32(value: int) -> int:
 
 
 def _num(value: int) -> str:
-    """Render an int as a Forth literal.
-
-    Non-negative values become ``0x``-prefixed hex so large unsigned values
-    (>0x7FFFFFFF) survive the chip's 32-bit base-10 parser; negatives use
-    decimal (rv4th numFunc() honours a leading '-').
+    """Render an int as a Forth literal. Non-negative values become 0x-prefixed hex, so values above
+    0x7FFFFFFF survive the chip's 32-bit base-10 parser; negatives use decimal, which rv4th's
+    numFunc() accepts with a leading '-'.
     """
     if value < 0:
         return str(value)
     return "0x%X" % (value & 0xFFFFFFFF)
 
 
-# ---------------------------------------------------------------------------
 # CRC16 / CDMA2000  (poly 0xC857, init 0xFFFF, no reflection, no final xor)
 # Matches the chip's CRCSTATE/CRCDATA hardware used by mr / fw.
-# ---------------------------------------------------------------------------
 
 def crc16_cdma2000(data: bytes) -> int:
     """Compute CRC16-CDMA2000 over *data* (the format mr/fw emit)."""
@@ -91,9 +61,7 @@ def crc16_cdma2000(data: bytes) -> int:
     return crc & 0xFFFF
 
 
-# ---------------------------------------------------------------------------
 # Command builders
-# ---------------------------------------------------------------------------
 
 def build_read_hex(addr: int) -> str:
     """Word read, printed as unsigned hex (preferred for registers/memory)."""
@@ -151,19 +119,15 @@ def build_flash_write(mode: int, page: int) -> str:
 
 
 def build_clk(clock_sel: int, time_sel: int) -> str:
-    """Clock measure, printed: ``time_sel clock_sel clk .``.
-
-    rv4th.c case 80 pops clock_select (TOS) first, then measurement_time_select,
-    so time_sel must be pushed *before* clock_sel.
+    """Clock measure, printed as `time_sel clock_sel clk .`. rv4th.c pops clock_select first, then
+    measurement_time_select, so time_sel must be pushed before clock_sel.
     """
     return "%d %d clk ." % (time_sel, clock_sel)
 
 
 def build_exec(addr: int, args: Optional[List[int]] = None) -> str:
-    """Execute code at *addr* with 0..4 args, printing the return value.
-
-    call1..call4 take args below the function pointer on the stack, e.g.
-    ``a b &func call2`` -> func(a, b).  Result printed with ".".
+    """Execute code at *addr* with 0 to 4 args, printing the return value. call1 to call4 take args
+    below the function pointer on the stack, so `a b &func call2` is func(a, b).
     """
     args = list(args or [])
     if len(args) > 4:
@@ -175,9 +139,7 @@ def build_exec(addr: int, args: Optional[List[int]] = None) -> str:
     return " ".join(parts)
 
 
-# ---------------------------------------------------------------------------
 # Response parsers  (operate on the FRAMED output: echo + prompt already gone)
-# ---------------------------------------------------------------------------
 
 def strip_noise(text: str) -> str:
     """Drop the stray control bytes real transcripts carry (0x1a, NUL)."""
@@ -209,11 +171,9 @@ def parse_bool(text: str) -> bool:
 
 
 def parse_hexdump(text: str, length: int) -> bytes:
-    """Parse *length* bytes from an ASCII-hex payload (mr mode 0 / fr mode 0).
-
-    Concatenates every hex digit in *text*, then takes the first ``2*length``
-    of them.  For mr mode 0 the trailing 4 CRC chars therefore sit past the
-    slice and are ignored; use :func:`parse_mr_ascii` when the CRC is wanted.
+    """Parse *length* bytes from an ASCII-hex payload. Every hex digit in *text* is concatenated and
+    the first 2*length taken, so mr mode 0's trailing 4 CRC chars sit past the slice and are
+    ignored; use parse_mr_ascii when the CRC is wanted.
     """
     digits = "".join(_HEX_TOKEN_RE.findall(strip_noise(text)))
     need = 2 * length

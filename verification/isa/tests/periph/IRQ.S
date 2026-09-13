@@ -1,18 +1,5 @@
-#*****************************************************************************
-# IRQ_TESTBENCH.S
-#-----------------------------------------------------------------------------
-# Comprehensive IRQ handling testbench for RISC-V assembly (riscv32ui)
-# Author: Maxx Seminario
-# Date: 09-05-2025
-#
-# Test Categories:
-# 1-5: Basic IRQ Vector Tests (5 tests)
-# 6-10: Context Preservation Tests (5 tests) 
-# 11-15: Priority and Nesting Tests (5 tests)
-# 16-20: Multiple IRQ Source Tests (5 tests)
-# 21-25: IRQ Enable/Disable Tests (5 tests)
-# 26-30: Edge Cases and Error Conditions (5 tests)
-#-----------------------------------------------------------------------------
+# VestaRV: interrupt handling test
+# Covers vector dispatch, context preservation across an ISR, priority and nesting, several simultaneous sources, the enable and disable paths, and the edge cases at the ends of the vector table.
 
 #include "riscv_test.h"
 #include "test_macros.h"

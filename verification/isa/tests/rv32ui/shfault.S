@@ -1,55 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shfault.S  (Castalia fault-injection / graceful-degradation demonstrator)
-#-----------------------------------------------------------------------------
-# Empirical backing for the "fault-tolerant" claim in the Castalia paper:
-# wedge ONE channel's tile and show the other three keep making forward
-# progress and reporting, and that the wedged tile cannot corrupt a healthy
-# tile's private state.
-#
-# Four harts model four sensing channels. Harts 0, 1, 3 are HEALTHY channels
-# that run a fixed number of "measurement" passes (private-TCM busywork + one
-# shared-bus heartbeat bump per pass) and then publish DONE. Hart FAULT_HART
-# (=2) models an electrode-fouling HANG: it runs briefly, then enters an
-# infinite loop that keeps HAMMERING the shared bus (a store + a load every
-# few instructions) forever, never advancing to completion. It never writes
-# DONE[2] and never sets a0_2 (the tb reports it silent/parked — not a FAIL).
-#
-# What this proves (and, deliberately, what it does NOT):
-#   * FORWARD PROGRESS under a babbling master. The round-robin arbiter is
-#     fair, so hart 2 hammering the shared window cannot STARVE harts 0/1/3:
-#     they still complete WORK_ITERS passes and report DONE within the 100ms
-#     tb watchdog. This is the load-bearing result.
-#   * PRIVATE-TCM ISOLATION. Hart 0 plants a canary in its own TCM (0x9000)
-#     and checks it survives — the babbler physically cannot address another
-#     tile's private TCM.
-#   * The wedge is a GENUINE active fault, not a benign park: hart 0 samples
-#     HEARTBEAT[2] twice and requires it to advance (hart 2 is alive and
-#     contending, not halted).
-#   NOT claimed: protection against a wild-pointer store INTO shared mailboxes.
-#   With no MMU/PMP that is by-convention, exactly as the paper states. The
-#   modelled fault is well-behaved-but-hung (spins on the bus), which is the
-#   realistic control-loop hang.
-#
-# Shared words (>= 0x10440, clear of the whole prior mailbox ledger and of the
-# bootrom loader rows; all zeroed by the bootrom at boot):
-#     HEARTBEAT[h]   = 0x10440 + 4*h             healthy +1/pass; hart 2 forever
-#     DONE[h]        = 0x10440 + 4*NHARTS + 4*h  0xD09E0000+h on channel done
-#     BABBLE_SCRATCH = 0x10440 + 8*NHARTS        dead word the babbler READS
-# Argus A3: DONE is placed AFTER the NHARTS-sized HEARTBEAT array and BABBLE
-# after DONE, so nothing overruns at N=18 (the old fixed 0x10450/0x10460 had
-# HEARTBEAT[4..] running into DONE at N>4). N=4: DONE 0x10450, BABBLE 0x10460
-# (unchanged). N=18: HEARTBEAT 0x10440..0x10484, DONE 0x10488..0x104CC,
-# BABBLE 0x104D0 — all < the loader rows at 0x10500.
-#
-# No interrupts are used (pure polling + mailboxes), so the env DEFINE_IVT
-# (slots 0-82) is left untouched — nothing extends the .ivt section here.
-#
-# Gate: hart 0 launches the three tiles, does its own channel work, then
-# verifies DONE[1]/DONE[3] arrived, DONE[2] did not, hart 2 is still spinning,
-# and its own TCM canary is intact -> RVTEST_PASS. Any violation -> RVTEST_FAIL.
-#*****************************************************************************
+# VestaRV: fault-injection and graceful-degradation demonstrator
+# Four harts model four sensing channels. Harts 0, 1 and 3 run WORK_ITERS measurement passes (private-TCM busywork plus one shared-bus heartbeat bump per pass) and publish DONE; hart FAULT_HART = 2 models an electrode-fouling HANG, running briefly and then hammering the shared bus forever. It never writes DONE[2] and never sets a0, so the tb reporting it silent is expected, not a failure.
+# What it proves: FORWARD PROGRESS under a babbling master, since the round-robin arbiter is fair and harts 0, 1 and 3 still complete inside the 100 ms tb watchdog; PRIVATE-TCM ISOLATION, checked by a canary hart 0 plants at 0x9000, which the babbler cannot address; and that the wedge is a genuine active fault, checked by sampling HEARTBEAT[2] twice and requiring it to advance.
+# NOT claimed: protection against a wild-pointer store into a shared mailbox. With no MMU or PMP that is by convention. The modelled fault is well-behaved-but-hung, which is the realistic control-loop hang.
+# Shared words: HEARTBEAT[h] = 0x10440 + 4*h, DONE[h] = 0x10440 + 4*NHARTS + 4*h (0xD09E0000 + h), BABBLE_SCRATCH = 0x10440 + 8*NHARTS, a dead word the babbler reads. The arrays are placed one after another so nothing overruns at N=18, where BABBLE lands at 0x104D0, still below the loader rows at 0x10500.
+# No interrupts: pure polling and mailboxes, so the env DEFINE_IVT is left untouched and nothing extends the .ivt section.
 
 #include "riscv_test.h"
 #include "test_macros.h"

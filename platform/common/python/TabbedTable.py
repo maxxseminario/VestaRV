@@ -1,3 +1,6 @@
+# VestaRV: the column-aligned text table every generated header and package is laid out with.
+# Rows are lists of cells; ToString() pads with tabs so the emitted C, VHDL and assembly
+# line up exactly as the tracked files do.
 import string
 
 class TabbedTable():

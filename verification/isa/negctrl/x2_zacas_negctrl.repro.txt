@@ -1,5 +1,4 @@
-X2 Zacas negative controls (unconditional-write + stale-compare)
-================================================================
+VestaRV: X2 Zacas negative controls (unconditional-write + stale-compare)
 
 Two seeds, each a git patch that RE-INTRODUCES a Zacas correctness bug on top of
 the fixed tree (commit 86cd594). Both are detected by the WORD compare-FAIL arm

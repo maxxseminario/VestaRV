@@ -1,7 +1,7 @@
-% SPI chapter. Section order is the per-peripheral template enforced by
+% VestaRV: SPI chapter of the TRM.
+% Section order is the per-peripheral template enforced by
 % python/check_intro_names.py. Vector numbers are frozen by the generator
-% (python/generate.py, _mcuMpIrqVectors). Pin lists are generated, not
-% written here.
+% (python/generate.py, _mcuMpIrqVectors). Pin lists are generated, not written here.
 \section{Overview}
 
 The Serial Peripheral Interface (\peripheral{SPIx}) is a full-duplex synchronous serial interface. A bus has three shared wires (clock, master out, master in) and one chip select per slave. \peripheral{SPI0} is the boot-flash master and carries the memory-mapped flash window; \peripheral{SPI1}, in configurations that include it, is a general-purpose port with both master and slave modes.

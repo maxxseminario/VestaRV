@@ -1,89 +1,12 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shafe.S  (CQ2b - Castalia-Quad AFE / EIS digital-stub test)
-#
-#   RETIRED, 2026-09-05 (F22). THIS FILE TARGETS THE RETIRED afe_stub BANK.
-#   It drives the four AFE stubs at 0x4C00 + 0x40*h and the hart-0-only EIS
-#   stub at 0x7C00, plus irq_router sources 55 and 56. None of those exist on
-#   the tape-out configuration: config/castalia.json sets `cqAfeStubs: false` and
-#   penta_wound_afe replaces the bank with four AFE2 sites at 0x6C00 + 0x100*h
-#   on an entirely different register map, with one shared vector 124. On that
-#   configuration this image exercises the wrong addresses and would pass or
-#   fail on whatever else answers there.
-#   SUCCESSOR: rv32ui-p-shafe2 (tests/rv32ui/shafe2.S), the MCU-level AFE2 test.
-#   It is selected by the `afe2` tag; this file keeps `cqAfeStubs harts_le4`, so
-#   the two can never be staged together. Kept, not deleted, because the stub
-#   bank is still a supported configuration (the Castalia golden master) and
-#   this is its only end-to-end ownership-gate test.
-#-----------------------------------------------------------------------------
-# HART-GENERIC test of the four per-hart AFE register stubs (0x4C00/40/80/C0)
-# + the shared EIS engine stub (0x7C00), and the hart-0-relay IRQ scheme that
-# aggregates their level interrupts onto irq_router sources 55 (AFE_SHARED =
-# OR of the four AFE IF lines) and 56 (EIS).
-#
-# AFE stub = a shared arbiter slave with an s_master OWNERSHIP GATE: AFE h
-# answers only when s_master==h OR s_master==0 (hart 0 = management hart,
-# reaches every site); EIS answers only when s_master==0. A DENIED read
-# returns 0, a DENIED write is dropped. Register map (word offset in the 64 B
-# sub-slot): +0 CTRL (write bit0=1 SOFT-SETS IF(0) — the test hook), +1..6
-# config placeholders, +7 IF (W1C, drives the level irq), +8..F scratch.
-#
-# M12: tiles are NOT preloaded. Hart 0 stages this TCM image once and launches
-# all tiles into tile_entry through the bootrom loader (mp_boot.h). Every hart
-# runs the SAME image at the SAME addresses; the source-55/56 handlers and the
-# EIS self-fire only ever run on hart 0 (the only master that can read all four
-# AFE IF words to demux a shared source), the slot-83 CLINT msip ISR only on a
-# woken owner tile.
-#
-# PHASE A (gating), barriered by hart 0 through PHASE:
-#   A1 populate: every hart writes its OWN AFE (hart h -> AFE h) config words
-#      (+1..6) + scratch words (+8..F) with a DISTINCT per-hart pattern
-#      (PAT_BASE | h<<8 | reg) and reads each back. Hart 0 also seeds EIS +8.
-#      A gating LEAK cannot alias — every (hart,reg) value is unique. Tiles
-#      then mark DONE[h]=A1; hart 0 gathers, opens PHASE=1.
-#   A2 probe/deny: each tile probes a NEIGHBOUR AFE (n = h+1 wrapped into
-#      1..N-1, so n!=h and n!=0 -> the tile is neither owner nor hart 0):
-#        * read neighbour +8  -> MUST read 0 (denied; neighbour populated it
-#          nonzero at A1, so 0 proves the gate, not an empty register)
-#        * write POISON to neighbour +8 -> dropped
-#      then the same denial against EIS (+8, hart-0-only), then RE-READS its
-#      OWN +8 and proves it still holds its pattern (no neighbour's poison
-#      landed). Tiles mark DONE[h]=A2. Hart 0 gathers, then WALKS all four
-#      AFEs (read +8 == owner pattern, write +15 read-back — proving hart 0's
-#      read AND write reach every site) + EIS read/write, then opens PHASE=2.
-#
-# PHASE B (hart-0 IRQ relay), one owner round per tile through TURN:
-#   Hart 0 unmasks sources 55+56 in ITS routing row only (H0ENM bits 23/24 =
-#   sources 55/56 in irq_en[63:32]) and arms the env MEIP_DISPATCHER (IVT slot
-#   85) + the slot-83 CLINT ISR. Per owner tile h: hart 0 sets TURN=h; the tile
-#   soft-fires AFE h IF via CTRL bit0 (raising afe_eis_irq(h) -> source 55) and
-#   SLEEPS on the very next instruction (extinguish). Hart 0's source-55 handler
-#   (plain-ret under the dispatcher) reads the four AFE IF words to demux, W1C-
-#   clears the fired AFE's IF (drops the LEVEL BEFORE the dispatcher COMPLETEs —
-#   a still-high level would re-pend), and msips the owner via CLINT. The owner's
-#   slot-83 CLINT ISR clears its msip level, ignites (so iret resumes MAINLINE
-#   on the sleeping hart) and irets; the owner records DONE[h]=B. Finally hart 0
-#   self-fires EIS via source 56; its source-56 handler W1C-clears EIS IF and
-#   sets a private flag.
-#   RACE (same guarantee as shwfi): the owner extinguishes 1 private instruction
-#   after its IF store, while hart 0's msip needs the whole handler path (claim +
-#   four AFE reads + msip write = many arbiter txns) after that store lands — so
-#   the owner is always asleep before its msip arrives.
-#
-# Shared-word ledger (CQ2b; shpwr ends 0x10474, next free block 0x10480; all
-# < 0x10500; arrays 4*NHARTS so control words can't be overrun at N=18):
-#     GO        = 0x10480                which harts may start phase A
-#     DONE[h]   = 0x10484 + 4*h          per-hart phase progress (A1/A2/B magic)
-#     PHASE     = 0x10484 + 4*NHARTS     hart-0 phase barrier (N=4 0x10494)
-#     TURN      = PHASE + 4              phase-B owner round     (N=4 0x10498)
-#   (next free shared word: 0x1049C at N=4; N=18 TURN=0x104D0, all < 0x10500)
-#
-# No smclk-domain peripheral is touched (AFE/EIS/CLINT/irq_router are all mclk),
-# so the bootrom SMCLK->LFXT trap does not apply — no SYS_CLK_CR write needed.
-# Bounded waits 20000 (100000 for the first gather, covering the tile ROM copy)
-# all trip inside the 100 ms tb watchdog.
-#*****************************************************************************
+# VestaRV: AFE and EIS stub ownership-gate test
+# RETIRED FOR THE TAPE-OUT CONFIGURATION. It drives the four AFE stubs at 0x4C00 + 0x40*h, the hart-0-only EIS stub at 0x7C00 and irq_router sources 55 and 56, none of which exist there: castalia.json sets cqAfeStubs false, and penta_wound_afe replaces the bank with four AFE2 sites at 0x6C00 + 0x100*h on a different register map behind one shared vector 124. The successor is rv32ui-p-shafe2, selected by the `afe2` tag; this file keeps `cqAfeStubs harts_le4`, so the two can never be staged together. It is kept because the stub bank is still a supported configuration and this is its only end-to-end ownership-gate test.
+# THE AFE STUB IS AN ARBITER SLAVE WITH AN s_master OWNERSHIP GATE: AFE h answers only when s_master == h or s_master == 0, since hart 0 is the management hart and reaches every site, and EIS answers only when s_master == 0. A denied read returns 0 and a denied write is dropped. Register map by word offset in the 64-byte sub-slot: +0 CTRL, where writing bit 0 SOFT-SETS IF(0) and is the test hook; +1..6 config placeholders; +7 IF, W1C, driving the level IRQ; +8..F scratch.
+# Phase A1: every hart fills its own AFE config +1..6 and scratch +8..F with PAT_BASE|h<<8|reg and reads them back, so no two (hart, reg) values alias and a gating leak cannot hide; hart 0 also seeds EIS +8. Phase A2: each tile probes a NEIGHBOUR AFE at n = h+1 wrapped into 1..N-1, so it is neither the owner nor hart 0, and must read 0 from a word the victim populated nonzero, which proves the gate rather than an empty register; it poisons that word, repeats against EIS, then re-reads its own +8 to prove no poison landed. Hart 0 then walks all four AFEs and EIS for read and write reach.
+# Phase B is the hart-0 IRQ relay, one owner round per tile through TURN. Hart 0 unmasks sources 55 and 56 in its own routing row only (H0ENM bits 23 and 24) and arms the env MEIP_DISPATCHER at IVT slot 85 plus the slot-83 CLINT ISR. The owner soft-fires its IF and sleeps on the very next instruction; hart 0's source-55 handler reads the four IF words to demux, W1C-clears the fired one BEFORE the dispatcher completes, since a still-high level would re-pend, and msips the owner, whose slot-83 ISR clears its level, ignites and irets. The owner is always asleep before its msip arrives, because it extinguishes one private instruction after its IF store while hart 0 needs the whole claim-and-four-reads path after that store lands.
+# Shared words, all below 0x10500, with the arrays sized 4*NHARTS so the control words cannot be overrun: GO = 0x10480, DONE[h] = 0x10484 + 4*h, PHASE = 0x10484 + 4*NHARTS, TURN = PHASE + 4.
+# Nothing smclk-domain is touched, so the boot ROM's SMCLK-to-LFXT trap does not apply. Bounded waits are 20000, or 100000 for the first gather, which covers the tile ROM copy, and all trip inside the 100 ms tb watchdog.
 
 #include "riscv_test.h"
 #include "test_macros.h"

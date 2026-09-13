@@ -1,35 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# wqspi.S  (wound-config firmware smoke — FW-2)
-#-----------------------------------------------------------------------------
-# QSPI0 @0x4C00 IRQ-DELIVERY integration smoke. Single-hart directed (hart 0;
-# tiles stay parked — no MP_LAUNCH, no mp_boot.h). Proves the CPU can launch a
-# QSPI transaction on the clk_baud serial core and that its two IRQ sources
-# (vec 55 TCIF, vec 56 RXFULL) route through irq_router (HhENM) -> meip ->
-# env MEIP_DISPATCHER -> IVT -> plain-ret handlers -> CLAIM/COMPLETE.
-#
-# There is NO external flash: qspi_io_in is tb-driven '0' (MCU.vhd:3705-08),
-# so a READ transaction lands RX == 0x00 deterministically and sets RXFULL +
-# TCIF together (QSPI.vhd:552-556). We route P5.2-5 to AF1 (P5AFS) so the read
-# also exercises the GPIO4 alt-function input mux (io_in still '0').
-#
-# QSPI register map (qspi_spec.md driver note; MemoryMap RegSlotQSPIx*):
-#   CR 0x4C00  CMD 0x4C04  ADR 0x4C08  TX 0x4C0C  RX 0x4C10  SR 0x4C14
-#   CR : EN[0] CMDW[2:1] ADRW[4:3] DATW[6:5] CPOL[7] CPHA[8] AWID[10:9]
-#        DUMMY[15:11] CSSEL[18:16] BR[26:19] TCIE[27] RXFIE[28]
-#   CMD: opcode[7:0] DLEN[9:8] DIR[10]  (lane-0 write LAUNCHES)
-#   SR : BUSY[0] TXEIF[1] RXFULL[2] TCIF[3]  (flags W1C)
-#   irq_tc  (55) = TCIF & TCIE ;  irq_rxf (56) = RXFULL & RXFIE  (QSPI.vhd:219-220)
-#
-# Router row 0 (hart 0, LIVE): HhENM @0x7004, sources 55/56 -> bits 23/24.
-# IVT: env DEFINE_IVT already points slot 55 -> .isr_afe_shared (0x9C00) and
-# slot 56 -> .isr_eis (0x9D00); we drop our plain-ret handlers there and arm
-# the meip slot 85 with IVT_ARM_MEIP(). Zero env change.
-#
-# SMCLK RULE: the serial core is SMCLK-domain; the bootrom parks SMCLK on LFXT,
-# so write SYS_CLK_CR=0 (HFXT) first (else ~32 kHz frames blow the poll budget).
-#*****************************************************************************
+# VestaRV: QSPI0 interrupt-delivery smoke
+# Hart 0 only, tiles parked. QSPI0 sits at 0x4C00 and this proves the CPU can launch a transaction on the baud-clock serial core and that its two interrupt sources, vector 55 for transfer-complete and vector 56 for receive-full, route through irq_router HhENM, meip, the env MEIP_DISPATCHER, the IVT and plain-ret handlers that claim and complete.
+# THERE IS NO EXTERNAL FLASH: the data inputs are testbench-driven low, so a READ transaction lands 0x00 deterministically and sets both flags together. The data pins are routed to AF1 anyway, so the read also exercises the GPIO alternate-function input mux.
+# Register map: CR 0x4C00 = EN[0] CMDW[2:1] ADRW[4:3] DATW[6:5] CPOL[7] CPHA[8] AWID[10:9] DUMMY[15:11] CSSEL[18:16] BR[26:19] TCIE[27] RXFIE[28]; CMD 0x4C04 = opcode[7:0] DLEN[9:8] DIR[10], with a lane-0 write LAUNCHING the transaction; ADR 0x4C08; TX 0x4C0C; RX 0x4C10; SR 0x4C14 = BUSY[0] TXEIF[1] RXFULL[2] TCIF[3], with the flags write-1-to-clear.
+# Router row 0 uses HhENM at 0x7004 with sources 55 and 56 at bits 23 and 24. The env's IVT already points those two slots at its own stubs, so this test drops its plain-ret handlers there and arms the meip slot, changing nothing in the environment.
+# SMCLK RULE: the serial core is smclk-domain and the boot ROM parks SMCLK on LFXT, so SYS_CLK_CR must be zeroed first, or 32 kHz frames blow the poll budget.
 
 #include "riscv_test.h"
 #include "test_macros.h"

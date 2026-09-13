@@ -1,22 +1,14 @@
 #!/bin/bash
-# build_mp_images.sh -- build multi-hart sh + ISA test images at a chosen NHARTS
-# into a chosen rcf output dir. Argus (A3) needs an N=18 image set kept SEPARATE
-# from the Castalia N=4 rcf/ (the behavioral_mp runner symlinks ../rcf -> ./rcf).
-#
+# VestaRV: build the multi-hart sh and ISA test images at a chosen NHARTS into a
+# chosen rcf output directory.
 #   ./build_mp_images.sh <NHARTS> <dest_rcf_dir> [group ...]
-#
-# groups default to the full set the behavioral_mp runner consumes. NHARTS is
-# injected as -DNHARTS=<n> (the sh tests' "#ifndef NHARTS" default is 4). We
-# reproduce the Makefile default RISCV_GCC_OPTS and APPEND the define, because
-# overriding RISCV_GCC_OPTS on the command line replaces it wholesale.
-#
-# WAR STORY (memory: vestarv-isa-build-header-dep-gotcha): "make <g>-flash"
-# riscv32-clean does NOT rebuild on a shared-header (mp_boot.h) change, so we
-# "rm -rf build/" FIRST to force a full rebuild -- otherwise stale images
-# silently keep the old NHARTS / loader base.
-#
-# NOTE: this env's bash mis-expands "arr=(\"$@\")" after a shift, so we iterate
-# the positional params directly instead of copying them into an array.
+# Groups default to the full set the behavioral_mp runner consumes. Each output
+# directory holds one image set: the Argus N=18 set must stay separate from the
+# Castalia set, because the runner symlinks ../rcf to ./rcf. NHARTS arrives as
+# -DNHARTS=<n> appended to a reproduction of the Makefile's RISCV_GCC_OPTS, since
+# overriding that variable on the command line replaces it wholesale. build/ is
+# removed first: `make <g>-flash` does not rebuild on a shared-header change, so
+# stale images would keep the old NHARTS and loader base.
 set -euo pipefail
 
 NH="${1:?usage: build_mp_images.sh <NHARTS> <dest_rcf_dir> [group ...]}"
@@ -28,37 +20,24 @@ fi
 
 BASE_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib -nostartfiles"
 
-# --- K2/G3: ON-POLARITY DEFINES -----------------------------------------------
-# EXTRA_GCC_DEFINES carries the config's `-DCORE_ENABLE_*` list, derived by
-# platform/common/python/verify_stage.py from ONE resolved config and checked
-# against the staged MemoryMap.vhd before this script is ever called.
-#
-# This closes the defect `tests/rv32ua/extprobe_template.S` names as its FIRST
-# build-order trap, in those words: "build_mp_images.sh hardcodes its own
-# RISCV_GCC_OPTS -- it DROPS any -DCORE_ENABLE_* from an earlier make". It did,
-# and the consequence was that no `make verify` could ever produce an ON-polarity
-# image: a zicboz:true config ran shcboz.S's #else arm and reported PASS.
-#
-# The template's SECOND trap -- "base images FIRST, then the ON suite rebuild on
-# top" -- is handled by the caller ordering GROUPS base-first (verify_stage's
-# test_groups); this script builds the list it is given, in order.
-#
-# NOTE what is deliberately NOT done here: this script does NOT read
-# core_features.h or any make-chip product. The ISA Makefile's refusal to
-# auto-derive the polarity stands; the defines arrive EXPLICITLY, from a caller
-# that has already proven them equal to the staged RTL's own constants.
+# EXTRA_GCC_DEFINES carries the config's -DCORE_ENABLE_* list, derived by
+# platform/common/python/verify_stage.py from one resolved config and checked
+# against the staged MemoryMap.vhd before this script runs. Without it an
+# ON-polarity image is unreachable: a zicboz:true config runs shcboz.S's #else
+# arm and reports PASS. This script never reads core_features.h or any make-chip
+# product; the defines arrive explicitly from a caller that has already proven
+# them equal to the staged RTL's constants. Group order is the caller's too:
+# base images first, then the ON suite rebuilt on top.
 EXTRA_GCC_DEFINES="${EXTRA_GCC_DEFINES:-}"
 GCC_OPTS="$BASE_OPTS -DNHARTS=$NH"
 [ -n "$EXTRA_GCC_DEFINES" ] && GCC_OPTS="$GCC_OPTS $EXTRA_GCC_DEFINES"
 
-# --- K4: THE `-march` OVERRIDE (R-DK1 row C3) ---------------------------------
-# The Makefile fixes a per-GROUP march and emits $(RISCV_GCC_OPTS) AFTER it, so
-# a -march carried here WINS (last one wins). Exactly one supported
-# configuration needs that lever -- `isa.compressed` false, where gas would
-# otherwise auto-compress and fill the images with encodings the core cannot
-# decode. Derived by platform/common/python/verify_stage.py's image_march(),
-# never guessed here, and it is part of the image set's IDENTITY below: a norvc
-# set and a compressed set can share neither a directory nor a stamp.
+# The Makefile fixes a per-group march and emits $(RISCV_GCC_OPTS) after it, so a
+# -march carried here wins. One supported configuration needs that lever:
+# isa.compressed false, where gas would otherwise auto-compress and fill the
+# images with encodings the core cannot decode. verify_stage.py's image_march()
+# derives it. It is part of the image set identity below, so a norvc set and a
+# compressed set share neither a directory nor a stamp.
 EXTRA_GCC_MARCH="${EXTRA_GCC_MARCH:-}"
 [ -n "$EXTRA_GCC_MARCH" ] && GCC_OPTS="$GCC_OPTS -march=$EXTRA_GCC_MARCH"
 
@@ -68,31 +47,21 @@ IMGSET_IDENTITY="${IMGSET_IDENTITY:-NHARTS=$NH DEFINES=${EXTRA_GCC_DEFINES:-(non
 
 cd "$(dirname "$0")"
 
-# --- rcf/ TRANSIT PROTECTION (K1, from the K0 harness probe's G4 finding) -----
-# The build TRANSITS through rcf/: the Makefile's *-flash recipes write there
-# unconditionally. So an OUT-OF-TREE build (e.g. the Argus N=18 set staged into
-# rcf_argus/) used to leave rcf/ holding foreign-N images AND stamped
-# rcf/.nharts with $NH -- poisoning the Castalia suite and both lockstep gates
-# until a manual rebuild (M19b war story; harness probe G4).
-# CPR8/R7: the canonical set is NHARTS=5 now (the shipped five-hart
-# orchestrator chip); it was 4 until 2026-08-15.
-# We now snapshot rcf/ BEFORE the build and restore it after staging, so an
-# out-of-tree build is a NO-OP on rcf/ -- images AND stamp. The restore also
-# runs on an aborted build (EXIT trap) and is proved by a read-back assertion.
-# DESIGN NOTE (fail-safe direction): we deliberately restore the IMAGES too.
-# Restoring only the stamp would leave the canonical rcf/.nharts sitting over
-# foreign-N images
-# -- the runners' guards would then PASS on poisoned images, which is strictly
-# worse than the old loud refusal. Stamp and images move together or not at all.
-# EDGE: if rcf/ did not exist before the run, the "pre-state" is an empty
-# unstamped rcf/, and that is what the restore leaves behind (loud downstream:
-# RCF_COUNT=0 rebuilds, runners glob nothing).
-# Materialize BOTH dirs before resolving them: on a fresh checkout (rcf/ and
-# rcf_ci/ are both gitignored) neither exists yet, and two unresolvable paths
-# would compare EQUAL — mis-classifying the CI job's out-of-tree
-# `build_mp_images.sh 4 rcf_ci` as in-tree. Deciding up front (rather than
-# after the build, as the old inline compare did) also guarantees the snapshot
-# and the stage-out cannot disagree about which case this is.
+# rcf/ transit protection. The build transits through rcf/ because the Makefile's
+# *-flash recipes write there unconditionally, so an out-of-tree build would
+# leave rcf/ holding foreign-N images under a stamp claiming otherwise. rcf/ is
+# therefore snapshotted before the build and restored after staging, images and
+# stamp together; the restore also runs on an aborted build through the EXIT trap
+# and a read-back assertion proves it. Restoring the stamp alone would leave the
+# canonical rcf/.nharts over foreign-N images, so the runners' guards would pass
+# on poisoned images: strictly worse than a loud refusal. If rcf/ did not exist
+# before the run the restored pre-state is an empty unstamped rcf/, which fails
+# loudly downstream. The canonical set is NHARTS=5, the shipped five-hart
+# orchestrator chip. Both directories are materialised before being resolved: on
+# a fresh checkout neither exists, and two unresolvable paths compare equal, which
+# would misclassify the CI job's out-of-tree build as in-tree. Deciding up front
+# also keeps the snapshot and the stage-out from disagreeing about which case
+# this is.
 mkdir -p rcf "$DEST"
 RCF_PHYS="$(cd rcf && pwd -P)"
 DEST_PHYS="$(cd "$DEST" && pwd -P)"
@@ -108,12 +77,10 @@ if [ "$OUT_OF_TREE" = 1 ]; then
             cp -p rcf/.nharts "$RCF_SNAP"/.nharts
             RCF_PRE_STAMP="$(cat rcf/.nharts)"
         fi
-        # K2/G3: .imgset joins the snapshot for the SAME reason .nharts did.
-        # Nothing in an out-of-tree build writes rcf/.imgset today, so this is
-        # currently belt-and-braces -- but the K1 design note is "stamp and
-        # images move together or not at all", and a polarity record left
-        # behind by images that were restored under it would be the exact
-        # fail-safe inversion that note exists to prevent.
+        # .imgset joins the snapshot for the same reason .nharts does: stamp and
+        # images move together or not at all. Nothing in an out-of-tree build
+        # writes rcf/.imgset today, but a polarity record left behind by restored
+        # images would be exactly the fail-safe inversion this prevents.
         [ -f rcf/.imgset ] && cp -p rcf/.imgset "$RCF_SNAP"/.imgset
     fi
     echo "  rcf/ snapshot: $(ls "$RCF_SNAP"/*.rcf 2>/dev/null | wc -l) rcf, .nharts=$RCF_PRE_STAMP -> $RCF_SNAP"
@@ -143,50 +110,38 @@ for g in "$@"; do
     echo "--- ${g}-flash (NHARTS=$NH) ---"
     make "${g}-flash" RISCV_GCC_OPTS="$GCC_OPTS"
 done
-# K2/G7: STAMP THE ELF CACHE ITSELF, not just the image set.
-# build/ is shared with xrun_cosim.sh's `ensure_elf`, which rebuilds only what
-# is MISSING and so will happily reuse whatever polarity it finds. We have just
-# rm -rf'd build/ and refilled it wholesale at $GCC_OPTS, so this stamp is
-# exactly true at this instant. The lockstep gate compares it against the
-# polarity IT needs and wipes the cache when they disagree -- an unknown
-# (unstamped) cache counts as a disagreement, which is the fail-safe direction.
+# Stamp the ELF cache itself, not only the image set. build/ is shared with
+# xrun_cosim.sh's ensure_elf, which rebuilds only what is missing and reuses
+# whatever polarity it finds. build/ was just removed and refilled wholesale at
+# $GCC_OPTS, so the stamp is exactly true here. The lockstep gate compares it
+# against the polarity it needs and wipes the cache on disagreement; an unstamped
+# cache counts as a disagreement.
 echo "NHARTS=$NH DEFINES=${EXTRA_GCC_DEFINES:-(none)}" > build/.imgset
 
-# DEST == rcf/ guard (M19 war story): make already populates rcf/ during the
-# build; the rm/cp below would DELETE the fresh set and then fail to copy it
-# onto itself. Only stage out when DEST is a different directory.
-# M19c: pwd -P (PHYSICAL) — xcelium/riscv_test/rcf is a SYMLINK to this
-# rcf/; the logical-pwd compare missed that and the stage-out rm'd the
-# canonical set through the alias, then cp'd onto an empty glob.
-# (OUT_OF_TREE carries exactly that physical compare, taken up front so the
-# snapshot and the stage-out cannot disagree about which case this is.)
+# Stage out only when DEST is a different directory: make already populates rcf/
+# during the build, so the rm/cp below would delete the fresh set and then fail to
+# copy it onto itself. The comparison must be physical (pwd -P), because
+# xcelium/riscv_test/rcf is a symlink to this rcf/ and a logical compare misses
+# that. OUT_OF_TREE carries that comparison, taken up front.
 if [ "$OUT_OF_TREE" = 1 ]; then
     mkdir -p "$DEST"
     rm -f "$DEST"/*.rcf
     cp rcf/*.rcf "$DEST"/
-    # M19c POST-MORTEM: the build TRANSITS through rcf/, so after an
-    # out-of-tree stage (e.g. the Argus N=18 set) rcf/ was left holding
-    # $NH-flavored images too — this silently poisoned the Castalia rcf/
-    # after the M19b Argus verify (sh tests gathered h=1..17 at N=4;
-    # 12/26 behavioral smoke failures, chased through three sim levels).
-    # K1: no longer — the transit is now UNDONE below (images and .nharts).
+    # The transit through rcf/ is undone below, images and .nharts together.
     echo "NOTE: the build transited through rcf/ (NHARTS=$NH images landed there);"
     echo "      restoring rcf/ to its pre-build state: images AND .nharts=$RCF_PRE_STAMP."
 fi
-# .nharts = the TRUTH of what each dir currently holds (runners guard on it).
+# .nharts records what each directory currently holds; the runners guard on it.
 echo "$NH" > "$DEST/.nharts"
-# K2/G3: .imgset = the FULL polarity truth, which .nharts alone never carried.
-# The K0 harness probe's §3.6 named exactly this gap: the image sets are
-# "rebuildable (2-4 min) but ONLY if the exact RISCV_GCC_OPTS polarity is known,
-# which is nowhere recorded". Now it is recorded, next to the images it
-# describes, and verify.sh refuses to reuse a set whose identity disagrees.
+# .imgset records the full polarity, which .nharts alone does not carry. An image
+# set is rebuildable in two to four minutes, but only if the exact
+# RISCV_GCC_OPTS polarity is known; verify.sh refuses to reuse a set whose
+# identity disagrees with what it needs.
 echo "$IMGSET_IDENTITY" > "$DEST/.imgset"
 restore_rcf                         # out-of-tree only; no-op for an in-tree build
 
-# --- READ-BACK ASSERTION -----------------------------------------------------
-# An expected state needs proof the instrument was live (method rule 5): read
-# BOTH stamps back off disk and die loudly on any mismatch, rather than trust
-# that the writes above did what they say.
+# Read both stamps back off disk and die loudly on a mismatch. An expected state
+# needs proof the instrument was live, not trust that the writes above landed.
 readstamp() { cat "$1/.nharts" 2>/dev/null || echo "<absent>"; }
 if [ "$OUT_OF_TREE" = 1 ]; then WANT_RCF="$RCF_PRE_STAMP"; else WANT_RCF="$NH"; fi
 GOT_DEST="$(readstamp "$DEST")"
@@ -211,15 +166,11 @@ if [ "$GOT_IMGSET" != "$IMGSET_IDENTITY" ]; then
     echo "       with no record: verify.sh would REUSE it as the wrong polarity." >&2
     exit 2
 fi
-# --- THE HEADER ASSERTION (2026-08-23) ---------------------------------------
-# The stamps above prove the set's POLARITY. They say nothing about whether each
-# image is EXECUTABLE, and that is a separate failure mode with its own history:
-# ten rv32um images sat in rcf/ at 675,840 bytes -- the raw padded form -- because
-# a bare `make rv32um` published them through collect_rcf_ without ever reaching
-# flash_prepend.sh. The behavioural gate showed ten 100 ms watchdog deaths and
-# named no cause. `check-rcf-flashed` reads line 1 of every image and demands the
-# 0x10ADBEEF command word, the same content predicate flash_prepend.sh's own
-# idempotency guard uses.
+# The stamps prove the set's polarity, not that each image is executable. A bare
+# `make <group>` publishes raw padded images through collect_rcf_ without ever
+# reaching flash_prepend.sh, and those die silently on the testbench watchdog.
+# check-rcf-flashed reads line 1 of every image and demands the 0x10ADBEEF
+# command word, the content predicate flash_prepend.sh's idempotency guard uses.
 if ! make check-rcf-flashed RCF_DIR="$DEST"; then
     echo "FATAL: $DEST holds images with no SPI-flash header -- they load nothing" >&2
     echo "       and die on the testbench watchdog. The build above did not finish." >&2

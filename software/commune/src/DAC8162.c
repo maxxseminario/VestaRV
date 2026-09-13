@@ -1,11 +1,12 @@
-/** Includes **/
+// VestaRV: TI DAC8162 SPI DAC driver
+// A frame is 24 bits: command in bits 21:19, address in 18:16, data left-aligned in 15:2. SPI1 runs mode 1 (CPOL=0, CPHA=1) with SYNC held low for the whole frame.
+
 #include <MemoryMap.h>
 #include <spi1.h>
 #include <DAC8162.h>
 
 
 
-/** Defines **/
 // Commands (bits 21 downto 19)
 #define SHIFT_CMD				19
 
@@ -28,7 +29,6 @@
 
 
 
-/** Function Declarations **/
 void DAC8162_init(DAC8162_SYNC_PIN_t SYNC_PIN);
 void DAC8162_setDacA(DAC8162_SYNC_PIN_t SYNC_PIN, uint16_t dacValue);
 void DAC8162_setDacB(DAC8162_SYNC_PIN_t SYNC_PIN, uint16_t dacValue);
@@ -37,7 +37,6 @@ void DAC8162_transmit(DAC8162_SYNC_PIN_t SYNC_PIN, uint32_t data24b);
 
 
 
-/** Function Definitions **/
 void DAC8162_init(DAC8162_SYNC_PIN_t SYNC_PIN)
 {
 	// Reset all registers in the DAC

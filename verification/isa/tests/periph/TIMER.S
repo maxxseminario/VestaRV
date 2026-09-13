@@ -1,24 +1,5 @@
-#*****************************************************************************
-# TIMER_TEST.S
-#-----------------------------------------------------------------------------
-# TIMER testbench for RISC-V assembly
-# Author: Maxx Seminario
-# Date: 08-22-2025
-#
-# Test Categories:
-# 1. Basic Timer Operation Tests (Tests 1-8)
-# 2. Compare and PWM Tests (Tests 9-16)
-# 3. Input Capture Tests (Tests 17-22)
-# 4. Interrupt Flag Tests (Tests 23-30)
-# 5. Clock Source and Divider Tests (Tests 31-35)
-# 
-# Each test category validates different aspects of timer functionality:
-# - Timer enable/disable and counting
-# - Compare match detection and PWM output generation
-# - Input capture on rising/falling edges
-# - Interrupt flag generation and clearing
-# - Clock source selection and frequency division
-#-----------------------------------------------------------------------------
+# VestaRV: TIMER peripheral test
+# Covers enable and counting, compare match and PWM output, input capture on both edges, interrupt flag set and clear, and clock source selection with the dividers.
 
 #include "riscv_test.h"
 #include "test_macros.h"

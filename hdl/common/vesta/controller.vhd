@@ -1,3 +1,5 @@
+-- VestaRV: core control unit
+-- Wraps maindec, aludec and branch_valid, and passes the ISA feature switches through to them unchanged.
 library IEEE;
 use IEEE.std_logic_1164.all;
 use work.constants.all;

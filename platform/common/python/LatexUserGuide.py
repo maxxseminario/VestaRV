@@ -1,3 +1,9 @@
+# VestaRV: the TRM generator.
+# LatexUserGuide turns a built ChipGenerator description into latex/TRM/: the master
+# template, the \newcommand defines, the register tables, the peripheral chapters and
+# every generated TikZ figure. Each chip's LaTeX inputs are read from that chip's own
+# tree, never another's, and everything a figure asserts is derived from the description
+# and asserted here, so a model change the drawing does not cover fails `make generate`.
 import datetime, os, pathlib, re
 from shutil import copyfile, rmtree
 
@@ -56,23 +62,17 @@ class LatexUserGuide():
 	IncludeDirectory = None	# {SaveDirectory}/include
 	LatexSourceDirectory = None	# {chip root directory}/latex  -- the ONLY place TRM inputs are read from
 
-	# CP6 ANALOG-CHAPTER LINEAGE (see CopyAnalogChapter).
+	# Analog-chapter lineage, used by CopyAnalogChapter:
 	#   <lower-cased chipName>  ->  <lower-cased chipName whose analog/ it shares>
-	# One entry = one deliberate statement that two chip configurations are the
-	# SAME SILICON from the analog front-end's point of view. Castalia-Penta is a
-	# digital re-configuration of Castalia (a fifth soft hart in the centre band);
-	# the AFE/EIS front-end, the bias generator and every Monte-Carlo figure in
-	# implementations/asic/castalia/analog/ describe it unchanged.
-	# NEVER make this a prefix/substring rule: the whole point is that inheriting
-	# measured analog data is an explicit, per-chip decision.
+	# One entry is one deliberate statement that two chip configurations are the same silicon
+	# from the analog front-end's point of view. Never make this a prefix or substring rule:
+	# inheriting measured analog data is an explicit, per-chip decision.
 	AnalogChapterLineage = {
 		'castaliapenta': 'castalia',
-		# 2026-09-05: the private overlay configs set chipName
-		# "PentaWound" (castalia.json said so until 2026-09-12), which has no
-		# implementations/asic/pentawound/analog, so
-		# generating from that config silently dropped the entire 60-page
-		# analog chapter (CopyAnalogChapter rmtree's include/analog and takes the
-		# empty branch). Same physical chip, same analog IP: inherit Castalia's.
+		# The private overlay configurations set chipName "PentaWound", which has no
+		# implementations/asic/pentawound/analog, so generating from one of them dropped the whole
+		# analog chapter: CopyAnalogChapter rmtree's include/analog and then takes the empty
+		# branch. Same physical chip and same analog IP, so it inherits Castalia's.
 		'pentawound': 'castalia',
 	}
 
@@ -83,26 +83,13 @@ class LatexUserGuide():
 		self.SaveDirectory = outDirectoryPath
 		self.IncludeDirectory = self.SaveDirectory + '/include'
 
-		# CP7 PER-CHIP LATEX SOURCES (2026-08-20).
-		#
-		# Every TRM input -- figures, the master template, packages-commands and the
-		# peripheral introductions -- USED TO be read as
-		# `ThisFileDirectory + '/../latex/...'`, i.e. relative to the directory this
-		# MODULE lives in rather than to the CHIP being built. That is only correct
-		# while exactly one chip uses this module: the moment a second chip's
-		# generator imports it, that chip's manual silently sources its figures out
-		# of the first chip's store (this is how myshkin's TRM came to reference
-		# `dualslopeupd.png`, a file that exists only under platform/common/).
-		#
-		# The path is now derived from the chip generator's own root, so a chip's
-		# manual is built ONLY from that chip's directories. Shared content is
-		# shared by having a COPY of the file in each chip's tree -- deliberately,
-		# not by a cross-tree path -- so pruning one chip's figures can never break
-		# the other's build.
-		#
-		# `ChipRootDirectory` is already absolute and slash-normalised by
-		# ChipGenerator.__init__. For Castalia (platform/common) this resolves to
-		# exactly the old path, so the existing build is unchanged.
+		# Per-chip LaTeX sources. Every TRM input (figures, the master template,
+		# packages-commands, the peripheral introductions) is read relative to the CHIP being
+		# built, not to the directory this module lives in. Reading them relative to the module is
+		# only correct while exactly one chip uses it: a second chip's generator would source its
+		# figures out of the first chip's store. Shared content is shared by keeping a copy of the
+		# file in each chip's tree, so pruning one chip's figures cannot break the other's build.
+		# ChipRootDirectory is already absolute and slash-normalised by ChipGenerator.__init__.
 		self.LatexSourceDirectory = os.path.abspath(self.Gen.ChipRootDirectory + '/latex').replace('\\', '/')
 		if not os.path.isdir(self.LatexSourceDirectory):
 			raise Exception('The chip\'s LaTeX source directory does not exist: '
@@ -228,6 +215,18 @@ class LatexUserGuide():
 		path = self.LatexSourceDirectory + '/packages-commands.template.tex'
 		copyfile(path, self.SaveDirectory + '/packages-commands.tex')
 
+		# Hand-written TRM inputs that live inside the TRM directory itself:
+		# latex/TRM/include/*_man.tex, which TRM.template.tex inputs directly. They are sources,
+		# not generated, so a run whose output root is elsewhere (generate.py --out) has to carry
+		# them across; a default run already finds them in place and copies nothing.
+		manDirectory = self.LatexSourceDirectory + '/TRM/include'
+		if os.path.isdir(manDirectory) and os.path.abspath(manDirectory) != os.path.abspath(self.IncludeDirectory):
+			if not os.path.isdir(self.IncludeDirectory):
+				os.makedirs(self.IncludeDirectory)
+			for fileName in sorted(os.listdir(manDirectory)):
+				if fileName.endswith('_man.tex'):
+					copyfile(manDirectory + '/' + fileName, self.IncludeDirectory + '/' + fileName)
+
 		## Copy the tikzit.sty file
 		#path = self.ThisFileDirectory + '/../latex/tikzit.template.sty'
 		#copyfile(path, self.SaveDirectory + '/tikzit.sty')
@@ -236,14 +235,11 @@ class LatexUserGuide():
 		#path = self.ThisFileDirectory + '/../latex/murray.template.tikzstyles'
 		#copyfile(path, self.SaveDirectory + '/murray.tikzstyles')
 
-		# Copy the figures directory -- from THIS CHIP's store, never another's.
-		#
-		# CP7. There is no fallback and there is no shared store: a chip that has
-		# no latex/figures/ of its own is a build error, not an invitation to
-		# borrow the neighbouring chip's images. A figure both chips genuinely
-		# need exists as two files, one per tree. The error names the directory it
-		# wanted so the fix is `mkdir` + copy the figures in, which is the intended
-		# answer -- not re-pointing the generator across trees.
+		# Copy the figures directory, from this chip's store and never another's. There is no
+		# fallback and no shared store: a chip with no latex/figures/ of its own is a build error.
+		# A figure both chips genuinely need exists as two files, one per tree. The error names the
+		# directory it wanted, so the fix is to create it and copy the figures in, not to re-point
+		# the generator across trees.
 		path = self.LatexSourceDirectory + '/figures'
 		if not os.path.isdir(path):
 			raise Exception('No figures directory for chip ' + str(self.Gen.AsicName)
@@ -258,39 +254,20 @@ class LatexUserGuide():
 		return
 
 	def CopyAnalogChapter(self):
-		# Per-implementation analog chapter. Every chip built from this platform
-		# shares the digital chapters, but the analog content is per-silicon, so it
-		# lives with the implementation rather than in the shared platform sources:
-		#
-		#     implementations/asic/<chip>/analog/AnalogChapter.tex   (hand-written)
-		#     implementations/asic/<chip>/analog/{fig,tab}_*.tex, data/  (generated
-		#                                          from Maestro by tools/maestro2tex)
-		#
-		# The whole directory is copied to latex/TRM/include/analog/ so that, like
-		# every other TRM input, it is reachable as include/... from the build
-		# directory. The master template guards the \input with \IfFileExists, so a
-		# chip with no analog/ directory produces a TRM byte-identical to a build
-		# without this feature -- the same "inert unless declared" discipline as the
-		# \ifcqanalog chapter.
-		#
-		# The directory is keyed on the lower-cased chip name, which is the existing
-		# implementations/asic/ naming convention (Castalia -> castalia).
-		#
-		# CP6 LINEAGE FALLBACK. That key is the chip NAME, and a chip config that
-		# only changes the DIGITAL configuration is still the same silicon as far
-		# as the analog front-end is concerned. Castalia-Penta is exactly that
-		# case: `chipName: CastaliaPenta` looked for implementations/asic/
-		# castaliapenta/analog/, found nothing, and dropped the analog chapter
-		# SILENTLY -- 218 pages against Castalia's 243, with the only trace a
-		# "no analog chapter" line in a build log nobody reads as a defect.
-		#
-		# The fallback is an EXPLICIT TABLE and deliberately not a prefix or
-		# fuzzy match: inheriting somebody else's measured analog data is a claim
-		# about silicon, so it is made once, by name, in this table -- a future
-		# chip whose name merely begins with an existing one must NOT quietly
-		# acquire that chip's bias-generator characterization. And it is never
-		# silent: the inheritance prints its own build-time note below, naming
-		# both the chip that asked and the lineage parent that answered.
+		# Per-implementation analog chapter. Every chip built from this platform shares the digital
+		# chapters, but the analog content is per-silicon and lives with the implementation:
+		#     implementations/asic/<chip>/analog/AnalogChapter.tex          hand-written
+		#     implementations/asic/<chip>/analog/{fig,tab}_*.tex, data/     from tools/maestro2tex
+		# The whole directory is copied to latex/TRM/include/analog/ so it is reachable as
+		# include/... from the build directory like every other TRM input. The master template
+		# guards the \input with \IfFileExists, so a chip with no analog/ directory produces a TRM
+		# byte-identical to a build without this feature.
+		# The directory is keyed on the lower-cased chip name, the implementations/asic/ naming
+		# convention. A chip configuration that changes only the digital shape is still the same
+		# silicon to the analog front end, so _ANALOG_LINEAGE above supplies a fallback key. It is
+		# an explicit table rather than a prefix or fuzzy match, because inheriting somebody else's
+		# measured analog data is a claim about silicon; and it is never silent, since the
+		# inheritance prints a build-time note naming both ends.
 		key = self.Gen.AsicName.lower()
 		asicRoot = os.path.abspath(self.ThisFileDirectory + '/../../../implementations/asic')
 		src = os.path.join(asicRoot, key, 'analog')
@@ -307,12 +284,10 @@ class LatexUserGuide():
 				      + ' does not exist either - TRM built without one')
 		dst = self.IncludeDirectory + '/analog'
 
-		# Purge first, ALWAYS. latex/TRM/ is reused across chips (`make chip
-		# CHIP_NAME=...`), so leaving a previous chip's analog directory in place
-		# would silently splice its chapter into this chip's TRM -- exactly what
-		# happened the first time this ran: Castalia's bias-generator chapter
-		# appeared in Argus's manual. Removing it unconditionally is what makes the
-		# "no analog/ directory => no analog chapter" guarantee actually hold.
+		# Purge first, always. latex/TRM/ is reused across chips (make chip CHIP_NAME=...), so
+		# leaving a previous chip's analog directory in place would splice its chapter into this
+		# chip's TRM. Removing it unconditionally is what makes "no analog/ directory means no
+		# analog chapter" hold.
 		if os.path.isdir(dst):
 			rmtree(dst)
 
@@ -326,9 +301,8 @@ class LatexUserGuide():
 		if inheritedFrom is None:
 			print('[LatexUserGuide] analog chapter copied from ' + src)
 		else:
-			# CP6: the fallback announces itself. A build that silently borrows
-			# another chip's analog measurements is the failure this exists to
-			# prevent, so the note names both ends of the inheritance.
+			# The fallback announces itself: a build that silently borrows another chip's analog
+			# measurements is the failure this exists to prevent, so the note names both ends.
 			print('[LatexUserGuide] analog chapter INHERITED: ' + self.Gen.AsicName
 			      + ' has no implementations/asic/' + self.Gen.AsicName.lower()
 			      + '/analog, so the chapter is taken from lineage parent "'
@@ -337,44 +311,19 @@ class LatexUserGuide():
 		return
 
 	def GenerateDefinesFile(self):
-		# Generate revision date string.
-		#
-		# K5 (F-K5-2).  This was `datetime.datetime.now()`, and that ONE call
-		# made `make check-publish` structurally unpassable on any day after
-		# the day the TRM was last published -- with ZERO content change.  The
-		# Makefile has `verify: generate`, so every `make verify` silently
-		# restamped the published-vs-rebuilt comparison, and the pre-commit
-		# hook that runs check-publish therefore failed for a reason that had
-		# nothing to do with what it guards.  It trained three waves to bypass
-		# it with `--no-verify`.  A hook whose signal is not about the thing it
-		# is guarding is worse than no hook: it spends the credibility that
-		# makes the NEXT real failure get read.
-		#
-		# Measured at K5 queue item 6: the "stale" published TRM and a fresh
-		# rebuild had 12,012 identical text lines and 609 of 613 byte-identical
-		# content streams; the entire difference was `Revised July 31st` vs
-		# `Revised August 3rd`.
-		#
-		# THE FIX IS CONTENT-DERIVED, and deliberately NOT the Makefile's
-		# SOURCE_DATE_EPOCH.  That variable is documented in the Makefile as
-		# "an ARBITRARY FIXED instant (2025-01-01 UTC), not the build time",
-		# chosen so identical TRM.tex gives a byte-identical TRM.pdf.  Reusing
-		# it for the VISIBLE revision date would make every TRM say "Revised
-		# January 1st, 2025" forever -- a reproducible gate bought with a false
-		# statement on the title page, which is method rule 12 with a wider
-		# audience than usual.
-		#
-		# `VESTA_TRM_DATE_EPOCH` is set by the Makefile from the newest COMMIT
-		# DATE of the TRM's own input set, so the date means what it says --
-		# when the TRM's inputs last changed -- AND is identical for everyone
-		# who checks out the same tree on any day.  That is what makes
-		# check-publish a gate about content again.
-		#
-		# Precedence, and each fallback is a real case: the content-derived
-		# epoch; then SOURCE_DATE_EPOCH, for a caller that has pinned time
-		# deliberately; then `now()`, so a bare `python3 generate.py` outside
-		# the Makefile still produces a dated document rather than a
-		# mysterious fixed one.
+		# Revision date string, content-derived rather than build-time.
+		# VESTA_TRM_DATE_EPOCH is set by the Makefile from the newest commit date of the TRM's own
+		# input set, so the date says when the TRM's inputs last changed and is identical for
+		# everyone who checks out the same tree on any day. That is what makes `make check-publish`
+		# a gate about content: with datetime.now() here, every `make verify` restamped the
+		# published-versus-rebuilt comparison and the hook failed for a reason unrelated to what it
+		# guards.
+		# Not SOURCE_DATE_EPOCH: the Makefile documents that as an arbitrary fixed instant chosen
+		# so identical TRM.tex gives a byte-identical TRM.pdf, and reusing it here would print a
+		# false revision date on every title page.
+		# Precedence, each fallback a real case: the content-derived epoch; then
+		# SOURCE_DATE_EPOCH, for a caller that has pinned time deliberately; then now(), so a bare
+		# `python3 generate.py` outside the Makefile still produces a dated document.
 		_ep = os.environ.get('VESTA_TRM_DATE_EPOCH') \
 			or os.environ.get('SOURCE_DATE_EPOCH')
 		if _ep and _ep.strip().isdigit():
@@ -396,13 +345,13 @@ class LatexUserGuide():
 		revisionDateFullStr = dts1 + ', ' + dt.strftime('%Y')
 		revisionDateFullStr = revisionDateFullStr.replace(' 0', ' ')
 		
-		# WARNING: Underscores are NOT allowed in the keys of this dict!!! This is because you cannot have underscores in a Latex command name
+		# Underscores are not allowed in the keys of this dict: a LaTeX command name cannot contain one
 		defines = {
 			'AsicName': self.Gen.AsicName,
 			'AsicNameForUserGuide': self.Gen.AsicNameForUserGuide,
 			'RevisionDateFull': revisionDateFullStr,
 			# ISO form of the SAME instant, so a hand-written revision-history row
-			# cannot drift from the title page (D-17, 2026-09-05).
+			# cannot drift from the title page (D-17).
 			'RevisionDateISO': dt.strftime('%Y-%m-%d'),
 			'ProgaddrIrq': fmthex(self.Gen.PROGADDR_IRQ),
 			'VectorsStartAddress': fmthex(self.Gen.VectorsStartAddress),
@@ -431,15 +380,12 @@ class LatexUserGuide():
 		defines['NumHarts'] = str(self.Gen.NumHarts)
 		defines['NumHartsWord'] = hartWords.get(self.Gen.NumHarts, str(self.Gen.NumHarts))
 		defines['MaxHartIndex'] = str(self.Gen.NumHarts - 1)
-		# D-series: the PWRCR gate mask, so the PWRCTRL chapter can state the
-		# blanket-gate constant instead of hardcoding one hart count's value
-		# (0x1E at N=5, 0x3FFFE on Argus' eighteen). E17-style: the mask is READ
-		# OFF the register model (generate.py's PWRGATE bit field, which is what
-		# MemoryMap.h's PWRGATE_MASK and the register browser also come from) and
-		# CROSS-CHECKED against the hart count, so a change to either side that
-		# misses the other fails `make generate` instead of shipping a manual
-		# whose mask and whose hart range disagree. Defined unconditionally (the
-		# \PmpEntries precedent) so the macro can never dangle.
+		# The PWRCR gate mask, so the PWRCTRL chapter can state the blanket-gate constant instead
+		# of hardcoding one hart count's value (0x1E at N=5, 0x3FFFE at N=18). The mask is read off
+		# the register model, generate.py's PWRGATE bit field, which is also where MemoryMap.h's
+		# PWRGATE_MASK and the register browser come from, and is cross-checked against the hart
+		# count, so a change to either side that misses the other fails `make generate`. Defined
+		# unconditionally so the macro can never dangle.
 		_gateMask = None
 		for _p in self.Gen.Peripherals:
 			if _p.Name != 'PWRCTRL':
@@ -459,19 +405,12 @@ class LatexUserGuide():
 					% (_gateMask, self.Gen.NumHarts, _expect, self.Gen.NumHarts - 1))
 		defines['PwrGateMask'] = fmthex(_gateMask if _gateMask is not None else 0, minDigits=2)
 		defines['VectorsCount'] = str(self.Gen.VectorsCount)
-		# D-series sweep (s4): \SharedWindowStartAddress / \SharedWindowEndAddress
-		# are RETIRED. Both were min/max over SharedWindowSections -- the rows the
-		# address-space FIGURE happens to draw -- and neither was the RTL shared
-		# window they are named after. The window mp_arbiter decodes is
-		# 0x0 (the boot ROM, where every hart resets) up to the strict complement
-		# of sh_sel at (1 << (SH_AW+2)) - 1; the macros said 0x5000 (the CLINT, the
-		# lowest row that happened to be listed) and 0x33FFF (the top TCM aperture).
-		# A reader who believed either would place the shared window wrongly at both
-		# ends. They also had ZERO consumers: the whole latex tree, both templates
-		# and every intro chapter were grepped, and the only hits were this emitter
-		# and a stale README sentence (fixed with them). Nothing derived here goes
-		# unused and untrue: prose that needs those bounds should quote
-		# \RomStartAddress and \FlashBaseAddress, which ARE the window's real edges.
+		# \SharedWindowStartAddress and \SharedWindowEndAddress are retired. Both were min and max
+		# over SharedWindowSections, the rows the address-space figure happens to draw, and neither
+		# was the RTL shared window they are named after. The window mp_arbiter decodes runs from
+		# 0x0, the boot ROM where every hart resets, up to the strict complement of sh_sel at
+		# (1 << (SH_AW+2)) - 1. Prose that needs those bounds quotes \RomStartAddress and
+		# \FlashBaseAddress, which are the window's real edges.
 		clint = None
 		for p in self.Gen.Peripherals:
 			if p.Name == 'CLINT':
@@ -480,25 +419,20 @@ class LatexUserGuide():
 			# CLINT owns the last two vectors: msip at its interruptPriority, mtip right after
 			defines['ClintMsipVector'] = str(clint.InterruptPriority)
 			defines['ClintMtipVector'] = str(clint.InterruptPriority + 1)
-			# NOTE (2026-08-17): this is the CLINT's OWN vector number, not a
-			# count of peripheral vectors — the source list grew past it when
-			# digperiphs added vectors 86..120, so \VectorsCount is no longer
-			# \PeriphVectorsCount + 2. No prose quotes it any more (Section
-			# \ref{s:interrupts} was rewritten to \RoutedVectorsCount below);
-			# kept emitted only so an old chapter cannot dangle on it.
+			# This is the CLINT's own vector number, not a count of peripheral vectors: the source list
+			# grew past it when the peripheral library added vectors 86 and above, so \VectorsCount is
+			# not \PeriphVectorsCount + 2. No prose quotes it; it stays emitted only so an old chapter
+			# cannot dangle on it.
 			defines['PeriphVectorsCount'] = str(clint.InterruptPriority)
-			# W-merge (2026-08-17): the routed/hardwired split. Every vector but
-			# the CLINT pair is delivered through the router; those two reach the
-			# harts on dedicated per-hart wires and are never enabled, pended,
-			# claimed or completed. GenerateIrqFabricDiagram derives and PRINTS
-			# the same split, so the sentence in Section \ref{s:interrupts} and
-			# the figure under it cannot disagree.
+			# The routed and hardwired split. Every vector but the CLINT pair is delivered through the
+			# router; those two reach the harts on dedicated per-hart wires and are never enabled,
+			# pended, claimed or completed. GenerateIrqFabricDiagram derives and prints the same split,
+			# so the sentence in Section \ref{s:interrupts} and the figure under it cannot disagree.
 			defines['RoutedVectorsCount'] = str(self.Gen.VectorsCount - 2)
-			# CLINT register-layout addresses (N-parameterized, matches clint.vhd):
-			# MSIPh word-mapped from the base; the MTIME pair and per-hart MTIMECMP
-			# pairs sit at slots that grow with the hart count (the roundup16
-			# formula). Derived from the peripheral's own BaseAddress + register
-			# offsets so the CLINT intro prose is configuration-driven.
+			# CLINT register-layout addresses, N-parameterised to match clint.vhd: MSIPh word-mapped
+			# from the base, then the MTIME pair and the per-hart MTIMECMP pairs at slots that grow
+			# with the hart count under the roundup16 formula. Derived from the peripheral's own
+			# BaseAddress and register offsets, so the CLINT intro prose is configuration-driven.
 			_clintMtimeOff = None
 			_clintCmpOff = None
 			for _r in clint.Registers:
@@ -515,21 +449,15 @@ class LatexUserGuide():
 				_clintClog = (_clintSlotCount - 1).bit_length() if _clintSlotCount > 1 else 0
 				defines['ClintAliasBytes'] = str(4 << _clintClog)
 
-		# W-merge (2026-08-17): the interrupt-fabric numbers Section
-		# \ref{s:interrupts} and the IRQROUTER chapter used to state as
-		# LITERALS, and which had all silently moved:
-		#   * meip's IVT slot is FROZEN at ChipGenerator.MeipVector (85) while
-		#     the SOURCE count grows above it (digperiphs #2), so "vector 85"
-		#     in prose is a coincidence of this build, not a rule.
-		#   * the top vector is VectorsCount-1 (120 here, 84 when the chapters
-		#     were written), and
-		#   * generate.py packs the per-hart enable row into as many 32-bit
-		#     words as the source count needs -- three below 96 sources, FOUR
-		#     above -- so the chapter's "three registers ... vectors 0--84" and
-		#     its "bit b of HxENU is vector 64+b for b = 0..20" were both a
-		#     source-list growth out of date. The word count is READ BACK off
-		#     the emitted register model (the H0EN* words) rather than
-		#     recomputed, so the manual states the row this build actually has.
+		# The interrupt-fabric numbers Section \ref{s:interrupts} and the IRQROUTER chapter used to
+		# state as literals, all of which move with the configuration:
+		#   * meip's IVT slot is frozen at ChipGenerator.MeipVector while the source count grows
+		#     above it, so a literal vector number in prose is a coincidence of one build;
+		#   * the top vector is VectorsCount-1; and
+		#   * generate.py packs the per-hart enable row into as many 32-bit words as the source
+		#     count needs, three below 96 sources and four above.
+		# The word count is read back off the emitted register model, the H0EN* words, rather than
+		# recomputed, so the manual states the row this build has.
 		defines['MeipVector'] = str(self.Gen.MeipVector if self.Gen.MeipVector is not None
 			else self.Gen.VectorsCount)
 		defines['TopVector'] = str(self.Gen.VectorsCount - 1)
@@ -622,39 +550,25 @@ class LatexUserGuide():
 				('privpmp', 'ENABLE_PMP')):
 			s += '\\newif\\if' + _flag + '\n'
 			s += ('\\' + _flag + ('true' if getattr(self.Gen, _attr, False) else 'false')) + '\n'
-		# D-series debug (debug.enable). The Debug Support chapter itself
-		# ALWAYS renders -- what JTAG is and what the RISC-V debug stack does
-		# are architecture-level material a reader of any build needs, and a
-		# build WITHOUT the debug system still has something true to say (the
-		# four 0x7Bx CSRs and DRET are illegal, and there is no debug port).
-		# That is the same honesty argument as the Privileged Architecture
-		# chapter's legacy-trap opening. This conditional wraps the
-		# implementation sections, so a build documents only the debug
-		# hardware it actually contains. False at the defaults.
+		# Debug support. The chapter always renders: what JTAG is and what the RISC-V debug stack
+		# does are architecture-level material a reader of any build needs, and a build without the
+		# debug system still has something true to say, namely that the four 0x7Bx CSRs and DRET
+		# are illegal and there is no debug port. This conditional wraps the implementation
+		# sections, so a build documents only the debug hardware it contains.
 		s += '\\newif\\ifdebugenable\n'
 		s += ('\\debugenabletrue' if getattr(self.Gen, 'ENABLE_DEBUG', False)
 			else '\\debugenablefalse') + '\n'
-		# CPR3/R1 (Castalia-Penta rework): the soft ORCHESTRATOR hart. False at
-		# the defaults, so every orchestrator sentence in the multi-core chapter
-		# folds away and the default TRM is byte-identical — the same
-		# "inert unless declared" discipline as \ifcqanalog above.
-		# \OrchHartIndex is defined UNCONDITIONALLY (the \PmpEntries precedent)
-		# so the macro can never dangle inside a folded branch, and it is now the
-		# CONSTANT 0: the orchestrator IS hart 0 (R2). That also retires a latent
-		# defect in the CP6 form — `\orchpresenttrue if _mgmtHart` was a
-		# TRUTHINESS test on an index, so index 0 (exactly the shape CPR asks
-		# for) would have read as "no orchestrator". A boolean knob cannot have
-		# that bug.
+		# The soft orchestrator hart. False folds every orchestrator sentence in the multi-core
+		# chapter away. \OrchHartIndex is defined unconditionally so the macro cannot dangle inside
+		# a folded branch, and it is the constant 0, because the orchestrator is hart 0.
 		_orch = bool(getattr(self.Gen, 'Orchestrator', False))
 		s += '\\newcommand{\\OrchHartIndex}{0}\n'
 		s += '\\newif\\iforchpresent\n'
 		s += ('\\orchpresenttrue' if _orch else '\\orchpresentfalse') + '\n'
-		# Base of the read-only TCM aperture band (TCMWIN[0]), taken from the
-		# resolved config's derived tcmWindowAddresses so the address-space
-		# prose quotes the same arithmetic the figure draws. Defined
-		# UNCONDITIONALLY (the \OrchHartIndex precedent) so it cannot dangle
-		# inside a folded \iforchpresent branch; without an orchestrator there
-		# are no apertures and nothing references it.
+		# Base of the read-only TCM aperture band, TCMWIN[0], taken from the resolved config's
+		# derived tcmWindowAddresses so the address-space prose quotes the same arithmetic the
+		# figure draws. Defined unconditionally so it cannot dangle inside a folded \iforchpresent
+		# branch; without an orchestrator there are no apertures and nothing references it.
 		_tcmWindows = ((getattr(self.Gen, 'ResolvedConfig', None) or {}).get('derived') or {}).get('tcmWindowAddresses') or []
 		s += '\\newcommand{\\FirstTcmWindowAddress}{' + (str(_tcmWindows[0]) if _tcmWindows else '--') + '}\n'
 
@@ -738,11 +652,6 @@ class LatexUserGuide():
 		if self.Gen.ENABLE_IRQ_QREGS:
 			config += ['Four additional CPU registers are included to speed the execution of interrupt service routines']
 		
-		# Create the itemized list as a tex file
-		#s = '\\begin{itemize}\n'
-		#for c in config:
-		#	s += '\\item ' + c + '\n'
-		#s += '\\end{itemize}\n'
 		s = ''
 		for c in config:
 			s += '\\item ' + c + '\n'
@@ -757,9 +666,8 @@ class LatexUserGuide():
 		return
 	
 	def GenerateFeaturesList(self):
-		# Build the System Configuration feature bullets from what the chip description
-		# actually instantiates, so the TRM tracks the configuration (cores, peripherals,
-		# shared-window blocks) instead of repeating a hand-maintained list.
+		# Build the System Configuration feature bullets from what the chip description actually
+		# instantiates, so the TRM tracks the configuration rather than a hand-maintained list.
 		bullets = []
 
 		# Multi-core bullets (hart count + the shared-window infrastructure blocks)
@@ -857,11 +765,10 @@ class LatexUserGuide():
 		return
 
 	def GenerateAfeSystemDiagram(self):
-		'''include/AfeSystemDiagram.tex is the analog front-end connectivity figure.
-		   Drawn ONLY where the AFE bank exists (the CQ package model declares DocSubSlotBlocks; \\ifcqanalog gates the chapter that \\inputs this).
-		   Six boxes: the arbiter bar, the EIS site and the four AFE sites in one rank under it, and one dashed box for the analog stages that are not integrated.
-		   The harts are not drawn (the whole-chip figure has them); each site box names its owning hart and the caption carries the hart 0 rule.
-		   The electrode pads are real (the CQ pad ring bonds four per site), so three per AFE site are drawn crossing the red boundary.'''
+		'''include/AfeSystemDiagram.tex, the analog front-end connectivity figure, drawn only where the
+		AFE bank exists. Six boxes: the arbiter bar, the EIS site and four AFE sites in one rank, and
+		one dashed box for the analog stages that are not integrated. Electrode pads are real.
+		'''
 		if not os.path.isdir(self.IncludeDirectory):
 			os.makedirs(self.IncludeDirectory)
 		path = self.IncludeDirectory + '/AfeSystemDiagram.tex'
@@ -875,13 +782,11 @@ class LatexUserGuide():
 		eis = [b for b in blocks if b['name'] == 'EIS']
 		N = self.Gen.NumHarts
 
-		# ---- E17-STYLE BUILD ASSERTIONS -------------------------------------
-		# Everything enumerable in this drawing (four bases, five owners, twelve
-		# electrode pads) is re-derived here from the two INDEPENDENT products
-		# that hold it — the doc sub-slot block list and the package pin list —
-		# so a map or pad-ring change that this layout does not cover fails
-		# `make generate` instead of shipping a picture that disagrees with the
-		# table on the facing page.
+		# Build assertions: everything enumerable in this drawing (four bases, five owners, twelve
+		# electrode pads) is re-derived here from the two independent products that hold it, the
+		# doc sub-slot block list and the package pin list, so a map or pad-ring change this layout
+		# does not cover fails `make generate` instead of shipping a picture that disagrees with
+		# the table on the facing page.
 		if len(afe) != 4 or len(eis) != 1:
 			raise Exception('AfeSystemDiagram: this drawing has one column per AFE site plus '
 				'the EIS engine, and the configuration declares %d AFE blocks and %d EIS blocks'
@@ -901,7 +806,8 @@ class LatexUserGuide():
 		if eis[0]['ownerHart'] != 0:
 			raise Exception('AfeSystemDiagram: the EIS engine is drawn as the management hart\'s '
 				'alone, but this configuration gives it to hart %d' % eis[0]['ownerHart'])
-		# The three electrode pads this figure draws per site, plus the fourth it does not draw (RE2), must all be bonded by the package model.
+		# The three electrode pads this figure draws per site, plus the fourth it does not draw
+		# (RE2), must all be bonded by the package model.
 		pinNames = set(p.Name for p in self.Gen.Package.Pins)
 		electrodes = ['WE', 'RE', 'CE']
 		missing = [e + '_' + str(i) for i in range(4)
@@ -913,9 +819,9 @@ class LatexUserGuide():
 		def P(v):
 			return '%.2f' % v
 
-		# ---- geometry, in cm.
-		# One rank of five register sites under the arbiter bar, 15.3 cm wide at natural size, inside the 16.5 cm text block.
-		# The harts are not drawn: the ownership is one line in each site box and one sentence in the caption.
+		# Geometry, in cm. One rank of five register sites under the arbiter bar, 15.3 cm wide at
+		# natural size, inside the 16.5 cm text block. The harts are not drawn: the ownership is
+		# one line in each site box and one sentence in the caption.
 		sites = eis + afe
 		siteW, gap = 2.70, 0.35
 		x0 = 0.30
@@ -939,7 +845,7 @@ class LatexUserGuide():
 		s += '\tbus/.style={vbus},\n'
 		s += '\twire/.style={vwire}]\n'
 
-		# ---- the arbiter bar, and the five sites hanging off it
+		# The arbiter bar and the five sites hanging off it
 		s += ('\\node[bar, minimum width=' + P(barX1 - barX0) + 'cm, minimum height=' + P(arbH)
 			+ 'cm] at (' + P((barX0 + barX1) / 2.0) + ', ' + P(yArb) + ') {mp\\_arbiter};\n')
 		for k, b in enumerate(sites):
@@ -953,11 +859,11 @@ class LatexUserGuide():
 			s += ('\\draw[bus] (' + P(xs[k]) + ', ' + P(yArb - arbH / 2.0) + ') -- ('
 				+ P(xs[k]) + ', ' + P(ySite + siteH / 2.0) + ');\n')
 
-		# ---- the analog stages under the EIS site, drawn as absent
+		# The analog stages under the EIS site, drawn as absent
 		s += ('\\node[ana, minimum width=' + P(siteW) + 'cm, minimum height=0.80cm, text width=' + P(siteW - 0.30)
 			+ 'cm] at (' + P(xs[0]) + ', ' + P(yAna) + ') {analog stages\\\\ not integrated};\n')
 
-		# ---- the chip boundary and the three electrode pads under each AFE site
+		# The chip boundary and the three electrode pads under each AFE site
 		s += '\\draw[vbound] (' + P(barX0 - 0.20) + ', ' + P(yRed) + ') -- (' + P(barX1 + 0.20) + ', ' + P(yRed) + ');\n'
 		s += '\\node[redlab, anchor=north west] at (' + P(barX0 - 0.20) + ', ' + P(yRed - 0.12) + ') {chip boundary};\n'
 		for i, b in enumerate(afe):
@@ -973,13 +879,11 @@ class LatexUserGuide():
 		self._writeInclude('AfeSystemDiagram.tex', s)
 		return
 	def GenerateCqAnalogChapter(self):
-		# Config-gated chapter for the CQ analog front-end (AFE0-3 + EIS). Rendered
-		# ONLY when the config declares DocSubSlotBlocks (the CQ package model); the
-		# master template guards the \input with \ifcqanalog, so for the default
-		# build this file is a bare comment and the default TRM stays byte-identical.
-		# The register table is emitted from the validated sub-slot block data — the
-		# same single-source discipline as the rest of the TRM, but on a docs-only
-		# path that never touches the peripheral / MemoryMap / MCU.vhd machinery.
+		# Config-gated chapter for the analog front end (AFE0-3 and EIS), rendered only when the
+		# configuration declares DocSubSlotBlocks. The master template guards the \input with
+		# \ifcqanalog, so for a build without them this file is a bare comment. The register table
+		# is emitted from the validated sub-slot block data, on a documentation-only path that
+		# never touches the peripheral, MemoryMap or MCU.vhd machinery.
 		if not os.path.isdir(self.IncludeDirectory):
 			os.makedirs(self.IncludeDirectory)
 		path = self.IncludeDirectory + '/CqAnalog.tex'
@@ -1013,15 +917,10 @@ class LatexUserGuide():
 			'analog blocks; the stubs hold placeholder storage and drive their interrupt '
 			'from a software-settable flag until the analog IP replaces them.\n\n')
 
-		# The connectivity figure. Its \label AND every \ref to it live inside
-		# this generated chapter, which the master template \inputs only under
-		# \ifcqanalog, so the two polarities cannot disagree and trm-lint never
-		# sees a dangling reference (the both-polarity \ref rule).
-		# W5 (2026-08-16): this used to cite the top-level block diagram
-		# (fig:system-block-diagram), which was retired from TRM.template.tex.
-		# The whole-chip PORTRAIT figure it was re-pointed at was itself retired
-		# on 2026-08-25, so the citation is now the flat whole-chip figure, which
-		# carries the same hart band and the same arbiter bar.
+		# The connectivity figure. Its \label and every \ref to it live inside this generated
+		# chapter, which the master template \inputs only under \ifcqanalog, so the two polarities
+		# cannot disagree and trm-lint never sees a dangling reference. The citation is the flat
+		# whole-chip figure, which carries the same hart band and the same arbiter bar.
 		s += ('Figure \\ref{fig:afe-system-diagram} is the arrangement: the five analog register '
 			'sites in one rank under the shared-window arbiter of Figure \\ref{fig:chip-system-flat-diagram}, '
 			'the electrode pads that leave the die under each AFE site, and the analog stages '
@@ -1035,7 +934,7 @@ class LatexUserGuide():
 			'draws three and omits RE2.}\n')
 		s += '\t\\label{fig:afe-system-diagram}\n\\end{figure}\n\n'
 
-		# --- Address map + ownership table -------------------------------------
+		# Address map + ownership table
 		s += '\\subsection{Blocks, addresses, and ownership} \\label{ss:cqanalog-map}\n\n'
 		s += ('The five blocks live in otherwise-reserved shared-window space, so they '
 			'do not disturb the peripheral memory map: the four AFE sites occupy the four '
@@ -1057,13 +956,12 @@ class LatexUserGuide():
 			'64-byte sub-slot exactly; the EIS block additionally aliases across the '
 			'\\texttt{0x7C00} to \\texttt{0x7FFF} quarter it owns.\n\n')
 
-		# --- Ownership / gating semantics --------------------------------------
+		# Ownership / gating semantics
 		s += '\\subsection{Ownership gating} \\label{ss:cqanalog-gate}\n\n'
-		# The owner mapping is READ OUT OF THE BLOCK DATA, never spelt as
-		# "site AFE h answers hart h": on an orchestrator configuration hart 0 is
-		# the orchestrator and the owners are the four CHANNEL harts, so the site
-		# index and the owning hart differ by one (generate.py derives it from the
-		# same knob mcu_vhd.afeStubsOrchOwners() does).
+		# The owner mapping is read out of the block data, never spelt as "site AFE h answers hart
+		# h": on an orchestrator configuration hart 0 is the orchestrator and the owners are the
+		# four channel harts, so the site index and the owning hart differ by one. generate.py
+		# derives it from the same knob mcu_vhd.afeStubsOrchOwners() does.
 		ownerPairs = ', '.join('\\texttt{' + b['name'] + '} to hart ' + str(b['ownerHart'])
 			for b in afeBlocks)
 		s += ('Each AFE site is owned by one hart (' + ownerPairs + '), and it '
@@ -1079,7 +977,7 @@ class LatexUserGuide():
 			'contract. All registers reset to 0, so a block is a provable no-op (interrupt '
 			'low, reads 0) until its owner writes it.\n\n')
 
-		# --- Register map -------------------------------------------------------
+		# Register map
 		s += '\\subsection{Register map (per block)} \\label{ss:cqanalog-regs}\n\n'
 		s += ('All five blocks share one 16-word register layout (they are the same '
 			'hardware entity, differing only in the ownership gate). Offsets are byte '
@@ -1111,7 +1009,7 @@ class LatexUserGuide():
 			i = j + 1
 		s += '\\end{tabularx}\n\n'
 
-		# --- Interrupt relay contract ------------------------------------------
+		# Interrupt relay contract
 		afeSrc = afeBlocks[0]['irqSource']
 		eisSrc = eisBlocks[0]['irqSource'] if eisBlocks else None
 		s += '\\subsection{Interrupt relay} \\label{ss:cqanalog-irq}\n\n'
@@ -1143,49 +1041,33 @@ class LatexUserGuide():
 			f.write(s)
 		return
 
-	# ------------------------------------------------------------------
-	# Address-space figure (TRM Section \ref{s:addressSpace}).
-	#
-	# THE MAP IS TWO OVERLAPPING VIEWS, and the figure draws them as ONE
-	# monotonically increasing column with the views told apart by their
-	# group braces:
-	#   * the SHARED WINDOW 0x0..2^(SH_AW+2)-1, which every hart reaches
-	#     through the mp_arbiter — hart_tile.vhd's sh_sel decode:
+	# Address-space figure, TRM Section \ref{s:addressSpace}.
+	# The map is two overlapping views, drawn as one monotonically increasing column with the
+	# views told apart by their group braces:
+	#   * the shared window 0x0..2^(SH_AW+2)-1, which every hart reaches through the
+	#     mp_arbiter, per hart_tile.vhd's sh_sel decode:
 	#         sh_sel <= '1' when data_addr(31 downto SH_AW+2) = SH_WIN_ZERO
 	#                        and not (data_addr(SH_AW+1 downto 16) = SH_TCM_ZERO
 	#                                 and data_addr(15 downto 14) = "10")
-	#   * the PRIVATE TCM band, which that same decode carves OUT of the
-	#     window (the "10" region term), so at those addresses each hart
-	#     sees its own RAM0 instead of the shared bus.
-	# Above the window, extended flash decodes at exactly 2^(SH_AW+2) —
-	# the STRICT COMPLEMENT of sh_sel (adddec.vhd gen_flash_detect:
-	# data_addr(31 downto SH_AW+2) /= FLASH_ZERO; the M3c.3 double-claim
-	# lesson) — and only hart 0 has that path.
-	#
-	# Everything drawn is DERIVED: the shared rows from
-	# Gen.SharedWindowSections (including the per-hart TCM apertures),
-	# ROM/peripheral/TCM geometry from the ChipGenerator memory objects,
-	# the flash base from McuMpGeometry['shAw'] (same expression the
-	# SPI_FLASH_MEM_ADDRESS header define uses). No literal addresses.
-	#
-	# THE DEFECT THIS STRUCTURE MAKES IMPOSSIBLE: the figure used to be
-	# emitted as two independent columns (the private map, then the shared
-	# sections) with the second one continuing from the FIRST one's running
-	# end, so it shipped rows like \memsection{0x0C000}{0x04FFF} — start
-	# above end — and printed 0x05000 and 0x08000 twice. The rows are now
-	# built as one gapless, strictly increasing tiling of the whole 32-bit
-	# space, and _AssertAddressSpaceTex() re-walks the EMITTED tex (not the
-	# model that produced it) and raises before the file is written.
-	# ------------------------------------------------------------------
+	#   * the private TCM band, which that same decode carves out of the window through the
+	#     "10" region term, so at those addresses each hart sees its own RAM0.
+	# Above the window, extended flash decodes at exactly 2^(SH_AW+2), the strict complement of
+	# sh_sel (adddec.vhd gen_flash_detect), and only hart 0 has that path.
+	# Everything drawn is derived: the shared rows from Gen.SharedWindowSections including the
+	# per-hart TCM apertures, the ROM, peripheral and TCM geometry from the ChipGenerator
+	# memory objects, and the flash base from McuMpGeometry['shAw'], the same expression the
+	# SPI_FLASH_MEM_ADDRESS header define uses. No literal addresses.
+	# The rows are built as one gapless, strictly increasing tiling of the whole 32-bit space,
+	# and _AssertAddressSpaceTex() re-walks the emitted tex, not the model that produced it,
+	# and raises before the file is written. Emitting the private map and the shared sections
+	# as two independent columns is what produced rows whose start was above their end.
 
-	# Access-class labels for the figure's group braces. Each brace is one
-	# access class, so the private carve-out visibly interrupts the shared
-	# window instead of being hidden inside it.
+	# Access-class labels for the figure's group braces. Each brace is one access class, so the
+	# private carve-out visibly interrupts the shared window instead of hiding inside it.
 	_ADDR_GROUP_SHARED = '\\sffamily\\footnotesize Shared window\\\\(all harts, arbitrated)'
-	# The private band is the one row in the column whose contents differ per
-	# hart, so it carries the theme's red the way a boundary does elsewhere.
-	# The colour does not survive the row break inside a rightwordgroup label,
-	# so each line has to set it for itself.
+	# The private band is the one row in the column whose contents differ per hart, so it
+	# carries the theme's red the way a boundary does elsewhere. The colour does not survive
+	# the row break inside a rightwordgroup label, so each line sets it for itself.
 	_ADDR_GROUP_PRIVATE = ('\\sffamily\\footnotesize\\bfseries\\color{vestaRedText}'
 		'Private to each hart\\\\'
 		'\\sffamily\\footnotesize\\bfseries\\color{vestaRedText}(not arbitrated)')
@@ -1207,17 +1089,16 @@ class LatexUserGuide():
 		gen = self.Gen
 		unmappedLines = ['\\textit{\\color{black!55}Unmapped}', '\\textit{\\color{black!55}(reads zero)}']
 
-		# --- which shared sections are the per-hart TCM apertures ----------
-		# Read off the resolved config's derived geometry rather than matching
-		# section names, so the classification follows the generator's own
-		# arithmetic (0x20000 + 0x4000*h) and degrades to "no apertures" for
-		# every non-orchestrator configuration.
+		# Which shared sections are the per-hart TCM apertures, read off the resolved config's
+		# derived geometry rather than by matching section names, so the classification follows the
+		# generator's own arithmetic (0x20000 + 0x4000*h) and degrades to no apertures for every
+		# non-orchestrator configuration.
 		apertureStarts = set()
 		rc = getattr(gen, 'ResolvedConfig', None) or {}
 		for a in ((rc.get('derived') or {}).get('tcmWindowAddresses') or []):
 			apertureStarts.add(int(str(a), 16))
 
-		# --- the mapped regions, each from its generator object ------------
+		# the mapped regions, each from its generator object
 		regions = []
 		regions.append((gen.RomStartAddress, gen.RomEndAddress, self._ADDR_GROUP_SHARED,
 			['Boot ROM', 'Size = ' + self._AddressSpaceSizeString(1 + gen.RomEndAddress - gen.RomStartAddress)]))
@@ -1228,12 +1109,11 @@ class LatexUserGuide():
 			regions.append((startAddr, endAddr, group,
 				[name, 'Size = ' + self._AddressSpaceSizeString(1 + endAddr - startAddr)]))
 
-		# The private band: the ChipGenerator "RAM" object IS the per-hart TCM
-		# on this chip (one slot per used SRAM), and it is the only private
-		# region in the map.
+		# The private band: the ChipGenerator "RAM" object is the per-hart TCM on this chip, one
+		# slot per used SRAM, and it is the only private region in the map.
 		firstRamSlot = min(gen.RamMemorySlotsAvailable)	# same formula as generateMemoryX; the old hardcoded (ramSlot - 2) drew the RAM at the wrong addresses
-		# The private band's decode width, for the mirror row below. Read from
-		# the generator's own geometry record, never restated.
+		# The private band's decode width, for the mirror row below. Read from the generator's own
+		# geometry record, never restated.
 		_geo = getattr(gen, 'McuMpGeometry', None)
 		geoTcm = _geo.get('tcmApertureSize') if _geo else None
 		multiSlot = len(gen.RamMemorySlotsUsed) > 1
@@ -1253,16 +1133,13 @@ class LatexUserGuide():
 					muxNote += ' with ' + gen.RamMemorySlotsMuxed[ramSlot]
 				lines.append(muxNote + '}')
 			regions.append((addr, addr + thisSlotSize - 1, self._ADDR_GROUP_PRIVATE, lines))
-			# THE MIRROR ROW (2026-09-05). The private band DECODES 16 KiB --
-			# adddec routes data_addr(13 downto 2) (hdl/common/adddec.vhd:147)
-			# and hart_tile drops the word index's top bit at the ram0 mux
-			# (hdl/common/hart_tile.vhd:781) -- while the array answers
-			# thisSlotSize, so the rest of the band is THE SAME ARRAY REPEATED.
-			# Without this row the gap-filler below labelled 0xA000-0xBFFF
-			# "Unmapped (reads zero)", which is false, and false in the one
-			# place it matters: it is where a stack pointer of 0xBFFC pointed.
-			# The band width is the aperture stride, which is the same 0x4000
-			# decode granularity (generate.py:4517).
+			# The mirror row. The private band decodes 16 KiB, since adddec routes data_addr(13 downto 2)
+			# (hdl/common/adddec.vhd:147) and hart_tile drops the word index's top bit at the ram0 mux
+			# (hdl/common/hart_tile.vhd:781), while the array answers thisSlotSize, so the rest of the
+			# band is the same array repeated. Without this row the gap-filler below labels
+			# 0xA000-0xBFFF "Unmapped (reads zero)", which is false in the one place it matters: it is
+			# where a stack pointer of 0xBFFC points. The band width is the aperture stride, which is
+			# the same 0x4000 decode granularity.
 			if geoTcm and thisSlotSize < geoTcm and (i == len(gen.RamMemorySlotsUsed) - 1):
 				repeats = geoTcm // thisSlotSize
 				regions.append((addr + thisSlotSize, addr + geoTcm - 1, self._ADDR_GROUP_PRIVATE,
@@ -1272,7 +1149,7 @@ class LatexUserGuide():
 						+ ' and the array answers ' + self._AddressSpaceSizeString(thisSlotSize)
 						+ ', so it repeats ' + str(repeats) + ' times']))
 
-		# --- the window top and the flash base, both from SH_AW ------------
+		# the window top and the flash base, both from SH_AW
 		flashRead = bool(gen.NativeSpiFlashMemoryReadAccess)
 		flashWrite = bool(gen.NativeSpiFlashMemoryWriteAccess)
 		geo = getattr(gen, 'McuMpGeometry', None)
@@ -1285,7 +1162,7 @@ class LatexUserGuide():
 			flashBase = max([r[1] for r in regions]) + 1
 		windowTop = flashBase - 1
 
-		# --- assemble: sort, check, fill every gap -------------------------
+		# assemble: sort, check, fill every gap
 		regions.sort(key=lambda r: r[0])
 		rows = []
 		cursor = 0
@@ -1304,7 +1181,7 @@ class LatexUserGuide():
 			rows.append((cursor, windowTop, None, unmappedLines))
 			cursor = windowTop + 1
 
-		# --- above the window: the extended-flash window, or nothing -------
+		# above the window: the extended-flash window, or nothing
 		if flashRead or flashWrite:
 			flashLines = ['SPI flash (XIP)']
 			if flashRead and not flashWrite:
@@ -1316,14 +1193,10 @@ class LatexUserGuide():
 		return rows
 
 	def _AssertAddressSpaceTex(self, tex):
-		'''E17-style build-time assertion over the rows the emitter ACTUALLY
-		   drew, parsed back out of the emitted tex rather than out of the model
-		   that produced them.
-		   Every row but the last carries its start address only (\\memrow or
-		   \\memgap), and the last row (\\memsection) carries both ends.
-		   The starts must be strictly increasing from zero and the last end must
-		   be the top of the 32-bit space, or `make generate` fails instead of
-		   shipping an inverted or gapped column.'''
+		'''Build-time assertion over the rows the emitter actually drew, parsed back out of the emitted
+		tex. Starts must be strictly increasing from zero and the last end must be the top of the
+		32-bit space, or `make generate` fails rather than shipping an inverted or gapped column.
+		'''
 		toks = re.findall(r'\\mem(section|row|gap)\{0x([0-9A-Fa-f]+)\}(?:\{0x([0-9A-Fa-f]+)\})?', tex)
 		if not toks:
 			raise Exception('AddressSpaceDiagram: no address rows were emitted')
@@ -1348,11 +1221,10 @@ class LatexUserGuide():
 			raise Exception('AddressSpaceDiagram: the last row must carry its end address')
 
 	def _AddressSpaceFigureRows(self):
-		'''The rows the figure draws, derived from _AddressSpaceRows.
-		   The table keeps every row; the figure merges the per-hart aperture rows
-		   into one, drops every "Size =" sub-line by folding the size into the
-		   row label, and leaves the unmapped rows wordless.
-		   Returns (start, end, group, label) with label None for an unmapped row.'''
+		'''The rows the figure draws, derived from _AddressSpaceRows: the per-hart aperture rows merged
+		into one, every size folded into the row label and the unmapped rows left wordless.
+		Returns (start, end, group, label), with label None for an unmapped row.
+		'''
 		rows = self._AddressSpaceRows()
 		out = []
 		i = 0
@@ -1396,11 +1268,10 @@ class LatexUserGuide():
 		return out
 
 	def GenerateAddressSpaceDiagram(self):
-		'''include/AddressSpaceDiagram.tex, the address column drawn once for
-		   every hart, the STM32 memory-map idiom.
-		   One address per row edge, the size in the row label, the unmapped
-		   rows a plain grey with no words, and one brace per access class run.
-		   The column is input at natural size and every label is 8 pt or larger.'''
+		'''include/AddressSpaceDiagram.tex, the address column drawn once for every hart. One address
+		per row edge, the size in the row label, the unmapped rows plain grey and wordless, one brace
+		per access-class run. Input at natural size with every label 8 pt or larger.
+		'''
 		rows = self._AddressSpaceFigureRows()
 		hRow, hGap, hLast = '2', '1.3', '2.6'
 
@@ -1450,12 +1321,10 @@ class LatexUserGuide():
 		self._writeInclude('AddressSpaceDiagram.tex', s)
 		return
 
-	# -----------------------------------------------------------------
-	# Unified-configuration section + generated diagrams (2026-07-11).
+	# Unified-configuration section + generated diagrams.
 	# All of these render from the SAME records generate.py builds for
 	# config/ChipConfig.resolved.json and config/PadRing.json, so the TRM,
 	# the make chip schema, and the configurator HTML cannot drift apart.
-	# -----------------------------------------------------------------
 
 	def GenerateChipConfigurationSection(self):
 		'''include/ChipConfigurationTable.tex — the make chip CONFIG= schema with
@@ -1472,7 +1341,7 @@ class LatexUserGuide():
 			return node
 
 		def texdesc(s):
-			# NO EM-DASHES IN THE TRM (user directive 2026-08-15). This used to
+			# NO EM-DASHES IN THE TRM. This used to
 			# silently rewrite U+2014 into the LaTeX `---` ligature, which meant a
 			# schema description string could reintroduce a rendered em-dash without
 			# anyone noticing. Fail the build loudly instead; reword the offending
@@ -1490,9 +1359,9 @@ class LatexUserGuide():
 				return '\\texttt{' + str(v) + '} (' + str(v // 1024) + '\\,KiB)'
 			return '\\texttt{' + fmttex(str(v)) + '}'
 
-		# Full schema coverage (2026-07-29 honesty fix: this list had been frozen
+		# Full schema coverage: this list had been frozen
 		# at the pre-X-series key set, so X-series ISA, priv, newer-peripheral and
-		# package knobs never appeared in the TRM config table). Keep in sync with
+		# package knobs never appeared in the TRM config table. Keep in sync with
 		# generate.py _CONFIG_SCHEMA — grouped: core, isa, priv, memory, periph, pkg.
 		keyOrder = ['chipName', 'numHarts', 'orchestrator', 'numMutexes', 'registerFileDualPort',
 			'core.fetchAhead',
@@ -1525,7 +1394,7 @@ class LatexUserGuide():
 		# key set, so the whole X-series ISA block, the priv block, the newer
 		# peripherals and the package knobs were absent from the TRM's own
 		# configuration table while the schema advertised them. It was corrected
-		# by hand on 2026-07-29 and nothing stopped it happening again.
+		# by hand and nothing stopped it happening again.
 		# ConfigSchemaDoc is `dict((k, _CONFIG_SCHEMA[k][0]) for k in
 		# _CONFIG_SCHEMA)` (generate.py), i.e. exactly the schema key set, so
 		# this is the whole check: a knob added to the schema and forgotten here
@@ -1540,23 +1409,45 @@ class LatexUserGuide():
 				'  Fix: edit keyOrder in LatexUserGuide.GenerateChipConfigurationSection.'
 				% (missing, extra))
 
+		# Basic knobs first, advanced after a separator row. The grouping comes from the
+		# generator's own metadata (ConfigMeta[k]['group']), the same field the configurator
+		# collapses on, so the manual and the page cannot disagree about which is which. The
+		# order WITHIN each group is keyOrder's, so the familiar core/isa/priv/memory/periph/
+		# package sequence survives. A build whose metadata carries no group prints one block.
+		meta = getattr(self.Gen, 'ConfigMeta', {}) or {}
+		def groupOf(k):
+			return (meta.get(k) or {}).get('group', 'basic')
+		basicKeys = [k for k in keyOrder if groupOf(k) == 'basic']
+		advancedKeys = [k for k in keyOrder if groupOf(k) != 'basic']
+
 		s = '% Generated: the make chip CONFIG= schema + the values of THIS build\n'
 		s += '\\begin{longtable}[c]{ l l p{7.2cm} }\n'
-		s += '\\caption{Chip configuration knobs (\\texttt{make chip CONFIG=config.json}) and the values of this build} \\label{t:chip-config} \\\\\n'
+		s += ('\\caption{Chip configuration knobs (\\texttt{make chip CONFIG=config.json}) and the '
+			'values of this build. The basic knobs come first: the hart count and orchestrator, '
+			'the fabric, the ISA letters, the memory sizes, the peripheral toggles and the '
+			'package. The advanced block below them holds the Z-series extensions, the '
+			'privileged architecture, debug, and the knobs that size a block that is already '
+			'on.} \\label{t:chip-config} \\\\\n')
 		s += '\\hline \\textbf{Configuration key} & \\textbf{This build} & \\textbf{Meaning / valid values} \\\\ \\hline \\endfirsthead\n'
 		s += '\\multicolumn{3}{c}{\\textit{\\tablename\\ \\thetable\\ continued from previous page}} \\\\ \\hline\n'
 		s += '\\textbf{Configuration key} & \\textbf{This build} & \\textbf{Meaning / valid values} \\\\ \\hline \\endhead\n'
 		s += '\\hline \\multicolumn{3}{c}{\\textit{\\tablename\\ \\thetable\\ continued on next page}} \\\\ \\endfoot \\hline \\endlastfoot\n'
 		rowColored = False
-		for k in keyOrder:
-			v = val(k)
-			if v is None and k == 'memory.npuStagingRamSize':
-				v = 0
-			row = '\\texttt{' + fmttex(k) + '} & ' + fmtval(k, v) + ' & ' + texdesc(doc.get(k, '')) + ' \\\\\n'
-			if rowColored:
-				row = '\\rowcolor{tablehighlightcolor} ' + row
-			rowColored = not rowColored
-			s += row
+		for block, heading in ((basicKeys, None), (advancedKeys, 'Advanced knobs')):
+			if not block:
+				continue
+			if heading is not None:
+				s += ('\\hline \\multicolumn{3}{l}{\\textbf{' + heading + '}} \\\\ \\hline\n')
+				rowColored = False
+			for k in block:
+				v = val(k)
+				if v is None and k == 'memory.npuStagingRamSize':
+					v = 0
+				row = '\\texttt{' + fmttex(k) + '} & ' + fmtval(k, v) + ' & ' + texdesc(doc.get(k, '')) + ' \\\\\n'
+				if rowColored:
+					row = '\\rowcolor{tablehighlightcolor} ' + row
+				rowColored = not rowColored
+				s += row
 		s = s[:-3] + '\\\\\n\\hline\n\\end{longtable}\n\n'
 
 		drv = rc.get('derived', {})
@@ -1587,7 +1478,6 @@ class LatexUserGuide():
 			s += row
 		s = s[:-3] + '\\\\\n\\hline\n\\end{longtable}\n'
 
-		# ------------------------------------------------------------------
 		# Per-hart-class ISA (asymmetric ISA, isa.minimalTiles).
 		#
 		# Rendered from derived.hartClasses, which generate.py takes straight
@@ -1596,7 +1486,6 @@ class LatexUserGuide():
 		# asymmetry the build did not emit. One row per class that exists, so a
 		# configuration whose tiles are not minimal (or a one-hart chip) prints
 		# a single row and the text below still reads correctly.
-		# ------------------------------------------------------------------
 		classes = list(drv.get('hartClasses') or [])
 		if classes:
 			s += '\n% Generated: derived.hartClasses (web_export.hartClasses), the asymmetric-ISA table\n'
@@ -1644,15 +1533,10 @@ class LatexUserGuide():
 		return
 
 	def _TcmApertureWindows(self):
-		'''The read-only TCM aperture bases, [] when the configuration has none.
-
-		   E17-style: the geometry list (generate.py's tcmWindows, which is what
-		   mcu_vhd.py decodes) and the address-space model (SharedWindowSections,
-		   which is what the memory-map figure draws) are INDEPENDENT products of
-		   the same arithmetic. Any figure that draws the apertures cross-checks
-		   them here and raises, so a map change that misses one of the two fails
-		   `make generate` instead of shipping a figure that disagrees with the
-		   memory map two pages later.'''
+		'''The read-only TCM aperture bases, [] when the configuration has none. The geometry list and
+		the address-space model are independent products of the same arithmetic, so any figure that
+		draws the apertures cross-checks them here and raises rather than shipping a disagreement.
+		'''
 		geo = getattr(self.Gen, 'McuMpGeometry', None) or {}
 		windows = list(geo.get('tcmWindows') or [])
 		sections = [sec for sec in (self.Gen.SharedWindowSections or [])
@@ -1661,7 +1545,7 @@ class LatexUserGuide():
 			raise Exception('TCM apertures: McuMpGeometry tcmWindows %s do not match the '
 				'SharedWindowSections aperture rows %s — the block diagram and the address-space '
 				'figure would disagree.' % ([hex(w) for w in windows], [hex(sec[1]) for sec in sections]))
-		# 2026-08-16: the aperture SPAN/STRIDE and the TCM SIZE were the same
+		# The aperture SPAN/STRIDE and the TCM SIZE were the same
 		# number until memory.tcmSizePerHart dropped to 8 KiB, and this check
 		# read RamMemorySlotSize for both. They are now separate quantities --
 		# the stride is address space (fixed 0x4000, so the MCU sub-decode keeps
@@ -1691,13 +1575,11 @@ class LatexUserGuide():
 				'so the aperture mirror is ragged.' % (tcmBytes, apertureBytes))
 		return windows
 
-	# ------------------------------------------------------------------
 	# WHOLE-CHIP BLOCK DIAGRAM (GenerateChipSystemFlatDiagram).
 	# Everything drawn is derived from the configuration.
 	# The boxes come from bucketing Gen.Peripherals with the table below.
 	# The E17 assertion in _ChipSystemBoxes compares the drawn instance set
 	# with Gen.Peripherals, so a peripheral nobody placed fails make chip.
-	# ------------------------------------------------------------------
 
 	# Peripheral template -> the drawn box it belongs in. The value is a bucket
 	# key from _CHIP_FIG_ABOVE / _CHIP_FIG_BELOW; "above" is the pin-facing half
@@ -1811,7 +1693,7 @@ class LatexUserGuide():
 
 		above, below = {}, {}
 
-		# ---- above the bus: everything whose signals leave the die ---------
+		# above the bus: everything whose signals leave the die
 		ps = claim('io')
 		if ps:
 			e = None
@@ -1910,7 +1792,7 @@ class LatexUserGuide():
 				rows.append((p.Name, p.BaseAddress, owner, gate))
 			above['afe']['sites'] = rows
 
-		# ---- below the bus: time, clocks, power, memory, engines -----------
+		# below the bus: time, clocks, power, memory, engines
 		ps = claim('timer')
 		if ps:
 			below['timer'] = box('timer', 'timers', self._chipFigNames([p.Name for p in ps]), None,
@@ -2006,7 +1888,7 @@ class LatexUserGuide():
 			below['engine'] = box('engine', 'engines', 'autonomous', None, rows=rows, w=2.75,
 				brief=self._chipFigNames([p.Name for p in ps]))
 
-		# ---- E17: the drawn instance set must BE the configuration's --------
+		# E17: the drawn instance set must BE the configuration's
 		configured = set(p.Name for p in gen.Peripherals)
 		if drawn != configured:
 			raise Exception('ChipSystemDiagram: the figure draws peripheral instances '
@@ -2017,17 +1899,10 @@ class LatexUserGuide():
 			[below[k] for k in self._CHIP_FIG_BELOW if k in below])
 
 	def _ChipSystemMasters(self, brief=False):
-		'''The master band, shared by BOTH whole-chip figures so a change to who
-		   drives the bus cannot move one of them and not the other.
-
-		   One column per hart where the configuration has few enough of them to
-		   draw honestly; otherwise the stacked x N idiom, because an 18-hart
-		   band of eighteen boxes is not a drawing, it is a wall.
-
-		   `brief' trims every note to ONE line. The portrait figure takes the
-		   full three; the flat companion's whole subject is a shorter drawing,
-		   and a band of five three-line notes is 0.74 cm of height on the one
-		   axis that figure is trying to spend nothing on.'''
+		'''The master band, shared by both whole-chip figures so a change to who drives the bus cannot
+		move one and not the other. One column per hart where there are few enough to draw honestly,
+		otherwise the stacked xN idiom. `brief` trims every note to one line for the flat figure.
+		'''
 		gen = self.Gen
 		geo = getattr(gen, 'McuMpGeometry', None)
 		N = gen.NumHarts
@@ -2086,10 +1961,10 @@ class LatexUserGuide():
 		return masters
 
 	def _vTextWidth(self, tex, size='small', bold=False):
-		'''Width in cm of the widest line of a sans label in one of the theme's
-		   two diagram sizes, calibrated on Libertine Sans at 9 pt and 8 pt.
-		   Every box in the generated block diagrams is sized from this, so a
-		   label the box cannot hold widens the box instead of spilling it.'''
+		'''Width in cm of the widest line of a sans label in one of the theme's two diagram sizes,
+		calibrated on Libertine Sans at 9 pt and 8 pt. Every generated box is sized from this, so a
+		label the box cannot hold widens the box instead of spilling it.
+		'''
 		lower, upper, digit, space = {
 			'small': (0.165, 0.221, 0.163, 0.088),
 			'footnotesize': (0.148, 0.199, 0.147, 0.079)}[size]
@@ -2134,184 +2009,10 @@ class LatexUserGuide():
 		return s
 
 	def GenerateChipSystemFlatDiagram(self):
-		'''include/ChipSystemFlatDiagram.tex — the whole-chip figure the manual
-		   prints. It began as the FLAT companion to the portrait cut
-		   (GenerateChipSystemDiagram, retired 2026-08-25): the same
-		   configuration and the same derived content, drawn as a datasheet block
-		   diagram instead of a portrait page. Five things differ from that cut,
-		   and each is the point:
-
-		   ONE BAR, ONE RANK. The portrait figure runs the bus down the left
-		   margin and back along a rib, because three shelves of tall boxes
-		   cannot all touch one horizontal bar. Here every peripheral is cut to
-		   a name and one line and hangs off ONE rank below the bar, each box
-		   tapping it straight up. There is no trunk, no rib, no second bar
-		   segment and no second rank whose taps have to find a lane: the two
-		   ranks the first cut needed cost 2.7 cm of height and a bisection
-		   search for a width at which every rank-2 tap could stay straight.
-
-		   THE TILE IS DRAWN AS THE TILE. A hart box is split into the two
-		   compartments the RTL builds it from — the VestaRV core and its
-		   private TCM — instead of naming the TCM in a note and drawing its
-		   shared-window apertures three metres away on the memory rank. That
-		   is where the TCM physically is, and it takes the memory rank down to
-		   the two memories that really are behind the bar.
-
-		   THE SITE IS A HAT ON ITS HART. Each analog site is its own box,
-		   sitting directly on the box of the hart that owns it and exactly as
-		   wide, with air between channels: the pair reads as one channel. The
-		   arrow between the two is thin, short and unlabelled, and it IS what
-		   makes a site its hart's — the caption says
-		   \\emph{owns} once, where five printings of it were five labels in the
-		   one strip this row keeps clear. Hart 0's privilege is one comparison
-		   against the granted-master index, so it is ONE heavy rail under the
-		   row with a drop into every site — visibly reaching all of them, in
-		   the room the old banner band used to take, and drawn with a real gap
-		   wherever a column's ownership arrow passes through it so that no
-		   crossing can be read as a junction. Those two marks are the WHOLE of the
-		   access story, and now the only of it. Two things have come OUT of this
-		   row by USER DIRECTIVE and both went for the same reason. The first was
-		   the arbiter's own grey strip, run the length of the row behind the site
-		   boxes with one drop down the right lane into the bar: only hart 0 or
-		   the site's own hart may read a site and both are drawn already, so the
-		   strip was buying the fact that the sites are ordinary arbiter slaves
-		   reached only through the bar, which is true of every block in the
-		   drawing and which the caption carries for nothing. The second
-		   (2026-08-16) is the register-level GATE itself, which used to be
-		   printed inside every site box (\\texttt{s\\_master} = its own hart
-		   \\emph{or} 0) and again up the margin of hart 0's rail: five printings
-		   of one signal name, in the one strip this row keeps clear, saying what
-		   the two marks already draw. A site box is its NAME now, the identifier
-		   belongs to the caption and to the analog chapter, and \\texttt{s\\_master}
-		   appears nowhere in this drawing.
-
-		   THE RANK IS GROUPED BY TYPE. Ten boxes in a line is a list; the same
-		   ten under \\emph{Memory}, \\emph{Comms}, \\emph{Timing \\& Sync} and the
-		   rest is an organisation. The idiom is the user's own Myshkin block
-		   diagram's: the blocks of one kind stand together under a type label,
-		   with a thin outline round them. The label is set BIG (user directive,
-		   2026-08-16: \\large italic grey, bigger than the block titles under it,
-		   because a heading is read before the things it heads) and in Title
-		   Case, and where it will not fit its lane on one line the layout sets it
-		   on two rather than the list shortening the English again. The outline
-		   goes round EVERY type of more than one box, and a GLUED box of several
-		   compartments counts as more than one (same directive): the emitter used
-		   to give those types the label alone, on the argument that a rectangle
-		   2 mm outside a rectangle is a doubled border rather than a group, and
-		   at the bigger heading size the unframed types read as captions floating
-		   over the rank while the framed ones read as groups. The outlines are cut
-		   with a REAL GAP at every bus tap, every partner wire and the harvested
-		   supply rail where it rises back through one, the same rule hart 0's
-		   rail is drawn by. The FRAME is what gets dealt out along the rank now, so the
-		   pin-facing types still spread their partners under themselves. What a
-		   frame may never do is imply a block or drop one, and the emitter
-		   asserts exactly that and nothing more — every frame member is a drawn
-		   block and every drawn block is in one frame — because a frame is
-		   decoration and decoration does not get to make claims.
-
-		   THE DEBUG PATH IS DRAWN, AND DRAWN SOLID. The Debug
-		   Module is a bus MASTER — Figure \\ref{fig:debug-stack-diagram} draws it
-		   reading and writing memory as one more master on this bar — so it
-		   belongs in the master band, at the end of it, with the five JTAG pins
-		   coming down out of an off-chip probe across the boundary into it. On
-		   a debug-enabled build the column carries the two derived names (dtm0,
-		   the TAP and its transport; dm0, the Debug Module). It used to go DASHED
-		   with the knob off — the analog-IP idiom, drawn and not in this build —
-		   under a polarity ASSERTED against the knob, and by USER DIRECTIVE
-		   (2026-08-16) it is SOLID in every configuration instead, the default
-		   manual included. The assertion is not dropped, it is turned round: the
-		   emitter now proves the column is solid EVERYWHERE and that the
-		   knob-derived fact is carried in words, by the \\emph{debug builds only}
-		   clause printed in the box, which the emitter also refuses to ship
-		   missing. Whether those pins reach a BALL is a second and separate fact,
-		   and a package one (the QFN-64 has no room for them; the LQFP-100 takes
-		   five of its NC balls): the probe used to be dashed for that too, so
-		   that clause is now printed whenever it is true rather than only on a
-		   debug-enabled build.
-
-		   NFC IS TWO PATHS, AND THE SECOND ONE IS THE SUPPLY. The digital core
-		   reads the tag through the bar like any peripheral and its RF front end
-		   is off-die, so the antenna is an off-chip partner — that half this
-		   figure already had. The half it did not is that on a field-powered
-		   board the harvested field is what RUNS the chip, and it does not
-		   arrive through NFC0: \\texttt{peripherals.fieldPower} wires PWRCTRL's
-		   supervision inputs to real pads (\\texttt{PGOOD} and the harvested-boot
-		   strap, plain-GPIO direct taps readable before any software runs) and
-		   the boot gate they hold is ANDed into every hart's outer reset. So the
-		   supply is drawn as what it is — a board-level RAIL in the off-chip
-		   band, heavier and greyer than any signal in the drawing, running from
-		   the antenna to under PWRCTRL and crossing the boundary there, cut with
-		   a real gap at every partner wire it passes — and never as a wire out
-		   of the NFC block. The RAIL is the one stroke in this drawing that still
-		   changes with the configuration: it is dashed where the chip is not run
-		   off the field, and it has a third condition of its own besides the
-		   block and the knob, because the two pads are GPIO46/47, which the QFN
-		   packages do not bring out at all. The NFC BLOCK and its antenna do not:
-		   by USER DIRECTIVE (2026-08-16, the directive that made the debug column
-		   solid) they are drawn solid in every configuration, and what a build
-		   really contains is the caption's to say. The rail's own label was
-		   trimmed to what the rail IS, `harvested field power', in the same pass:
-		   the pads it lands on are a PWRCTRL fact, they are in the pin table and
-		   in the caption, and on a whole-chip overview they were two lines of
-		   \\texttt{} in the one band the rail runs through.
-
-		   THE BAR SAYS WHAT IT IS. It used to be labelled \\texttt{mp\\_arbiter},
-		   which is the VHDL entity's name and not a name at all to a reader
-		   meeting this chip on page 17. The bar now carries the English — the
-		   multi-hart shared-bus arbiter — over the three facts a whole-chip
-		   overview owes a reader who is about to assume a crossbar; the
-		   identifier is explained once, in the caption, where the reader who
-		   wants to grep the RTL will find it.
-
-		   THE ROW IS THE CHANNELS, AND THE ENGINE IS NOT DRAWN. Every column of
-		   this row is one channel — a three-electrode cell, the site that
-		   measures it, the hart that owns it. The shared EIS sweep engine's
-		   register site is hart 0's, and it is NOT one: it brings out no
-		   electrodes, it is nobody's channel, and by user directive (2026-08-16)
-		   it is left out of this overview altogether, because the central-engine
-		   topology is being reworked to a per-channel EIS and this figure is not
-		   to assert a shape that is on its way out. A cut of this figure drew
-		   that engine's site as hart 0's hat with a dashed trapezoid selecting
-		   one channel's electrodes into it; both are gone. The omission is
-		   CURATION and is named as such in the emitter, checked by name against
-		   the block model's own site list (a site that vanishes silently is a
-		   site the figure forgot), and it changes nothing else: hart 0 keeps its
-		   column and its reach over every site drawn, and the as-built EIS
-		   register stub is still documented by the CQ analog chapter and still
-		   drawn by the portrait figure.
-
-		   ELECTRODES, DRAWN. Each site brings out its own WE/RE/CE triple
-		   straight up out of its own box, on unbroken vertical wires that cross
-		   the red boundary and carry a pad square where they cross it; the pad
-		   name is printed inside the cell, above its stub, never on the wire (a
-		   white label box on a wire reads as an open circuit — the AFE figure
-		   was rejected for exactly that, and this reuses its cleaned pattern).
-		   Every off-chip partner below the boundary is reached the same way: a
-		   straight vertical wire down from the tap, entering the partner's top
-		   edge off-centre where the partner had to be nudged aside, because a
-		   jogged wire in a clear lane buys nothing and reads as a detour.
-
-		   COUNT, TWICE. A block instantiated N times says $\\times N$ in its
-		   title AND wears N offset squares: the numeral is the count exactly,
-		   the squares are the count at a glance, and the two are read by
-		   different passes over the page. Every square in a stack is the SAME
-		   box — same fill, same border as the one in front — because N copies of
-		   one peripheral is what it is counting; the white back copies of the
-		   first cut drew a shadow, not a count. The one thing squares cannot do is sit
-		   behind a GLUED compartment — a single stack behind a box whose
-		   compartments have different instance counts is a lie with no way to
-		   qualify it — so a multi-instance block is never glued, and the case
-		   that proves it (config/penta\\_wound.json's five serial blocks, at 1,
-		   2, 3 and 4 instances) is a build error rather than a drawing.
-
-		   IT DEGRADES INSTEAD OF LYING. The electrode/site row is drawn only
-		   where the configuration is the shape it asserts (the shared
-		   _ChipSystemAnalogRow test: an orchestrator, one site per channel
-		   hart, a column for every owner, and bonded pads). Anything else gets
-		   a uniform hart band — still split core/TCM — and the analog block, if
-		   any, back on the rank as an ordinary peripheral. The figure is
-		   therefore emitted and \\input UNGATED in both polarities, and every
-		   \\ref to it resolves in both.'''
+		'''include/ChipSystemFlatDiagram.tex, the whole-chip datasheet block diagram: one bus bar, every
+		peripheral on one rank below it grouped by type, each hart split into core and TCM, and each
+		analog site on the box of the hart that owns it. It degrades to a hart band rather than lie.
+		'''
 		gen = self.Gen
 		geo = getattr(gen, 'McuMpGeometry', None)
 		aboveBoxes, belowBoxes = self._ChipSystemBoxes()
@@ -2409,24 +2110,18 @@ class LatexUserGuide():
 		def wOf(title, sub, minw=1.95, maxw=4.80):
 			return min(maxw, max(minw, 0.36 + max(TWs(title, tBold), TWs(sub))))
 
-		# ---- the masters, and the analog row's eligibility -------------------
+		# The masters, and the analog row's eligibility
 		masters = self._ChipSystemMasters(brief=True)
 		columns = dict((m['harts'][0], m) for m in masters if m['harts'])
 
-		# ---- THE DEBUG PATH, AND WHY IT IS DASHED HERE -----------------------
-		# The Debug Module is a BUS MASTER (Figure \ref{fig:debug-stack-diagram}:
-		# "reads and writes memory as one more master on the bus"), so its place
-		# in this drawing is the master band, not the rank -- and the shared
-		# master pass already puts it there on a debug-enabled build. What this
-		# figure adds is the rest of the path a reader looks for: the five JTAG
-		# pins crossing the boundary from an off-chip probe.
-		#
-		# THE POLARITY IS ASSERTED, NOT ASSUMED. `debug' is one knob (D2/D3:
-		# OFF emits no ports, no dtm0, no dm0, no arbiter master), so the column
-		# is SOLID exactly where the configuration builds it and DASHED --- the
-		# analog-IP idiom, "drawn, and not in this build" --- exactly where it
-		# does not. Where the shared pass and the knob disagree the build fails
-		# rather than shipping a picture of the wrong chip.
+		# The debug path. The Debug Module is a bus master (Figure \ref{fig:debug-stack-diagram}),
+		# so its place in this drawing is the master band, not the rank, and the shared master pass
+		# already puts it there on a debug-enabled build. What this figure adds is the rest of the
+		# path: the five JTAG pins crossing the boundary from an off-chip probe.
+		# The polarity is asserted, not assumed. `debug' is one knob, and off emits no ports, no
+		# dtm0, no dm0 and no arbiter master, so the column is solid exactly where the configuration
+		# builds it and dashed, the analog-IP idiom for drawn-but-not-in-this-build, exactly where
+		# it does not. Where the shared pass and the knob disagree the build fails.
 		dbgOn = bool(geo.get('debug'))
 		dmCols = [m for m in masters if m['title'] == 'dm0']
 		if bool(dmCols) != dbgOn:
@@ -2456,32 +2151,22 @@ class LatexUserGuide():
 				'tcm': None}
 			masters.append(dbgM)
 		else:
-			# The derived names, both of them: the knob builds dtm0 (the TAP and
-			# its transport) beside dm0 (the Debug Module), and the five pins
-			# land on the first while the bus tap belongs to the second.
+			# The derived names, both of them: the knob builds dtm0, the TAP and its transport, beside
+			# dm0, the Debug Module, and the five pins land on the first while the bus tap belongs to
+			# the second.
 			dbgM = dmCols[0]
 			dbgM['title'] = 'dtm0 \\& dm0'
 			dbgM['sub'] = 'TAP \\& debug module'
 		dbgM['debug'] = True
-		# ---- USER DIRECTIVE, 2026-08-16: THE DEBUG COLUMN IS DRAWN SOLID ----
-		# The dashed-optional idiom (drawn, and not built in THIS configuration)
-		# used to own this column, and the emitter ASSERTED the stroke against the
-		# `debug' knob so the drawing could not go solid on a chip with no debug
-		# module in it. The USER has chosen the SOLID presentation for the JTAG /
-		# debug column in every configuration, the default manual included, so
-		# that polarity assertion is retired here. What replaces it is not
-		# nothing: the column is asserted SOLID everywhere, and where the knob is
-		# off the configuration-derived fact is carried in WORDS instead of in the
-		# stroke, by the `debug builds only' clause printed in the box and by the
-		# caption's own sentence. The check below is what keeps that clause from
-		# going missing, because with the stroke retired it is the only thing left
-		# saying this build has no debug module in it.
+		# The debug column is drawn solid in every configuration, the default manual included, so
+		# there is no polarity assertion on the stroke. Where the knob is off the
+		# configuration-derived fact is carried in words instead: the `debug builds only' clause
+		# printed in the box, and the caption's own sentence. The check below keeps that clause from
+		# going missing, because it is the only thing left saying this build has no debug module.
 		dbgM['dash'] = False
 		probeSub = ('\\texttt{TCK} \\texttt{TMS} \\texttt{TDI}\\\\ \\texttt{TDO} \\texttt{TRSTn}')
-		# Whether the five pins reach a BALL is the second, separate, package
-		# fact, and the probe stroke used to carry it too. Same directive, same
-		# consequence: it is printed whenever it is true, not only on a
-		# debug-enabled build.
+		# Whether the five pins reach a ball is a separate package fact, printed whenever it is
+		# true, not only on a debug-enabled build.
 		if not jtagBonded:
 			probeSub += '\\\\ \\textit{no ball on this package}'
 		dbgCols = [m for m in masters if m.get('debug')]
@@ -2532,25 +2217,16 @@ class LatexUserGuide():
 				raise Exception('ChipSystemFlatDiagram: the drawn electrode set ' + str(drawn)
 					+ ' is not this configuration\'s ' + str(expect))
 
-		# ---- THE ONE SITE THIS FIGURE DOES NOT DRAW --------------------------
-		# CURATION, and named as such. The row this figure draws is the CHANNELS:
-		# a three-electrode cell, the site that measures it and the hart that owns
-		# it, one column each. The hart-0 site is not one of those -- it is the
-		# register stub of the shared EIS sweep engine -- and by USER DIRECTIVE
-		# (2026-08-16) it is left out of this overview entirely, because the
-		# central-engine topology it belongs to is being reworked to a per-channel
-		# EIS and this figure is not to assert the shape that is on its way out.
-		# Nothing else moves: hart 0 keeps its column and its reach over every
-		# site it may read, the as-built EIS register stub is still documented by
-		# the CQ analog chapter (Section \ref{s:cqanalog}) and still drawn by the
-		# portrait figure, and an earlier cut's shared engine + analog multiplexer
-		# (a dashed trapezoid selecting one channel's electrodes) is gone with it.
-		#
-		# The exclusion is EXPLICIT, not a side effect of some other test: it is
-		# this list, it is checked against the electrode set below, and the drawn
-		# set is still proved against the block model's own site list further
-		# down (see `reached'). A site that is dropped silently is a site the
-		# figure forgot.
+		# The one site this figure does not draw. The row is the channels: a three-electrode cell,
+		# the site that measures it and the hart that owns it, one column each. The hart-0 site is
+		# the register stub of the shared EIS sweep engine, not a channel, and it is left out of
+		# this overview: the central-engine topology it belongs to is being reworked to a
+		# per-channel EIS, and this figure is not to assert a shape on its way out. Hart 0 keeps
+		# its column and its reach over every site it may read, and the EIS register stub is still
+		# documented by the analog chapter and drawn by the portrait figure.
+		# The exclusion is explicit rather than a side effect: it is this list, it is checked
+		# against the electrode set below, and the drawn set is proved against the block model's
+		# own site list further down (see `reached').
 		cols = sorted(siteOf)
 		omitOwners = [h for h in cols if h == 0]
 		omitSites = [siteOf[h][0] for h in omitOwners]
@@ -2562,29 +2238,23 @@ class LatexUserGuide():
 					+ str(padOf[h]) + ', and this figure omits the shared engine\'s register '
 					'site, never a channel.')
 		if afeRow is not None and not drawnCols:
-			# Every site this configuration has is the one that is omitted, so
-			# there is no channel row left to draw at all: the AFE block goes back
-			# on the rank as an ordinary peripheral, which is the same degrade a
-			# configuration with no bonded electrode pads takes.
+			# Every site this configuration has is the one that is omitted, so there is no channel row
+			# left to draw: the AFE block goes back on the rank as an ordinary peripheral, the same
+			# degrade a configuration with no bonded electrode pads takes.
 			afeRow, siteOf, padOf = None, {}, {}
 			cols, omitOwners, omitSites, drawnCols = [], [], [], []
 
-		# ---- the hart box, split into the two things a tile IS ---------------
-		# The TCM stops being a note under the hart's name and becomes the
-		# compartment beside its core, which is what the RTL builds (hart_tile =
-		# VestaRV + one private TCM behind a registered boundary). E17: the size
-		# in that compartment is re-derived here and checked against the same
-		# generator field the memory map is built from, so a TCM resize that the
-		# drawing does not cover fails `make generate`.
+		# The hart box, split into the two things a tile is. The TCM is the compartment beside the
+		# core, which is what the RTL builds: hart_tile = VestaRV plus one private TCM behind a
+		# registered boundary. The size in that compartment is re-derived here and checked against
+		# the same generator field the memory map is built from, so a TCM resize the drawing does
+		# not cover fails `make generate`.
 		wantTcm = str(gen.RamMemorySlotSize // 1024) + '\\,KiB TCM'
-		# An aperture is a WINDOW onto that TCM, not a memory of its own, so it
-		# leaves the rank (where the portrait figure's memory box, and this
-		# figure's first cut, both put it) and is said in the caption, against
-		# the compartment it windows. It is NOT a second line in that
-		# compartment: MEASURED, "windowed read-only" is 2.5 cm of a hart column
-		# and there are five to eighteen of them, which is 5 cm of figure width
-		# and 5% off every letter in the drawing, for a fact the caption carries
-		# for nothing.
+		# An aperture is a window onto that TCM, not a memory of its own, so it leaves the rank and
+		# is said in the caption against the compartment it windows. It is not a second line in
+		# that compartment: "windowed read-only" measures 2.5 cm of a hart column and there are
+		# five to eighteen of them, which is 5 cm of figure width and 5% off every letter, for a
+		# fact the caption carries for nothing.
 		for m in masters:
 			m['cells'] = ['VestaRV core', m['tcm']] if m.get('tcm') else []
 			if m['cells']:
@@ -2600,7 +2270,7 @@ class LatexUserGuide():
 					+ str(m['cells'][1]) + '" compartment, but this configuration\'s private TCM '
 					'is ' + wantTcm + '.')
 
-		# ---- the peripheral chips: a name and ONE line each -------------------
+		# the peripheral chips: a name and ONE line each
 		def chip(key, title, sub, stack=1, ext=None):
 			return {'key': key, 'title': title, 'sub': sub or '', 'stack': stack, 'ext': ext,
 				'w': 0.0, 'cx': 0.0, 'tx': 0.0}
@@ -2619,24 +2289,16 @@ class LatexUserGuide():
 			byKey[b['key']] = cs
 			order.append(b['key'])
 
-		# ---- NFC: THE TAG READS, AND THE FIELD FEEDS ------------------------
-		# NFC0 is TWO paths and this figure used to draw one. The digital core is
-		# on the die and its RF front end is off it (config/wound.json: "NFC's
-		# digital AFE / RF interface is off-die"), so the antenna is an off-chip
-		# partner like the serial flash — that half was already here. The half
-		# that was not is the POWER: on a field-powered board the harvested
-		# supply is what runs the chip, and it arrives at PWRCTRL, not at NFC0.
-		#
-		# TRANSCRIBED, from generate.py:798-808 and the PWRWAKE/PWRSTS templates
-		# at :2225-2249 — peripherals.fieldPower wires pwr0's supervision inputs
-		# to real pads (PGOOD on GPIO47, the harvested-boot strap on GPIO46, both
-		# plain-GPIO DIRECT taps of the pad-input plane, readable before any
-		# software runs) and adds NFC0's field_detect level as an optional
-		# release source. The boot gate they control is pgood_rstn, ANDed into
-		# every hart's outer reset. So the power path is drawn as what it is: a
-		# board-level supply rail in the off-chip band that crosses the boundary
-		# into PWRCTRL, in a heavier grey stroke than any signal in the drawing,
-		# and NOT as a wire out of the NFC block.
+		# NFC0 is two paths. The digital core is on the die and its RF front end is off it, so the
+		# antenna is an off-chip partner like the serial flash. The second path is power: on a
+		# field-powered board the harvested supply runs the chip and arrives at PWRCTRL, not at
+		# NFC0. peripherals.fieldPower wires pwr0's supervision inputs to real pads (PGOOD on
+		# GPIO47, the harvested-boot strap on GPIO46, both plain-GPIO direct taps of the pad-input
+		# plane, readable before any software runs) and adds NFC0's field_detect level as an
+		# optional release source. The boot gate they control is pgood_rstn, ANDed into every hart's
+		# outer reset. So the power path is drawn as a board-level supply rail in the off-chip band
+		# crossing the boundary into PWRCTRL, in a heavier grey stroke than any signal in the
+		# drawing, and not as a wire out of the NFC block.
 		nfcOn = 'nfc' in byKey
 		if bool(geo.get('nfc')) != nfcOn:
 			raise Exception('ChipSystemFlatDiagram: this configuration has nfc='
@@ -2655,9 +2317,9 @@ class LatexUserGuide():
 		if not nfcOn:
 			byKey['nfc'] = [chip('nfc', 'NFC', 'digital protocol core', 1,
 				{'title': 'NFC antenna', 'sub': None, 'w': 2.70})]
-			# ---- USER DIRECTIVE, 2026-08-16: THE NFC BLOCK IS DRAWN SOLID ----
-			# Same directive and same reasoning as the debug column above: the
-			# USER has chosen the solid presentation for NFC and its antenna in
+			# THE NFC BLOCK IS DRAWN SOLID
+			# Same reasoning as the debug column above: the
+			# solid presentation is used for NFC and its antenna in
 			# every configuration, the default manual included, so the block this
 			# pass synthesises for a chip that does not build one is drawn like
 			# every other block on the rank. The configuration-derived fact is
@@ -2675,7 +2337,7 @@ class LatexUserGuide():
 		# config/castalia.json) a line the box cannot hold is a line set in
 		# two -- which the height now counts, but which reads as "RF front / end,
 		# off-die" and is nobody's idea of a caption.
-		# The `field-powered builds' clause is GONE by user directive (2026-08-16):
+		# The `field-powered builds' clause is GONE:
 		# it qualified the harvested half of this partner's job, the rail below
 		# already carries that condition in its own stroke, and the caption says
 		# it in a sentence. What is left is what the antenna IS.
@@ -2719,50 +2381,31 @@ class LatexUserGuide():
 				+ ' is not the bucketing pass\'s ' + str(sorted(b['key'] for b in allBoxes))
 				+ ' plus the dashed not-in-this-build set ' + str(sorted(synthKeys)))
 
-		# ---- THE RANK IS GROUPED BY TYPE ------------------------------------
-		# A rank that carries every peripheral on the chip is ten boxes in a
-		# line, which is a LIST, not an organisation. So the boxes of one kind
-		# stand together under a small type label, in the idiom of the user's
-		# own Myshkin block diagram: proximity first, then a thin outline round
-		# them where there is more than one box to enclose.
-		#
-		# WHERE A TYPE IS ONE BOX THE LABEL IS THE WHOLE OF IT. A rectangle
-		# 2.6 mm outside a rectangle is a doubled border, not a group, so the
-		# glued memory box and the glued SYSTEM/PWRCTRL box get their type
-		# label -- which is exactly the header the Myshkin diagram gives its own
-		# compartmented boxes -- and no second outline. The outline is drawn
-		# only where it is doing work, and it is drawn with a REAL GAP at every
-		# bus tap and every partner wire that crosses it: the rule hart 0's rail
-		# is already drawn by, for the same reason (a line that touches a wire
-		# it does not join is a junction the drawing did not mean).
-		#
-		# The labels are also what the two ranks of the first cut lost when
-		# their banner heads went: "serial interfaces" over SPI/UART/I2C cost
-		# 0.70 cm of height as a banner band, and costs one line of small grey
-		# text here.
-		# The labels are SHORT because of where they have to sit, and SHORTER
-		# again now that they are set BIGGER (user directive, 2026-08-16: the
-		# headings were too small to read at the size this figure lands on the
-		# page). A type label rides on its frame's top edge, in the same 1.3 cm
-		# lane every bus tap on the rank rises through, so it goes in the
-		# leftmost tap-free interval it FITS in -- and a label too long for any
-		# of them has nowhere to stand that is not on a wire. Two consequences
-		# of the bigger type, and each is written down where it is paid for:
-		#   * `Communications' measures 3.16 cm at the heading size against its
-		#     frame's widest tap-free interval of 2.29, and had nowhere to stand
-		#     at all. The USER's own shortening, `Comms', is 1.35 and fits. That
-		#     is the trade the size bought, and it is the only one: one word of
-		#     formality for a heading a reader can actually read.
-		#   * every OTHER label is left in full English, because a heading that
-		#     does not fit its lane on one line is now SET IN TWO by `typeLabel'
-		#     rather than shortened. Written here in one line, as it should be
-		#     read; the break is the layout's business, not this list's.
+		# The rank is grouped by type. A rank that carries every peripheral on the chip is ten boxes
+		# in a line, which is a list rather than an organisation, so the boxes of one kind stand
+		# together under a small type label: proximity first, then a thin outline where there is
+		# more than one box to enclose.
+		# Where a type is one box the label is the whole of it: a rectangle 2.6 mm outside a
+		# rectangle is a doubled border, not a group, so the glued memory box and the glued
+		# SYSTEM/PWRCTRL box get their type label and no second outline. The outline is drawn with a
+		# real gap at every bus tap and every partner wire that crosses it, because a line that
+		# touches a wire it does not join reads as a junction.
+		# The labels carry what the banner heads of an earlier two-rank cut carried, at one line of
+		# small grey text instead of a 0.70 cm banner band.
+		# A type label rides on its frame's top edge, in the same 1.3 cm lane every bus tap on the
+		# rank rises through, so it goes in the leftmost tap-free interval it fits in and a label
+		# too long for any of them has nowhere to stand that is not on a wire. Two consequences of
+		# the heading size:
+		#   * `Communications' measures 3.16 cm against its frame's widest tap-free interval of
+		#     2.29 and has nowhere to stand; `Comms' is 1.35 and fits.
+		#   * every other label stays in full English, because a heading that does not fit its lane
+		#     on one line is set in two by `typeLabel' rather than shortened. Write them here in one
+		#     line; the break is the layout's business.
 		TYPES = [('Memory', ('mem',)),
 			('Digital I/O', ('io',)),
 			('Comms', tuple(k for k in serialKeys if k != 'nfc')),
-			# NFC stands apart from the blocks that only move data: it is the one
-			# block on this rank with TWO off-chip roles, and the harvested supply
-			# rail starts under it.
+			# NFC stands apart from the blocks that only move data: it is the one block on this rank
+			# with two off-chip roles, and the harvested supply rail starts under it.
 			('NFC \\& Field Power', ('nfc',)),
 			('Timing \\& Sync', ('timer', 'sync')),
 			('Compute', ('npu', 'engine')),
@@ -2814,26 +2457,18 @@ class LatexUserGuide():
 		units = [slot.get(j) or next(it) for j in range(nAll)]
 		groups = [g for u in units for g in u['groups']]
 
-		# ---- widths -----------------------------------------------------------
-		# WHICH SUBTITLES THE ONE RANK CAN PAY FOR. Its width is what sets the
-		# type size of the WHOLE drawing, so a line that says what the name above
-		# it already says is not free, it is 4% off every letter. Two rules, and
-		# each names its own reason:
-		#   * a glued box of four or more compartments keeps its NAMES and drops
-		#     its subtitle lines (MEASURED on config/castalia.json, whose
-		#     serial group is five blocks wide: with a subtitle each it is 12 cm
-		#     of a rank that now has to hold every peripheral on the chip);
-		#   * the serial blocks drop them at any size -- "asynchronous serial"
-		#     under UART is a line the audience of a technical reference manual
-		#     can afford to lose, and the count and the name are not.
-		# `timer' and `npu' used to be muted with them, on the arithmetic that
-		# "capture / compare" and "inference engine" were 1.8 cm of rank between
-		# them. They are back: those two lines say what the block DOES, which a
-		# timer called `timers' and an accelerator called `NPU' do not, and 1.8 cm
-		# is 5% of a rank that the split serial boxes have already widened.
-		# Everything else keeps its line too, because everything else is a DERIVED
-		# fact (sizes, bank counts, port counts, instance names) that the reader
-		# cannot get from the title.
+		# Widths, and which subtitles the one rank can pay for. The rank's width sets the type size
+		# of the whole drawing, so a line that repeats the name above it costs 4% off every letter.
+		# Two rules:
+		#   * a glued box of four or more compartments keeps its names and drops its subtitle
+		#     lines. Measured on config/castalia.json, whose serial group is five blocks wide: with
+		#     a subtitle each it is 12 cm of a rank that must hold every peripheral on the chip;
+		#   * the serial blocks drop them at any size, because the count and the name carry the
+		#     information and "asynchronous serial" under UART does not.
+		# `timer' and `npu' keep their lines: "capture / compare" and "inference engine" say what
+		# the block does, which `timers' and `NPU' do not. Everything else keeps its line because
+		# everything else is a derived fact (sizes, bank counts, port counts, instance names) the
+		# reader cannot get from the title.
 		mute = serialKeys
 		for u in units:
 			cs = [c for g in u['groups'] for c in g['members']]
@@ -2842,20 +2477,15 @@ class LatexUserGuide():
 					c['sub'] = ''
 
 		def titleOf(c, solo):
-			# The numeral rides in the title AND the box wears its stack of
-			# squares: one is read at a glance, the other is read exactly.
+			# The numeral rides in the title and the box wears its stack of squares: one is read at a
+			# glance, the other exactly.
 			if c['stack'] < 2:
 				return c['title']
 			return c['title'] + ' $\\times$' + str(c['stack'])
 
-		# NO CORNER GLYPHS. A cut of this figure carried a hand-drawn pictogram in
-		# the top-left corner of every block whose subject has an unambiguous one
-		# (a stopwatch on `timers', a crystal on SYSTEM, a chip on the memories).
-		# They were REJECTED on the render: at this figure's scale a 1.6 mm
-		# silhouette is a smudge beside a name, and the width each one reserved --
-		# a clear glyph cell at BOTH ends of a centred title -- was 1.42 cm of rank
-		# bought for decoration. A box on this rank is a name and one line, and
-		# nothing else is drawn in it.
+		# No corner glyphs. At this figure's scale a 1.6 mm silhouette is a smudge beside a name,
+		# and the clear glyph cell each one needs at both ends of a centred title costs 1.42 cm of
+		# rank. A box on this rank is a name and one line, and nothing else.
 
 		def measure():
 			for g in groups:
@@ -2864,12 +2494,10 @@ class LatexUserGuide():
 					c['w'] = c['wBase'] = max(c['w'], wOf(titleOf(c, solo), c['sub'],
 						minw=(1.70 if not c['sub'] else 1.95)))
 				g['w'] = sum(c['w'] for c in g['members'])
-				# A STACK TAKES ROOM TO ITS RIGHT, and now that the rank is
-				# grouped there is something for it to run into: 2.4 mm of offset
-				# squares against the next box in the frame, or against the
-				# frame's own edge. MEASURED at 300 dpi on the first cut of the
-				# frames -- SPI's squares touched UART's box and I2C's touched
-				# the outline.
+				# A stack takes room to its right, and a grouped rank gives it something to run into:
+				# 2.4 mm of offset squares against the next box in the frame, or against the frame's own
+				# edge. Measured at 300 dpi: without the allowance SPI's squares touch UART's box and
+				# I2C's touch the outline.
 				g['padR'] = (stackDx * (min(max(c['stack'] for c in g['members']),
 					maxShadow) - 1)) if SHADOWS else 0.0
 		measure()
@@ -2877,16 +2505,16 @@ class LatexUserGuide():
 		for m in masters:
 			m['min'] = min(6.60, 0.30 + max(TWs(m['title'], tBold), TWs(m['sub']), TWs(m['note']),
 				sum(TWs(t) for t in m['cells']) + 0.30 * len(m['cells'])))
-		# The debug column also has to be wide enough for the probe box that
-		# sits on it, because the probe is drawn AT the column's width.
+		# The debug column must also be wide enough for the probe box that sits on it, because the
+		# probe is drawn at the column's width.
 		dbgM['min'] = max(dbgM['min'], 0.20 + TWs('debug probe', tBold), TWs(probeSub) + 0.24)
 		exts = [c for g in groups for c in g['members'] if c['ext']]
 
 		def sizeExts(maxw):
-			'''The partner boxes, and HOW MANY LINES THEIR TITLES TAKE. A node
-			   whose title is wider than its box does not clip, it wraps and
-			   prints the extra line through the floor -- so a cap on the partner
-			   width is only safe if the height knows about it.'''
+			'''The partner boxes, and how many lines their titles take. A title wider than its box does not
+			clip, it wraps and prints the extra line through the floor, so a cap on the partner width is
+			only safe if the height knows about it.
+			'''
 			for c in exts:
 				e = c['ext']
 				e['dw'] = wOf(e['title'], e.get('sub'), minw=2.10, maxw=maxw)
@@ -2894,13 +2522,10 @@ class LatexUserGuide():
 				while wt > n * (e['dw'] - 0.20) + 0.01:
 					n += 1
 				e['tl'] = n
-				# ...and the SUB wraps too. It never used to matter, because
-				# every partner subtitle was two short signal names; the NFC
-				# antenna's is a sentence about what it does, and on the narrow
-				# branch (maxw = 2.30) it wrapped and printed its last line
-				# through the box floor. Same arithmetic, same reason: the height
-				# of a box in this drawing is a line count, so the line count has
-				# to be the one that will actually be set.
+				# The subtitle wraps too. Every partner subtitle used to be two short signal names; the NFC
+				# antenna's is a sentence, and on the narrow branch (maxw = 2.30) it wrapped and printed
+				# its last line through the box floor. The height of a box in this drawing is a line count,
+				# so the line count has to be the one that will actually be set.
 				e['sl'] = 0
 				for line in (e.get('sub') or '').split('\\\\'):
 					k, wl = 1, TWs(line)
@@ -2908,18 +2533,11 @@ class LatexUserGuide():
 						k += 1
 					e['sl'] += k
 
-		# ONE reserved lane flanks the master band where the analog row exists,
-		# and hart 0's reach goes up it. There used to be a second on the right,
-		# for the row's own bus drop; that drop is gone (see the emission), and
-		# the 0.78 cm it reserved goes back into the columns.
+		# One reserved lane flanks the master band where the analog row exists, and hart 0's reach
+		# goes up it. There is no second lane on the right: the row's own bus drop is gone, and the
+		# 0.78 cm it reserved goes back into the columns.
 		xLane = 0.78 if afeRow is not None else 0.0
 		xBandL = xEdge + xLane
-		# (An earlier cut reserved 1.75 cm of extra air in ONE gap of the master
-		# band, between hart 0's column and the first channel's, for the shared
-		# engine's multiplexer to stand in. The multiplexer is gone with the
-		# engine's site, and so is the reserve: the band is justified across a
-		# width the rank fixes, so that 1.75 cm goes straight back into the
-		# columns.)
 
 		def rankWidth():
 			return (sum(g['w'] + g['padR'] for g in groups)
@@ -2932,7 +2550,7 @@ class LatexUserGuide():
 				rankWidth(),
 				sum(c['ext']['dw'] for c in exts) + gapExt * (len(exts) - 1) + 2 * xEdge])
 
-		# ---- the rank, and the partners hanging straight off it ---------------
+		# The rank, and the partners hanging straight off it
 		def applyExtra():
 			for c in exts:
 				c['w'] = c['wBase'] + c['extra']
@@ -2955,11 +2573,9 @@ class LatexUserGuide():
 					for c in g['members']:
 						c['cx'] = c['tx'] = xc + c['w'] / 2.0
 						xc += c['w']
-					# THE TAP MUST NOT LAND ON A DIVIDER. A glued box's centre is
-					# where two of its compartments meet as often as not (a
-					# two-compartment group: always), and an arrowhead that lands
-					# exactly on a rule reads as a drawing error, not as a tap. It
-					# moves to the centre of the compartment it fell in.
+					# The tap must not land on a divider. A glued box's centre is where two of its compartments
+					# meet as often as not, always for a two-compartment group, and an arrowhead that lands on
+					# a rule reads as a drawing error. It moves to the centre of the compartment it fell in.
 					g['tx'] = g['cx']
 					for c in g['members']:
 						if abs(c['cx'] - c['w'] / 2.0 - g['cx']) < 0.25 or abs(
@@ -2971,11 +2587,9 @@ class LatexUserGuide():
 				x = u['x1'] + gp
 
 		def placeExts(width):
-			'''Minimum displacement under a separation constraint, the standard
-			   two passes, then a third: a partner pushed left by the forward
-			   sweep must not be shifted again (MEASURED on
-			   config/castalia.json, eight partners: one sweep plus a global
-			   shift piled the left three on top of each other).'''
+			'''Minimum displacement under a separation constraint: the standard two passes, then a third,
+			because a partner pushed left by the forward sweep must not be shifted again.
+			'''
 			exts.sort(key=lambda c: c['tx'])
 			sep = [0.0] + [(exts[i - 1]['ext']['dw'] + exts[i]['ext']['dw']) / 2.0 + gapExt
 				for i in range(1, len(exts))]
@@ -2989,22 +2603,17 @@ class LatexUserGuide():
 						(xs[i + 1] - sep[i + 1]) if i + 1 < len(exts) else width)
 			return xs
 
-		# THE WIRE IS STRAIGHT, SO THE BOX MOVES UNDER IT. A partner's wire drops
-		# vertically out of its own compartment and enters the partner's top edge
-		# wherever it lands -- off its centre is fine, off the box entirely is
-		# not. Where a partner had to be nudged so far aside that its own wire
-		# would miss it, the COMPARTMENT is widened (which spreads its
-		# neighbours' taps too) and the rank re-laid.
-		#
-		# The widening is driven by the MEASURED miss, not by the difference
-		# between a compartment and its partner: a partner may enter its box off
-		# centre, so a run of partners wider than the compartments under them
-		# needs only the SHORTFALL after that drift is spent. MEASURED on the
-		# default configuration, the first cut's deficit-driven version paid the
-		# whole difference and took the three serial compartments to 7.6 cm, a
-		# drawing whose SPI box is as wide as its memory box because of where a
-		# partner had to sit. The assertion below is what proves the fixed point
-		# rather than the drawing shipping a wire into space.
+		# The wire is straight, so the box moves under it. A partner's wire drops vertically out of
+		# its own compartment and enters the partner's top edge wherever it lands: off its centre is
+		# fine, off the box entirely is not. Where a partner has to be nudged so far aside that its
+		# own wire would miss it, the compartment is widened, which spreads its neighbours' taps
+		# too, and the rank is re-laid.
+		# The widening is driven by the measured miss, not by the difference between a compartment
+		# and its partner: a partner may enter its box off centre, so a run of partners wider than
+		# the compartments under them needs only the shortfall after that drift is spent. Paying the
+		# whole difference takes the three serial compartments to 7.6 cm on the default
+		# configuration, a drawing whose SPI box is as wide as its memory box. The assertion below
+		# proves the fixed point rather than shipping a wire into space.
 		def entryMiss(c, xe):
 			return abs(xe - c['tx']) - (c['ext']['dw'] / 2.0 - 0.10)
 
@@ -3049,7 +2658,7 @@ class LatexUserGuide():
 					+ ' would enter "' + str(c['ext']['title']) + '" ' + P(abs(xe - c['tx']))
 					+ ' cm from its centre, which is off the box.')
 
-		# ---- heights ----------------------------------------------------------
+		# heights
 		hCells = hCmp + hLine * max([L(t) for m in masters for t in m['cells']] or [0])
 		hMaster = max(pad + hTitle * max(1, L(m['title'])) + hLine * (L(m['sub']) + L(m['note']))
 			+ (hCells if m['cells'] else 0.0) + pad for m in masters)
@@ -3058,7 +2667,7 @@ class LatexUserGuide():
 		hExt = max([pad + hTitle * c['ext']['tl'] + hLine * c['ext']['sl'] + pad
 			for c in exts] or [0.90])
 		# The site row is ONE line tall now that the gate line inside each box has
-		# gone (user directive; see the emission), and nothing else runs inside
+		# gone (see the emission), and nothing else runs inside
 		# it: the depth an earlier cut kept there for the multiplexer's channel
 		# lanes to pass BEHIND the site boxes went with the multiplexer. The line
 		# is a TITLE line, not a body line, because what is left in the box is
@@ -3096,13 +2705,13 @@ class LatexUserGuide():
 		yRankT = yBarB - riserR
 		yRankB = yRankT - hRank
 		yRedB = yRankB - 0.42
-		# The off-chip band opens up to take the harvested supply rail and its
-		# label: the rail runs along it, under the boundary and over the partner
-		# boxes, with a real gap at every partner wire it crosses.
+		# The off-chip band opens up to take the harvested supply rail and its label: the rail runs
+		# along it, under the boundary and over the partner boxes, with a real gap at every partner
+		# wire it crosses.
 		yExtT = yRedB - 1.28
 		yPwr = yExtT + 0.34
 
-		# ---- emission ---------------------------------------------------------
+		# Emission
 		s = ('% Generated whole-chip system diagram, FLAT companion (harts=' + str(N)
 			+ ', orchestrator=' + str(orch) + ', analogRow=' + str(afeRow is not None)
 			+ ', shadows=' + str(SHADOWS)
@@ -3119,22 +2728,16 @@ class LatexUserGuide():
 		s += '\treach/.style={->, >=Stealth, line width=1.4pt},\n'
 		s += '\twire/.style={semithick},\n'
 		s += '\tpadlab/.style={font=\\sffamily\\small, align=center, inner sep=1pt},\n'
-		# (The `lane' style is retired with the rotated \texttt{s\_master}
-		# annotation it was the only user of.)
-		# The type label: BIG, grey, italic, roman weight. It was \scriptsize --
-		# 7 pt in a drawing that lands on the page at 0.48 scale, which is 3.4 pt
-		# of print and not a heading anybody reads -- and by user directive
-		# (2026-08-16) it is now \large, which is bigger than the block titles
-		# under it. That is deliberate and it is the ONE place in this figure
-		# where a grey label outsizes a black one: a heading is read before the
-		# things it heads. The hierarchy is kept by WEIGHT and COLOUR instead, as
-		# it always was: the titles are bold black, this is roman grey italic, so
-		# the rank still has exactly one kind of bold in it.
+		# The type label: large, grey, italic, roman weight. At \scriptsize it was 7 pt in a drawing
+		# that lands on the page at 0.48 scale, which is 3.4 pt of print. It is the one place in
+		# this figure where a grey label outsizes a black one, because a heading is read before the
+		# things it heads; the hierarchy is kept by weight and colour, so the rank still has exactly
+		# one kind of bold in it.
 		s += ('\ttyp/.style={font=\\sffamily\\large\\itshape, black!55, align=left, '
 			'fill=white, inner sep=1.5pt, anchor=west},\n')
-		# The rail annotation keeps the size the type headings left behind: it is
-		# a note on ONE wire in the off-chip band, not a heading over a row of
-		# blocks, and it has to stay out of the partner boxes it runs above.
+		# The rail annotation keeps the size the type headings left behind: it is a note on one wire
+		# in the off-chip band, not a heading over a row of blocks, and it has to stay out of the
+		# partner boxes it runs above.
 		s += ('\trail/.style={font=\\sffamily\\scriptsize\\itshape, black!55, align=left, '
 			'fill=white, inner sep=1.5pt, anchor=west},\n')
 		s += '\tredlab/.style={font=\\sffamily\\small\\bfseries, red!70!black, align=left}]\n'
@@ -3152,13 +2755,9 @@ class LatexUserGuide():
 				+ P(yTop - pad) + ') {' + tex + '};\n')
 
 		def shadows(cx, yTop, w, h, n, fill, opts='thick'):
-			'''THE BACK COPIES ARE THE SAME BOX. The first cut filled them with
-			   paper, on the reasoning that a white back copy cannot be mistaken for
-			   a block with content in it. What it actually drew was N-1 EMPTY
-			   outlines behind one grey block -- a shadow, or a ghost, but not a
-			   count. Every layer now carries the FRONT box's own fill and the front
-			   box's own border, so the stack reads as what it is: N identical chips
-			   of the same kind, offset so you can see there are N.'''
+			'''The back copies of a stacked count. Every layer carries the front box's own fill and border,
+			so the stack reads as N identical chips of one kind rather than as a shadow.
+			'''
 			out = ''
 			if not SHADOWS:
 				return out
@@ -3179,13 +2778,13 @@ class LatexUserGuide():
 			return ('\\node[badge, anchor=' + side + ', fill=white, inner sep=1.5pt] at ('
 				+ P(x + dx) + ', ' + P(ymid) + ') {$\\times$' + str(n) + '};\n')
 
-		# ---- the red package boundary, drawn first ---------------------------
+		# the red package boundary, drawn first
 		s += ('\\draw[red!75!black, line width=1.2pt] (0.00, ' + P(yRedB) + ') rectangle ('
 			+ P(W) + ', ' + P(yRedT) + ');\n')
 		s += ('\\node[redlab, anchor=south west] at (0.00, ' + P(yRedT + 0.10)
 			+ ') {chip boundary};\n')
 
-		# ---- the master band --------------------------------------------------
+		# the master band
 		xBandR = W - xEdge - 0.40
 		avail = (xBandR - xBandL) - gapM * (len(masters) - 1)
 		wsum = sum(m['weight'] for m in masters)
@@ -3228,7 +2827,7 @@ class LatexUserGuide():
 			s += ('\\draw[bus' + (', dashed' if m.get('dash') else '') + '] (' + P(m['tx']) + ', '
 				+ P(yBandB) + ') -- (' + P(m['tx']) + ', ' + P(yBarT) + ');\n')
 
-		# ---- THE BUS: one bar, edge to edge, tapped from both sides -----------
+		# THE BUS: one bar, edge to edge, tapped from both sides
 		# THE BAR SAYS WHAT IT IS, IN WORDS. It used to be labelled mp\_arbiter,
 		# which is the VHDL entity's name and not a name at all to a reader
 		# meeting this chip on page 17: the identifier is explained once, in the
@@ -3244,12 +2843,12 @@ class LatexUserGuide():
 			'transaction at a time \\quad round-robin \\quad grant-locked AMOs\\\\ \\textit{every '
 			'master reaches the whole shared window, and only through the bar}};\n')
 
-		# ---- THE TYPE FRAMES, drawn first so the boxes sit on top -------------
+		# THE TYPE FRAMES, drawn first so the boxes sit on top
 		def brokenLine(y, x0, x1, cuts, opts):
-			'''One edge of a frame, with a real gap at every wire that crosses
-			   it. The gaps are not cosmetic: this drawing has FOUR line weights
-			   in it already, and a thin grey rule that touches a bus tap is a
-			   junction until the reader gets close enough to see it is not.'''
+			'''One edge of a frame, with a real gap at every wire that crosses it. The gaps are not
+			cosmetic: this drawing already has four line weights, and a thin grey rule touching a bus tap
+			reads as a junction until the reader is close enough to see it is not.
+			'''
 			out, x = '', x0
 			for cut in sorted(c for c in cuts if x0 + frmGap < c < x1 - frmGap):
 				if cut - frmGap > x + 0.02:
@@ -3271,14 +2870,10 @@ class LatexUserGuide():
 			return ivs
 
 		def labelAt(xL, xR, taps, wLab, lab):
-			'''WHERE A HEADING MAY STAND. The label lane is the riser, and every
-			   box on the rank sends its bus tap straight up through it, so the
-			   label goes in the leftmost gap BETWEEN taps that it fits in --
-			   left where it can be (a heading belongs at the start of what it
-			   heads), further along where the first box is too narrow. A label
-			   that fits nowhere is not nudged, it fails the build: a white label
-			   box sitting on a bus wire is the exact fault the AFE figure was
-			   rejected for, and it must not be able to ship by accident.'''
+			'''Where a type heading may stand. Every box on the rank sends its bus tap straight up through
+			the label lane, so the label goes in the leftmost gap between taps that it fits in. One that
+			fits nowhere fails the build rather than being nudged onto a bus wire.
+			'''
 			ivs = labelIvs(xL, xR, taps)
 			fits = [iv for iv in ivs if iv[1] - iv[0] >= wLab]
 			if not fits:
@@ -3289,25 +2884,10 @@ class LatexUserGuide():
 			return fits[0][0]
 
 		def typeLabel(xL, xR, taps, lab):
-			'''A TYPE HEADING, SET IN AS FEW LINES AS ITS LANE WILL TAKE. Returns
-			   (x, text).
-
-			   The headings were \\scriptsize when TYPES was written and every one
-			   of them fitted its lane on one line. At \\large -- the size the USER
-			   asked for, 1.77x the widths TWs measures -- some do not, and the
-			   answer is not to keep shortening English until it does: a heading
-			   may be SET IN TWO LINES, and the interval test cares only about the
-			   widest of them, because both lines stand in one node and a bus tap
-			   is vertical (so a lane that is clear is clear for the node's whole
-			   height).
-
-			   The break is tried, not written into TYPES, and it is tried in this
-			   order: the label as written, then broken after its conjunction. One
-			   line is preferred wherever one line fits, because a two-line node
-			   is centred on the frame's top edge and its second line hangs into
-			   the frame's own standoff -- room this figure has, but not room it
-			   should spend where it does not have to. A label that fits nowhere
-			   in either form still fails the build, by the rule above.'''
+			'''A type heading set in as few lines as its lane will take; returns (x, text). A heading may be
+			set in two lines, and the interval test cares only about the widest, because both stand in
+			one node and a bus tap is vertical. One line is preferred wherever one line fits.
+			'''
 			ivs = labelIvs(xL, xR, taps)
 			room = max(iv[1] - iv[0] for iv in ivs)
 			forms = [lab]
@@ -3340,7 +2920,7 @@ class LatexUserGuide():
 			xL, xR = u['x0'] - frmPad, u['x1'] + frmPad
 			taps = [g['tx'] for g in u['groups']]
 			# EVERY TYPE THAT HAS MORE THAN ONE BOX IS ENCLOSED, and a GLUED box
-			# of several compartments counts (user directive, 2026-08-16). The
+			# of several compartments counts. The
 			# emitter used to give the glued types -- the memory box, the
 			# SYSTEM/PWRCTRL box -- their heading and no outline, on the argument
 			# that a rectangle 1.8 mm outside a rectangle is a doubled border
@@ -3375,7 +2955,7 @@ class LatexUserGuide():
 				xLab, tLabel = typeLabel(xL, xR, taps, u['label'])
 				s += ('\\node[typ] at (' + P(xLab) + ', ' + P(yFrmT) + ') {' + tLabel + '};\n')
 
-		# ---- THE RANK: every peripheral, one row, one straight tap each -------
+		# THE RANK: every peripheral, one row, one straight tap each
 		for g in groups:
 			solo = len(g['members']) == 1
 			# THE STACK BELONGS TO A BOX, AND A GLUED BOX IS ONE BOX. Squares
@@ -3413,7 +2993,7 @@ class LatexUserGuide():
 				s += badge(g['tx'], yRankT + stackDy * (maxShadow - 1) + 0.14,
 					g['members'][0]['stack'])
 
-		# ---- the outside world, below the boundary, on straight wires ---------
+		# the outside world, below the boundary, on straight wires
 		xNfcExt = None
 		for c, xe in zip(exts, xs):
 			e = c['ext']
@@ -3428,7 +3008,7 @@ class LatexUserGuide():
 			if c is nfcChip:
 				xNfcExt = xe
 
-		# ---- THE HARVESTED SUPPLY: the second thing the antenna does ---------
+		# THE HARVESTED SUPPLY: the second thing the antenna does
 		# It is not a signal and it is not drawn like one. A field-powered board
 		# rectifies the reader's field and that supply is what brings the chip
 		# up: it reaches PWRCTRL's two supervision pads, and the boot gate they
@@ -3455,8 +3035,8 @@ class LatexUserGuide():
 			# The label goes where the rail is clear of the wires that cross it,
 			# by the same rule the type headings are placed by. It names WHAT THE
 			# RAIL IS and nothing else: the second line, which named the two
-			# supervision pads it lands on, is gone by user directive
-			# (2026-08-16). Those pad names are a PWRCTRL fact, they are in the
+			# supervision pads it lands on, is gone.
+			# Those pad names are a PWRCTRL fact, they are in the
 			# pin table and in the caption, and on a whole-chip overview they
 			# were two lines of \texttt{} in the one band the rail runs through.
 			lab = 'harvested field power'
@@ -3464,26 +3044,17 @@ class LatexUserGuide():
 				+ P(labelAt(min(x0, x1), max(x0, x1), [c['tx'] for c in exts],
 					TWs(lab), lab)) + ', ' + P(yPwr + 0.10) + ') {' + lab + '};\n')
 
-		# ---- the analog sites, their electrodes, and who may reach them -------
+		# The analog sites, their electrodes, and who may reach them
 		if afeRow is not None:
-			# THE AIR BETWEEN THE CHANNELS STAYS AIR, AND SO DOES THE STRIP
-			# BEHIND THEM. The first cut ran BOTH the bus and hart 0's reach
-			# along the row at two heights, entering each site's left and right
-			# edges: at 300 dpi that is two double-headed arrows in every gap,
-			# and what it reads as is the sites wired to each other -- the one
-			# thing the row must not say. The second cut kept the bus as a grey
-			# strip running the length of the row behind the boxes, with one
-			# drop down the right lane into the bar.
-			#
-			# That strip is GONE (USER). The access story the row has to tell is
-			# WHO MAY READ A SITE, and it is told twice already and in full, by
-			# the two things that are DRAWN: the thin arrow from a hart into its
-			# own site, and hart 0's heavy rail underneath reaching all of them.
-			# The sites are still ordinary arbiter slaves and are still reached
-			# only through the bar -- that is a fact of the fabric, it is the same
-			# fact for every block in the drawing, and it is now carried by the
-			# caption rather than by a strip that put a second grey bar across
-			# the one row this figure keeps clear.
+			# The air between the channels stays air, and so does the strip behind them. Running both
+			# the bus and hart 0's reach along the row at two heights, entering each site's left and
+			# right edges, puts two double-headed arrows in every gap and reads as the sites wired to
+			# each other, which is the one thing the row must not say. A grey bus strip behind the
+			# boxes has the same effect at lower contrast.
+			# The access story the row tells is who may read a site, and it is told in full by the two
+			# things that are drawn: the thin arrow from a hart into its own site, and hart 0's heavy
+			# rail underneath reaching all of them. That the sites are ordinary arbiter slaves reached
+			# only through the bar is true of every block in the drawing and is carried by the caption.
 			yReach = yBandT + 0.30
 			xOwnGap, xReachDrop = 0.11, 1.00
 
@@ -3506,8 +3077,8 @@ class LatexUserGuide():
 				xr = cut + xOwnGap
 			s += ('\\draw[reach, -] (' + P(xr) + ', ' + P(yReach) + ') -- ('
 				+ P(cuts[-1] + xReachDrop) + ', ' + P(yReach) + ');\n')
-			# NO \texttt{s\_master} ANYWHERE IN THIS DRAWING (user directive,
-			# 2026-08-16). The rail used to carry `s\_master = 0' rotated up its
+			# NO \texttt{s\_master} ANYWHERE IN THIS DRAWING.
+			# The rail used to carry `s\_master = 0' rotated up its
 			# own margin and every site box printed its own copy of the gate. The
 			# ownership story is now told by the two things that are drawn: the
 			# thin arrow from a hart into its own site, and this heavy rail out of
@@ -3553,7 +3124,7 @@ class LatexUserGuide():
 					+ ' is not this configuration\'s '
 					+ str(sorted(st[0] for st in afeRow['sites'])))
 
-			# ---- the electrodes, one triple straight up out of its own site ---
+			# the electrodes, one triple straight up out of its own site
 			for h in sorted(padOf):
 				names = padOf[h]
 				cx = columns[h]['cx']
@@ -3563,7 +3134,7 @@ class LatexUserGuide():
 					+ ', ' + P(yCellB) + ') rectangle (' + P(cx + wCell / 2.0) + ', '
 					+ P(yCellT) + ');\n')
 				# The caption of the cell is set at the PAD-LABEL size (user
-				# directive, 2026-08-16): it was \scriptsize, which is 3.4 pt of
+				# directive): it was \scriptsize, which is 3.4 pt of
 				# print at the scale this figure lands on the page, and it names
 				# the one thing in the drawing that is not on the die at all.
 				s += ('\\node[padlab, anchor=north] at (' + P(cx) + ', ' + P(yCellT - 0.10)
@@ -3583,7 +3154,7 @@ class LatexUserGuide():
 					s += ('\\fill[red!70!black] (' + P(xk - 0.07) + ', ' + P(yRedT - 0.07)
 						+ ') rectangle (' + P(xk + 0.07) + ', ' + P(yRedT + 0.07) + ');\n')
 
-		# ---- the debug probe, its five pins, and the boundary they cross ------
+		# the debug probe, its five pins, and the boundary they cross
 		# The partner idiom, upward: an off-chip box above the boundary, its
 		# signal names printed INSIDE it (the serial flash's CS/SCK MOSI/MISO,
 		# exactly), and straight vertical wires down into the block they reach,
@@ -3596,7 +3167,7 @@ class LatexUserGuide():
 		# and nothing has to be labelled to say which block the pins reach.
 		probeW = min(dbgM['w'], 3.60)
 		yProbeB = yCellT - hProbe
-		# SOLID, with the column it stands on (user directive, 2026-08-16; see
+		# SOLID, with the column it stands on (see
 		# where dbgM['dash'] is set). The probe box and its five pin wires used to
 		# be dashed on two separate conditions -- the knob, and whether the pins
 		# reach a ball on this package -- and both of those facts are now printed
@@ -3636,13 +3207,10 @@ class LatexUserGuide():
 
 	@staticmethod
 	def _chipFigWidth(tex, unit=0.125):
-		'''A deliberately crude width, in cm, for the widest line of a
-		   \\scriptsize sans block. It exists for one reason: the height of every
-		   box in this drawing is a LINE COUNT, and a line the box is too narrow
-		   to hold does not clip, it WRAPS — adding a row nobody reserved and
-		   spilling the box. MEASURED on the six-column band of the debug
-		   configuration, where "behind the registered" and "owns EIS, reads
-		   every site" each wrapped and pushed a line through the box floor.'''
+		'''A deliberately crude width in cm for the widest line of a scriptsize sans block. Every box
+		height in this drawing is a line count, and a line the box is too narrow to hold does not
+		clip, it wraps, adding a row nobody reserved and spilling the box.
+		'''
 		if not tex:
 			return 0.0
 		best = 0.0
@@ -3655,16 +3223,10 @@ class LatexUserGuide():
 		return best
 
 	def _ChipSystemAnalogRow(self, allBoxes, columns, orch, N):
-		'''Is this configuration the shape an analog OWNERSHIP row asserts — an
-		   orchestrator, one site per channel hart, and a column of its own for
-		   every owner? Returns (afeBox or None, {ownerHart: site}); anything
-		   else returns (None, {}) and the caller degrades to the compact box,
-		   so neither whole-chip figure lies about ownership.
-
-		   E17: the gate the figures print is re-derived here from the owner and
-		   checked against the gate the block model carries, so an ownership
-		   change that the drawings do not cover fails the build instead of
-		   shipping figures that disagree with the table on the facing page.'''
+		'''Is this configuration the shape an analog ownership row asserts: an orchestrator, one site per
+		channel hart, a column for every owner, bonded pads? Returns (afeBox or None, {ownerHart:
+		site}); anything else returns (None, {}) and the caller degrades, so neither figure lies.
+		'''
 		afe = None
 		for b in allBoxes:
 			if b['key'] == 'afe':
@@ -3688,23 +3250,10 @@ class LatexUserGuide():
 		return afe, siteOf
 
 	def GenerateClockSystemDiagram(self):
-		'''include/ClockSystemDiagram.tex, the clock tree drawn the STM32 way,
-		   left to right: the sources, the two select muxes with the code beside
-		   each input, the two dividers, the SMCLKOFF gate, the MCLK and SMCLK
-		   bars, and the three consumer boxes, with the timers on their own
-		   SSEL mux between the bars.
-		   Everything is read off the register model and asserted against it.
-		   The mux legs are built from the MCLKSEL and SMCLKSEL value
-		   descriptions, so a leg is a table row and cannot be mis-wired.
-		   The source set comes from bit-field presence and is cross-checked
-		   against the set the selects reach.
-		   The divider ratios come from SYSMCLKDIV and SYSSMCLKDIV.
-		   Every peripheral is placed by its own clockDomain and the drawn set
-		   is proved to be the configured set.
-		   The MCLKSEL code that names SMCLK is wired from the node after the
-		   SMCLK divider and before the SMCLKOFF gate, which is where SYSTEM.vhd
-		   takes it, so stopping SMCLK does not stop MCLK.
-		   The drawing is input at natural size at the text width.'''
+		'''include/ClockSystemDiagram.tex, the clock tree left to right: sources, the two select muxes,
+		the two dividers, the SMCLKOFF gate, the two clock bars and the consumer boxes. Mux legs are
+		built from the MCLKSEL and SMCLKSEL value descriptions, so a leg is a table row.
+		'''
 		gen = self.Gen
 		geo = getattr(gen, 'McuMpGeometry', None) or {}
 		N = gen.NumHarts
@@ -3713,7 +3262,7 @@ class LatexUserGuide():
 		funcs = set(pin.FuncName for pin in pkg.Pins if pin.FuncName is not None)
 		P = lambda v: '%.2f' % v
 
-		# ---- THE REGISTER MODEL, LOOKED UP AND NEVER REMEMBERED --------------
+		# THE REGISTER MODEL, LOOKED UP AND NEVER REMEMBERED
 		sysInsts = [p for p in gen.Peripherals if p.Template.NameTemplate == 'SYSTEM']
 		if len(sysInsts) != 1:
 			raise Exception('ClockSystemDiagram: this configuration carries '
@@ -3763,7 +3312,7 @@ class LatexUserGuide():
 		selM, selS = field('SYSCLKCR', 'MCLKSEL'), field('SYSCLKCR', 'SMCLKSEL')
 		divM, divS = field('CLKDIVCR', 'SYSMCLKDIV'), field('CLKDIVCR', 'SYSSMCLKDIV')
 
-		# ---- THE SOURCES, derived from BIT-FIELD PRESENCE --------------------
+		# THE SOURCES, derived from BIT-FIELD PRESENCE
 		_SRC_SPEC = [
 			('hfxt', 'HFXT', 'HFXTOFF', None),
 			('lfxt', 'LFXT', 'LFXTOFF', None),
@@ -3810,7 +3359,7 @@ class LatexUserGuide():
 			raise Exception('ClockSystemDiagram: MCLKSEL takes the SMCLK node more than once; '
 				'the figure draws exactly one such wire, from the pre-gate node.')
 
-		# ---- THE DIVIDERS: one ratio list each ------------------------------
+		# THE DIVIDERS: one ratio list each
 		def ratios(bf):
 			out = []
 			for v, suf, d in codes(bf):
@@ -3823,7 +3372,7 @@ class LatexUserGuide():
 			return out
 		ratM, ratS = ratios(divM), ratios(divS)
 
-		# ---- THE CONSUMERS, placed by the model's own clockDomain ------------
+		# THE CONSUMERS, placed by the model's own clockDomain
 		_PRETTY = {'GPIOx': 'GPIO', 'SPIx': 'SPI', 'QSPIx': 'QSPI', 'UARTx': 'UART',
 			'I2Cx': 'I\\textsuperscript{2}C', 'I2CTx': 'I\\textsuperscript{2}C target',
 			'I3Cx': 'I3C', 'NFCx': 'NFC', 'OWx': '1-Wire', 'TIMERx': 'TIMER', 'PWMx': 'PWM',
@@ -3882,7 +3431,7 @@ class LatexUserGuide():
 			n = len(groups[key])
 			muxedTitle = _PRETTY[key[1]] + (' $\\times$' + str(n) if n > 1 else '')
 
-		# ---- GEOMETRY (cm) ---------------------------------------------------
+		# GEOMETRY (cm)
 		xBnd0, xBnd1 = 0.5, 16.4
 		xSrc0, xSrc1 = 0.5, 2.9
 		rowTop, rowPitch, boxH = 6.9, 1.20, 1.00
@@ -4027,17 +3576,10 @@ class LatexUserGuide():
 		return
 
 	def GenerateTcmApertureDiagram(self):
-		'''include/TcmApertureDiagram.tex, one read through a TCM aperture as a
-		   left-to-right block diagram: hart 0, the arbiter, the aperture slave,
-		   the registered tile boundary, the tile's TCM read port and the TCM,
-		   with the core hanging under the port on the SRAM pin mux.
-		   Emitted unconditionally; the multi-core chapter inputs it inside its
-		   own \\iforchpresent, so a configuration without apertures never
-		   renders it and this writes a stub.
-		   The mechanism is hdl/common/MCU.vhd (the aperture slave) and
-		   hdl/common/hart_tile.vhd (the port, its sequencer and the pin mux).
-		   The aperture base and stride are the geometry's, cross-checked by
-		   _TcmApertureWindows against the address-space model.'''
+		'''include/TcmApertureDiagram.tex, one read through a TCM aperture left to right: hart 0, the
+		arbiter, the aperture slave, the registered tile boundary, the tile's TCM read port and the
+		TCM. Emitted unconditionally; the chapter inputs it inside its own conditional.
+		'''
 		windows = self._TcmApertureWindows()
 		if not windows:
 			self._writeInclude('TcmApertureDiagram.tex',
@@ -4088,35 +3630,27 @@ class LatexUserGuide():
 		return
 
 
-	# -----------------------------------------------------------------
-	# NPU datapath figure (W4). Everything the drawing asserts is either
-	# DERIVED from the configuration model or PARSED back out of the source
-	# that owns it, and checked here so a change to the RTL, the register
-	# descriptions or the memory map fails `make generate` instead of leaving
-	# a wrong picture in the manual.
-	#
-	# SOURCES — do not edit these from memory:
-	#   hdl/common/periph/NPU.vhd            (the port mux, its select flop,
-	#                                         the six-state sequencer, the
-	#                                         activation constants)
-	#   hdl/common/commune/FPMac.vhd         (the accumulator: one sfixed
-	#                                         resize per step, so fixed_pkg's
-	#                                         default round-to-nearest and
-	#                                         saturate apply at EVERY step)
-	#   hdl_templates/MCU.template.npu.vhd   (the Q generics of THIS chip's
-	#                                         instance, and the comment that
-	#                                         says npu0_active sleeps nobody)
-	#   generate.py NPUMODE / NPUACTF        (the mode and activation lists)
-	#   Gen.SharedWindowSections             (the staging RAM's geometry)
-	#   Gen.McuMpCompat['irqVectors']        (the think-done vector number)
-	# -----------------------------------------------------------------
+	# NPU datapath figure. Everything the drawing asserts is either derived from the
+	# configuration model or parsed back out of the source that owns it, and checked here, so a
+	# change to the RTL, the register descriptions or the memory map fails `make generate`
+	# instead of leaving a wrong picture in the manual.
+	# Sources, not to be edited from memory:
+	#   hdl/common/periph/NPU.vhd            the port mux, its select flop, the six-state
+	#                                        sequencer, the activation constants
+	#   hdl/common/commune/FPMac.vhd         the accumulator: one sfixed resize per step, so
+	#                                        fixed_pkg's round-to-nearest and saturate apply at
+	#                                        every step
+	#   hdl_templates/MCU.template.npu.vhd   the Q generics of this chip's instance, and the
+	#                                        note that npu0_active sleeps nobody
+	#   generate.py NPUMODE / NPUACTF        the mode and activation lists
+	#   Gen.SharedWindowSections             the staging RAM's geometry
+	#   Gen.McuMpCompat['irqVectors']        the think-done vector number
 
-	# The mode and activation lists the figure DRAWS, as
-	# (code, drawn label, a phrase that must appear in that code's own sentence
-	# of the register description). The labels are the figure's English; the
-	# phrases are the tie to the register model, checked below. A code added,
-	# renumbered or reworded in generate.py therefore fails the build here
-	# rather than shipping a four-way frame that has grown a fifth mode.
+	# The mode and activation lists the figure draws, as (code, drawn label, a phrase that must
+	# appear in that code's own sentence of the register description). The labels are the
+	# figure's English; the phrases tie it to the register model, checked below. A code added,
+	# renumbered or reworded in generate.py fails the build here rather than shipping a four-way
+	# frame that has grown a fifth mode.
 	_NPU_MODES = [
 		(0, 'MLP',            'dense layer',        'multilayer-perceptron'),
 		(1, '1-D convolution', 'taps and filters',  'one-dimensional convolution'),
@@ -4135,10 +3669,10 @@ class LatexUserGuide():
 		'NPU_SET_OUTPUT', 'NPU_FINISH']
 
 	def _NpuCodedList(self, field, drawn, what):
-		'''Parse a `0 = ... 1 = ...` coded list back out of a BitField's own
-		   description and check the figure's transcription against it. The
-		   codes must be exactly the drawn ones, in order, and each drawn
-		   entry's phrase must appear in that code's sentence.'''
+		'''Parse a `0 = ... 1 = ...` coded list back out of a BitField's own description and check the
+		figure's transcription against it. The codes must be exactly the drawn ones, in order, and
+		each drawn entry's phrase must appear in that code's sentence.
+		'''
 		desc = field.Description
 		hits = list(re.finditer(r'(?:^|\.\s+)([0-7]) = ', desc))
 		parsed = {}
@@ -4267,12 +3801,10 @@ class LatexUserGuide():
 		}
 
 	def GenerateNpuDatapathDiagram(self):
-		'''include/NpuDatapathDiagram.tex is the NPU datapath and the staging RAM it borrows.
-		   Emitted unconditionally (the TCM-aperture precedent); a configuration without an NPU gets a stub here and never reaches the \\input.
-		   Six boxes: the shared bus, the register file, the port multiplexer, the staging RAM with its three regions, the engine, and the interrupt router.
-		   The one RAM port and the two sides that borrow it are the subject, so that path is drawn in the bus style and everything else as a flow.
-		   The ownership rule, the one-cycle select registration, the mode list and the activation list are chapter prose and Table t:npu-codes, not text inside the drawing.
-		   Every number printed here comes from _NpuFacts, which cross-checks it against the register model, the address map and the RTL.'''
+		'''include/NpuDatapathDiagram.tex, the NPU datapath and the staging RAM it borrows: six boxes,
+		with the one RAM port and its two borrowers drawn in the bus style and everything else as a
+		flow. Every number printed comes from _NpuFacts, which cross-checks it against the model.
+		'''
 		facts = self._NpuFacts()
 		if facts is None:
 			self._writeInclude('NpuDatapathDiagram.tex',
@@ -4376,14 +3908,10 @@ class LatexUserGuide():
 		self._writeInclude('NpuDatapathDiagram.tex', s)
 		return
 	def GenerateBootFlowDiagram(self):
-		'''include/BootFlowDiagram.tex, the single-ROM boot flow chart: the
-		   mhartid dispatch, hart 0's SPI boot on the left, the tile park and
-		   the mailbox-row loader on the right, and the MSIP write that joins
-		   them.
-		   One diamond and seven boxes of at most two lines, one text size, one
-		   arrow style, drawn at natural size under the text width.
-		   Only hart 0's name follows the orchestrator knob; the flow is the same
-		   in both polarities.'''
+		'''include/BootFlowDiagram.tex, the single-ROM boot flow: the mhartid dispatch, hart 0's SPI
+		boot, the tile park and the mailbox-row loader, and the MSIP write that joins them. Only
+		hart 0's name follows the orchestrator knob; the flow is the same in both polarities.
+		'''
 		N = self.Gen.NumHarts
 		orch = bool((getattr(self.Gen, 'McuMpGeometry', None) or {}).get('orchestrator'))
 		xL, xR, xC = 2.9, 13.3, 8.1
@@ -4420,11 +3948,9 @@ class LatexUserGuide():
 		self._writeInclude('BootFlowDiagram.tex', s)
 		return
 	def GenerateSyncPrimitiveDecisionTree(self):
-		'''include/SyncPrimitiveDecisionTree.tex, which synchronization
-		   primitive to use, as a decision tree of three questions and four
-		   answers of one line each.
-		   Drawn at natural size, about 0.75 of the text width.
-		   The rules that apply to every branch are the section's own list.'''
+		'''include/SyncPrimitiveDecisionTree.tex, which synchronization primitive to use, as three
+		questions and four one-line answers. The rules that apply to every branch are the section's.
+		'''
 		s = '% Generated synchronization-primitive decision tree\n'
 		s += '\\begin{tikzpicture}[x=1cm, y=1cm,\n'
 		s += '\tdec/.style={vbox, vname, diamond, aspect=2.2, inner sep=1pt},\n'
@@ -4457,8 +3983,8 @@ class LatexUserGuide():
 	_LABEL_FONT = '\\sffamily\\small'
 	_NOTE_FONT = '\\sffamily\\footnotesize'
 
-	# THE TWO ARBITER FIGURES ARE ONE PAIR AND ARE SIZED AS ONE (2026-08-15,
-	# USER review). At the house geometry each of them owned a whole page, and
+	# THE TWO ARBITER FIGURES ARE ONE PAIR AND ARE SIZED AS ONE.
+	# At the house geometry each of them owned a whole page, and
 	# figure 5's caption asks the reader to compare it PIN BY PIN with figure 4
 	# — which only works if a row of one reads like a row of the other. So both
 	# take the same reduced row height, row pitch and type sizes, and differ
@@ -4472,13 +3998,10 @@ class LatexUserGuide():
 	              '\\sffamily\\scriptsize')
 
 	def _timingPreamble(self, xunit, extra='', rowH=None, fonts=None):
-		'''Shared tikzpicture options for the generated waveform figures.
-		   rowH/fonts default to the house geometry above; a figure that needs
-		   to be smaller than the house size passes its OWN pair (the two
-		   arbiter figures do — see _ARB_ROW_H). Sizing goes through here, never
-		   through a \\resizebox around the \\input: a resizebox scales the
-		   drawn strokes AND the type, and on a figure narrower than the text
-		   block it scales it UP (the Agent-C lesson).'''
+		'''Shared tikzpicture options for the generated waveform figures. A figure smaller than the
+		house geometry passes its own rowH and fonts; sizing never goes through a resizebox around
+		the input, which would scale the strokes and the type, and scales up on a narrow figure.
+		'''
 		rowH = rowH or self._ROW_H
 		cellFont, labelFont, noteFont = fonts or (self._CELL_FONT, self._LABEL_FONT, self._NOTE_FONT)
 		s = '\\begin{tikzpicture}[\n'
@@ -4523,12 +4046,10 @@ class LatexUserGuide():
 		self._writeInclude('TimerRolloverDiagram.tex', s)
 		return
 	def GenerateTimerOutputCompareDiagram(self):
-		'''include/TimerOutputCompareDiagram.tex — the counter ramp AND the two
-		   TxCMP0 pin polarities in ONE picture on ONE x-axis, with dotted guides
-		   tying each TIMxCMP0 crossing and each rollover to the pin edge it
-		   causes. One timer period = 3 units so the crossing lands exactly on a
-		   unit boundary (the old three-subplot matplotlib figure only LOOKED
-		   aligned; nothing enforced it).'''
+		'''include/TimerOutputCompareDiagram.tex, the counter ramp and both TxCMP0 pin polarities on
+		one x-axis, with dotted guides tying each crossing and rollover to the pin edge it causes.
+		One timer period is 3 units, so the crossing lands exactly on a unit boundary.
+		'''
 		s = '% Generated timer output-compare / PWM diagram\n'
 		s += self._timingPreamble('0.62cm')
 		# \ROWH is the pin rows' height, exported so that every coordinate that
@@ -4574,13 +4095,10 @@ class LatexUserGuide():
 		self._writeInclude('TimerOutputCompareDiagram.tex', s)
 		return
 	def GenerateArbiterHandshakeDiagram(self):
-		'''include/ArbiterHandshakeDiagram.tex — one uncontended shared-window
-		   read at the mp_arbiter pins. CYCLE-ACCURATE against hdl/common/
-		   mp_arbiter.vhd: IDLE -> LATCH -> DATA -> IDLE, with done/rdata
-		   registered together at the edge leaving DATA (3 mclk from an
-		   observed req to done; the depth-1 registered tile boundary adds one
-		   more each way, which is the ~5 mclk a hart actually sees). If that
-		   FSM changes, this figure must change with it.'''
+		'''include/ArbiterHandshakeDiagram.tex, one uncontended shared-window read at the mp_arbiter
+		pins. Cycle-accurate against mp_arbiter.vhd: IDLE, LATCH, DATA, IDLE, with done and rdata
+		registered together leaving DATA. If that FSM changes, this figure must change with it.
+		'''
 		rows = [
 			('14{0.5C}',                              '\\register{mclk}'),
 			('L 5H L',                                '\\register{req(0)}'),
@@ -4606,8 +4124,8 @@ class LatexUserGuide():
 		ann += '\\draw[vaccent, <->] (1,{\\YBOT-0.45}) -- (4,{\\YBOT-0.45});\n'
 		ann += '\\node[ann, below, text=vestaRedText] at (2.5,{\\YBOT-0.47}) {3 \\register{mclk}};\n'
 		# THE GHOST NOTE HANGS UNDER THE FIGURE, NOT OFF ITS RIGHT EDGE, AND
-		# THAT IS WHAT CENTRES THE FIGURE (2026-08-15, USER: "centred on the
-		# page"). \centering centres the tikzpicture's BOUNDING BOX, and this
+		# THAT IS WHAT CENTRES THE FIGURE. \centering centres the tikzpicture's
+		# BOUNDING BOX, and this
 		# note used to be a ~5 cm block anchored north WEST at x=6.15 — outside
 		# the 7 cycles the waveform draws — so the box reached ~4 cm further
 		# right than anything visible, and centring the box pushed the visible
@@ -4646,11 +4164,10 @@ class LatexUserGuide():
 
 	@staticmethod
 	def _timingRow(cells):
-		'''Run-length-encode a per-cycle token list into a tikz-timing string.
-		   Tokens are 'L', 'H', 'U' or ('D', text). Writing the rows this way
-		   (rather than as literal char strings) is what lets the assertions
-		   below check the DRAWN waveform against the transcribed cycle table
-		   instead of checking a copy of itself.'''
+		'''Run-length-encode a per-cycle token list into a tikz-timing string; tokens are 'L', 'H', 'U'
+		or ('D', text). Writing the rows this way rather than as literal char strings is what lets
+		the assertions check the drawn waveform against the transcribed cycle table.
+		'''
 		out = []
 		for cell in cells:
 			if out and out[-1][0] == cell:
@@ -4711,18 +4228,10 @@ class LatexUserGuide():
 		return units
 
 	def GenerateArbiterStallDiagram(self):
-		'''include/ArbiterStallDiagram.tex — the SAME arbiter pins as the
-		   handshake figure, on the one slave that stalls them. Emitted
-		   unconditionally (the D-series/aperture precedent): the multi-core
-		   chapter \\input{}s it inside its own \\iforchpresent, so a
-		   configuration without apertures never renders it.
-
-		   Drawn from hdl/common/mp_arbiter.vhd (the FSM and the s_stall port),
-		   hdl/common/MCU.vhd (the aperture decode and its sequencer) and
-		   hdl/common/hart_tile.vhd (the tile-side read port) — the cycle-by-
-		   cycle transcription, with a line citation per cycle, is the comment
-		   block above this method. Nothing here is remembered: if any of those
-		   three FSMs changes, this figure must change with it.'''
+		'''include/ArbiterStallDiagram.tex, the same arbiter pins as the handshake figure on the one
+		slave that stalls them, drawn from mp_arbiter.vhd, MCU.vhd's aperture decode and
+		hart_tile.vhd's read port. If any of those three FSMs changes, this figure must change.
+		'''
 		windows = self._TcmApertureWindows()
 		if not windows:
 			# No apertures in this configuration, so no slave asserts s_stall
@@ -4907,19 +4416,10 @@ class LatexUserGuide():
 		return s
 
 	def GenerateSpiFlashDiagram(self):
-		'''include/SpiFlashDiagram.tex is the SPI connection diagram.
-		   It is drawn in the idiom of the UART connection figure.
-		   Two on-chip boxes sit inside a thin red package boundary on the left.
-		   Their two external partners sit on the right.
-		   Each pair is joined by four straight wires, one per pin, each labelled with its pad name.
-		   The one fact the figure states with geometry is which pin goes which way.
-		   Everything else the old drawing carried (the private flash path, the pad driver select, the hart stall) is prose in the chapter and is not repeated here.
-
-		   The pad names are read out of the package model and checked there.
-		   A package that bonds only part of a four-pin group fails the build rather than drawing a partner on a port this package brings out only in part.
-		   The number of SPI boxes equals the number of SPIx instances this configuration builds.
-		   A configuration without the boot-flash quartet draws SPI0 with generic pin names and no port labels.
-		   The figure is emitted unconditionally and the chapter inputs it ungated.'''
+		'''include/SpiFlashDiagram.tex, the SPI connection diagram: two on-chip boxes inside the package
+		boundary, their two external partners, four labelled wires. Pad names come from the package
+		model, and a package that bonds only part of a four-pin group fails the build.
+		'''
 		gen = self.Gen
 		pkg = gen.Package
 		rc = getattr(gen, 'ResolvedConfig', None) or {}
@@ -5039,15 +4539,10 @@ class LatexUserGuide():
 		self._writeInclude('SpiFlashDiagram.tex', s)
 		return
 	def GenerateSpiTimingDiagram(self):
-		'''include/SpiTimingDiagram.tex — all four SPI modes. Waveform content is
-		   the proven hand-written original; only the styling changed. The two
-		   vertical-line families are SEMANTIC (leading vs trailing SCK edge —
-		   which one samples depends on CPHA), so they are kept as two
-		   distinguishable families rather than flattened to one guide style. The
-		   LEADING edge is the one the figure is about, so it is the family drawn
-		   in the manual accent colour and the trailing one is a plain grey guide;
-		   the red/blue pair it replaces was two saturated colours that belong to
-		   no other figure in this manual.'''
+		'''include/SpiTimingDiagram.tex, all four SPI modes. The two vertical-line families are semantic,
+		leading against trailing SCK edge, so they stay distinguishable rather than flattened to one
+		guide style; the leading edge is the figure's subject and carries the accent colour.
+		'''
 		rows = [
 			('CPOL $=0$', 'LL 15{T} LL'),
 			('CPOL $=1$', 'HH 15{T} HH'),
@@ -5292,20 +4787,10 @@ class LatexUserGuide():
 		return
 	def _cycleFigure(self, xunit, rows, guides, annotations, shade=None,
 	                 rowH=None, pitch=None, fonts=None):
-		'''Shared shape for the cycle-level contract waveforms (arbiter, IRQ
-		   claim/complete, mutex, capture). rows = list of (chars, label), TOP
-		   FIRST; the y of each row is COMPUTED from _ROW_PITCH rather than
-		   written per figure, so changing the waveform height does not silently
-		   overlap rows or strand the annotations. The figure exports \\YTOP and
-		   \\YBOT so annotations can hang off the grid instead of hardcoding
-		   coordinates that go stale with the geometry.
-
-		   rowH/pitch/fonts override the house geometry for ONE figure. They
-		   move together on purpose: the row pitch must stay clear of the row
-		   height, and the D-cell font sets the floor on how narrow xunit can
-		   go (a D{} cell does not shrink its text to fit). Callers that pass
-		   nothing are unaffected, which is what keeps a resize of one figure
-		   out of the other five.'''
+		'''Shared shape for the cycle-level contract waveforms; rows is (chars, label), top first, and
+		each row's y comes from _ROW_PITCH so changing the height cannot overlap rows. rowH, pitch
+		and fonts override together: the pitch must clear the height and the D-cell font floors xunit.
+		'''
 		pitch = pitch or self._ROW_PITCH
 		rowH = rowH or self._ROW_H
 		ybot = -pitch * (len(rows) - 1)
@@ -5324,12 +4809,10 @@ class LatexUserGuide():
 		return s
 
 	def GenerateIrqClaimCompleteDiagram(self):
-		'''include/IrqClaimCompleteDiagram.tex — the M19 IRQROUTER delivery
-		   contract, which the TRM otherwise only states in prose. Behaviour is
-		   from hdl/common/irq_router.vhd: meip(h) = OR over i of (level(i) AND
-		   en[h](i) AND NOT in_service(i)); a CLAIM read sets in_service(id),
-		   masking the source out of EVERY hart until a COMPLETE write clears
-		   it. That masking window is the exactly-once guarantee.'''
+		'''include/IrqClaimCompleteDiagram.tex, the IRQROUTER delivery contract. From irq_router.vhd:
+		meip(h) is the OR over i of level(i) and en[h](i) and not in_service(i); a CLAIM read sets
+		in_service(id), masking the source out of every hart until a COMPLETE clears it.
+		'''
 		# CLAIM gets TWO units, like COMPLETE: at body-size cell text a word that
 		# long does not fit one unit, and a D{} cell does not shrink its text to
 		# fit — it just spills over the cell outline. Widening it (rather than
@@ -5368,17 +4851,10 @@ class LatexUserGuide():
 		self._writeInclude('IrqClaimCompleteDiagram.tex', s)
 		return
 	def GenerateIrqFabricDiagram(self):
-		'''include/IrqFabricDiagram.tex is the interrupt fabric of the whole chip.
-		   Every peripheral vector enters the IRQROUTER on the left.
-		   Inside the router are the per-hart enable rows and the claim/complete stage.
-		   One meip wire leaves the router for each hart on the right.
-		   The CLINT pair (msip, mtip) goes round the router on its own wires.
-		   That bypass is the one fact this figure exists to teach, so it is the one red path in the drawing.
-
-		   Everything printed is derived from the generator.
-		   The vector count, the CLINT vector pair, the meip slot and the enable-word names are all read back out of the model and checked.
-		   A peripheral added to the vector table moves the total here rather than falling out of the drawing.
-		   The hart count follows the configuration, so Argus draws harts 1 to 17 in the second box.'''
+		'''include/IrqFabricDiagram.tex, the chip's interrupt fabric: every peripheral vector into the
+		IRQROUTER, the per-hart enable rows and claim/complete stage, one meip wire out per hart.
+		The CLINT pair bypasses the router, which is the one red path and the fact this teaches.
+		'''
 		gen = self.Gen
 		N = gen.NumHarts
 		compat = getattr(gen, 'McuMpCompat', None) or {}
@@ -5548,21 +5024,10 @@ class LatexUserGuide():
 		self._writeInclude('IrqFabricDiagram.tex', s)
 		return
 	def GenerateMutexClaimDiagram(self):
-		'''include/MutexClaimDiagram.tex — the return-old-and-claim read that
-		   makes the MUTEX bank a one-instruction lock (hdl/common/mutex_bank.vhd).
-		   Two harts race for the same mutex; the arbiter serializes the two
-		   reads, so the claim is atomic with no retry loop.
-
-		   D-series sweep (s2): the racers are two CHANNEL harts, not hart 0.
-		   Hart 0 is the management/orchestrator hart on every configuration
-		   this manual is built for, and using it as one of two interchangeable
-		   racers teaches the wrong picture of the chip. The pair is DERIVED so
-		   the figure is config-agnostic: harts 1 and 2 wherever a third hart
-		   exists (every shipped configuration -- N is 4, 5 or 18), falling back
-		   to the historical 0/1 pair on a hypothetical two-hart build rather
-		   than raising. The winner's marker is its \\register{mhartid}$+1$
-		   (hdl/common/mutex_bank.vhd:108, `owner := master + 1`), so it is
-		   drawn from the racer index and never from a literal.'''
+		'''include/MutexClaimDiagram.tex, the return-old-and-claim read that makes the MUTEX bank a
+		one-instruction lock. The racers are two channel harts, derived rather than literal, and the
+		winner's marker is its mhartid + 1, as mutex_bank.vhd computes it.
+		'''
 		lo = 1 if self.Gen.NumHarts >= 3 else 0
 		hi = lo + 1
 		loS, hiS = str(lo), str(hi)
@@ -5599,21 +5064,10 @@ class LatexUserGuide():
 		self._writeInclude('MutexClaimDiagram.tex', s)
 		return
 	def GeneratePowerDomainDiagram(self):
-		'''include/PowerDomainDiagram.tex, the chip's power architecture: the
-		   always-on domain with hart 0, the shared fabric, pwr_ctrl and the
-		   isolation clamps, and one representative switched channel tile under
-		   the red domain boundary: the header switch, the tile and its TCM,
-		   with the VDD to VDD_SW rail down the column and one control wire from
-		   pwr_ctrl to each of the four gates, labelled with the signal name.
-		   Six boxes, two text sizes, drawn at natural size.
-		   Drawn from the RTL: hdl/common/pwr_ctrl.vhd (the rows 1 to N-1 and
-		   the sequencer), mcu_vhd.py emitIsoClamps (the clamps are AND gates on
-		   the always-on side), emitTileRstn, tileInstance (tcm_pgen off
-		   pd_sleep) and cpf/hart_tile.cpf (the HEADBUF16 switch, no retention).
-		   Ungated: tiles 1 to N-1 are gateable on every configuration this
-		   manual is built for; only hart 0's wording follows the orchestrator knob.
-		   E17: the number of switched tiles the figure claims is cross-checked
-		   against the PWRCR register model (PWRGATE mask and the read-only PWRH0).'''
+		'''include/PowerDomainDiagram.tex, the power architecture: the always-on domain with hart 0, the
+		shared fabric, pwr_ctrl and the clamps, and one switched channel tile under the boundary. The
+		number of switched tiles is cross-checked against the PWRCR register model.
+		'''
 		N = self.Gen.NumHarts
 		if N < 2:
 			self._writeInclude('PowerDomainDiagram.tex',
@@ -5623,7 +5077,7 @@ class LatexUserGuide():
 		tcmKiB = self.Gen.RamMemorySlotSize // 1024
 		P = lambda v: '%.2f' % v
 
-		# ---- E17 cross-check against the register model --------------------
+		# E17 cross-check against the register model
 		drawnMask = 0
 		for b in range(1, N):
 			drawnMask |= 1 << b
@@ -5651,7 +5105,7 @@ class LatexUserGuide():
 				'bit 0, so hart 0 is not the always-on hart this figure draws.'
 				% (h0Field.Accessibility, h0Field.MSB, h0Field.LSB))
 
-		# ---- geometry (cm) ------------------------------------------------
+		# geometry (cm)
 		W = 13.4
 		xCol0, xCol1 = 3.0, 8.4
 		xRail, xSw = 0.5, 1.5
@@ -5711,10 +5165,9 @@ class LatexUserGuide():
 		return
 
 	def GenerateTimerCaptureDiagram(self):
-		'''include/TimerCaptureDiagram.tex — input capture (TIMER chapter had no
-		   figure for it). Bit-field names are the GENERATED ones (CAP0EN/CAP0FE/
-		   CAP0IF) — the chapter prose used to call them TCAP*, which matched
-		   nothing in the register tables.'''
+		'''include/TimerCaptureDiagram.tex, input capture. Bit-field names are the generated ones,
+		CAP0EN, CAP0FE and CAP0IF, not the TCAP* spellings the chapter prose once used.
+		'''
 		rows = [
 			('16{0.5C}',        'timer clock'),
 			('R 8{Q}',          '\\register{TIMxVAL}'),
@@ -5749,27 +5202,20 @@ class LatexUserGuide():
 			f.write(contents)
 		return
 
-	# -----------------------------------------------------------------
-	# D-series debug figures (2026-08). All eight are emitted unconditionally:
-	# the chapter decides what renders, by placing the \input for the gated
-	# ones inside its own \ifdebugenable. Emitting them always keeps this file
-	# free of a second copy of the gating rule, and an unused include costs
-	# nothing. The two ALWAYS-RENDERED figures (debug stack, TAP graph, JTAG
-	# scan) are architecture-level and appear in every build.
-	#
-	# SOURCES — do not edit these from memory of the RTL:
-	#   hdl/common/jtag_dtm.vhd       (TAP table, IR/DR, the crossing, idle)
-	#   hdl/common/debug_module.vhd   (DMI map, the entry page, THE PLANT)
-	#   ~/work/chip_docs/castalia/d_series/d3_spec.md, d3_cdc_spec.md, d4_spec.md
-	# -----------------------------------------------------------------
+	# Debug figures. All eight are emitted unconditionally: the chapter decides what renders, by
+	# placing the \input for the gated ones inside its own \ifdebugenable. Emitting them always
+	# keeps a second copy of the gating rule out of this file, and an unused include costs
+	# nothing. The debug stack, TAP graph and JTAG scan figures are architecture-level and
+	# appear in every build.
+	# Sources, not to be edited from memory of the RTL:
+	#   hdl/common/jtag_dtm.vhd       TAP table, IR/DR, the crossing, idle
+	#   hdl/common/debug_module.vhd   DMI map, the entry page, the plant
 
 	def GenerateDebugStackDiagram(self):
-		'''include/DebugStackDiagram.tex is the debug path from the probe to the harts.
-		   CONFIGURATION-DRIVEN (numHarts).
-		   Seven elements: the probe, dtm0, dm0, the arbiter bar, hart 0, the other harts as one box, and the shared RAM with the debug program page.
-		   The clock-domain crossing is one thin dashed grey line between dtm0 and dm0, crossed by the two toggles hdl/common/jtag_dtm.vhd:45-63 describes.
-		   dm0 reaches the chip two ways: as one more master on mp_arbiter, and over direct halt and resume wires to every hart.
-		   The trampoline plant, the raw dmi ports and the bench view are chapter prose, not boxes.'''
+		'''include/DebugStackDiagram.tex, the debug path from probe to harts, driven by numHarts. The
+		clock-domain crossing is one dashed line crossed by the two toggles, and dm0 reaches the chip
+		both as an arbiter master and over direct halt and resume wires to every hart.
+		'''
 		N = self.Gen.NumHarts
 		# On an orchestrator configuration hart 0 is the always-on management hart, and its box says so.
 		# Same condition the whole-chip figure splits on, so the two figures never disagree about which chip they draw.
@@ -5857,53 +5303,26 @@ class LatexUserGuide():
 		(13, 15), (13, 14), (11, 15), (1, 2)]
 
 	def GenerateTapStateDiagram(self):
-		'''include/TapStateDiagram.tex — the 16-state IEEE 1149.1 TAP graph,
-		   every edge drawn from _TAP_NEXT (jtag_dtm.vhd:204-208). Solid edges
-		   are TMS=0, dashed are TMS=1; the five-ones recovery is emphasised
-		   because it is the only thing a debugger needs when it has lost the
-		   state.
-
-		   LAYOUT is the canonical datasheet one, and it is chosen to keep the
-		   edges apart rather than to look tidy on paper: a TOP ROW of
-		   Test-Logic-Reset, Run-Test/Idle, Select-DR, Select-IR (so the TMS=1
-		   chain runs left to right along it), with the two seven-state lobes
-		   hanging below their Select. Every remaining edge then has a channel
-		   of its own -- forward skips down the INNER flank of each lobe, the
-		   Exit2 back edge and the self-loops on the OUTER flank, the two
-		   Update->Select-DR returns over the top and up the middle, the two
-		   Update->Run-Test/Idle returns along the bottom. Edge labels are
-		   placed at computed points rather than by `pos=', so no label ever
-		   lands on another edge.'''
-		# THE COORDINATES BELOW ARE PRINTED CENTIMETRES, AND THAT IS THE POINT
-		# (2026-08-15, USER, twice: smaller type and smaller boxes, with the
-		# states FURTHER APART, so that every arrow between them can be traced
-		# individually). The chapter used to wrap this figure in
-		# \resizebox{\linewidth}, which made every number here a RATIO: the
-		# drawing was authored at ~21.5 units and squeezed to the 16.5 cm text
-		# block, so the boxes, the type and the gaps between the boxes all
-		# shrank together and a wider layout bought no extra air, it only
-		# scaled itself away. The \resizebox is gone; these numbers land on the
-		# page as written, and the two halves of the USER's constraint are set
-		# independently, which is the pair of things that cannot be had at once
-		# from a single scale factor:
-		#
+		'''include/TapStateDiagram.tex, the 16-state IEEE 1149.1 TAP graph, every edge from _TAP_NEXT;
+		solid edges are TMS=0, dashed TMS=1. The layout keeps edges apart rather than tidy: a top row
+		of the four TMS=1 states with the two lobes below, so every edge has a channel of its own.
+		'''
+		# The coordinates below are printed centimetres. The chapter used to wrap this figure in
+		# \resizebox{\linewidth}, which made every number a ratio: the drawing was authored at about
+		# 21.5 units and squeezed to the 16.5 cm text block, so boxes, type and gaps shrank together
+		# and a wider layout bought no extra air. Without the \resizebox these numbers land on the
+		# page as written and box size and spacing are set independently.
 		#            box          state font   vert. air   inner channel   total
 		#   resized  2.07x0.55    ~7.7 pt      0.48 cm     0.31 cm         16.5x10.1
 		#   round 1  1.75x0.44    6.5 pt       0.55 cm     0.58 cm         14.7x9.0
 		#   round 2  1.56x0.35    5.0 pt       0.71 cm     0.60 cm         14.6x8.9
-		#
-		# So round 2 takes another 11 % off the box, drops the type to \tiny,
-		# and spends every millimetre it frees on AIR: +29 % between rows,
-		# +22 % between the two lobe columns, +22 % between Test-Logic-Reset
-		# and Run-Test/Idle, inside a figure that is smaller in both dimensions
-		# than the one it replaces.
-		# FLOORS, so a future edit does not squeeze this back: the box width is
-		# set by `Test-Logic-Reset` at the state font (~1.4 cm of type), and
-		# the outer flank must clear the self-loop bulge, which reaches about
-		# 0.6 cm past the node.
-		# Round 3 (2026-08-29): the type comes back UP to 8 pt for every state name and every edge label.
-		# The box is sized by Test-Logic-Reset at \footnotesize (about 2.3 cm of type) and the flank channels are 0.45 cm apart, which a single 8 pt digit with a white fill needs.
-		# The whole graph is 15.8 cm wide, inside the 16.5 cm text block, so nothing scales it after the fact.
+		# Current shape: state names and edge labels at 8 pt, the box sized by Test-Logic-Reset at
+		# \footnotesize (about 2.3 cm of type), and flank channels 0.45 cm apart, which a single
+		# 8 pt digit with a white fill needs. The whole graph is 15.8 cm wide, inside the 16.5 cm
+		# text block, so nothing scales it after the fact.
+		# Floors, so a future edit does not squeeze this back: the box width is set by
+		# Test-Logic-Reset at the state font, and the outer flank must clear the self-loop bulge,
+		# which reaches about 0.6 cm past the node.
 		HW, HH = 1.20, 0.28            # half width / half height of a state box
 		TOP = 0.00                     # the top row
 		xTLR, xRTI = 0.00, 2.90
@@ -5957,15 +5376,10 @@ class LatexUserGuide():
 			return s_
 
 		def loop(src, tms, sgn):
-			'''A self-loop on the OUTWARD-facing side of the node.
-
-			   THE ANGULAR SPREAD IS 32 DEGREES, NOT 40 (round 2), and the whole
-			   loop is tipped 12 degrees UP. The loop's vertical reach is (its
-			   length) x sin(half-spread), and the box is now 0.35 cm tall: at
-			   the old spread the Shift loop bulged BELOW the box, straight
-			   across the horizontal run of the Exit2 -> Shift retry arrow, which
-			   enters that same box's outward bottom corner. Narrowing and
-			   tipping the loop leaves that corner to the retry alone.'''
+			'''A self-loop on the outward-facing side of the node, spread 32 degrees and tipped 12 up. The
+			loop's vertical reach is its length times sin(half-spread), and a wider loop bulges below the
+			0.35 cm box across the horizontal run of the Exit2 to Shift retry arrow.
+			'''
 			dst = self._TAP_NEXT[src][tms]
 			edges.append((src, dst))
 			sty = 'tms1' if tms else 'tms0'
@@ -5975,7 +5389,7 @@ class LatexUserGuide():
 			s_ += '\\node[el] at (' + P(x + sgn * (HW + 0.50)) + ', ' + P(y + 0.10) + ') {' + str(tms) + '};\n'
 			return s_
 
-		# ---- the top row ------------------------------------------------
+		# the top row
 		s += loop(0, 1, -1)                                   # TLR holds on 1
 		s += emit(0, 0, '(s0.east) -- (s1.west)', (xTLR + HW + xRTI - HW) / 2.0, TOP)
 		s += '\\draw[tms0] (s1) to[loop, out=115, in=65, looseness=6] (s1);\n'
@@ -5993,7 +5407,7 @@ class LatexUserGuide():
 		s += emit(9, 1, '(s9.north) -- (' + P(cx['ir']) + ', ' + P(yWrapT) + ') -- (' + P(xTLR) + ', ' + P(yWrapT) + ') -- (s0.north)',
 			(cx['ir'] + xTLR) / 2.0 + 2.60, yWrapT)
 
-		# ---- the two lobes, identical in shape --------------------------
+		# the two lobes, identical in shape
 		# sgn = which side is the OUTWARD one for this lobe.
 		for lobe, sgn, base in (('dr', -1.0, 3), ('ir', +1.0, 10)):
 			c = cx[lobe]
@@ -6041,7 +5455,7 @@ class LatexUserGuide():
 			s += emit(ex2, 0, '(s%d.%s) -- (%s, %s) -- (%s, %s) -- (s%d.south %s)'
 				% (ex2, aOut, P(xOut), P(rows[4]), P(xOut), P(rows[1] - HH), shf, aOut), xOut, (rows[1] + rows[4]) / 2.0)
 
-		# ---- the four returns, two along the bottom and two up top -------
+		# the four returns, two along the bottom and two up top
 		# Update-DR -> Run-Test/Idle, and Update-DR -> Select-DR up the middle
 		s += emit(8, 0, '(s8.south) -- (' + P(cx['dr']) + ', ' + P(yRetD) + ') -- (' + P(xRTI) + ', ' + P(yRetD) + ') -- (s1.south)',
 			xRTI, (yRetD + TOP) / 2.0 + 1.20)
@@ -6071,12 +5485,10 @@ class LatexUserGuide():
 		self._writeInclude('TapStateDiagram.tex', s)
 		return
 	def GenerateJtagScanDiagram(self):
-		'''include/JtagScanDiagram.tex — one four-bit DR scan, TAP states from
-		   _TAP_NEXT. TDO is drawn HALF A UNIT LATE on purpose: jtag_dtm.vhd
-		   samples TMS/TDI on the RISING TCK edge (:342, :406) and changes TDO
-		   on the FALLING edge (:500-514), so its transitions belong mid-unit.
-		   Shift is LSB-first (:222-224 declare the DR widths; the shifter runs
-		   low bit out first). Generic 1149.1 -- always rendered.'''
+		'''include/JtagScanDiagram.tex, one four-bit DR scan with TAP states from _TAP_NEXT. TDO is
+		drawn half a unit late: jtag_dtm.vhd samples TMS and TDI on the rising TCK edge and changes
+		TDO on the falling one, so its transitions belong mid-unit. Shift is LSB-first.
+		'''
 		rows = [
 			('20{0.5C}',                                                   '\\pin{TCK}'),
 			('H 5L 2H 2L',                                                 '\\pin{TMS}'),
@@ -6096,18 +5508,10 @@ class LatexUserGuide():
 		self._writeInclude('JtagScanDiagram.tex', s)
 		return
 	def GenerateDmiCrossingDiagram(self):
-		'''include/DmiCrossingDiagram.tex — one DMI transaction across the
-		   TCK<->mclk boundary. CYCLE-ACCURATE against hdl/common/jtag_dtm.vhd:
-		   the Update-DR of a dmi scan loads the 41-bit request hold and flips
-		   req_tgl (:55-58); the mclk side syncs through 2-FF + an edge flop
-		   (:47-49) and presents the held payload; dmi_req_valid is a ONE-SHOT
-		   held only until the REGISTERED ready is observed -- exactly two mclk
-		   (:71-75) -- because the DM re-accept lockout is a TIMER that reopens
-		   9 mclk after a capture (:67-69), so a level-held master would earn a
-		   duplicate accept. The response latches rsp_op/rsp_data into a 34-bit
-		   hold and flips rsp_tgl (:60-63). The whole budget is :79-90.
-		   TIMEBASE IS mclk; the two TCK events are annotated rather than drawn,
-		   because the TCK:mclk ratio is a board choice, not a fixed number.'''
+		'''include/DmiCrossingDiagram.tex, one DMI transaction across the TCK to mclk boundary.
+		dmi_req_valid is a one-shot held only until the registered ready is observed, because the
+		re-accept lockout is a timer, so a level-held master would earn a duplicate accept.
+		'''
 		rows = [
 			('24{0.5C}',                          '\\register{mclk}'),
 			('L 11H',                             '\\register{req\\_tgl} \\ \\scriptsize(\\register{TCK})'),
@@ -6142,10 +5546,10 @@ class LatexUserGuide():
 		self._writeInclude('DmiCrossingDiagram.tex', s)
 		return
 	def GenerateDebugSwimlaneDiagram(self):
-		'''include/DebugSwimlaneDiagram.tex — the twelve numbered steps of the
-		   worked halt/read/resume, across the four agents that perform them.
-		   The numbers are the list items in the chapter, so the figure and the
-		   prose are one document.'''
+		'''include/DebugSwimlaneDiagram.tex, the twelve numbered steps of the worked halt, read and
+		resume across the four agents that perform them. The numbers are the chapter's list items,
+		so the figure and the prose are one document.
+		'''
 		# Time runs DOWN the page and the four agents are columns.
 		# A portrait swimlane fits the text block at a true 8 pt with no resizebox, where the old landscape one had to be scaled to 6 pt.
 		# Every arrow between lanes is orthogonal: down out of a step, across to the next lane, down into the next step.
@@ -6196,11 +5600,10 @@ class LatexUserGuide():
 		self._writeInclude('DebugSwimlaneDiagram.tex', s)
 		return
 	def GenerateDmiFieldDiagram(self):
-		'''include/DmiFieldDiagram.tex — the 41-bit dmi data register.
-		   Field split from hdl/common/jtag_dtm.vhd:222 and :573-575:
-		   op(1 downto 0), data(33 downto 2), address(40 downto 34). Widths are
-		   drawn for legibility, not to scale -- the bit numbers carry the
-		   truth, and saying so in the caption is cheaper than a 41-cell bar.'''
+		'''include/DmiFieldDiagram.tex, the 41-bit dmi data register: op(1 downto 0), data(33 downto 2),
+		address(40 downto 34), split from jtag_dtm.vhd. Widths are drawn for legibility and not to
+		scale; the bit numbers carry the truth and the caption says so.
+		'''
 		# The fourth column names the style each field is drawn in.
 		# op is the emphasised one because it goes in and comes out first and carries the command in and the status out.
 		# The shift order and the op codes are prose in the chapter, next to the figure reference, not text inside the drawing.
@@ -6227,11 +5630,10 @@ class LatexUserGuide():
 		self._writeInclude('DmiFieldDiagram.tex', s)
 		return
 	def GeneratePackagePinoutDiagram(self):
-		'''include/PackagePinoutDiagram.tex, the fully labelled package top
-		   view, derived from the same package model as config/PadRing.json.
-		   The body is drawn to a pitch chosen so the whole figure lands at
-		   about the text width at natural size, which keeps every pin label a
-		   true 8 pt on the page; the physical dimensions are in the caption.'''
+		'''include/PackagePinoutDiagram.tex, the fully labelled package top view, from the same package
+		model as config/PadRing.json. The body pitch is chosen so the figure lands at about the text
+		width at natural size, which keeps every pin label a true 8 pt; dimensions are in the caption.
+		'''
 		pkg = self.Gen.Package
 		pitchMm = float(pkg.PinPitch)
 		pwMm = float(pkg.PinWidth)
@@ -6842,13 +6244,11 @@ class LatexUserGuide():
 		return s
 	
 
-	# -----------------------------------------------------------------
 	# Register description format (TRM standard, section 4) and the
 	# per-peripheral generated tables (section 5).
 	# Everything below emits self-contained LaTeX.
 	# The only theme dependencies are the tablehighlightcolor colour and the
 	# ltablex package, both of which the packages file has carried for years.
-	# -----------------------------------------------------------------
 
 	# Flip this to True once every field carries a description.
 	# While it is False an empty description prints a WARNING and the build continues.
@@ -6941,7 +6341,7 @@ class LatexUserGuide():
 			'\\providecommand{\\bitfield}[1]{\\texttt{#1}}\n'
 			'\\providecommand{\\pin}[1]{\\texttt{#1}}\n')
 
-	# ---- small formatting helpers ------------------------------------
+	# small formatting helpers
 
 	def _FieldValueString(self, value, size):
 		'''Binary for fields of four bits or fewer, hex (plus decimal) above that, a bare digit for one bit.'''
@@ -7011,7 +6411,7 @@ class LatexUserGuide():
 			i = j + 1
 		return ', '.join(parts)
 
-	# ---- register arrays (standard 4.4) ------------------------------
+	# register arrays (standard 4.4)
 
 	def _Templatize(self, strings, indices):
 		'''One string with every varying decimal index replaced by n, or None when the strings do not differ by the index alone.
@@ -7146,7 +6546,7 @@ class LatexUserGuide():
 			return max(sizes)
 		return rt.Size
 
-	# ---- pins and vectors per peripheral -----------------------------
+	# pins and vectors per peripheral
 
 	def _FunctionOwner(self, name, description, peripheralHint):
 		'''The peripheral instance a pin function belongs to, or None.
@@ -7254,7 +6654,7 @@ class LatexUserGuide():
 			return single
 		return 'See chapter'
 
-	# ---- interrupt vector table (standard section 3, chapter 8) ------
+	# interrupt vector table (standard section 3, chapter 8)
 
 	def GenerateInterruptsTable(self):
 		'''include/InterruptsTable.tex: one row per vector, reserved slots included.
@@ -7311,7 +6711,7 @@ class LatexUserGuide():
 		self._writeInclude('CpuExceptionsTable.tex', s)
 		return
 
-	# ---- memory map table (standard section 3, chapter 4) -----------
+	# memory map table (standard section 3, chapter 4)
 
 	def _RegionAttributes(self, group, title):
 		t = title.lower()
@@ -7381,7 +6781,7 @@ class LatexUserGuide():
 		self._writeInclude('AddressSpaceTable.tex', s)
 		return
 
-	# ---- per-peripheral tables (standard 5.X.2) ----------------------
+	# per-peripheral tables (standard 5.X.2)
 
 	def _InstancesOf(self, pt):
 		return [p for p in self.Gen.Peripherals if p.Template is pt]
@@ -7509,7 +6909,7 @@ class LatexUserGuide():
 			f.write(content)
 		return
 
-	# ---- the peripheral chapters -------------------------------------
+	# the peripheral chapters
 
 	def _EnumerationLines(self, bf, vds):
 		lines = []

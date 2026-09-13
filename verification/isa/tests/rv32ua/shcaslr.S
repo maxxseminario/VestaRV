@@ -1,49 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# shcaslr.S  (X2 red-team — CAS-vs-LR/SC same-address interplay)
-#-----------------------------------------------------------------------------
-# Pins the SYSTEM-LEVEL contract of the Zacas wen-gated conditional write against
-# the global LR/SC reservation unit (resv_unit.vhd): a COMMITTED amocas write
-# kills a foreign reservation on the same word; a FAILED amocas (no committed
-# write — wen "1111", all lanes suppressed) must NOT.
-#
-#   hart 0 = RESERVER + gate. hart 1 = CAS-doer. harts >=2 = uninvolved (park).
-#
-#   LEG 1 (CAS SUCCESS kills the reservation):
-#     hart 0 : lr.w W (W=0) ; FLAG_A=1 ; spin FLAG_B ; sc.w W  -> MUST FAIL
-#     hart 1 : spin FLAG_A ; amocas.w W cmp=0 swap=0xA1 (SUCCESS, commits) ; FLAG_B=1
-#     A committed CAS write to W lands between hart 0's LR and SC, so the global
-#     resv_unit kills hart 0's reservation and its SC MUST fail (sc rd != 0).
-#
-#   LEG 2 (CAS FAIL must NOT kill the reservation):
-#     hart 0 : lr.w W (W=0xA1) ; FLAG_A2=1 ; spin FLAG_B2 ; sc.w W -> MUST SUCCEED
-#     hart 1 : spin FLAG_A2 ; amocas.w W cmp=0xDEAD swap=0x99 (FAIL, no write) ; FLAG_B2=1
-#     The failed CAS commits NO write (all lanes suppressed), so hart 0's
-#     reservation survives and its SC MUST succeed (sc rd == 0).
-#
-# Deterministic handshake (no contention) via level flags, so no backoff is
-# needed; every spin is BOUNDED and FAILs inside the 100 ms tb watchdog. The
-# reserving hart's stores to the FLAG words (different addresses from W) and its
-# spin-loads do NOT clear its reservation (vesta local flop clears only on
-# SC/IRQ; the global table kills only a match on the reserved word) — that is
-# precisely what leg 2 relies on.
-#
-# NEGATIVE CONTROL: x2_zacas_uncond_write.patch (removes the CAS-fail wen
-# suppression) makes leg 2's "failing" CAS commit its swap -> kills hart 0's
-# reservation -> leg 2 SC FAILS -> this test FAILS (the fail-leg is caught).
-#
-# ON-BUILD ONLY: amocas.w traps illegal without Zacas (OFF arm = trivial pass,
-# shzabha/shzacas precedent).
-#
-# Shared-window map (all < 0x10500, inside the bootrom zero range; tests run in
-# isolation so overlap with other tests' bands is benign):
-#     W       = 0x10400   (contended reserved word)
-#     FLAG_A  = 0x10404   (leg 1: hart 0 reserved -> hart 1 go)
-#     FLAG_B  = 0x10408   (leg 1: hart 1 CAS committed -> hart 0)
-#     FLAG_A2 = 0x1040C   (leg 2: hart 0 reserved -> hart 1 go)
-#     FLAG_B2 = 0x10410   (leg 2: hart 1 CAS done (no write) -> hart 0)
-#*****************************************************************************
+# VestaRV: amocas against the global LR/SC reservation on the same word
+# THE CONTRACT: a COMMITTED amocas write kills a foreign reservation on the same word, and a FAILED amocas, which suppresses all write lanes, must NOT. Hart 0 is the reserver and the gate, hart 1 does the CAS, and the rest park.
+# LEG 1, a successful CAS killing the reservation: hart 0 does `lr.w W` with W = 0, sets FLAG_A, spins on FLAG_B and then `sc.w W`, which MUST FAIL; hart 1 spins on FLAG_A, runs a successful amocas.w on W and sets FLAG_B. The committed write lands between hart 0's LR and SC, so the global resv_unit kills the reservation.
+# LEG 2, a failing CAS leaving it alone: hart 0 does `lr.w W` with W = 0xA1, sets FLAG_A2, spins on FLAG_B2 and then `sc.w W`, which MUST SUCCEED; hart 1 runs an amocas.w whose compare fails, committing no write. THE RESERVING HART'S OWN STORES TO THE FLAG WORDS AND ITS SPIN LOADS DO NOT CLEAR ITS RESERVATION, since the local flop clears only on SC or an interrupt and the global table kills only a match on the reserved word; that is precisely what leg 2 relies on.
+# The handshake is deterministic through level flags with no contention, so no backoff is needed, and every spin is bounded and fails inside the 100 ms tb watchdog. The negative control removes the CAS-fail write suppression, which makes leg 2's failing CAS commit its swap, kill the reservation and fail the store-conditional.
+# ON-BUILD ONLY, since amocas.w traps illegal without Zacas and the OFF arm passes trivially. Shared words, all below 0x10500 and inside the bootrom zero range: W = 0x10400 the contended reserved word, FLAG_A = 0x10404, FLAG_B = 0x10408, FLAG_A2 = 0x1040C, FLAG_B2 = 0x10410.
 
 #include "riscv_test.h"
 #include "test_macros.h"

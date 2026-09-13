@@ -1,15 +1,7 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extamo.S  (core-features work, 2026-07-08)
-#-----------------------------------------------------------------------------
-# A-extension adaptive probe — see extprobe.S for the group contract.
-# Dispatches on misa.A (bit 0 <- ENABLE_ATOMICS):
-#   * A advertised  -> AMOADD.W and an LR/SC pair on a private-TCM word must
-#                      work (single hart, no contention) -> PASS
-#   * A absent      -> the AMOADD.W below must take the illegal-instruction
-#                      trap (whole AMO_OPCODE drops out of valid_opcode).
-#*****************************************************************************
+# VestaRV: A-extension adaptive probe
+# Dispatches on misa.A, bit 0, which follows ENABLE_ATOMICS. With A advertised, AMOADD.W and an LR/SC pair on a private-TCM word must work, single hart with no contention. With A absent, the AMOADD.W must take the illegal-instruction trap, since the whole AMO opcode drops out of valid_opcode. See extprobe.S for the group contract.
 
 #include "riscv_test.h"
 #include "test_macros.h"

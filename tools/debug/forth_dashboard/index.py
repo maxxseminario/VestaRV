@@ -1,4 +1,4 @@
-"""
+"""VestaRV: entry point for the Forth dashboard's Dash web application.
 Myshkin MCU Configuration Interface
 Main entry point for the Dash web application
 """
@@ -21,9 +21,7 @@ def display_page(pathname):
     return layout_module.layout
 
 
-################################################################################
 # Main Entry
-################################################################################
 
 if __name__ == '__main__':
     print("=" * 60)

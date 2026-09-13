@@ -1,67 +1,10 @@
 #!/usr/bin/env python3
-# VestaRV: THE D5 SESSION DRIVER: it runs a real OpenOCD + gdb session
-# against the in-simulator remote_bitbang bridge, and it takes the graders'
-# snapshots at the instants only a driver can know about.
+# VestaRV: run a real OpenOCD and gdb session against the in-simulator remote_bitbang bridge.
 #
-#   /usr/bin/python3.6 tools/cosim/d5_sessdrv.py \
-#       --portfile /tmp/d5/port.txt \
-#       --cfg tools/debug/riscv-tests-debug/targets/VestaRV/vesta_castalia.cfg \
-#       --elf verification/isa/build_oneoff/rv32ua-p-d5sessmp/rv32ua-p-d5sessmp \
-#       --script tools/cosim/gate/behavioral_mp/d5_session_castalia.script \
-#       --outdir /tmp/d5
-#
-# WHY A DRIVER EXISTS AT ALL, AND WHY IT IS THE THING THAT SNAPSHOTS.
-#   Every grader in dbg_sess_lib.tcl is an ORDERING BETWEEN SNAPSHOTS, and the
-#   snapshots have to be taken BETWEEN gdb verbs.  The harness inside the
-#   simulator cannot take them: for the whole session its interpreter is inside
-#   the bridge's event loop.  So the bridge publishes a second, PASSIVE-ONLY
-#   control port, and this driver -- which is the only party that knows when
-#   one verb ended and the next began -- sends `SNAP <label>` on it.
-#
-#   The control channel performs snapshot-class READS and nothing else: no
-#   force, no run, no DMI.  That is a correctness property, not tidiness.
-#   Anything that advanced simulation time there would make the session
-#   non-reproducible for the RUNNING tiles; anything that drove the Debug
-#   Module would put a SECOND MASTER on the very port the debugger is using,
-#   which changes what is being measured.  The bridge rejects every other verb
-#   BY NAME and counts the rejections.
-#
-# WHY IT IS SCRIPT-DRIVEN RATHER THAN A FIXED SEQUENCE.
-#   Several of the phase's questions are "what does stock OpenOCD actually do"
-#   -- e.g. whether `halt` on one target of an SMP group halts only that target
-#   -- and those are answered by MEASUREMENT, not by design.  A driver whose
-#   verb sequence is a data file can be re-aimed at the answer without being
-#   rewritten, and the file that was run is an artefact of the run.
-#
-# SCRIPT GRAMMAR (one directive per line; blank lines and `#` comments ignored)
-#   GDB   <command>        send to gdb, wait for the prompt, log the output
-#   MON   <command>        shorthand for `GDB monitor <command>`
-#   SNAP  <label>          take a grader snapshot over the control channel
-#   CTL   <verb> [args]    any other PASSIVE control verb (PROBE/ORACLE/STAT/PING)
-#   EXPECT <regex>         assert the LAST gdb output matched; failure is fatal
-#   NOTE  <text>           echoed into the transcript and the log
-#   FAILOK <directive>     run <directive>, record a failure, do not abort
-#
-# THE TEARDOWN IS PART OF THE INSTRUMENT, NOT HOUSEKEEPING.
-#   Two graders read the chip LIVE at grading time, after the session has ended
-#   -- SG-G1 wants the ebreak still in the victim's TCM, and SG-D wants the GPR
-#   cookie still in x15.  gdb REMOVES its breakpoints on detach.  So the driver
-#   ends the session by KILLING gdb (SIGKILL, never `detach`), which leaves the
-#   planted ebreak exactly where it was.
-#
-#   KILLING gdb IS NOT ENOUGH, AND THE ORIGINAL VERSION OF THIS PARAGRAPH WAS
-#   WRONG (measured, run t4n4d, 2026-08-11).  It said the driver then shuts
-#   OpenOCD down because "OpenOCD's clean exit is what sends the bridge its Q".
-#   The clean exit ALSO does this, in OpenOCD's own -d3 log, for every target:
-#       breakpoints.c:328 breakpoint_remove_all_internal(): [vesta.cpu2]
-#                         Delete all breakpoints
-#   -- and on this chip that removal really rewrites the tile's TCM.  The
-#   all-hart TCM census caught it: the victim's word read 0x5D509002 (c.ebreak)
-#   while the session was alive and 0x5D500313 (the image) at grading time, so
-#   SG-G1 failed on a session in which the breakpoint had demonstrably landed.
-#   OpenOCD is therefore SIGKILLed too.  The bridge does not need the `Q`: its
-#   service loop treats EOF on the adapter socket as end-of-session
-#   ("RBBINFO debugger closed the connection"), which is what runs the graders.
+# Every grader is an ordering between snapshots taken between gdb verbs, which the in-simulator
+# harness cannot take, so the bridge publishes a passive-only control port and this driver sends
+# SNAP on it. The verb sequence is a script file (GDB/MON/SNAP/CTL/EXPECT/NOTE/FAILOK). Teardown
+# SIGKILLs gdb and OpenOCD: either one's clean exit removes breakpoints, rewriting the tile TCM.
 import argparse
 import os
 import re
@@ -184,7 +127,7 @@ def main():
 
     rbb, ctlport = wait_for_file(args.portfile, args.portfile_timeout, log)
 
-    # ---- OpenOCD ----------------------------------------------------------
+    # OpenOCD
     ocdlog = os.path.join(args.outdir, "openocd.log")
     env = dict(os.environ)
     env["REMOTE_BITBANG_PORT"] = str(rbb)
@@ -257,7 +200,7 @@ def main():
 
     ctl = Ctl(ctlport, log)
 
-    # ---- gdb --------------------------------------------------------------
+    # gdb
     import pexpect
     gdb = pexpect.spawn(args.gdb, ["-nx", "-q", args.elf],
                         timeout=args.gdb_timeout, encoding="utf-8",
@@ -290,7 +233,7 @@ def main():
               "set architecture riscv:rv32"]:
         gdb_cmd(c)
 
-    # ---- run the script ---------------------------------------------------
+    # run the script
     nlines = 0
     with open(args.script) as fh:
         for raw in fh:
@@ -337,7 +280,7 @@ def main():
     for f in failures:
         log("  FAILURE: %s" % f)
 
-    # ---- teardown (see the header: this is instrument, not housekeeping) ---
+    # teardown (see the header: this is instrument, not housekeeping)
     log("TEARDOWN: SIGKILL gdb WITHOUT detaching, so the planted ebreak and the"
         " register cookie survive into the graders' live reads")
     try:

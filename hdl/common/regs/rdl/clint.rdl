@@ -1,32 +1,9 @@
-// ===========================================================================
-// clint.rdl: the register map of hdl/common/clint.vhd.
-//
-// THE VHDL IS THE AUTHORITY, and the mtimecmp reset is NOT zero:
-// `mtimecmp <= (others => (others => '1'))` resets every compare to all-ones
-// so mtip starts low.
-//
-// PARAMETERISED (report R7). The register SET is per hart and the word layout
-// moves with the hart count, so this file is a SystemRDL component with a
-// parameter rather than a five-hart transcription:
-//
-//     NHARTS       the hart count (1..32)
-//     NHARTS_WORD  that count spelled ("five"), as generate.py's _spelled() prints it
-//     MTIME_W      word index of MTIMEL     = ceil(4*NHARTS/16)*4
-//     CMP_W        word index of MTIMECMP0L = MTIME_W + 4
-//
-// The two word bases default to the RTL's own layout formula (A0/A1; it must
-// match clint.vhd), and generate.py overrides them with the same numbers it
-// hands the RTL, so the formula and its use cannot drift apart. At NHARTS = 5
-// this is MTIME_W = 8 and CMP_W = 12, which is where the gap between MSIP4
-// (word 4) and MTIMEL (word 8) comes from.
-//
-// MTIMECMP is a REGFILE array, not two register arrays: the lo/hi halves
-// interleave on an 8-byte stride and two interleaved register arrays overlap
-// ("Instance 'MTIMECMPH' at offset +0x34:0x5B overlaps with 'MTIMECMPL'").
-//
-// mtime free-runs on the always-on mclk and a write to either half defines
-// the whole 64-bit value for that cycle, so both halves are hw=rw.
-// ===========================================================================
+// VestaRV: the register map of hdl/common/clint.vhd
+// The VHDL is the authority, and the mtimecmp reset is NOT zero: `mtimecmp <= (others => (others => '1'))` resets every compare to all-ones so mtip starts low.
+// Parameterised, because the register SET is per hart and the word layout moves with the hart count: NHARTS the hart count (1..32), NHARTS_WORD that count spelled ("five") as generate.py's _spelled() prints it, MTIME_W the word index of MTIMEL = ceil(4*NHARTS/16)*4, CMP_W that of MTIMECMP0L = MTIME_W + 4.
+// The two word bases default to the RTL's own layout formula (it must match clint.vhd) and generate.py overrides them with the same numbers it hands the RTL, so the formula and its use cannot drift apart. At NHARTS = 5 this is MTIME_W = 8 and CMP_W = 12, which is where the gap between MSIP4 (word 4) and MTIMEL (word 8) comes from.
+// MTIMECMP is a REGFILE array, not two register arrays: the lo/hi halves interleave on an 8-byte stride and two interleaved register arrays overlap.
+// mtime free-runs on the always-on mclk and a write to either half defines the whole 64-bit value for that cycle, so both halves are hw=rw.
 
 `include "vesta_udp.rdl"
 

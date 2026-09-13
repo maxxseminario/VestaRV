@@ -1,9 +1,6 @@
-#*****************************************************************************
-# test_spi_flash.S
-#-----------------------------------------------------------------------------
-#
-# Test SPI peripheral with flash extended memory execution
-#
+# VestaRV: SPI flash extended-memory execution test
+# Jumps into the flash window and executes from it, so it needs a real AT45DB021E on SPI0 and the SPI_FOS offset that maps flash into the PC range.
+# SPI_CR_INIT selects 32-bit transfers, MSB first, TX and RX byte swap, BR = 4. The power-up delay must cover the part's tRDPD from CS deassertion, and is sized for smclk != mclk.
 
 #include "riscv_test.h"
 #include "test_macros.h"

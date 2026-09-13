@@ -1,7 +1,7 @@
-% TRNG chapter. Section order is the per-peripheral template enforced by
+% VestaRV: TRNG chapter of the TRM.
+% Section order is the per-peripheral template enforced by
 % python/check_intro_names.py (Overview / Functional description / Interrupts
-% and events / Programming / Usage notes). Restructured 2026-09-05; the prose
-% is unchanged apart from the headings it now sits under.
+% and events / Programming / Usage notes).
 \section{Overview}
 
 The TRNG (\peripheral{TRNGx}) is a ring-oscillator entropy source and harvest engine: a free-running ensemble of ring oscillators is XOR-reduced to one noisy bit, sampled by the free-running fabric clock (MCLK) through a two-flop synchronizer, decimated to let independent ring jitter accumulate between samples, and direct-packed 32 raw bits at a time into a data register that a driver drains one word at a time. A lightweight repetition-count health test watches the raw stream and raises a sticky alarm (which automatically halts harvesting) if the source looks stuck. The block has zero pins (the ring oscillators are internal combinational fabric, never a pad) and delivers one combined interrupt. The main features are listed below:

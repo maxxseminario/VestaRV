@@ -1,48 +1,11 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# extzawrs.S   (X1 Zawrs ext-probe)
-#-----------------------------------------------------------------------------
-# Single-hart adaptive probe for Zawrs (wrs.nto / wrs.sto), dispatched at BUILD
-# TIME on the CORE_ENABLE_ZAWRS macro (Zawrs has no misa bit). Per the phase
-# convention the macro is NEVER auto-derived and NEVER pulled from an include:
-#   * OFF arm = the DEFAULT build (macro undefined) — keeps the suite green.
-#   * ON arm  = built by EXPLICITLY appending the define. ORDER MATTERS:
-#     build_mp_images.sh FIRST (it rm -rf build/ + rebuilds ALL groups with the
-#     Makefile-default opts + -DNHARTS, so it DROPS a -D put on the earlier make;
-#     it also stamps .nharts), THEN rebuild rv32ua ON on top:
-#       ./build_mp_images.sh 4 ../../xcelium/riscv_test/rcf
-#       rm -rf build/
-#       make rv32ua-flash RISCV_GCC_OPTS="-static -mcmodel=medany \
-#         -fvisibility=hidden -nostdlib -nostartfiles -DNHARTS=4 -DCORE_ENABLE_ZAWRS"
-#     (the ON RTL is staged separately by flipping MemoryMap CORE_ENABLE_ZAWRS).
-#     NOTE: the sim reads xcelium/riscv_test/rcf, a SYMLINK -> verification/isa/rcf
-#     (present in the main checkout; a fresh git worktree of the gitignored
-#     xcelium/ tree may get a real dir — recreate the symlink or the sim runs a
-#     stale image).
-#
-#   ON  (#ifdef CORE_ENABLE_ZAWRS):
-#     (i)   no valid reservation -> BOTH wrs retire immediately (tiny mcycle
-#           delta).
-#     (ii)  a live SHARED reservation, no foreign store -> wrs.sto stalls until
-#           the short timeout (WRS_TIMEOUT = 1024 clk_cpu cycles); measured with
-#           mcycle: delta >= ~1024 and well below a hang.
-#     (iii) pending-interrupt wake: arm a timer, take a fresh reservation, then
-#           wrs.nto (NO timeout) -> the ONLY possible wake is the pending mtip,
-#           so reaching the code after wrs.nto (with the slot-84 ISR having
-#           fired) proves the interrupt-pending wake path.
-#   OFF (#else): trivially PASS so the default (Zawrs-off) suite stays green.
-#           The OFF = illegal-instruction trap is proven separately by the
-#           extzawrsx.S poison under the negative-control / stripped harness
-#           (executing the wrs encoding in the main suite would just hang in
-#           this core's terminal TRAP_STATE).
-#
-# NOTE: this core has NO mstatus.MIE (the CLINT/meip enables are hardwired on
-# at the tile, M19), so the spec's "wake even if globally disabled" sub-case
-# cannot be separately exercised here; the Zawrs wake keys off the RAW irq
-# vector (enable-agnostic) by construction, and (iii) exercises it with the
-# available (enabled) timer interrupt.
-#*****************************************************************************
+# VestaRV: Zawrs extension probe
+# Single-hart adaptive probe for wrs.nto and wrs.sto, dispatched at BUILD TIME on CORE_ENABLE_ZAWRS, since Zawrs has no misa bit. The macro is NEVER auto-derived and never pulled from an include: the default build leaves it undefined and takes the OFF arm, keeping the suite green, and the ON arm is built by explicitly appending the define.
+# ORDER MATTERS WHEN BUILDING THE ON ARM: run build_mp_images.sh FIRST, because it wipes build/ and rebuilds every group with the Makefile-default options plus -DNHARTS, dropping any -D placed on an earlier make, and then rebuild rv32ua on top with -DCORE_ENABLE_ZAWRS appended to RISCV_GCC_OPTS. The ON RTL is staged separately. Note also that the simulator reads a path that is normally a SYMLINK to verification/isa/rcf; a fresh worktree may materialise a real directory there and the simulation will run a stale image.
+# The ON arm has three legs. With no valid reservation both wrs forms retire immediately, a tiny mcycle delta. With a live SHARED reservation and no foreign store, wrs.sto stalls until the short timeout of 1024 clk_cpu cycles, measured with mcycle as a delta of at least about 1024 and well short of a hang. For the pending-interrupt wake, a timer is armed and a fresh reservation taken before wrs.nto, which has NO timeout, so the only possible wake is the pending mtip and reaching the code afterwards with the slot-84 ISR having fired proves the wake path.
+# The OFF arm passes trivially so the default suite stays green; the illegal-instruction trap for that polarity is proven separately by the extzawrsx.S poison under the stripped harness, because executing the wrs encoding in the main suite would hang in the terminal TRAP_STATE.
+# This core has no mstatus.MIE, the CLINT and meip enables being hardwired on at the tile, so the spec's "wake even if globally disabled" sub-case cannot be exercised separately here; the Zawrs wake keys off the raw irq vector by construction and the third leg exercises it with the available enabled timer interrupt.
 
 #include "riscv_test.h"
 #include "test_macros.h"

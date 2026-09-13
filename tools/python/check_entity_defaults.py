@@ -1,167 +1,11 @@
 #!/usr/bin/env python3.6
-# -*- coding: utf-8 -*-
-"""check_entity_defaults.py -- the ENTITY-DEFAULT AXIS checker (D1 acceptance).
+# coding: utf-8
+"""VestaRV: the entity-default axis checker.
 
-WHY THIS EXISTS (DD7's five-sites finding, d0_fsm_probe.md 2.5).
----------------------------------------------------------------------------
-A core feature knob's default is stated in FIVE independent places, not the
-two that ``check_config_defaults.py`` polices:
-
-    1. ``platform/common/python/generate.py``  ``_CONFIG_SCHEMA`` entry
-    2. ``platform/common/python/generate.py``  the ``_cfg(...)`` CALL SITE
-    3. ``hdl/common/vesta/vesta.vhd``          entity generic default
-    4. ``hdl/common/hart_tile.vhd``            entity generic default
-    5. ``hdl/common/MemoryMap.vhd``            the generated CORE_ENABLE_* constant
-
-and there are two more that behave like defaults because an OMITTED generic
-in a ``generic map`` silently inherits the entity's:
-
-    6. ``hdl/common/hart_tile.vhd``            the ``component vesta`` declaration
-    7. ``hdl/argus/MCU.vhd`` / ``hdl/common/MCU.vhd`` / the generator templates
-       -- every ``hart_tile`` instantiation, whose OMISSION is a decision
-
-Two of those DISAGREE for ``ENABLE_TRAPCSR`` (``vesta.vhd`` says ``false``,
-``hart_tile.vhd`` says ``true``), and the frozen ``hdl/argus/MCU.vhd``
-inherits the ``hart_tile`` value for all 18 tiles -- which is exactly how the
-Argus suite ran TRAPCSR-ON for two days with no way to say so (F-K7-4).  This
-is the instrument for that class of drift.
-
-THE REQUIREMENT IS PER CLASS, NOT ONE VALUE FOR THE WHOLE TREE.
----------------------------------------------------------------------------
-The original D1 contract was "``ENABLE_DEBUG`` is ``false`` at every DECL
-site".  That was the correct requirement while debug was an opt-in knob, and
-it is the WRONG one now: ``debug.enable`` became a SHIPPED default on
-2026-08-16, ``hdl/common/MemoryMap.vhd`` says ``CORE_ENABLE_DEBUG := true``,
-and ``hart_tile``/``orch_tile`` were flipped to match in the same change.
-The declaration sites are two different kinds of object and they answer to two
-different rules:
-
-  CORE class    ``vesta`` and the component declarations that stand for it,
-                plus ``debug_module`` and ``jtag_dtm``.  These must carry
-                ``--require-default`` (``false``).  A top that instantiates
-                the core, the DM or the DTM and names no debug generic gets an
-                inert unit: enabling debug is always a NAMED association,
-                never an inherited one.  That is the surviving half of the old
-                rationale, and it is what keeps a hand-written bench or a
-                third-party top from acquiring a debug port by omission.
-
-  WRAPPER class ``entity hart_tile`` and ``entity orch_tile``, the units a
-                ``genus elaborate`` hardening run instantiates BARE.  Their
-                default must equal the SHIPPED value, measured from
-                ``CORE_<G>`` in ``hdl/common/MemoryMap.vhd`` rather than
-                written here as a literal.  The hazard is M14's, not the
-                attack-surface one: ``MCU.vhd`` passes
-                ``ENABLE_DEBUG => CORE_ENABLE_DEBUG`` while a bare elaborate
-                takes the entity default, so a wrapper default that disagrees
-                with the shipped constant hardens a macro the assembly then
-                wires the other way, silently.
-
-Deriving the wrapper requirement from the generated constant is what stops
-this checker going stale a second time: flip the knob back and the required
-wrapper default flips with it, in the same commit, with no edit here.
-
-THE CONTRACT IS PER GENERIC, AND THERE ARE NOW TWO OF THEM.
----------------------------------------------------------------------------
-``ENABLE_IF_AHEAD`` (the C-extension fetch-ahead, shipped ON 2026-08-23) is
-the second core knob to take this shape, and it needed NO new code here: the
-site map, the two classes and the shipped-value oracle are all keyed on the
-generic name, so it is selected with ``-g ENABLE_IF_AHEAD`` and graded by the
-same rule.  Both generics are run as separate graded targets in
-``tools/python/BUILD.bazel``.
-
-The ONE parameter that is per-generic is the DECL-site floor.  It exists so a
-scanner that stopped matching cannot pass as clean, so it must be the MEASURED
-count for the generic under audit, not a shared guess:
-
-    ENABLE_DEBUG      5   entity vesta, two component declarations inside
-                          vesta.vhd (csr_unit and maindec carry it), entity
-                          hart_tile, the component vesta inside hart_tile.vhd,
-                          entity orch_tile, plus debug_module and jtag_dtm
-    ENABLE_IF_AHEAD   4   entity vesta, entity hart_tile, the component vesta
-                          inside hart_tile.vhd, entity orch_tile.  It is
-                          consumed WHOLLY INSIDE vesta.vhd (if_ahead_req), so
-                          no sub-block declaration carries it and neither the
-                          Debug Module nor the JTAG DTM has ever heard of it.
-
-A generic added to a sub-block later RAISES its floor; lowering one is how
-this instrument goes blind, so a drop in the count is a finding.
-
-WHAT IT REPORTS
----------------------------------------------------------------------------
-For a named generic, every site in the tree, classified:
-
-    DECL      an entity / component generic DECLARATION with a default
-    MAP       a ``generic map`` association giving it an explicit value
-    OMIT      a ``hart_tile`` or ``vesta`` instantiation that does NOT name
-              it -- i.e. it INHERITS the DECL default (a real decision, and
-              the one that is invisible in review)
-    CONST     a ``MemoryMap.vhd`` / template constant
-    PY        a ``generate.py`` schema entry or ``_cfg`` call site
-
-Exit codes:  0 = every requirement met.  1 = a requirement violated.
-             2 = the instrument itself is not live (see the control below).
-
-THE BUILT-IN LIVENESS CONTROL (method rule 4: validate against a known
-NONZERO value, not only against zero).  ``--require-absent`` on a generic
-that does not exist yet is an EXPECTED-ZERO answer, and a stale/broken
-scanner returns the same zero.  So every run ALSO scans a control generic
-(default ``ENABLE_TRAPCSR``) and requires at least ``--control-min`` sites.
-If the control comes back short the script exits 2 -- "the scanner is dead"
--- instead of blessing the zero.
-
-Deliberately NOT keyed on the trapCsr DISAGREEMENT (method rule 11: an
-instrument keyed on a defect reports success the day the defect is fixed).
-The disagreement is REPORTED, loudly, and never graded.
-
-THE SECOND AXIS: MGMT_HART -- REBASED AT CPR3, AND THE INVARIANT INVERTED.
----------------------------------------------------------------------------
-Everything above is about a DECLARATION drifting.  CP3 found the other half of
-the same class, and this instrument was blind to it: an INSTANTIATION that
-OMITS a generic whose entity default is silently WRONG for the configuration
-being built.  ``afe_stub.vhd`` declares
-
-    OWNER_HART : natural := 0;
-    MGMT_HART  : natural := 0;      -- CP1 D4
-
-and its access gate is ``master = OWNER_HART or master = MGMT_HART``.  The CP2
-emitter (``mcu_vhd.py`` ``afeStubsWithMgmt``) rewrote the EIS engine's
-association to ``OWNER_HART => 4`` and left ``MGMT_HART`` OMITTED, so the gate
-elaborated as ``{4, 0}`` and **hart 0 silently kept the EIS access D4 had moved
-to the orchestrator**.  Every gate stayed green; only ``shorch``'s negative
-control found it.
-
-**CPR3/R1 RETIRED THE MOVE ITSELF, so this axis now grades the OPPOSITE
-POLARITY.**  The orchestrator was renumbered to hart 0, which means the
-management hart is hart 0 in BOTH shapes -- the historical four-tile chip and
-the penta chip alike.  There is therefore no configuration in which
-``MGMT_HART`` should be anything but its entity default, and the generator has
-no business ever emitting the association.  A named MGMT_HART in 2026-08+ RTL
-does not merely differ from the default; it is evidence that something is
-re-deriving the CP2 index arithmetic that R1 deleted.
-
-The generic STAYS on the entity: it is the documented seam (CPR1 R1 says so in
-as many words), and a future chip that really does move the privilege off hart 0
-needs it there.  What is graded is that nobody uses it.
-
-    DECL   ``afe_stub.vhd`` declares MGMT_HART, and its default must be 0.
-           This is now load-bearing on EVERY configuration, not just the
-           default one -- there is no override anywhere to correct it.
-    OMIT   an ``afe_stub`` instantiation that does NOT name MGMT_HART.  This
-           is the required state, everywhere.
-    MAP    one that DOES -- a VIOLATION now, on any path, in any file.
-    EMIT   the generator-side emission sites, split into the VERBATIM class
-           (module-scope golden-master text) and the ORCHESTRATOR class (a
-           function whose body knows about the orchestrator).  BOTH must omit
-           MGMT_HART; the orchestrator class is still counted separately so a
-           restructured emitter that stops producing orchestrator text at all
-           cannot pass as clean.
-
-USAGE
-    /usr/bin/python3.6 tools/python/check_entity_defaults.py               # ENABLE_DEBUG two-class contract + the MGMT_HART axis
-    /usr/bin/python3.6 tools/python/check_entity_defaults.py -g ENABLE_IF_AHEAD --require-min-decls 4 --skip-mgmt-hart
-    /usr/bin/python3.6 tools/python/check_entity_defaults.py -g ENABLE_UMODE --tile-default same
-    /usr/bin/python3.6 tools/python/check_entity_defaults.py -g ENABLE_TRAPCSR --report-only
-    /usr/bin/python3.6 tools/python/check_entity_defaults.py --skip-mgmt-hart
+A core knob's default is stated in seven places and an omitted generic in a generic map
+silently inherits the entity's. CORE-class units must default false; WRAPPER-class units
+(hart_tile, orch_tile) must default to CORE_<G> in MemoryMap.vhd, read from the generated
+constant so the requirement cannot go stale. Exit 0 met, 1 violated, 2 instrument not live.
 """
 
 from __future__ import print_function
@@ -171,10 +15,8 @@ import os
 import re
 import sys
 
-# ---------------------------------------------------------------------------
 # The site map.  Paths are repo-relative; a MISSING file is reported, never
 # silently skipped (a renamed file must not read as "no violations here").
-# ---------------------------------------------------------------------------
 VHDL_DECL_FILES = [
     "hdl/common/vesta/vesta.vhd",
     "hdl/common/hart_tile.vhd",
@@ -240,11 +82,9 @@ EMIT_FILES = [
     "platform/common/hdl_templates/MCU.template.vhd",
 ]
 
-# ---------------------------------------------------------------------------
 # THE MGMT_HART AXIS (CP6).  A separate site map, because the sites are not the
 # core-generic sites: the generic lives on `afe_stub`, is instantiated five
 # times inside MCU.vhd, and is EMITTED by mcu_vhd.py rather than templated.
-# ---------------------------------------------------------------------------
 AFE_DECL_FILES = [
     "hdl/common/afe_stub.vhd",
 ]
@@ -292,11 +132,9 @@ RE_PYDEF = re.compile(r"^(\s*)def\s+(\w+)\s*\(")
 
 
 def scan_afe_insts(root, files, optional=False):
-    """`afe_stub` instantiations: does each name MGMT_HART, or inherit it?
-
-    Returns (kind, rel, lineno, label, detail) with kind in MAP / OMIT /
-    MISSING / SKIPPED.  The OWNER_HART value is carried in `detail` because the
-    eis0 shape is precisely "OWNER_HART moved, MGMT_HART did not".
+    """`afe_stub` instantiations: does each name MGMT_HART, or inherit it? Returns (kind, rel, lineno,
+    label, detail) with kind MAP, OMIT, MISSING or SKIPPED. The OWNER_HART value is carried in
+    `detail`, the eis0 shape being precisely OWNER_HART moved and MGMT_HART did not.
     """
     out = []
     for rel in files:
@@ -334,17 +172,9 @@ def scan_afe_insts(root, files, optional=False):
 
 
 def scan_mgmt_emitters(root, files):
-    """The generator-side emission sites, classified by EMITTING SCOPE.
-
-    A site is a source line that EMITS a `generic map (OWNER_HART => ...)`
-    string -- an `.append(...)` call or a bare string element of a module-scope
-    table.  Matcher lines (`if s.startswith('generic map (OWNER_HART =>')`) and
-    comments are NOT sites; they describe the text, they do not produce it.
-
-    Scope decides the rule:
-      <module>      the VERBATIM golden-master table -- must NOT name MGMT_HART
-      <function>    orchestrator-aware iff its own body mentions MGMT_HART or
-                    mgmtHart -- then it MUST name MGMT_HART on every site
+    """The generator-side emission sites, classified by emitting scope. A site is a line that emits a
+    `generic map (OWNER_HART => ...)` string; matcher lines and comments are not sites. Module
+    scope must not name MGMT_HART; an orchestrator-aware function must name it on every site.
     """
     out = []
     for rel in files:
@@ -507,7 +337,7 @@ def scan_consts(root, generic, files):
                 found = True
         if not found:
             # The file EXISTS and does not declare the constant.  That is the
-            # F-K7-4 shape (hdl/argus/MemoryMap.vhd has no CORE_ENABLE_TRAPCSR,
+            # known shape (hdl/argus/MemoryMap.vhd has no CORE_ENABLE_TRAPCSR,
             # so its 18 tiles inherit the hart_tile entity default with no way
             # to say so).  Never silent.
             out.append(("ABSENT", rel, 0, name, "<constant not declared>"))
@@ -530,12 +360,9 @@ def scan_emitters(root, generic, files):
 
 
 def scan_py(root, generic, files):
-    """generate.py: the _CONFIG_SCHEMA entry and the _cfg() call site.
-
-    The knob key is the generic minus ENABLE_, lower-cased -- the generator's
-    own convention (ENABLE_TRAPCSR <-> "trapCsr", ENABLE_DEBUG <-> "debug"/
-    "enable").  Both spellings are searched; this scan is ADVISORY (it does
-    not grade) because check_config_defaults.py already owns that pair.
+    """generate.py's _CONFIG_SCHEMA entry and _cfg() call site. The knob key is the generic minus
+    ENABLE_, lower-cased, and both spellings are searched. Advisory rather than graded:
+    check_config_defaults.py already owns that pair.
     """
     stem = re.sub(r"^ENABLE_", "", generic).lower()
     out = []
@@ -555,18 +382,16 @@ def scan_py(root, generic, files):
 
 
 def audit_mgmt_hart(root, report_only=False):
-    """The MGMT_HART axis (CP6).  Returns an exit code contribution.
-
-    0 = the pairing holds everywhere.  1 = a violation.  2 = the scanner found
-    too few sites to be believed (method rule 4 again: a restructured emitter
-    that produces no matches must not read as "clean").
+    """The MGMT_HART axis; returns an exit code contribution. 0 the pairing holds everywhere, 1 a
+    violation, 2 the scanner found too few sites to be believed, so a restructured emitter that
+    produces no matches cannot read as clean.
     """
     print()
     print("== MGMT_HART (afe_stub ownership gate; CPR3/R1: never overridden) ==")
 
     rc = 0
 
-    # ---- 1. the DECLARATION, which is the hinge of the whole scheme --------
+    # 1. the DECLARATION, which is the hinge of the whole scheme
     decls = scan_decls(root, "MGMT_HART", AFE_DECL_FILES)
     owner_decls = scan_decls(root, "OWNER_HART", AFE_DECL_FILES)
     for kind, rel, num, unit, val in owner_decls + decls:
@@ -588,7 +413,7 @@ def audit_mgmt_hart(root, report_only=False):
     if [r for r in decls if r[0] == "MISSING"]:
         rc = 1
 
-    # ---- 2. the VHDL instantiations: MGMT_HART MUST NEVER BE NAMED ---------
+    # 2. the VHDL instantiations: MGMT_HART MUST NEVER BE NAMED
     print("   -- afe_stub instantiations (CPR3: every one must INHERIT MGMT_HART)")
     rows = (scan_afe_insts(root, AFE_INST_FILES)
             + scan_afe_insts(root, AFE_INST_OPTIONAL, optional=True))
@@ -610,7 +435,7 @@ def audit_mgmt_hart(root, report_only=False):
             print("   MISSING FILE: %s -- the audit is INCOMPLETE" % rel)
             rc = 1
 
-    # ---- 3. the GENERATOR emission sites ----------------------------------
+    # 3. the GENERATOR emission sites
     print("   -- generator emission sites (mcu_vhd.py), by emitting scope")
     emits = scan_mgmt_emitters(root, AFE_EMIT_FILES)
     nverb = norch = 0
@@ -716,7 +541,7 @@ def main():
     root = args.root or os.path.dirname(os.path.dirname(
         os.path.dirname(os.path.abspath(__file__))))
 
-    # ---- liveness control FIRST (method rule 4) --------------------------
+    # liveness control FIRST
     ctl = collect(root, args.control)
     ctl_live = [r for r in ctl if r[0] in ("DECL", "MAP", "CONST")]
     print("== liveness control: %s ==" % args.control)
@@ -737,7 +562,7 @@ def main():
               "entity defaults DISAGREE across sites: %s"
               % (args.control, sorted(ctl_vals)))
 
-    # ---- the audit -------------------------------------------------------
+    # the audit
     rows = collect(root, args.generic)
     print()
     print("== %s ==" % args.generic)
@@ -778,7 +603,7 @@ def main():
     rc = 0
     want = tile_want = None          # bound below; named here for the verdict
     if not decls:
-        # method rule 9: never print a well-formed verdict about an empty set.
+        # Never print a well-formed verdict about an empty set.
         print("FAIL: %s is DECLARED NOWHERE -- there is nothing to audit. "
               "(The scanner is live: the %s control found %d sites above.)"
               % (args.generic, args.control, len(ctl_live)))

@@ -1,26 +1,9 @@
 # See LICENSE for license details.
 
-#*****************************************************************************
-# casw.S   (X2 Zacas directed suite — amocas.w word compare-and-swap)
-#-----------------------------------------------------------------------------
-# ON-POLARITY ONLY (rv32uzabha/rv32uzicond precedent): the amocas encodings
-# trap illegal on a zacas-OFF build, so this suite runs against a zacas-ON MCU
-# and is NOT wired into the default runner. gas 13.2 has no amocas mnemonic /
-# no `zacas' -march (verified at X2 bring-up), so every CAS is an explicit
-# `.insn' R-type:
-#     amocas.w rd,rs2,(rs1)  -> funct3=010, funct5=00101, funct7=funct5<<2=0x14
-#     .insn r 0x2f, 0x2, 0x14, rd, rs1_base, rs2_val
-#
-# amocas semantics (rd is a SOURCE — the compare value — AND the destination):
-#     temp = mem[rs1]; if temp == rd then mem[rs1] = rs2; rd = temp
-#
-# Coverage: both compare outcomes, and the FULL aliasing matrix (rd==rs1,
-# rd==rs2, rs1==rs2, rd==rs1==rs2) for both outcomes where meaningful. The
-# SUCCESS/FAIL "self-overwrite" arms are also the live-detector for the
-# stale-compare bug class (AMO_WRITEBACK writes the old value into rd BEFORE
-# the compare; a compare that re-reads the LIVE rd port sees the clobbered
-# value and flips the verdict).
-#*****************************************************************************
+# VestaRV: Zacas word compare-and-swap directed suite
+# ON-POLARITY ONLY: the amocas encodings trap illegal on a Zacas-off build, so this suite runs against a Zacas-on MCU and is NOT wired into the default runner. gas 13.2 has neither the amocas mnemonic nor a `zacas` -march token, so every CAS is an explicit `.insn r 0x2f, 0x2, 0x14, rd, rs1_base, rs2_val`, that is funct3 010 with funct5 00101 shifted into funct7.
+# THE SEMANTICS MAKE rd BOTH A SOURCE AND THE DESTINATION: temp = mem[rs1]; if temp equals rd then mem[rs1] takes rs2; rd takes temp.
+# Coverage is both compare outcomes and the FULL aliasing matrix, rd == rs1, rd == rs2, rs1 == rs2 and all three equal, for both outcomes where meaningful. THE SELF-OVERWRITE ARMS ARE THE LIVE DETECTOR for the stale-compare bug class, in which the writeback stage puts the old value into rd BEFORE the compare, so a compare that re-reads the live rd port sees the clobbered value and flips the verdict.
 
 #include "riscv_test.h"
 #include "test_macros.h"
