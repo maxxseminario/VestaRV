@@ -278,6 +278,11 @@ def main():
                     present.add(re.sub(r'[0-9x]+$', '', v).upper())
 
     # Tokens that are legitimately not memory-mapped register names.
+    # PWRCTRL fields that are one bit per TILE hart: a one-hart configuration
+    # has no tiles, so the generator emits no such field and the prose names a
+    # default-chip example, not drift.
+    TILE_MASK_FIELDS = ('PWRGATE', 'PWRTASKWKM')
+
     EXEMPT = {
         # CSRs and RTL signal names (the macro is only a monospace wrapper)
         'mhartid', 'mtime', 'mclk', 'req', 'done', 'rdata', 'meip', 'msip', 'mtip',
@@ -294,6 +299,9 @@ def main():
         'IRQENU', 'IRQENx', 'IRQPRIx', 'IRQCR',
         # conceptual 64-bit CLINT names; the registers are MTIMEL/MTIMEH pairs
         'MTIME', 'MTIMECMP', 'MTIMECMP0', 'MTIMECMPx',
+        # PWRSR is one word named PWRSR up to 8 harts and PWRSR0/1/2 beyond; the
+        # prose names the family (generate.py's PWRSR naming rule)
+        'PWRSR',
         # PENDL/M/U and INSVCL/M/U written with an x standing for the L/M/U
         # word suffix — the placeholder model only substitutes digits
         'PENDx', 'INSVCx',
@@ -405,6 +413,9 @@ def main():
             seen.add(tok)
             if hart_out_of_range(tok, numHarts, knownAll):
                 offHart.append((fn, tok))
+                continue
+            if numHarts == 1 and tok in TILE_MASK_FIELDS:
+                offHart.append((fn, tok))   # a per-tile mask has no bits without tiles
                 continue
             bad.append((fn, m.group(1), tok))
 
