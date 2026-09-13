@@ -1,8 +1,57 @@
 # Small helpers shared by the firmware regression tests.
 
+load("@rules_python//python:defs.bzl", "py_test")
+
 package(default_visibility = ["//visibility:public"])
 
 # Byte identity checker used as the main of py_test targets in the firmware
 # packages. Exported as a file rather than wrapped in a py_library because
 # each test needs it as its own entry point with its own arguments.
 exports_files(["compare_text.py"])
+
+# ---------------------------------------------------------------------------
+# The shared-code ISA gate.
+# ---------------------------------------------------------------------------
+
+# PROVES that no image more than one hart executes carries an instruction the
+# hardened tiles do not implement. Castalia's harts are not interchangeable:
+# hart 0 takes the full chip ISA, harts 1..N-1 are one hart_tile macro built
+# rv32iac, and the difference is M and Zb. The subset is READ from
+# derived.hartClasses in the generator's own resolved configuration, not
+# written here, so a configuration whose tiles keep M and Zb relaxes this gate
+# by itself.
+#
+# The resolved configuration comes from //platform/common:castalia_resolved_config,
+# the bazel-built DEFAULT-knob generation, rather than the tracked copy in the
+# workspace: the tracked copy holds whatever the last `make chip CONFIG=...`
+# wrote, and a gate must not change its answer because someone generated
+# another chip in the same tree.
+#
+# It grades the LINKED ELF. Compile flags are the cause and are pinned to the
+# tile subset (software/bootrom_mp/isa.bzl, software/dbg_trampoline/BUILD.bazel),
+# but a flag is a promise and the ELF is the fact. A failure names the image,
+# the section, the address, the mnemonic, the raw encoding and which extension
+# it came from.
+py_test(
+    name = "tile_isa_test",
+    size = "small",
+    srcs = ["check_tile_isa.py"],
+    args = [
+        "--resolved",
+        "$(rootpath //platform/common:castalia_resolved_config)",
+        "--objdump",
+        "$(rootpath @xpack_riscv_gcc//:objdump)",
+        "--elf",
+        "bootrom_mp=$(rootpath //software/bootrom_mp:flashboot.elf)",
+        "--elf",
+        "dbg_trampoline=$(rootpath //software/dbg_trampoline:dbg_trampoline_elf)",
+    ],
+    data = [
+        "//platform/common:castalia_resolved_config",
+        "//software/bootrom_mp:flashboot.elf",
+        "//software/dbg_trampoline:dbg_trampoline_elf",
+        "@xpack_riscv_gcc//:objdump",
+        "@xpack_riscv_gcc//:toolchain",
+    ],
+    main = "check_tile_isa.py",
+)
