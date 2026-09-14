@@ -532,3 +532,163 @@ already waived for, created by W10's own SPI fix) and `nfc0/t_etu_reg[0]/D`
 (mclk -> nfc0_rf; `t_etu` and the already-waived `t_etu_half` are assigned on one
 RTL line, `NFC.vhd:619`). Three waiver lines and the gate can be armed; `hdl/` is
 read-only for this wave.
+
+## 4.10 W13, 2026-09-14: the CORE-ONLY topology B, and what is parked
+
+Owner instruction of 2026-09-14: stop including the pad ring, implement the core
+only, and shrink the control-plane area of the per-tile-analog topology, because
+it is mostly empty space. New block `innovus/common/MCU_castalia_penta_pt_core`;
+the `_pt` and `_pt_b` lineages and topology A were not written. Full report:
+`<scratchpad>/reports/W13_core_only_B.md`; geometry in that block's
+`FLOORPLAN_CORE.md`.
+
+**The floorplan study, which the owner asked for before any cut.** The top cell
+is `MCU` (Genus `MCU_PENTA_pt`, md5 `2355f2f3`), so the pad wrapper, its 95 pad
+cells, the ten `PRCUTA_G`, the seal band, `anatop_biasgen_g0`, ANATOP parts
+1b/2/3/3b, delta **C17**, WQ-DELTA 22 and WQ-DELTA 24 all have no object and are
+removed rather than disabled. The 525 MCU port bits become core-boundary pins.
+
+Three measured quantities fix the die and nothing is chosen: the tile is
+660 x 880 with its `anatop_ch` cutout on the die-facing edge (so W >= 1320 and
+H >= 1762), the centre macros are 714,345 um2, and the standard cell to place is
+365,538 um2 (pt11 `summaryReport`, physical cells excluded). Above the tile
+minimum **a micron of width buys 1,760 um2 of corridor and a micron of height
+buys W um2 of band**, and the corridor is not a usable logic region below about
+200 um -- so every wide-and-short candidate overshoots the free-area budget in
+space that cannot be routed to. The smallest die that closes to the owner's
+65-70 % puts all of the logic in ONE band:
+
+| | chip `pt11` | core `c1` |
+|---|---:|---:|
+| core box | 2690 x 2690 = 7,225,344 um2 | **1400 x 2714 = 3,791,376 um2** (-47.5 %) |
+| die incl. pad ring | 3000 x 3000 = 9,000,000 um2 | **none: the die is the core** |
+| centre band | 928 x 2688 = 2,494,464 um2 | **952 x 1398 = 1,330,896 um2** |
+| corridors between the tile columns | 2 x 1330 x 880 = 2,340,800 um2 | 2 x 40 x 880, **cut** |
+| centre macro area | 829,945 um2 (incl. the 115,600 bias generator) | **714,345 um2** |
+| free row area | 3,988,171 um2 | **540,345 um2** |
+| **utilisation** | **9.2 %** (tool: pure gate density #4 8.976 %) | **67.6 %** |
+| north-centre corridor reserve | 691,600 um2, **426,200 held** (P15) | **0: no corridor, no bias generator** |
+| hart0 soft region | 455,135 um2, 326,996 free, **19.8 %** (43.2 % on castalia_b) | **166,868 um2, 95,875 free, 67.5 %** |
+
+**The floorplan + PG stage PASSES every gate**, and the whole-die M7/M8
+wide-metal spacing census on its own DEF is better than the chip's: M7 S3 0/0,
+S4 **1**/2 over 9,768 rectangles; M8 0/0 over 1,371. Three gates characterised
+against the 2690 um die were re-derived from their own run-time measurement, not
+relaxed: the WQ-DELTA 5 M7 phase 21.6 -> **0.9 um** (the gate's own 56-phase
+sweep; 21.6 now scores 5 hazards and 0.9 scores 2), the WQ17 uncovered-row
+budget from an absolute 60 to **10 % of the live row count** (measured 61 of
+1252), and the WQ21 tile-PG-weld floor 40 -> **0** (1 of 120 stripes coincides
+with a riser pad at the new phase -- a weld floor is the wrong gate for a
+coincidence count).
+
+**There are no tile header switches to re-plan.** `VDD_SW` and `PD_*` appear
+zero times in the netlist, every `sroute` reads `-nets { VSS VDD }`, and the flow
+FATALs on any switched rail (CP4b TODO 4). `FLOORPLAN_PT.md` section 4.2's claim
+to the contrary is stale prose and is not fixed from here.
+
+**B-PT9-2 cannot arise on this block**: the class was a core tie cell overriding
+a pad `attachTerm`, and there is no pad. Delta C17 is deleted, not disabled.
+
+**B-PT11-1 on this core, by construction.** `POC` does not exist -- it is a tphn
+`.GLOBAL` rail carried by pad cells that are not in this netlist, so the pt11
+`POC` open is a pad-ring artefact that cannot recur. The four bias rails are
+ordinary five-terminal port nets (one boundary pin, four tile pins) with the
+placeholder `anatop_biasgen_g` abstract out of the path; what remains of
+`W-PT1-1` is one level down, in the `hart_tile_pt` placeholder, unchanged.
+`AVDD`/`AVSS` needed a decision and got one: with no pad, no PRCUT bracket and
+no C12 ring, the core **exports eight PG pins** at the eight tile analog pins,
+which already sit on the die edge, and the four channels' analog supplies are
+joined outside the block. That is a boundary contract rather than an open, and
+it is the honest limit of a core-only deliverable. The LVS number that confirms
+it needs the GDS.
+
+**PARKED, in order:**
+
+| # | item |
+|---|---|
+| **W13-A** | cut `c1` (place, CTS, route, coupled-SI signoff at the four views) was launched at 03:50 and had not finished when this section was written. |
+| **W13-B** | core DRC. Expected to be the pt11 census MINUS the pad kit: the 1,506 `ESD.*g` and the 312 `PO.R.8` come from tphn cells that are not in this stream, so **their presence would mean a pad cell leaked in**. |
+| **W13-C** | LVS with the negative control. The collateral generator does not exist yet: it is `gen_MCU_castalia_penta_pt_b_lvs_collateral.sh` with the block dir, the design name and the CUTSEL/XSIMSEL defaults changed and `patch_chip_pads_penta_pt.py` DROPPED. |
+| **W13-D** | stream and promote into `castalia_B_core`. `signoff_mp/Makefile` was NOT edited (W12's wave is in it); the block definition is written out in the new file `signoff_mp/blocks_pt_core.mk`, whose header lists the four edits that file needs, with line numbers. `innovus/common/Makefile` needs one rule, a copy of `MCU_castalia_penta_pt_b.innovus`; until it lands, `./run_core.sh <CUT>` is the same command line. |
+| **W13-E** | fold the six post-surgery fixes back into `<scratchpad>/w13/surgery.py` so the flow regenerates in one step. |
+
+**Three Innovus 20.12 behaviours paid for here.** `editPin -unit` requires
+`-spacing` (IMPTCM-113). The ranged and spread forms of `editPin` **SEGFAULT the
+process** on a 505-name `-pin` list -- one `-assign` per port is what this flow
+does instead. `dbGet -p top.terms` is rejected: `-p` requires a pattern.
+
+
+## 4.9 W3, 2026-09-14: topology A confirmed on the new RTL. Cut d13c is the cut of record.
+
+Full report: `<scratchpad>/reports/W3_topology_A_d13c.md`. No tracked file but this
+one was modified; `hdl/` and `platform/` were never written.
+
+**Genus `MCU_PENTA` from a frozen staging of HEAD `aa2d5fda`** (the commit after the
+three CDC fixes), 00:30:52, every gate at `GATE_STRICT=1`, pmk census 0, drift 0 of
+72. **The CDC census is the headline: NOT waived 701 -> 3.** The 701 was the waiver
+lint reading the list differently from Tcl, fixed in `bfbedb55`; the residual three
+are `nfc0/t_etu_reg[0]/D` (mclk -> nfc0_rf) and `spi0`/`spi1` `s_gap_reg/D`
+(mclk -> clk_sck0/1), all one-bit quasi-static, all consequences of the W10 fixes
+plus Genus's own register merging, and all needing an entry in
+`hdl/common/cdc/cdc_waivers.tcl` that this wave may not write. QoR against W1's
+cut: 130,812 -> **130,863** cells, 24,339 -> **24,355** flops, 0 latches, worst
+setup slack unchanged at **+3,529 ps**.
+
+**The topology-A tile.** T3's harden had never had its Calibre pass. It does now:
+blockdrc **14** against the d13a tile's 16 (the two 20 nm `M3.S.2` survivors are
+gone, one `M2.S.2.1` appears elsewhere), ant25 **0**, LVS **MATCH** with sentinels
+ARMED, ERC bit-identical. Promoted as the tile of record, pinned at
+`innovus/common/hart_tile/out.d13c_ref/`.
+
+**Chip cut d13c, closed on attempt 4**, `out/MCU_castalia_penta.d13c.gds2` md5
+`60c4b13a58f8ccb9df13767e471e3368`:
+
+| | d13b | **d13c** |
+|---|---:|---:|
+| setup / hold WNS, 4 coupled-SI views | +55 / +1 ps | **+67 / 0 ps**, 0 violating both |
+| chipdrc | 1805 | **1792** (1506 ESD + 64 density + **172 `PO.R.8`** + 50 real) |
+| ant25 | CLEAN | **CLEAN**, identical |
+| LVS | 1 waiver | **1 waiver** (the placeholder macro), negative control PASSES |
+| WQ27 waived Short / dangling | 2 / 67 | **0 / 65** |
+
+Four attempts, four flow defects, all fixed at source: (1) WQ-DELTA 13's
+`mcu0/timer*/g11710` were stale literals that had never existed in any netlist,
+and `set_disable_clock_gating_check` accepts an unresolvable name in silence --
+two false clock-gating hold checks at **-9.3 ns**, now DERIVED from
+`mcu0/timer*/clock_source`; (2) WQ26c refused multi-sink nets and the whole
+residual was the `mp_arb0` read-data bus, though `ecoAddRepeater -term` is
+terminal scoped; (3) WQ26c ran once per cut and so never saw the endpoints the
+ECO's own re-extraction opens, now once per pass; (4) **C17**, W2's topology-B
+root cause, present here too: `addTieHiLo` re-bound the two analog pad terminals
+ANATOP part 3 had attached to AVDD/AVSS, and that is where d13b's two analog-pad
+`SHORT` results came from. `-excludePin` plus a census that FATALs on any analog
+pad terminal left on a tie net; **those two waivers are retired, not carried**.
+
+Topology A's LVS shows **neither** of the two residual classes W2 reports on B:
+`rm1` and `rm2` compare 2:2 with zero unmatched, and there are no
+`** missing connection **` lines at all -- A has no shared bias rails, each pixel
+carrying its own local bias generator.
+
+**Parked items, one bounded attempt each.** *hart-0 region fence*: the 129
+"violations" are `adddec0`, `bnd_*_r`, `tx_rdata_r` and `sh_rdata`, every one an
+interface register whose counterparty is west of the flank; containment 99.47 %;
+the soft region is working as designed and what needs changing is the instrument,
+not the floorplan. *`PO.R.8` 172*: the register's claim that the residual sits at
+the flow's other `cutRow` sites is **wrong** -- all 120 top-level results are in
+x[908.0,1664.9] y[2143.5,2168.6], the row band under the analog macro's halo cut
+-- and **70 of them are inside the 6 um band WQ28 already taps**, so more or
+deeper tap strips is refuted at chip level as it was at tile level. The band is
+where two independent cuts truncate the same rows 21 um apart (the analog-window
+cut at 2149, the macro halo cut at 2170); snapping both to whole tap boundaries is
+the floorplan change to try, and it is the owner's. *ERA macro PGV*: three tool
+blockers cleared (LEF set, layermap dialect, techonly-first merge) and
+`ERA_PGV_DIR` added to the shared driver, but a LEF-abstract macro PGV still loads
+19.83 mA of 32.32 mA -- the same 61 % -- because it carries pin geometry and no
+internal resistance network. A GDS- or SPICE-based PGV off the SIGNOFF strmout is
+what would close it.
+
+**Ingested as `castalia_A_d13c`** (0 errors, all strmin gates fired) with a
+README that states what the cut does NOT establish: the 172 open `PO.R.8`, the
+placeholder macro, the absent ERA verdict, the three unwaived CDC crossings, and
+LEC never having run. All three signoff knobs, `DRC_WAIVERS_d13c.md`, both
+runbooks and the attic index moved with it.
