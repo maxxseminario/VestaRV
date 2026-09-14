@@ -438,3 +438,43 @@ One workspace hazard worth the register: another agent re-hardened `hart_tile_pt
 the GDS merged the pinned tile -- but **b1's LVS pairs a pt9-era tile layout with a
 pt10-era tile netlist**. The port-width gate passes; the device-level pairing is not
 one-cut.
+
+## 4.8 W1, 2026-09-13: the five flow defects closed, both assemblies re-cut
+
+Full report: `<scratchpad>/reports/W1_flow_fixes_genus.md`. Nothing tracked was
+modified; everything is under `genus/`, `innovus/` and `xcelium/`.
+
+| defect | state |
+|---|---|
+| **P15-1** TILE_ generic strip | **CLOSED.** `=> TILE_` with any suffix, plus a census that ENUMERATES what the staged generation emits, both in `genus/common/tcl/flow_gates.tcl` and called from all three assemblies. `genus/common/in/{penta_wound_hdl,penta_wound_pt_hdl}` re-staged from the current generator. Proven by both 30-minute cuts: 100 associations removed, 0 remain, elaborate clean |
+| **T2 footer** | **CLOSED at the netlist.** The pmk `set_dont_use` block and census copied verbatim into `MCU_PENTA` and `MCU_PENTA_pt_b` (never `hart_tile_pt`). First exercise: 46 of 46 cells marked avoid, census 0 in soft logic, and **`FOOTBUF32MA10TH` 13 -> 0 on topology A and 71 -> 0 on topology B**. The chip-LVS improvement itself still needs a cut |
+| **P15-2** WQ25 extraction census | **CLOSED, and the verdict reverses.** Cause: the denominator counted the constant `assign` tie-offs the regenerated register blocks emit (the `MCU_PENTA_pt` netlist went 1,698 -> 58,435 assigns). Measured on both databases -- pt9 **97,083 extractable, Quantus 97,083 (100.00 %)**; b1 **123,938 extractable, Quantus 123,923 (99.99 %)**. **Both extractions COMPLETED. pt9's and b1's timing stands; pt9 stays parked for HOLD, not for extraction.** Basis replaced with `flow_extractable_nets` (F19c's, from `hart_tile.innovus.tcl`) at six sites |
+| **P15-3** C16 criterion in the hold ECO | **CLOSED.** Ported into `MCU_castalia_penta_pt`; both drivers now share `flow_c16_above_cap` |
+| **P15-4** the dropped bussed endpoint | **CLOSED, mechanism corrected.** The pointer-keeping fix is ported and extended to the endpoint PIN lookup. It is NOT a character class: measured on Innovus 20.12, `dbGet` treats `[` `]` literally and honours `*`/`?`; what breaks is that `dbGet <obj>.name` returns a bussed name Tcl-list-QUOTED (`{prt1[7]}`), which is the string the b1 log's `FAIL {mcu0/npu0_mux_ram_a[0]}` was searching for. Selftest `innovus/common/shared/name_glob_selftest.tcl` (13 checks, plain tclsh) |
+| **T1-1** `.sv` dropped by the gate harness | **CLOSED in the shared body.** `xcelium/riscv_test/common/run_gate_suite.sh` gains an `.sv`/`.svh` arm, its own `xmvlog -SV` pass and a FATAL on any unrecognised cell-list extension; T1-2's `timescale added to `genus_d13a_pt/anatop_ch_stub.sv` |
+
+Both assemblies re-cut from HEAD `a279c2ca` and promoted, every gate at
+`GATE_STRICT=1`, CDC census reported and not armed:
+
+| | A, 2026-09-05 | **A, W1** | B, 2026-09-12 | **B, W1** |
+|---|---:|---:|---:|---:|
+| cells | 127,029 | **130,812** | 130,734 | **130,795** |
+| flops | 23,511 | **24,339** | 24,404 | **24,407** |
+| latches | 0 | **0** | 0 | **0** |
+| area (um2) | 1,488,015.19 | **1,505,538.79** | 1,946,666.79 | **1,946,780.39** |
+| worst setup slack | +3,539 ps | **+3,529 ps** | +3,547 ps | **+3,529 ps** |
+| pmk cells | 13 | **0** | 71 | **0** |
+
+A's +828 flops decompose exactly as P6's +813 assembly delta plus T3's +3 in
+`orch_tile` and +3 in each of the four `hart_tile` macros; B's +3 is the
+orchestrator's alone, its four `hart_tile_pt` macros being reused unchanged.
+
+    topology A : genus/MCU_PENTA/out/MCU_PENTA_hier.genus.v         md5 4dc4172f
+    topology B : genus/MCU_PENTA_pt/out/MCU_PENTA_pt_hier.genus.v   md5 5adfbbd1
+
+**Parked.** Topology B's cut reads HEAD, not the live tree: another wave is mid-rewrite
+on `hdl/common/periph/{SPI,I3C,NFC}.vhd` and the drift gate refused the first attempt at
+minute 30. When that work commits, both assemblies need one more 30-minute cut against
+the merged RTL. The hold-ECO fixes are not exercised by a cut either; the next ECO is
+their proof.
+
