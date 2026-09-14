@@ -533,6 +533,107 @@ already waived for, created by W10's own SPI fix) and `nfc0/t_etu_reg[0]/D`
 RTL line, `NFC.vhd:619`). Three waiver lines and the gate can be armed; `hdl/` is
 read-only for this wave.
 
+## 4.11 W14, 2026-09-14: cut `c2` CLOSES, and the tile's header-switch chain is broken
+
+Full report: `<scratchpad>/reports/W14_core_c2.md`. `hdl/` and `platform/` never
+written. Four cuts, one at a time.
+
+**The brief's premise about power gating was wrong, and the census that showed it
+found a blocking defect.** No chip-level flow has ever carried a switched rail:
+`cpf/hart_tile_pt.cpf` is `set_design hart_tile_pt`, `read_power_intent` /
+`addPowerSwitch` appear **10 times in the tile flow and 0 times in every chip
+flow** (A, B, B-core, viewdefinitions included), `hart_tile_pt.lef` contains **0**
+occurrences of `VDD_SW`, all ten `sroute` calls read `-nets { VSS VDD }`, and the
+chip flow's own CP4b TODO 4 gate **FATALs if any switched rail exists at top
+level**. W13's copy lost nothing. `FLOORPLAN_PT.md` 4.2 corrected. The fabric is
+**728 `pgsw_*` HEADBUF16MA10TH per tile** (732 inserted, 4 deleted by the
+dead-rail scrub), 2,912 over the core, controlled through ordinary signal pins:
+`pwr0/sleep_r_reg[1..4]/Q` -> each tile's `pd_sleep`, `pwr0/iso_r_reg[1..4]/Q`
+-> `pd_iso_en`, all eight measured DRIVEN on cut c2 by a new flow gate.
+
+**NEW BLOCKING DEFECT, both topologies, every cut so far.** Walking the SLEEP
+daisy chain from `pd_sleep` plus the four PG1 repeaters reaches **423 of 728**
+switches: **305 (41.9 %) have an undriven gate**, identically in `hart_tile_pt`
+attempt 32 and `hart_tile` `out.d13c_ref`, so in all four tiles of pt11, d13b and
+d13c. Cause: the M17b dead-rail scrub deletes the four chain-HEAD switches at
+tile-local y = 1 (columns 31, 191, 351, 511) after `addPowerSwitch` placed them,
+and nothing re-attaches the downstream SLEEP net. LVS cannot see it (both sides
+float the same net) and no chip-level check can (`VDD_SW` stops at the abstract).
+**Fixed at source in both tile flows** (`pgsw_resplice` + a FATAL reachability
+gate); **no re-harden was run** -- that invalidates both cuts of record and is the
+owner's call. Census tool `MCU_castalia_penta_pt_core/pgsw_census.py`.
+
+**The die height is quantised to the 50 um mesh pitch.** H 2779, W13-A3's figure,
+is not a legal value: attempt 1 FATALed at the PG tile census with hart1/hart2 at
+**VDD sWires 0 against VSS 22** and the blockPin sroute creating 492 wires against
+c1's 660. The M8 stripe sets start at `STRIPE_Y0 = 580.5`, pinned by the BOTTOM
+tiles which do not move with the die, while the TOP tiles' upper M7 PG pad row
+rides on `DESIGN_HEIGHT`; +65 um walks the gap from the proven **37.5 um to
+52.5**, past what the sroute bridges for VDD (it still reaches VSS, 9 um across on
+another column phase -- hence the asymmetric census). Legal heights are 2714 + k*50:
+2764 (72.6 %) and **2814 (65.3 %)**, and only 2814 is inside 65-70 %. A
+`FATAL (W14 mesh pitch)` gate now rejects an off-lattice height at floorplan time.
+
+**Cut `c2` at 1400 x 2814 = 3.940 mm2 (-45.5 % on the chip's core box) CLOSES
+TIMING -- the first topology-B core cut that does.** Signoff at the coupled-SI
+views: **setup +0.073 ns / 0 violating of 34,780; hold +0.001 ns / 0 violating**
+(c1: hold -0.011 / 6 violating; pt7, pt9, pt11 each parked on hold). What closed
+it is topology A's two W3 rules ported to B -- WQ26c accepting multi-sink nets and
+running once per ECO PASS -- plus `PENTA_HOLDREP_MAX=24`. Post-route density
+**63.105 %**, and that **refutes W13-A3's own model**: the implied placed area is
+426,656 um2, **3.2 % LESS** than at H 2714, because a design optimised into a
+looser floorplan buys less buffering. With that measurement, **H 2764 lands at
+70.1 %** -- the die to cut if the owner wants the stated headroom exactly.
+
+**WQ27 FATALed on `Short 96 / Overlap 9`, all of it four WQ26c repeaters placed
+ON TOP OF shbank1/shbank2** (`ecoAddRepeater -loc` does not check legality, and
+the `arb_rdata_*` endpoints are tile boundary pins across the shared-RAM row).
+Fixed at source (WQ26c refuses an insertion point inside a macro) and **recovered
+out of flow** from the saved database by a new driver: four explicit
+`placeInstance` moves, **unintended drift 0**, SHORT 0 / OVERLAP 0, timing
+unchanged. Three tool findings paid for there: `refinePlace` does nothing on
+100 %-full rows (`IMPSP-2002`) and moves **4,777** instances once the filler is
+out -- it is the `ecoPlace` failure mode, not a four-cell repair tool;
+`routeDesign -routeSelectedNetOnly` fails detailRoute on a finished database where
+`ecoRoute` succeeds; and `timeDesign -outdir` writes `*.summary.gz` /
+`*_hold.summary.gz`, so a `*.summary` glob refuses a repair that closed.
+
+**Signoff.** GDS `out/...c2.gds2`, 171,930,562 B, md5
+`51549f1c5237f8d7330269bc2dbba00c`, merge list = the tile GDS only (structure
+census returns 0 for every pad-kit name; W13 finding 6 closed by construction).
+**The DRC deck was wrong**: `chipdrc` gives `12605 (12761)` of which **11,772 are
+`CSR.*`** seal-ring results, and `blockdrc` is the same deck with `#DEFINE
+FULL_CHIP` off -- a block with no seal band and no pad ring. The two TILE blocks
+run `blockdrc` for the same reason. **blockdrc 115 = 64 density/dummy (O3) + 51
+real, 0 CSR, 0 `PO.R.8`, 0 `ESD.*g`** (W13-B's leak test, passed).
+**ant25 CLEAN: 2 (12) `MIM_SWITCH.WARN.1`**, byte-identical to d13c and to
+Myshkin's shipped run. **LVS MISMATCH on ONE class**: reduced devices
+**7,951,129 : 7,951,129, 0 unmatched both sides**, `anatop_ch` **4 : 4 match**,
+shorts empty with sentinels ARMED, and **the four bias rails MATCH** while `POC`
+does not exist -- both halves of B-PT11-1 as predicted. The residual is 4
+unmatched layout nets / 6 pins: `AVDD_1/_3/_4`, `AVSS_1/_3/_4`, the eight exported
+PG pins with no metal joining them, which is **a boundary contract** (the join is
+the pad row's, and there is no pad row). **Negative control PASSES**: one deleted
+inverter, exactly 2 extra unmatched layout devices, AVDD/AVSS class unchanged.
+
+**Promoted.** All four `signoff_mp/Makefile` edits applied plus
+`PENTA_PT_CORE_DB ?= repair`; `innovus/common/Makefile` gained its rule;
+`promote_lib.sh` and `cds.lib` gained `castalia_B_core`. Ingested as
+`castalia_B_core_c2` (0 errors, all gates fired) with an honest README, promoted
+into `castalia_B_core`, and **proved from a fresh headless `virtuoso -nograph`**:
+`castalia_B_core/MCU/layout` opens at bBox (0,0)-(1400.13,2814.0) with **231,720
+instances**, identical to the per-cut library.
+
+**PARKED, in order:**
+
+| # | item |
+|---|---|
+| **W14-A** | **the 305 floating header-switch gates.** Fixed in both tile flows, NOT re-hardened. A tile re-harden invalidates d13c and pt11 and is the owner's call. This is the highest-value open item in the wave. |
+| **W14-B** | **the DRC ECO pass.** 51 real results, dominated by `M7.S.2`/`M7.S.2.1` (11 each, the PG wide-metal class whose only lever is the WQ-DELTA 5 mesh phase, already at its optimum). Innovus's own `verifyGeometry` reads Wiring 0 / Short 0 on the same database, so `ecoRoute -fix_drc` has no marker to act on; closing them needs a Calibre-marker-driven ECO in the shape of `hart_tile/tcl/drc_eco.tcl`, not ported to this block. |
+| **W14-C** | **AVDD/AVSS.** A boundary contract by construction. Either the integrator joins the eight PG pins outside, or the owner decides a core-level 2.5 V analog strap across the digital band is acceptable and the flow draws it. Not a decision this wave may take. |
+| **W14-D** | **H 2764 if the owner wants 70 %.** c2 measured the coefficient the extrapolation needed; 2764 is a legal lattice point and lands at 70.1 %. One cut. |
+| **W14-E** | the four W3 WQ26c fixes and the macro guard went into the `_pt` CHIP flow as well as the core's. **`MCU_castalia_penta_pt` has not been re-cut with them**, so pt11 remains the B chip cut of record and does not carry them. |
+
 ## 4.10 W13, 2026-09-14: the CORE-ONLY topology B, and what is parked
 
 Owner instruction of 2026-09-14: stop including the pad ring, implement the core
