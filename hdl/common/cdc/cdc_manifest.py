@@ -39,9 +39,102 @@ _NAME_OK = re.compile(r"^u_sync_[A-Za-z]\w*$")
 
 UPDATE_CMD = "tools/bin/bazel run //hdl/common/cdc:cdc_manifest_update"
 
-# One waiver per line, `{<instance glob> "<justification>"}`, inside cdc_waiver_list.
-# The shape is fixed so this gate can read the same file Genus sources.
-_WAIVER = re.compile(r"^\s*\{(\S+)\s+\"([^\"]*)\"\}\s*$")
+# One waiver per element of cdc_waiver_list's `return` list, `{<instance glob>
+# "<justification>"}`.  The list is parsed HERE THE WAY TCL PARSES IT, element by
+# element, and not line by line, because the two disagree in the one place that matters:
+# a `#` line inside a braced list is DATA, not a comment.  Tcl hands every word of it to
+# the census as a waiver glob, so a sentence naming an instance waives that instance.
+# W5b hit exactly that: a comment saying `spi?/s_spi_teif_reg (2) are DEFECTS` waived
+# both endpoints it declared unwaivable.  Any element that is not a well-formed
+# {glob "reason"} pair therefore FAILS this gate.  Commentary goes above the proc.
+_TCL_SPACE = " \t\n\r\f\v"
+
+
+def tcl_brace_word(text, start):
+    """The braced word that starts at text[start] == '{', as (inner, index past the
+    closing brace).  Backslash escapes are skipped whole, which is what stops a `\{` from
+    opening a level, and the count is over real braces only, exactly as Tcl's parser does.
+    """
+    depth = 0
+    i = start
+    while i < len(text):
+        char = text[i]
+        if char == "\\":
+            i += 2
+            continue
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start + 1:i], i + 1
+        i += 1
+    return None, len(text)
+
+
+def tcl_list_elements(text):
+    """The elements of a Tcl list, each as (kind, raw), kind being brace, quote or bare.
+    Enough of Tcl's list grammar for this file: whitespace separates, braces and double
+    quotes group, and a backslash escapes the next character anywhere.
+    """
+    out = []
+    i = 0
+    end = len(text)
+    while i < end:
+        while i < end and text[i] in _TCL_SPACE:
+            i += 1
+        if i >= end:
+            break
+        if text[i] == "{":
+            inner, i = tcl_brace_word(text, i)
+            if inner is None:
+                raise ValueError("unbalanced brace")
+            out.append(("brace", inner))
+            continue
+        if text[i] == '"':
+            j = i + 1
+            buf = ""
+            while j < end and text[j] != '"':
+                if text[j] == "\\":
+                    buf += text[j:j + 2]
+                    j += 2
+                    continue
+                buf += text[j]
+                j += 1
+            if j >= end:
+                raise ValueError("unbalanced quote")
+            out.append(("quote", buf))
+            i = j + 1
+            continue
+        j = i
+        buf = ""
+        while j < end and text[j] not in _TCL_SPACE:
+            if text[j] == "\\":
+                buf += text[j:j + 2]
+                j += 2
+                continue
+            buf += text[j]
+            j += 1
+        out.append(("bare", buf))
+        i = j
+    return out
+
+
+def tcl_unescape(word):
+    """Backslash substitution, the step between the raw list element and the string the
+    census's `string match` actually receives: `\\[` in the file reaches Tcl as `\[`,
+    which matches a literal bracket.
+    """
+    out = ""
+    i = 0
+    while i < len(word):
+        if word[i] == "\\" and i + 1 < len(word):
+            out += word[i + 1]
+            i += 2
+            continue
+        out += word[i]
+        i += 1
+    return out
 
 
 def waiver_failures(path, text):
@@ -49,20 +142,45 @@ def waiver_failures(path, text):
     waiver with no reason, or one that covers a whole block, is how a CDC gate quietly
     stops being one.
     """
-    out = []
-    body = re.search(r"proc\s+cdc_waiver_list\s*\{\s*\}\s*\{(.*)\}", text, re.DOTALL)
-    if not body:
+    head = re.search(r"proc\s+cdc_waiver_list\s*\{\s*\}\s*\{", text)
+    if not head:
         return ["%s: proc cdc_waiver_list is missing or has moved" % path]
+    body, _ = tcl_brace_word(text, head.end() - 1)
+    if body is None:
+        return ["%s: proc cdc_waiver_list's body has an unbalanced brace" % path]
+    ret = re.search(r"\breturn\s*\{", body)
+    if not ret:
+        return ["%s: proc cdc_waiver_list has no `return {...}` list" % path]
+    listbody, _ = tcl_brace_word(body, ret.end() - 1)
+    if listbody is None:
+        return ["%s: cdc_waiver_list's return list has an unbalanced brace" % path]
+
+    out = []
+    try:
+        elements = tcl_list_elements(listbody)
+    except ValueError as err:
+        return ["%s: cdc_waiver_list's return list is not a Tcl list (%s)" % (path, err)]
+
     seen = set()
-    for line in body.group(1).splitlines():
-        if not line.strip() or line.strip().startswith(("#", "return", "}")):
+    for kind, raw in elements:
+        if kind != "brace":
+            out.append(
+                "%s: stray list element %r in cdc_waiver_list. A `#` line inside the "
+                "braced list is NOT a Tcl comment: every word of it becomes an element "
+                "and its first word becomes a live waiver glob. Put commentary above "
+                "`proc cdc_waiver_list`." % (path, tcl_unescape(raw)))
             continue
-        match = _WAIVER.match(line)
-        if not match:
-            out.append("%s: waiver line is not {<glob> \"<justification>\"}: %s"
-                       % (path, line.strip()))
+        try:
+            parts = tcl_list_elements(raw)
+        except ValueError as err:
+            out.append("%s: waiver entry {%s} is not a Tcl list (%s)" % (path, raw, err))
             continue
-        glob, reason = match.group(1), match.group(2)
+        if len(parts) != 2:
+            out.append("%s: waiver entry is not {<glob> \"<justification>\"}: {%s}"
+                       % (path, raw.strip()))
+            continue
+        glob = tcl_unescape(parts[0][1])
+        reason = tcl_unescape(parts[1][1])
         if glob in seen:
             out.append("%s: waiver %s is listed twice" % (path, glob))
         seen.add(glob)
@@ -72,8 +190,8 @@ def waiver_failures(path, text):
         if len(reason) < 24:
             out.append("%s: waiver %s has no justification worth the name" % (path, glob))
         for index, char in enumerate(glob):
-            if char in "[]" and glob[max(0, index - 2):index] != "\\\\":
-                out.append("%s: waiver %s must escape its brackets as \\\\[*\\\\]; "
+            if char in "[]" and (index == 0 or glob[index - 1] != "\\"):
+                out.append("%s: waiver %s must escape its brackets as \\[*\\]; "
                            "Tcl reads a bare [*] as a character class and matches nothing"
                            % (path, glob))
                 break

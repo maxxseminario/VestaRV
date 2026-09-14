@@ -121,6 +121,11 @@ architecture behavioral of NFC is
     signal clr_fieldf, clr_rxframef, clr_txdonef     : std_logic;
     signal clr_crcerrf, clr_parerrf                  : std_logic;
     signal halt_req_tgl : std_logic;  -- toggle-CDC for the HALTCLR W-pulse (event)
+    -- Payload-write announcement, one toggle flipped on the ClkMem edge that commits a
+    -- firmware NFCxDATA write into payload_mem. It is the ONLY thing that crosses out of
+    -- the payload window; the 64 bytes themselves never cross. See the autoread copy
+    -- interlock in bfsm (W5a-1).
+    signal pay_wr_tgl : std_logic;
 
     -- ---- clk (smclk) domain: CDC synchronizers + sticky W1C flags --------
     -- Every chain flop lives inside a work.sync instance; what is declared here
@@ -200,6 +205,11 @@ architecture behavioral of NFC is
     signal resp_appcrc : std_logic;               -- append CRC_A
     signal do_respond  : std_logic;               -- FDT/TX only when set
     signal next_state  : iso_t;                   -- iso_state to adopt after the reply
+    -- Autoread copy interlock (rf_clk domain), W5a-1.
+    signal pay_wr_s2   : std_logic_vector(0 downto 0);  -- q of u_sync_pay_wr_tgl
+    signal pay_copy    : std_logic;               -- this reply came out of payload_mem
+    signal pay_mark    : std_logic;               -- pay_wr_s2 as it stood at the copy
+    signal pay_wait    : natural range 0 to 7;    -- settling budget before the re-check
     signal crc_reg     : std_logic_vector(15 downto 0);
     signal crc_idx     : natural range 0 to 32;   -- byte index for the RX CRC pass
     signal rx_nbytes   : natural range 0 to 32;   -- assembled byte count (standard frame)
@@ -387,6 +397,7 @@ begin
     begin
         if resetn = '0' then
             halt_req_tgl <= '0';
+            pay_wr_tgl   <= '0';
             for i in 0 to 63 loop payload_mem(i) <= (others => '0'); end loop;
         elsif rising_edge(ClkMem) then
             if acc_s(SLOT_CR) = '1' and WEn(0) = '0'
@@ -395,6 +406,8 @@ begin
             end if;
             if acc_s(SLOT_DATA) = '1' and WEn(0) = '0' and idx_sel = '0' then
                 payload_mem(idx) <= wdata(NFCDATA_MSB downto NFCDATA_LSB);
+                -- Announce the write to the rf side on the same edge that commits it.
+                pay_wr_tgl <= not pay_wr_tgl;
             end if;
         end if;
     end process;
@@ -532,6 +545,30 @@ begin
         end if;
     end process;
     halt_pulse <= halt_r2 xor halt_rprev; -- 1-rf_clk pulse on a HALTCLR request
+
+    /* -------- autoread copy interlock (W5a-1) ------------------------------
+       AUTOREAD answers a reader READ by copying 16 bytes of payload_mem into resp_bytes
+       on ONE rf_clk edge, and AUTOREAD exists precisely so firmware is not in the loop
+       and may be writing that window at the time. The write lands on ClkMem and the copy
+       on rf_clk, unrelated clocks, so a byte sampled inside its own setup window resolves
+       bit by bit: the composer then folds a value the tag never held into CRC_A and the
+       reader receives a frame that passes CRC and parity and is wrong. Silent corruption,
+       and 128 census endpoints.
+       The fix is an interlock, not a second 64-byte window. payload_mem still does not
+       cross; what crosses is pay_wr_tgl, one bit on a work.sync chain. The rf side
+       snapshots the synchronised toggle at the copy and compares it again before the
+       reply is composed. Any write whose ClkMem edge fell in that span, the coincident
+       one included, has flipped the toggle and reached pay_wr_s2 by then, so the reply is
+       dropped and the tag stays silent; an ISO 14443-3 reader retries, and the retry
+       sees a settled window. The cost of a false positive is one dropped reply, which
+       costs a retry.
+       pay_wait is the settling budget: the toggle needs up to two rf_clk edges to appear
+       on pay_wr_s2 after the ClkMem edge, so the re-check waits at least that long even
+       when FDT is programmed to zero. With any realistic FDT the counters overlap and
+       the interlock adds no latency at all. */
+    u_sync_pay_wr_tgl : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => rf_clk, areset => resetn, d(0) => pay_wr_tgl, q => pay_wr_s2);
 
     /* -------- RX: modified-Miller decoder + bit assembler ------------------
        rf_rx is the raw pause envelope ('0' = pause), 2-FF synchronized and classified once per bit period on a free-running ETU grid started at the first pause (SOC, which emits no data bit): a pause in the second half is a 1, a pause in the first half or none at all is a 0.
@@ -725,6 +762,7 @@ begin
             tx_start <= '0'; do_respond <= '0'; next_state <= POWER_OFF;
             resp_len <= 0; resp_start <= 0; resp_split <= '0'; resp_splitb <= 0;
             resp_appcrc <= '0'; tx_nbits <= 0;
+            pay_copy <= '0'; pay_mark <= '0'; pay_wait <= 0;
             rx_cmd <= (others => '0'); rx_len <= (others => '0'); rx_nbytes <= 0;
             rx_crcok <= '0'; rx_parok <= '0'; is_short <= '0'; shortval <= (others => '0');
             crc_reg <= (others => '0'); crc_idx <= 0; fdt_cnt <= (others => '0');
@@ -828,6 +866,9 @@ begin
 
                     -- DECIDE: run the ISO tag state machine and stage the reply, if any.
                     when ACT_DECIDE =>
+                        -- Only a payload copy arms the interlock; every other reply
+                        -- (ATQA, UID, SAK) is composed from registers the rf side owns.
+                        pay_copy <= '0';
                         respond_v := '0';
                         nstate_v  := iso_state;
                         resp_split <= '0'; resp_start <= 0; resp_appcrc <= '0';
@@ -909,6 +950,11 @@ begin
                                     end loop;
                                     resp_len <= 16; resp_appcrc <= '1'; nstate_v := ISO_ACTIVE;
                                     if listen_r2 = '1' then respond_v := '1'; end if;
+                                    -- Arm the copy interlock: remember the payload-write
+                                    -- toggle as it stands at the copy edge.
+                                    pay_copy <= '1';
+                                    pay_mark <= pay_wr_s2(0);
+                                    pay_wait <= 4;
                                 end if;                           -- AUTOREAD=0 leaves the answer to firmware
                             elsif iso_state = ISO_ACTIVE and rx_cmd = x"50" then  -- HLTA
                                 if rx_crcok = '0' then rf_crcerr_lvl <= '1'; end if;
@@ -933,15 +979,27 @@ begin
 
                     -- FDT: count out the Frame-Delay-Time before the reply may start.
                     when ACT_FDT =>
-                        if fdt_cnt = conv_std_logic_vector(0, 17) then
+                        if pay_wait /= 0 then pay_wait <= pay_wait - 1; end if;
+                        if fdt_cnt = conv_std_logic_vector(0, 17) and pay_wait = 0 then
                             -- FDT elapsed: launch the composer, which hands over to ACT_TX at CMP_FIN.
                             -- The reply therefore lands FDT plus the compose latency (at most about 19 rf_clk ticks) after the reader's EOF, so program FDT short by that much if a reader demands the exact ISO grid.
-                            cmp_k  <= resp_start;      -- skip bytes already sent (split)
-                            cmp_wr <= 0;               -- tx_bits write pointer
-                            crc_cmp <= x"6363";        -- CRC_A init
-                            cmp_ph <= CMP_BYTES;
-                            act <= ACT_COMPOSE;
-                        else
+                            if pay_copy = '1' and pay_wr_s2(0) /= pay_mark then
+                                -- Copy interlock (W5a-1): a firmware NFCxDATA write was in
+                                -- flight across the autoread copy, so resp_bytes may hold a
+                                -- byte that was never in the window. Drop the reply instead
+                                -- of CRCing it onto the air; the reader retries.
+                                pay_copy   <= '0';
+                                do_respond <= '0';
+                                iso_state  <= next_state;
+                                act        <= ACT_LISTEN;
+                            else
+                                cmp_k  <= resp_start;      -- skip bytes already sent (split)
+                                cmp_wr <= 0;               -- tx_bits write pointer
+                                crc_cmp <= x"6363";        -- CRC_A init
+                                cmp_ph <= CMP_BYTES;
+                                act <= ACT_COMPOSE;
+                            end if;
+                        elsif fdt_cnt /= conv_std_logic_vector(0, 17) then
                             fdt_cnt <= fdt_cnt - 1;
                         end if;
 

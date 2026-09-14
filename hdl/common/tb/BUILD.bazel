@@ -837,6 +837,7 @@ vhdl_source_set(
 vhdl_source_set(
     name = "i3c_rtl",
     paths = [
+        "hdl/common/sync.vhd",
         "hdl/common/constants.vhd",
         "hdl/common/sim/ClkGate.vhd",
         "hdl/common/periph_regs.vhd",

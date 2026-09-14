@@ -531,7 +531,7 @@
           "main": true,
           "port": true,
           "processes": 2,
-          "sync": false
+          "sync": true
         },
         "clk_baud": {
           "main": false,
@@ -565,7 +565,23 @@
         }
       },
       "main_clock": "clk",
-      "syncs": []
+      "syncs": [
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "ibi_sync_d"
+          ],
+          "depth": "2",
+          "line": 467,
+          "name": "u_sync_ibi_req",
+          "q": [
+            "ibi_sync_q"
+          ],
+          "rst_val": "",
+          "width": "1"
+        }
+      ]
     },
     "hdl/common/periph/NFC.vhd": {
       "clocks": {
@@ -603,10 +619,25 @@
             "field_detect"
           ],
           "depth": "2",
-          "line": 407,
+          "line": 420,
           "name": "u_sync_field_detect",
           "q": [
             "field_s2"
+          ],
+          "rst_val": "",
+          "width": "1"
+        },
+        {
+          "areset": "resetn",
+          "clk": "rf_clk",
+          "d": [
+            "pay_wr_tgl"
+          ],
+          "depth": "2",
+          "line": 569,
+          "name": "u_sync_pay_wr_tgl",
+          "q": [
+            "pay_wr_s2"
           ],
           "rst_val": "",
           "width": "1"
@@ -618,7 +649,7 @@
             "evt_lvl_d"
           ],
           "depth": "2",
-          "line": 413,
+          "line": 426,
           "name": "u_sync_rf_evt_lvl",
           "q": [
             "evt_lvl_q"
@@ -633,7 +664,7 @@
             "rf_rx"
           ],
           "depth": "2",
-          "line": 543,
+          "line": 580,
           "name": "u_sync_rf_rx",
           "q": [
             "rx_s2"
@@ -648,7 +679,7 @@
             "stat_lvl_d"
           ],
           "depth": "2",
-          "line": 424,
+          "line": 437,
           "name": "u_sync_rf_status",
           "q": [
             "stat_lvl_q"
@@ -663,7 +694,7 @@
             "state_ack"
           ],
           "depth": "2",
-          "line": 483,
+          "line": 496,
           "name": "u_sync_state_ack",
           "q": [
             "state_ack_q"
@@ -678,7 +709,7 @@
             "state_req"
           ],
           "depth": "2",
-          "line": 479,
+          "line": 492,
           "name": "u_sync_state_req",
           "q": [
             "state_req_q"
@@ -939,7 +970,7 @@
           "main": false,
           "port": true,
           "processes": 1,
-          "sync": false
+          "sync": true
         },
         "clk_baud": {
           "main": false,
@@ -999,10 +1030,25 @@
             "cfa_sync_d"
           ],
           "depth": "2",
-          "line": 594,
+          "line": 610,
           "name": "u_sync_ClearFlashActive_smclk",
           "q": [
             "cfa_sync_q"
+          ],
+          "rst_val": "",
+          "width": "1"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "gap_sync_d"
+          ],
+          "depth": "2",
+          "line": 529,
+          "name": "u_sync_s_gap",
+          "q": [
+            "gap_sync_q"
           ],
           "rst_val": "",
           "width": "1"

@@ -113,9 +113,34 @@ architecture sim of I3C_tb is
     signal a_obs_ibi_acked : std_logic;
     signal a_obs_ibi_count : natural;
 
+    -- ---- GROUP 16: clk_baud runt monitor.
+    -- clk_baud is the serial core's clock, gated out of `not clk` by two chained ClkGates whose enable carries the IBI wake. It is internal, so the monitor reads it through a VHDL-2008 external name, the same device NFC_tb uses for SR.STATE.
+    signal cb_mon_en   : std_logic := '0';
+    signal cb_pulses   : natural   := 0;
+    signal cb_min_high : time      := 1 sec;
+
     shared variable sb : scoreboard;
 
 begin
+
+    /* clk_baud high-phase monitor. clk_baud gates `not clk`, so every high phase it
+       emits must be a WHOLE clk low phase, PERIOD/2 wide. Anything narrower is a runt,
+       which is what an unsynchronised enable moving inside the gate's own setup window
+       produces. The monitor grades the minimum width seen while armed. */
+    cb_mon : process
+        alias cb is << signal dut.clk_baud : std_logic >>;
+        variable t_rise : time := 0 ns;
+    begin
+        wait on cb;
+        if cb = '1' then
+            t_rise := now;
+        elsif cb_mon_en = '1' and t_rise > 0 ns then
+            cb_pulses <= cb_pulses + 1;
+            if (now - t_rise) < cb_min_high then
+                cb_min_high <= now - t_rise;
+            end if;
+        end if;
+    end process cb_mon;
 
     -- clock / gated register-bus clock
     clk    <= not clk after PERIOD / 2;
@@ -240,6 +265,7 @@ begin
         variable got_od, got_pp : boolean;
         variable t_od, t_pp   : time;
         variable neg_ibi_mdb  : std_logic_vector(7 downto 0) := (others => '0');
+        variable ibi_cnt0     : natural := 0;          -- GROUP 16 per-phase IBI count
 
         -- Program the target model's per-transaction shape; the model holds it stable across one START..STOP frame.
         procedure i3c_cfg_model(addr    : std_logic_vector(6 downto 0);
@@ -971,6 +997,84 @@ begin
         sb.check_true("GROUP15: post-NACK directed write finished", done_ok);
         sb.check_slv("GROUP15: model A captured 0x47 post-NACK", a_obs_wdata(0), x"47");
         i3c_w1c_clear(x"0000000E");
+
+        /* GROUP 16: the IBI request arrives asynchronously to clk, at eight phases.
+           ibi_req is clocked by the SDA pad, so its rise lands at an arbitrary point in
+           the clk period. Before W10 it drove the two ClkGate enables and fsm_proc raw:
+           a rise inside the enable latch's setup window could emit a runt on clk_baud
+           and clock the framer while ibi_req was still resolving, arming P_IBI_HDR with
+           only part of {t_odbr, t_ppbr, t_busmode, t_ppdata, t_ibien, pp_rate, bitno}
+           loaded (W5b-1). u_sync_ibi_req now stands between them.
+           Each pass fires the IBI at a different eighth of the clk period and grades two
+           things: the framer arms EXACTLY ONCE (one model-observed IBI frame, one IBIP,
+           one ACK, and the same {addr, MDB} capture every time), and clk_baud emits no
+           short pulse over the whole sweep.
+           The behavioural ClkGate latches its enable while ClkIn is low and so cannot
+           model a runt; the width check is therefore a guard on the gating logic, and
+           the silicon argument for the runt itself is the synchroniser, not this bench. */
+        report "=== GROUP 16: IBI arrival phase sweep (8 phases) ===" severity note;
+
+        -- Re-arm IBIs (GROUP 15 left IBIEN=0) and keep IBIIE on.
+        bus_write(clk, pbus, SlotI3CxCR,
+                  i3c_mk_cr('1', '0', '1', '1',            -- EN, BUSMODE=0, SDAPP=1, IBIEN=1
+                            '0', '1', '0', '1', '0', '0',  -- ERRIE + IBIIE
+                            x"04", x"01"));
+        a_ibi_mdb      <= x"5C";
+        a_ibi_has_data <= true;
+        wait for 1 ns;
+
+        cb_mon_en <= '1';
+        for ph in 0 to 7 loop
+            ibi_cnt0 := a_obs_ibi_count;
+
+            -- Place the target's START, and with it the ibi_req clock edge, at phase
+            -- ph/8 of the clk period. clk and SDA are unrelated in silicon; here the
+            -- bench chooses the offset so all eight are covered in one run.
+            wait until clk = '1';
+            wait for (ph * PERIOD) / 8 + 1 ns;
+            a_ibi_trigger <= '1';
+
+            i3c_wait_busy_set(clk, pbus, rdata_out, done_ok);
+            sb.check_true("GROUP16 phase " & integer'image(ph) & ": IBI service started",
+                          done_ok);
+            i3c_wait_sr_bit_set(clk, pbus, rdata_out, SrBitIBIP, done_ok);
+            sb.check_true("GROUP16 phase " & integer'image(ph) & ": IBIP set within bound",
+                          done_ok);
+            i3c_wait_busy_clear(clk, pbus, rdata_out, done_ok);
+            sb.check_true("GROUP16 phase " & integer'image(ph) & ": BUSY cleared (STOP)",
+                          done_ok);
+            a_ibi_trigger <= '0';
+            wait for 10 * PERIOD;
+
+            -- Armed exactly once: one IBI frame on the wire for one trigger.
+            sb.check_true("GROUP16 phase " & integer'image(ph)
+                          & ": framer armed exactly once (model saw "
+                          & integer'image(a_obs_ibi_count - ibi_cnt0) & " IBI frame(s))",
+                          a_obs_ibi_count = ibi_cnt0 + 1);
+            sb.check_bit("GROUP16 phase " & integer'image(ph) & ": controller ACKed",
+                         a_obs_ibi_acked, '1');
+
+            -- The context the arm latches is complete every time: the header ACK landed,
+            -- the MDB was clocked and the capture reads back whole.
+            bus_read(clk, pbus, rdata_out, SlotI3CxIBI, rdw);
+            sb.check_slv("GROUP16 phase " & integer'image(ph) & ": IBIADDR = 0x08",
+                         rdw(6 downto 0), "0001000");
+            sb.check_slv("GROUP16 phase " & integer'image(ph) & ": IBIMDB = 0x5C",
+                         rdw(15 downto 8), x"5C");
+            sb.check_bit("GROUP16 phase " & integer'image(ph) & ": IBIACKED set",
+                         rdw(17), '1');
+
+            i3c_w1c_clear(x"00000200");   -- IBIP
+            i3c_w1c_clear(x"0000000E");   -- TC / RXFULL / TXE
+        end loop;
+        cb_mon_en <= '0';
+        wait for PERIOD;
+
+        sb.check_true("GROUP16: clk_baud monitor not vacuous, saw "
+                      & integer'image(cb_pulses) & " high phases", cb_pulses >= 8 * 20);
+        sb.check_true("GROUP16: no runt on clk_baud over the sweep; narrowest high phase "
+                      & time'image(cb_min_high) & " against a whole clk low phase of "
+                      & time'image(PERIOD / 2), cb_min_high >= PERIOD / 2);
 
         -- GROUP 11: negative control, mandatory and LAST.
         -- One deliberately wrong expected IBI MDB that MUST report a mismatch, proving the checkers can fail; it is the single expected failure.

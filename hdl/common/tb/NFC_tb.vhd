@@ -252,6 +252,8 @@ begin
         variable fr      : nfc_byte_array(0 to NFC_MAX_BYTES - 1) := (others => (others => '0'));
         variable crc     : std_logic_vector(15 downto 0);
         variable payload : nfc_byte_array(0 to 15);
+        variable payload2 : nfc_byte_array(0 to 15);   -- GROUP 5b: the replacement block
+        variable wr_passes, na, nb : natural := 0;     -- GROUP 5b burst / tear accounting
         variable txn_tgt : natural := 0;
         variable neg_val : std_logic_vector(7 downto 0) := x"00";
         variable fdt1, fdt2 : natural;
@@ -487,6 +489,101 @@ begin
         bus_read(clk, pbus, rdata_out, SlotNFCxSR, rdw);
         sb.check_slv("GROUP5: still ACTIVE after READ", rdw(11 downto 8),
                      std_logic_vector(to_unsigned(StACTIVE, 4)));
+        w1c(x"0000000C");
+
+        /* GROUP 5b: the autoread copy against a firmware NFCxDATA write (W5a-1).
+           AUTOREAD answers a READ by copying 16 bytes of payload_mem into resp_bytes on
+           ONE rf_clk edge, and AUTOREAD exists so that firmware is NOT in the loop and
+           may be rewriting that window while the reader polls. payload_mem is written on
+           ClkMem. Nothing used to stand between the two: the copy took whatever the
+           bytes held at that instant, the composer CRCed it, and the reader received a
+           frame that passes CRC and parity and holds data the tag never had.
+           The interlock now snapshots a payload-write toggle, carried into rf_clk on
+           u_sync_pay_wr_tgl, at the copy and compares it again before composing. A write
+           anywhere in that span drops the reply, and an ISO 14443-3 reader retries.
+           The bench drives the race directly: the READ is launched and firmware then
+           writes the whole window, pass after pass, ALTERNATING between the old block
+           and the new one so that a copy landing anywhere inside a pass is a visible
+           mixture and not a coincidence. The writes are back to back and the burst
+           outlasts the frame, so the copy edge falls inside it at any clock phase.
+           On the pre-W10 RTL this group answers the reader with a block holding some
+           bytes of each; the note below prints the split. It is a genuine tear and not a
+           simulation artefact: the copy is one edge, so what tears in RTL is the BLOCK,
+           and what tears in silicon is additionally the byte. */
+        report "=== GROUP 5b: autoread copy vs a firmware NFCxDATA write ===" severity note;
+
+        for i in 0 to 15 loop
+            payload2(i) := std_logic_vector(to_unsigned(16#50# + i, 8));
+        end loop;
+
+        fr := (others => (others => '0'));
+        fr(0) := x"30"; fr(1) := x"00";    -- READ, block 0
+        cfg_bytes <= fr;
+        cfg_short          <= false;
+        cfg_nbytes         <= 2;
+        cfg_append_crc     <= true;
+        cfg_resp_parity    <= true;
+        cfg_partial_bits   <= 0;
+        cfg_corrupt_parity <= false;
+        cfg_corrupt_crc    <= false;
+        wait for 1 ns;
+        txn_tgt := txn_tgt + 1;
+        cfg_go <= '1'; wait for 2 ns; cfg_go <= '0';
+
+        wr_passes := 0;
+        while obs_txn_count /= txn_tgt loop
+            bus_write(clk, pbus, SlotNFCxIDX, nfc_mk_idx(0, '1', '0'));
+            for i in 0 to 15 loop
+                if (wr_passes mod 2) = 0 then
+                    bus_write(clk, pbus, SlotNFCxDATA, x"000000" & payload2(i));
+                else
+                    bus_write(clk, pbus, SlotNFCxDATA, x"000000" & payload(i));
+                end if;
+            end loop;
+            wr_passes := wr_passes + 1;
+            exit when wr_passes > 200;     -- bounded (never hangs)
+        end loop;
+        wait for 20 * PERIOD;
+
+        sb.check_true("GROUP5b: the write burst really spanned the frame, "
+                      & integer'image(wr_passes) & " pass(es) of 16 bytes",
+                      wr_passes >= 2 and wr_passes <= 200);
+        sb.check_bit("GROUP5b: no reply while a firmware NFCxDATA write is in flight",
+                     obs_saw_response, '0');
+        if obs_saw_response = '1' then
+            na := 0; nb := 0;
+            for i in 0 to 15 loop
+                if obs_bytes(i) = payload(i)  then na := na + 1; end if;
+                if obs_bytes(i) = payload2(i) then nb := nb + 1; end if;
+            end loop;
+            report "GROUP5b: the reader WAS answered during the burst: "
+                   & integer'image(na) & " byte(s) from the old block and "
+                   & integer'image(nb) & " from the new. A split is the torn copy."
+                   severity note;
+        end if;
+        w1c(x"0000001C");                  -- RXFRAMEF | TXDONEF | CRCERRF
+
+        -- The deferral is a retry, not a loss: with the window quiet the next READ
+        -- returns the new block whole.
+        for i in 0 to 15 loop
+            payload(i) := payload2(i);
+        end loop;
+        fill_payload;
+        fr := (others => (others => '0'));
+        fr(0) := x"30"; fr(1) := x"00";
+        cfg_bytes <= fr;
+        do_frame(false, 2, true, true, 0, false, false);
+        sb.check_bit("GROUP5b: the retry is answered once the window is quiet",
+                     obs_saw_response, '1');
+        sb.check_true("GROUP5b: retry returns 16 payload bytes + CRC", obs_nbytes = 18);
+        for i in 0 to 15 loop
+            sb.check_slv("GROUP5b: retry byte " & integer'image(i) & " = the new block",
+                         obs_bytes(i), payload2(i));
+        end loop;
+        sb.check_bit("GROUP5b: retry CRC_A ok", obs_crc_ok, '1');
+        bus_read(clk, pbus, rdata_out, SlotNFCxSR, rdw);
+        sb.check_slv("GROUP5b: still ACTIVE after the deferral and the retry",
+                     rdw(11 downto 8), std_logic_vector(to_unsigned(StACTIVE, 4)));
         w1c(x"0000000C");
 
         -- GROUP 6: HLTA enters HALT silently, REQA is ignored, WUPA re-wakes
