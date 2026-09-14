@@ -3,6 +3,15 @@
 # pad-placement template are all rendered from.
 import datetime, os, pathlib
 
+# The pad-instance placeholder the Innovus pad-placement template gives a package pin.
+# Module level because two readers must agree on it: the template emitter in generate.py and
+# the die-row ball-map gate below.
+def PadInstanceName(name):
+	'''"P3.0(GPIO24)/SDA0" -> PAD_P3_0 ; "VDDPST" -> PAD_VDDPST ; "ATP-IN" -> PAD_ATP_IN'''
+	base = name.split('(')[0].split('/')[0].strip()
+	return 'PAD_' + base.replace('.', '_').replace('-', '_')
+
+
 class PackageData():
 	PackageType = None	# QFN, DIP, etc.
 	PinCount = None
@@ -16,6 +25,9 @@ class PackageData():
 	GpioPowerDomain = None
 
 	Pins = None
+
+	DieRow = None		# the die-row pad list this model is derived from, or None
+	DieRowSource = None	# where those rows were read from, named in the gate's messages
 
 	def __init__(self, packageType:str, pinCount:int, units:str, dimensions:list, pinsOnEachSide:dict, pinPitch:float, pinWidth:float, pinDepth:float, gpioPowerDomain=None):
 		allowedPackageTypes = ['QFN', 'LQFP']
@@ -112,6 +124,162 @@ class PackageData():
 		p = self.AddPin(packagePinNumber, gpio.GpioName, 'io')
 		p.Gpio = gpio
 		return p
+
+	# ---- the die row, and the ball-number gate over it -------------------------------
+	# A package model may be DERIVED from a die-row pad list: a file that says which pad
+	# instance sits where on the die and which ball, if any, it bonds to. Two descriptions
+	# of one ring drift, and the ball number is the column that drifts silently, because
+	# nothing downstream of the model re-reads the die row. AttachDieRow declares the rows
+	# and CheckDieRowBallMap compares them, ball for ball, against this model AND against
+	# the pad list the model emits. A model with no die row declares none and the gate is a
+	# no-op, so this costs nothing for the models that are their own authority.
+
+	def AttachDieRow(self, pads, source):
+		'''Declare the die-row pad list this package model is derived from.
+
+		`pads` is a sequence of mappings with:
+		  net           the pad's net, which must be the package pin NAME on its ball
+		  packagePin    the ball, or None for a die pad with no package finger
+		  side          optional, 'W'/'S'/'E'/'N', the edge the die row places it on
+		  inst          optional, the pad instance name, carried for the message only
+		`source` is where the rows were read from; it is quoted in every complaint, so a
+		failing build names the file to fix.
+		'''
+		rows = []
+		for pad in pads:
+			net = pad.get('net')
+			if not isinstance(net, str) or len(net) < 1:
+				raise Exception('die row ' + str(source) + ': a pad has no "net" name: ' + str(pad))
+			ball = pad.get('packagePin')
+			if ball is not None and (type(ball) != int or ball < 1 or ball > self.PinCount):
+				raise Exception('die row ' + str(source) + ': pad "' + net + '" has packagePin '
+					+ str(ball) + ', which is not a ball on this ' + str(self.PinCount) + '-pin package'
+					+ ' (use null for a die pad with no package finger)')
+			side = pad.get('side')
+			if side is not None and side not in ('W', 'S', 'E', 'N'):
+				raise Exception('die row ' + str(source) + ': pad "' + net + '" declares side "'
+					+ str(side) + '"; the sides are W, S, E, N')
+			rows.append({'net': net, 'packagePin': ball, 'side': side, 'inst': pad.get('inst')})
+		self.DieRow = rows
+		self.DieRowSource = source
+
+	def SideOfPin(self, packagePinNumber):
+		'''Which edge a ball sits on, from PinsOnEachSide alone: the same W/S/E/N walk over
+		ascending pin numbers that ChipGenerator.CheckPackagePins does, so it answers before
+		the sides have been assigned. None for a number off the package.'''
+		if type(packagePinNumber) != int or packagePinNumber < 1 or packagePinNumber > self.PinCount:
+			return None
+		low = 0
+		for side in ('W', 'S', 'E', 'N'):
+			high = low + self.PinsOnEachSide[side]
+			if low < packagePinNumber <= high:
+				return side
+			low = high
+		return None
+
+	def PadListRows(self):
+		'''The rows the Innovus pad-placement template emits, as (side, pin, instance): one per
+		declared pin, in emission order (W and N pin-descending, S and E ascending), with the
+		uniquified instance placeholder each will carry and None for a no-connect. One
+		derivation, shared by the template emitter and the gate below, so a ball cannot read
+		one way in the template and another in the check.'''
+		ordered = []
+		for side, descending in (('W', True), ('S', False), ('E', False), ('N', True)):
+			ordered += [(side, p) for p in sorted(
+				[q for q in self.Pins if self.SideOfPin(q.PackagePinNumber) == side],
+				key=lambda q: q.PackagePinNumber, reverse=descending)]
+		totals = {}
+		for side, p in ordered:
+			if p.NoConnect:
+				continue
+			base = PadInstanceName(p.Name)
+			totals[base] = totals.get(base, 0) + 1
+		seen = {}
+		rows = []
+		for side, p in ordered:
+			if p.NoConnect:
+				rows.append((side, p, None))
+				continue
+			base = PadInstanceName(p.Name)
+			if totals[base] > 1:
+				inst = base + '_' + str(seen.get(base, 0))
+				seen[base] = seen.get(base, 0) + 1
+			else:
+				inst = base
+			rows.append((side, p, inst))
+		return rows
+
+	def CheckDieRowBallMap(self):
+		'''Compare every die-row pad's BALL NUMBER against this model and against the pad list
+		the model emits. Returns a list of complaints; empty means the three agree.
+
+		Three legs, all keyed on the ball, because the ball is what a bonding diagram is:
+		  1. the pin the model puts on that ball must be the net the die row puts there;
+		  2. every ball the die row gives a net must be one of the balls the model gives it,
+		     a subset rather than an equality so a multi-pad rail may appear on one island in
+		     the die row and on four balls in the model;
+		  3. that ball must survive into the emitted pad list, on the edge the die row names.
+		A die pad with no ball (packagePin null) is the un-bonded case and is skipped here:
+		which pads may be un-bonded is a package decision and belongs to whoever writes the
+		die row.
+
+		DEFERRED PADS. A pad the model has not declared when the gate runs -- GPIO pads
+		attach to the ring after the model is built -- cannot be compared, so its row is
+		skipped rather than failed. Calling the gate again on the finished ring closes that
+		half; the call inside the model builder is what stops a bad build early.
+		'''
+		if not self.DieRow:
+			return []
+		where = ' (die row ' + str(self.DieRowSource) + ')'
+		complaints = []
+		pinsOnBall = {}
+		ballsOfName = {}
+		for pin in self.Pins:
+			pinsOnBall.setdefault(pin.PackagePinNumber, []).append(pin)
+			if not pin.NoConnect:
+				ballsOfName.setdefault(pin.Name, set()).add(pin.PackagePinNumber)
+		emitted = dict((p.PackagePinNumber, (side, p, inst))
+			for (side, p, inst) in self.PadListRows() if inst is not None)
+		dieRowBalls = {}
+		for row in self.DieRow:
+			net, ball = row['net'], row['packagePin']
+			if ball is None:
+				continue
+			dieRowBalls.setdefault(net, set()).add(ball)
+			here = pinsOnBall.get(ball, [])
+			if not here:
+				continue	# deferred: the model has not attached this ball's pad yet
+			if len(here) > 1:
+				complaints.append('ball ' + str(ball) + ' carries ' + str(len(here))
+					+ ' package pins (' + ', '.join(sorted(p.Name for p in here)) + '); the die row'
+					+ ' puts "' + net + '" there' + where)
+				continue
+			pin = here[0]
+			if pin.NoConnect:
+				complaints.append('the die row bonds "' + net + '" to ball ' + str(ball)
+					+ ', which the package model declares NO-CONNECT' + where)
+				continue
+			if pin.Name != net:
+				complaints.append('ball ' + str(ball) + ': the die row bonds "' + net
+					+ '", the package model bonds "' + pin.Name + '"' + where)
+				continue
+			if row['side'] is not None and row['side'] != self.SideOfPin(ball):
+				complaints.append('"' + net + '" is on ball ' + str(ball) + ', which is on the '
+					+ str(self.SideOfPin(ball)) + ' edge; the die row places it on the '
+					+ row['side'] + ' edge' + where)
+			if ball not in emitted:
+				complaints.append('"' + net + '" is on ball ' + str(ball)
+					+ ', which the emitted pad list does not carry' + where)
+		for net in sorted(dieRowBalls):
+			if net not in ballsOfName:
+				continue	# deferred, as above
+			extra = dieRowBalls[net] - ballsOfName[net]
+			if extra:
+				complaints.append('"' + net + '" is on ball(s) '
+					+ ', '.join(str(b) for b in sorted(extra)) + ' in the die row; the package model'
+					+ ' puts it on ' + ', '.join(str(b) for b in sorted(ballsOfName[net])) + where)
+		return complaints
+
 
 
 

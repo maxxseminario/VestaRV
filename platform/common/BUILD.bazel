@@ -471,6 +471,19 @@ py_test(
 )
 
 # Two independent generations of the same configuration, byte-compared.
+# The package model's ball-number gate and its negative control: an otherwise valid die-row
+# pad list with ONE pair of balls transposed must be reported, and the same list untransposed
+# must pass in the same run. Pure unit test on a synthetic 16-pin fixture, no generated
+# artifact, so it is the cheapest gate here and it runs on every change to Package.py.
+py_test(
+    name = "package_die_row_test",
+    size = "small",
+    srcs = ["//platform/common/python:package_die_row_test.py"],
+    data = ["//platform/common/python:generate.py"],
+    main = "package_die_row_test.py",
+    deps = ["//platform/common/python:chipgen_lib"],
+)
+
 py_test(
     name = "generation_determinism_test",
     size = "small",

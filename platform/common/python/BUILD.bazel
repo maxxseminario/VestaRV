@@ -159,6 +159,7 @@ py_library(
 # generation rules whose artifacts they consume; only the sources live here.
 exports_files([
     "check_regs_headers.py",
+    "package_die_row_test.py",
     "rdl_negative_control_test.py",
     "regs_headers_test.py",
     # The frozen constant table rdl_pkg_vs_legacy_test grades the generated
