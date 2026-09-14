@@ -178,6 +178,10 @@ architecture behavioral of I3C is
     signal ibien : std_logic;                       -- CR.IBIEN live tap
     -- Level request: the START sensor latches it when a target START arrives while the controller is idle, and the FSM retires it with clr_ibi_req at service entry.
     signal ibi_req     : std_logic;
+    -- ibi_req's clock pin is the SDA pad, so it is asynchronous to clk and to everything derived from clk. It is carried into clk through u_sync_ibi_req and only the synchronised copy is read, by the baud-gate enable and by the framer. W5b-1.
+    signal ibi_sync_d  : std_logic_vector(0 downto 0);
+    signal ibi_sync_q  : std_logic_vector(0 downto 0);
+    signal ibi_req_s2  : std_logic;
     signal clr_ibi_req : std_logic;
     signal t_ibien     : std_logic;                 -- IBIEN latched at detect
     -- IBI service scratch (clk_baud domain).
@@ -456,7 +460,17 @@ begin
     /* -------- baud generator (two chained ClkGates) ------------------------
        Reload is muxed by the latched phase drive-mode pp_rate: open-drain phases reload ODBR, push-pull data phases reload PPBR, and pp_rate flips only on phase boundaries so it cannot glitch mid-bit.
        baud_counter is held cleared while idle so the first clk_baud edge after a launch, or after an ibi_req wake, is prompt and BUSY rises within a couple of clk cycles. */
-    en_clk_baud_src <= q_en and (busy or i3c_launch or ibi_req);
+    /* The IBI wake enters through the synchroniser, never raw. ibi_req is clocked by the SDA pad; driven straight into these two ClkGate enables it moved inside the enable latch's own setup window, so the gate could emit a runt and that runt clocked fsm_proc while ibi_req was still resolving, arming the framer with only part of its transaction context loaded (W5b-1, 9 census endpoints). u_sync_ibi_req gives it two clk edges to settle before any enable or any FSM arm reads it; the wake costs 2 clk (80 ns at 25 MHz) against an I3C bus-available time of microseconds.
+       ibi_req_s2 stays high for two more clk edges after clr_ibi_req retires the source flop. That is harmless: busy is '1' by then so the gates stay open regardless, and the arm below is reachable only from P_IDLE, which the framer has already left. */
+    ibi_sync_d(0) <= ibi_req;
+
+    u_sync_ibi_req : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d => ibi_sync_d, q => ibi_sync_q);
+
+    ibi_req_s2 <= ibi_sync_q(0);
+
+    en_clk_baud_src <= q_en and (busy or i3c_launch or ibi_req_s2);
 
     cg_clk_baud_src: entity work.ClkGate
         port map (
@@ -570,7 +584,7 @@ begin
                         else
                             ph <= P_START;
                         end if;
-                    elsif ibi_req = '1' then
+                    elsif ibi_req_s2 = '1' then
                         -- Bus-available IBI: a target drove a START while we were idle, so take over SCL and clock the open-drain arbitrated header.
                         -- There is no CMD launch here, so latch the context directly: I3C-SDR with push-pull SCL, header at the ODBR baud.
                         clr_ibi_req <= '1';

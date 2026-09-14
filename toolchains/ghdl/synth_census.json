@@ -52,8 +52,8 @@
       "latch_modules": []
     },
     "I3C": {
-      "cells": 2061,
-      "flop_bits": 736,
+      "cells": 2066,
+      "flop_bits": 738,
       "latch_bits": 2,
       "latch_modules": [
         "clkgate_Bbehavioral"
@@ -64,8 +64,8 @@
         "macro_blackbox.vhd",
         "system_blackbox.vhd"
       ],
-      "cells": 136113,
-      "flop_bits": 30225,
+      "cells": 136190,
+      "flop_bits": 30241,
       "latch_bits": 192,
       "latch_modules": [
         "clkgate_Bbehavioral",
@@ -73,8 +73,8 @@
       ]
     },
     "NFC": {
-      "cells": 58765,
-      "flop_bits": 3030,
+      "cells": 58819,
+      "flop_bits": 3038,
       "latch_bits": 0,
       "latch_modules": []
     },
@@ -113,8 +113,8 @@
       "latch_modules": []
     },
     "SPI": {
-      "cells": 786,
-      "flop_bits": 375,
+      "cells": 795,
+      "flop_bits": 378,
       "latch_bits": 2,
       "latch_modules": [
         "clkgate_Bbehavioral"

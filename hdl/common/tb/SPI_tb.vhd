@@ -21,6 +21,8 @@ architecture sim of SPI_tb is
 
     constant PERIOD   : time := 100 ns;     -- smclk period
     constant SCK_HALF : time := 250 ns;     -- slave-drive SCK half period
+    -- GROUP 10 drives SCK at a ratio that shares no common factor with the smclk period, so the sck_slave edges walk through every phase of smclk over one word instead of repeating one alignment.
+    constant SCK_ASY  : time := 137 ns;     -- asynchronous slave-drive SCK half period
 
     -- clocks / reset
     signal smclk    : std_logic := '0';
@@ -56,11 +58,29 @@ architecture sim of SPI_tb is
     signal disable_clk_cpu : std_logic;
     signal cs_flash_out, cs_flash_dir, cs_flash_ren : std_logic;
 
+    -- GROUP 10: sticky record of SPITEIF (through irq_te, i.e. the flag ANDed with SPITEIE) while the monitor is armed. TEIF is a register and stays set once set, so a mid-word set would still be visible on a later bus read; the monitor catches WHEN it set, which a bus read cannot.
+    signal teif_mon_en  : std_logic := '0';
+    signal teif_mon_hit : std_logic := '0';
+
     shared variable sb : scoreboard;
 
 begin
 
     smclk   <= not smclk after PERIOD / 2;
+
+    -- Armed only across the middle of a slave word; irq_te there means SPITEIF set while
+    -- the word was still shifting, which is the failure the sck_slave-domain s_gap exists
+    -- to prevent.
+    teif_mon : process(smclk)
+    begin
+        if rising_edge(smclk) then
+            if teif_mon_en = '0' then
+                teif_mon_hit <= '0';
+            elsif irq_te = '1' then
+                teif_mon_hit <= '1';
+            end if;
+        end if;
+    end process teif_mon;
 
     -- Register-bus clock runs only while the peripheral is selected (en_mem is active-low)
     clk_mem <= smclk when pbus.en_mem = '0' else '0';
@@ -113,6 +133,12 @@ begin
     stim_proc : process
         variable rdw : std_logic_vector(31 downto 0);
 
+        -- GROUP 10 payloads: dense bit patterns, so a word taken one carry early or one
+        -- bit misaligned reads back wrong rather than by luck the same.
+        type slave_word_arr is array (0 to 1) of std_logic_vector(31 downto 0);
+        constant SLAVE_WORDS : slave_word_arr := (x"C3A55A3C", x"0F7E81F0");
+        variable sword : std_logic_vector(31 downto 0);
+
         -- Poll the status register until the master clears BUSY (bounded).
         procedure wait_master_done is
             variable s : std_logic_vector(31 downto 0);
@@ -149,6 +175,17 @@ begin
         begin
             bus_write(smclk, pbus, RegSlotSPIxTX, x"000000" & d);
             wait_master_done;
+        end procedure;
+
+        -- One SCK period driving a single bit into the slave port, the same shape
+        -- spi_ext_send_byte uses. GROUP 10 needs bit granularity because it has to stop
+        -- one bit short of the word boundary, where SPITEIF is allowed to set.
+        procedure spi_ext_send_bit(signal e : inout spi_ext_master_t;
+                                   b : in std_logic; half : in time) is
+        begin
+            e.mosi <= b;   wait for half;
+            e.sck  <= '1'; wait for half;   -- leading edge (slave shifts out)
+            e.sck  <= '0'; wait for half;   -- trailing edge (slave samples MOSI)
         end procedure;
 
     begin
@@ -378,6 +415,77 @@ begin
         -- A slot past the register set reads 0.
         bus_read(smclk, pbus, read_data, 17, rdw);
         sb.check_slv("an unmapped slot reads 0", rdw, x"00000000");
+
+        /* GROUP 10: 32-bit slave transfers at an asynchronous SCK ratio, grading that
+           SPITEIF never sets mid-word.
+           SPITEIF means "the transmit shift register may be refilled", and the hardware
+           condition for that is the inter-transfer gap. Until W10 the gap was read on
+           clk as the combinational zero decode of s_counter, a six-bit BINARY counter
+           clocked by the external SCK pad. At a carry the falling bits can reach the
+           decode before the rising one (000111 -> 001000 passes through 000000), so a
+           clk edge inside that window set the flag in the middle of a word and firmware
+           refilled SPIxTX a word early (W5b-2). 8-bit mode never carries; 16-bit mode
+           carries once per word and 32-bit twice, so 32-bit is the case to drive.
+           The gap is now a flop in the sck_slave domain carried through work.sync, so
+           what clk samples is one bit that changes only on an SCK edge.
+           SCK_ASY shares no factor with the smclk period, so the 32 sample edges land at
+           32 different phases of smclk and the second word starts a further 23 ns off.
+           The monitor is armed from one bit into the word to one bit short of its end;
+           both the 8 and the 16 and the 24 carries fall inside that window. */
+        report "=== GROUP 10: slave 32-bit, async SCK, TEIF never mid-word ===" severity note;
+
+        cs_in <= '1';
+        spie  <= SPI_EXT_MASTER_IDLE;
+        wait for PERIOD;
+        -- en, slave, 32-bit, mode0, LSB-first, TEIE so irq_te mirrors SPITEIF
+        bus_write(smclk, pbus, RegSlotSPIxCR, x"00040098");
+        cs_in <= '0';
+        wait for PERIOD;
+
+        for w in 0 to 1 loop
+            sword := SLAVE_WORDS(w);
+
+            -- Bit 0 first: it takes the slave counter off zero, so the gap flag drops
+            -- and SPITEIF can be cleared without immediately setting again.
+            spi_ext_send_bit(spie, sword(0), SCK_ASY);
+            bus_write(smclk, pbus, RegSlotSPIxSR, x"00000001");   -- W1C SPITEIF
+            bus_read(smclk, pbus, read_data, RegSlotSPIxSR, rdw);
+            sb.check_bit("GROUP10 word " & integer'image(w)
+                         & ": TEIF cleared one bit into the word", rdw(0), '0');
+            sb.check_bit("GROUP10 word " & integer'image(w)
+                         & ": irq_te low one bit into the word", irq_te, '0');
+
+            teif_mon_en <= '1';
+            wait until smclk = '1';
+            wait until smclk = '0';
+            for b in 1 to 30 loop
+                spi_ext_send_bit(spie, sword(b), SCK_ASY);
+            end loop;
+            wait until smclk = '1';
+            sb.check_bit("GROUP10 word " & integer'image(w)
+                         & ": TEIF never set across bits 1 to 30, carries at 8, 16 and 24",
+                         teif_mon_hit, '0');
+            teif_mon_en <= '0';
+            wait until smclk = '0';
+
+            -- The last bit closes the word: the gap opens and SPITEIF is due.
+            spi_ext_send_bit(spie, sword(31), SCK_ASY);
+            wait for 8 * PERIOD;
+            bus_read(smclk, pbus, read_data, RegSlotSPIxSR, rdw);
+            sb.check_bit("GROUP10 word " & integer'image(w)
+                         & ": TEIF set at the end of the word", rdw(0), '1');
+            sb.check_bit("GROUP10 word " & integer'image(w)
+                         & ": TCIF set at the end of the word", rdw(1), '1');
+            bus_read(smclk, pbus, read_data, RegSlotSPIxRX, rdw);
+            sb.check_slv("GROUP10 word " & integer'image(w) & ": slave received the word",
+                         rdw, sword);
+            bus_write(smclk, pbus, RegSlotSPIxSR, x"00000003");   -- retire TEIF and TCIF
+            wait for 23 ns;                                       -- shift the next word's phase
+        end loop;
+
+        cs_in <= '1';
+        wait for PERIOD;
+        bus_write(smclk, pbus, RegSlotSPIxCR, x"00000000");
 
         -- Final verdict
         wait for 1 us;

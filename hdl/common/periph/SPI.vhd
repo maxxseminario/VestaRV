@@ -155,6 +155,9 @@ architecture behavioral of SPI is
     signal s_counter : std_logic_vector(5 downto 0); -- Slave Counter
     signal s_spi_tcif : std_logic; -- Slave SPI Transmit Complete Interrupt Flag
     signal s_spi_teif : std_logic; -- Slave SPI Transmit Empty Interrupt Flag
+    -- The inter-transfer gap, registered in the sck_slave domain (W5b-2). s_counter is a BINARY counter clocked by the external SCK pad; its zero decode sampled on clk is the crossing hdl/common/sync.vhd forbids by name, because the bits that fall at a carry can reach the decode before the bit that rises and 000111 -> 001000 reads transiently as zero. Registering the decode where it is generated makes the crossing one glitch-free bit, which work.sync then carries.
+    signal s_gap : std_logic;
+    signal gap_sync_d, gap_sync_q : std_logic_vector(0 downto 0);
     signal s_tx_sreg : std_logic_vector(31 downto 0); -- Slave Tx Shift Reg
     signal s_rx_sreg : std_logic_vector(31 downto 0); -- Slave Rx Shift Reg
     signal s_SPIxRX : std_logic_vector(31 downto 0); -- Slave Receive Register
@@ -519,13 +522,20 @@ begin
         end if;
     end process;
 
-    -- Slave transmit-empty flag, F12 (2026-09-05). Was set inside the process above by the LEVEL s_counter = 0 and cleared by a trailing if: an SR latch by construction (Genus CDFG-241; 2 LATQX1 cells in every cut). Sampled on clk instead: s_counter = 0 holds for the whole inter-transfer gap, so the flag rises at the first clk edge of that gap and stays until the bus clears it; its readers (the SR shadow, the irq) are clk-domain, and the clear keeps its priority exactly as before.
+    -- Slave transmit-empty flag, F12 (2026-09-05). Was set inside the process above by the LEVEL s_counter = 0 and cleared by a trailing if: an SR latch by construction (Genus CDFG-241; 2 LATQX1 cells in every cut). Sampled on clk instead: the gap holds for the whole inter-transfer interval, so the flag rises at the first clk edge of that gap and stays until the bus clears it; its readers (the SR shadow, the irq) are clk-domain, and the clear keeps its priority exactly as before.
+    -- What crosses is s_gap, one bit registered on the sck_slave edge that creates the gap, and not the six-bit s_counter's combinational zero decode (W5b-2). F12 moved the flag off the latch and was right to; it left the multi-bit sample behind, which is what this completes. 8-bit mode was immune because the counter only ever spans 0 to 7 and enters zero by the intended wrap; 16-bit mode had one hazardous carry per word and 32-bit mode two.
+    gap_sync_d(0) <= s_gap;
+
+    u_sync_s_gap : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d => gap_sync_d, q => gap_sync_q);
+
     process(clk, resetn, clr_spi_teif, spi_en, spi_mode)
     begin
         if resetn = '0' or clr_spi_teif = '1' or spi_en = '0' or spi_mode = '0' then
             s_spi_teif <= '0'; -- Clear Transmit Empty Interrupt Flag
         elsif rising_edge(clk) then
-            if s_counter = "000000" then
+            if gap_sync_q(0) = '1' then
                 s_spi_teif <= '1'; -- Set Transmit Empty Interrupt Flag
             end if;
         end if;
@@ -541,9 +551,11 @@ begin
             -- Reset State
             s_counter <= (others => '0');
             s_rx_sreg <= (others => '0');
+            s_gap     <= '1'; -- deselected or disabled is one long inter-transfer gap
 
         elsif falling_edge(sck_slave) then -- Sample phase
             s_counter <= s_counter + 1; -- Increment counter
+            s_gap     <= '0'; -- default: mid-word; the terminal-count arms below re-raise it
             
             -- Transaction Complete Check
             case spi_dl is
@@ -551,22 +563,26 @@ begin
                     if s_counter = "000111" then
                         s_spi_tcif <= '1'; -- Set Transmit Complete Interrupt Flag
                         s_counter <= (others => '0'); -- Reset counter
+                        s_gap <= '1'; -- word done: the gap opens on this same edge
                         s_rx_hold <= mosi_in & s_rx_sreg(31 downto 1); -- Capture the completed word, including the bit shifted in on this same edge
                     end if;
                 when "01" => -- 16-bit transfer
                     if s_counter = "001111" then
                         s_spi_tcif <= '1'; -- Set Transmit Complete Interrupt Flag
                         s_counter <= (others => '0'); -- Reset counter
+                        s_gap <= '1'; -- word done: the gap opens on this same edge
                         s_rx_hold <= mosi_in & s_rx_sreg(31 downto 1); -- Capture the completed word, including the bit shifted in on this same edge
                     end if;
                 when "10" => -- 32-bit transfer
                     if s_counter = "011111" then
                         s_spi_tcif <= '1'; -- Set Transmit Complete Interrupt Flag
                         s_counter <= (others => '0'); -- Reset counter
+                        s_gap <= '1'; -- word done: the gap opens on this same edge
                         s_rx_hold <= mosi_in & s_rx_sreg(31 downto 1); -- Capture the completed word, including the bit shifted in on this same edge
                     end if;
                 when others =>
-                    null; -- Reserved or unsupported data length, do nothing
+                    -- Reserved or unsupported data length, do nothing. s_gap therefore stays low here, so SPITEIF does not set in the reserved mode; before W5b-2 the free-running counter's wrap through zero set it once every 64 edges, which was an accident of the decode and not a documented behaviour.
+                    null;
             end case;
 
              -- Shift in data

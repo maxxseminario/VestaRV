@@ -5,6 +5,23 @@
 # crossing safe. //hdl/common/cdc:cdc_manifest_test grades the shape and refuses a
 # blanket pattern or a reason too short to be one. Brackets are ESCAPED: `reg\[*\]`.
 # Tcl string match reads a bare [*] as a character class and would match nothing.
+#
+# NO COMMENTS INSIDE THE `return {...}` LIST. A `#` line there is not a Tcl comment: the
+# braced word is a LIST, so every whitespace-separated word of the sentence becomes an
+# element and its first word becomes a live waiver glob. W5b wrote
+# `# i3c0 (9 endpoints) and spi?/s_spi_teif_reg (2) are DEFECTS` inside the braces and
+# thereby waived both endpoints the sentence declared unwaivable. cdc_manifest_test now
+# parses the list the way Tcl does and fails on any element that is not a
+# {glob "justification"} pair, so the trap is closed by the gate and not by care.
+# Commentary belongs here, above the proc.
+#
+# Grouping, for the reader: the first two blocks are T4's bus-strobe shadows and
+# pin-event captures; then W5b's rtc0, dtm0, i2c, spi, timer and system0 entries; then
+# W5a's nfc0 and dm0 entries. nfc0 is quasi-static register-file config latched at
+# rx_soc or tx_start, dm0 is one mechanism, the DMI request multi-cycle path. Evidence,
+# failure scenarios and the per-entry hit counts are in the W5a and W5b reports; the
+# three former defects (nfc0 resp_bytes, i3c0 ibi_req, spi s_spi_teif) are fixed in RTL
+# by W10 and are covered by their sync instances, not by a waiver.
 
 proc cdc_waiver_list {} {
 	return {
@@ -33,7 +50,6 @@ proc cdc_waiver_list {} {
 		{timer?/capture1_reg_reg\\[*\\] "pin-event capture: the free-running counter sampled on the capture pin edge and read later through capture1_latched (TIMER.vhd:333, F12 block (c))"}
 		{timer?/RC_CG_HIER_INST*/RC_CGIC_INST "the clock gate Genus inserts for the pin-event capture bank; its enable is the bank's own bus-domain enable, and the instance number is renumbered every synthesis, hence the wildcard"}
 
-		# --- W5b: rtc, dtm, i2c, i3c, spi, timer, system ---
 		{rtc0/snap_sync_reg\\[*\\] "multi-cycle payload: snap_lfxt is written on the same lfxt edge that flips cap_tgl (RTC.vhd:364-365) and is sampled only at the edge of the synchronised toggle u_sync_cap_tgl (RTC.vhd:262-263), which resolves 3 mclk edges later while the word still holds; the argument needs mclk above about 131 kHz, four times lfxt, which is the firmware constraint recorded in W5b_cdc_rest.md"}
 		{rtc0/sec_cnt_reg\\[*\\] "atomic set-time load from the staged regs_q(SLOT_SEC), gated by wr_apply, the edge of u_sync_wr_req_tgl (RTC.vhd:332, 347-348); the staged word is held until SR.SYNC clears"}
 		{rtc0/snap_lfxt_reg\\[*\\] "the same commit: stage_sub enters the snapshot only under wr_apply, the edge of u_sync_wr_req_tgl (RTC.vhd:349, 364)"}
@@ -69,14 +85,7 @@ proc cdc_waiver_list {} {
 		{system0/cg_clk_lfxt/CG1 "source-gate enable is the mux's own break-before-make interlock ClkEn = En or EnQQQ (ClockMuxGlitchFree_cmn65gp_ARM.vhd:86, SYSTEM.vhd:363): it keeps the oscillator alive until every slice has released, and the only flops on the gated clock are that mux's synchroniser chain"}
 		{system0/cg_clk_dco0/CG1 "source-gate enable is the mux's own break-before-make interlock ClkEn = En or EnQQQ (ClockMuxGlitchFree_cmn65gp_ARM.vhd:86, SYSTEM.vhd:364): it keeps the oscillator alive until every slice has released, and the only flops on the gated clock are that mux's synchroniser chain"}
 		{system0/cg_clk_dco1/CG1 "source-gate enable is the mux's own break-before-make interlock ClkEn = En or EnQQQ (ClockMuxGlitchFree_cmn65gp_ARM.vhd:86, SYSTEM.vhd:365): it keeps the oscillator alive until every slice has released, and the only flops on the gated clock are that mux's synchroniser chain"}
-		# --- end W5b ---
 
-		# --- W5a: nfc, dm ---
-		# nfc0 is quasi-static register-file config latched at rx_soc or tx_start; dm0 is one
-		# mechanism, the DMI request multi-cycle path. The resp_bytes bank is a DEFECT and is
-		# deliberately NOT waived. Evidence and failure scenario in W5a_cdc_nfc_dm.md.
-		# A comment inside this braced list is NOT a Tcl comment: every word becomes a list
-		# element and therefore a glob, so these lines carry no slash and no glob metacharacter.
 		{nfc0/t_uid_reg\\[*\\] "quasi-static NFCxUID latched at rx_soc (NFC.vhd:750), programmed while NFCxCR.NFCEN is clear and latched transaction-locally in the rf domain; nfcen_r2, the 2-FF copy of NFCEN, holds the rf core in asynchronous reset until the enable releases it (NFC.vhd:528,721)"}
 		{nfc0/t_atqa_reg\\[*\\] "quasi-static NFCxCFG.ATQA latched at rx_soc (NFC.vhd:751), programmed while NFCxCR.NFCEN is clear and latched transaction-locally in the rf domain; nfcen_r2, the 2-FF copy of NFCEN, holds the rf core in asynchronous reset until the enable releases it (NFC.vhd:528,721)"}
 		{nfc0/t_sak_reg\\[*\\] "quasi-static NFCxCFG.SAK latched at rx_soc (NFC.vhd:752), programmed while NFCxCR.NFCEN is clear and latched transaction-locally in the rf domain; nfcen_r2, the 2-FF copy of NFCEN, holds the rf core in asynchronous reset until the enable releases it (NFC.vhd:528,721)"}
@@ -116,7 +125,10 @@ proc cdc_waiver_list {} {
 		{dm0/rsp_arm_reg "the one-cycle response arm set at the accept (debug_module.vhd:1022); req_hold is written in the TCK domain only at an arming Update-DR and held until the response toggle returns, and the DM captures only while dmi_req_valid, raised on the synchronised u_sync_req_tgl edge, is high (jtag_dtm.vhd:291,326,366,391; debug_module.vhd:1022)"}
 		{dm0/m_start_reg "the DM master launch pulse raised by the accepted request (debug_module.vhd:1022); req_hold is written in the TCK domain only at an arming Update-DR and held until the response toggle returns, and the DM captures only while dmi_req_valid, raised on the synchronised u_sync_req_tgl edge, is high (jtag_dtm.vhd:291,326,366,391; debug_module.vhd:1022)"}
 		{dm0/tramp_arm_reg "the trampoline plant arm taken on the dmactive rise of an accepted dmcontrol write (debug_module.vhd:1067); req_hold is written in the TCK domain only at an arming Update-DR and held until the response toggle returns, and the DM captures only while dmi_req_valid, raised on the synchronised u_sync_req_tgl edge, is high (jtag_dtm.vhd:291,326,366,391; debug_module.vhd:1022)"}
+		{nfc0/resp_bytes_reg\\[*\\]\\[*\\] "AUTOREAD copy of the payload window, interlocked rather than handshaked: the 16-byte copy is taken on one rf_clk edge (NFC.vhd:948-950) and payload_mem is written on ClkMem (NFC.vhd:397), so the rf side snapshots the payload-write toggle carried in on u_sync_pay_wr_tgl at the copy (NFC.vhd:569) and compares it again before the reply is composed; any write whose ClkMem edge fell in that span, the coincident one included, has reached pay_wr_s2 by then and the reply is DROPPED, which an ISO 14443-3 reader retries, so a torn byte cannot be CRCed onto the air. NFC_tb GROUP 5b drives the race. Was defect W5a-1"}
+
+		{i3c0/ibi_req_reg "pin-event capture: the target-START sensor is clocked by the SDA pad and its D cone holds only the clk-domain qualifiers busy and q_en plus the SCL_IN port (I3C.vhd:1153), the same class as gpio PxIF; the request itself now leaves this flop through u_sync_ibi_req (I3C.vhd:467) and the framer and both baud-gate enables read only the synchronised copy, so a metastable sample here defers the IBI wake by one SDA edge and reaches nothing else. Was the root of defect W5b-1"}
+
 		{dm0/RC_CG_HIER_INST*/RC_CGIC_INST "the mclk clock gates of the DM register banks; every enable is a dmi_req_addr or dmi_req_op decode ANDed with the mclk-registered dmi_req_valid, so the TCK-domain decode can only reach the gate in a cycle where the payload is already held still (debug_module.vhd:1022), and Genus renumbers the instance every run"}
-		# --- end W5a ---
 	}
 }
