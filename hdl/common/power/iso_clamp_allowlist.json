@@ -1,0 +1,60 @@
+{
+  "_comment": [
+    "Exemptions from the isolation-clamp completeness gate, //hdl/common/power:iso_clamp_audit_test.",
+    "Every entry is a decision, not a suppression: an output that really is a gated-to-always-on",
+    "crossing belongs in the clamp set of the generated MCU.vhd (emitted by",
+    "platform/common/python/mcu_vhd.py), never here. `files` scopes the exemption, because which",
+    "outputs a configuration leaves unconnected is a property of that configuration; `*` means every",
+    "file. A `files` entry that no instance uses fails the gate, so the list cannot go stale."
+  ],
+  "unconnected_outputs": {
+    "flash_mem_en": {
+      "reason": "Not a crossing. The SPI0 flash / XIP quartet is hart-0-only wiring: the orchestrator owns the boot flash and every hart_tile instance leaves the tile flash port unassociated, so no always-on logic samples it.",
+      "files": [
+        "*"
+      ]
+    },
+    "flash_clk_mem": {
+      "reason": "Not a crossing, same reason as flash_mem_en: the tile's flash clock has no consumer outside the tile.",
+      "files": [
+        "*"
+      ]
+    },
+    "flash_mab": {
+      "reason": "Not a crossing, same reason as flash_mem_en: the tile's flash address bus has no consumer outside the tile.",
+      "files": [
+        "*"
+      ]
+    },
+    "trap_flag": {
+      "reason": "Not a crossing on a gated tile. Only hart 0's trap_flag reaches a pin (GPIO0); a tile's is mapped `open`, so the dark domain drives nothing.",
+      "files": [
+        "*"
+      ]
+    },
+    "dbg_halted": {
+      "reason": "Argus builds no per-tile debug halt observation, so the port is unassociated there and is not a crossing. It IS a crossing on the Castalia MCU and is clamped there; this exemption is scoped so that dropping that clamp is still a failure.",
+      "files": [
+        "hdl/argus/MCU.vhd"
+      ]
+    },
+    "tcm_ext_rdata": {
+      "reason": "Argus has no read-only TCM apertures, so the tile slave port is unassociated there. Clamped on the Castalia MCU; the exemption is scoped for the same reason as dbg_halted.",
+      "files": [
+        "hdl/argus/MCU.vhd"
+      ]
+    },
+    "tcm_ext_done": {
+      "reason": "Argus has no read-only TCM apertures, so the tile slave port is unassociated there. Clamped on the Castalia MCU; the exemption is scoped for the same reason as dbg_halted.",
+      "files": [
+        "hdl/argus/MCU.vhd"
+      ]
+    }
+  },
+  "always_on_instances": {
+    "hdl/argus/MCU.vhd::hart0": "Argus builds hart 0 out of hart_tile rather than orch_tile, and hart 0 is the always-on management hart: PWRCR bit 0 has no flop and pwr_ctrl emits no pd_* row for it, so the instance straps pd_iso_en (and pd_sleep) to '0' and its outputs never cross a power boundary."
+  },
+  "wrapper_instances": {
+    "hdl/common/orch_tile.vhd::tile": "orch_tile is the hart-0 wrapper that keeps the soft core's module names disjoint from the hardened hart_tile netlist. It passes pd_iso_en straight through to its own port, and every MCU straps that port to '0' because the orchestrator sits in the always-on centre band with no power intent. The wrapper adds no power boundary of its own."
+  }
+}

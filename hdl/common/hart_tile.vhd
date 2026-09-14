@@ -134,6 +134,7 @@ entity hart_tile is
 
         /* MTCMOS domain controls from pwr_ctrl; no tile RTL consumes them, and an always-on tile ties both '0' so every instance stays ONE netlist.
            pd_sleep is the CPF hook driving the HEAD switch fabric's SLEEP daisy chain, ACTIVE-HIGH meaning the switched rail is OFF; pd_iso_en is RESERVED, because the output clamps are explicit AND gates on the ALWAYS-ON MCU side of the boundary.
+           RESERVED MEANS UNLOADED, AND THE PORT STAYS: nothing inside the tile reads it, so it synthesises to a port with zero fanout, but `PIN pd_iso_en` is already in the tile abstract of record (innovus/common/hart_tile/out/hart_tile.lef, hart_tile.antenna.lef, both ETM .libs, and hart_tile_pt's abstract), so removing it would change the hardened macro's pin list and invalidate the signed-off tile. A connectivity or LVS-adjacent check that calls it an undriven load is waived, not repaired.
            NOT boundary-registered, since always-on controls must stay valid while every flop in the switched domain is dark; the cold-gate reset arrives through the ordinary resetn port, which is what makes reset values equal clamp-0 values on every outbound signal. */
         pd_sleep  : in  std_logic := '0';
         pd_iso_en : in  std_logic := '0';

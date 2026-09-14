@@ -556,7 +556,7 @@ for(let h=0; h<NHARTS; h++){
     s:o?null:("pd_sleep("+h+") · pd_iso_en("+h+") · tcm_pgen"),
     cap:o
       ? "The hart-0-only wiring kept on the orchestrator: SPI0 drives the boot flash and the XIP path for every address at or above "+hx(FLASH)+", and FlashActive freezes the core through sleep_cpu while a flash word is fetched. There is no gate to turn this tile off."
-      : "pwr_ctrl row "+h+": MTCMOS switch, isolation clamps on every output crossing to the always-on side, and tcm_pgen for the TCM macro. PWRCTRL @0x4B00 owns the rows. The clamps zero done as well as rdata, so a gated tile never completes a transaction and the aperture bank synthesises a zero completion from PWRSR instead."});
+      : "pwr_ctrl row "+h+": MTCMOS switch, isolation clamps on every output crossing to the always-on side, and tcm_pgen for the TCM macro. PWRCTRL @0x4B00 owns the rows. The clamps zero done as well as rdata, so a gated tile never completes a transaction and the aperture bank synthesises a zero completion from PWRSR instead. The clamps are RTL AND gates on the always-on side, so the tile's pd_iso_en input port is RESERVED and unloaded; it is kept because it is already a pin of the hardened tile abstract, and clamp completeness is gated by //hdl/common/power:iso_clamp_audit_test rather than by any tool."});
 }
 
 /* ---- arbiter ------------------------------------------------------------ */

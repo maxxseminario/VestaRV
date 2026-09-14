@@ -557,7 +557,8 @@ for(let h=0; h<NHARTS; h++){
     cap:o
       ? "The hart-0-only wiring CPR3/R1 kept on the orchestrator. SPI0 drives the boot flash and the execute-in-place path for every address at or above "+hx(FLASH)+", and its FlashActive freezes the core through sleep_cpu while a flash word is fetched. There is no power intent in the centre band, so this tile has no gate to turn off — it is the one hart that is always running."
       : "pwr_ctrl row "+h+": an MTCMOS switch for the tile's logic, isolation clamps on every output crossing to the always-on side, and tcm_pgen for the TCM macro. PWRCTRL @0x4B00 owns the rows, and row "+h+" exists only because hart 0 became the orchestrator — PWRCR gained a gate bit for what used to be an always-on tile. "+
-        "Because the clamps zero done as well as rdata, a gated tile NEVER COMPLETES a transaction; the aperture bank synthesises a zero completion from the PWRSR row instead of waiting on a wire that is held low on purpose."});
+        "Because the clamps zero done as well as rdata, a gated tile NEVER COMPLETES a transaction; the aperture bank synthesises a zero completion from the PWRSR row instead of waiting on a wire that is held low on purpose. "+
+        "The clamps live on the always-on side as ordinary RTL AND gates, which makes hart_tile's pd_iso_en input port RESERVED and unloaded. It is kept on purpose: it is already a pin of the hardened tile abstract, so removing it would invalidate the macro. Nothing in the CPF checks that the clamp set is complete, so //hdl/common/power:iso_clamp_audit_test does."});
 }
 
 /* ---- brackets that name the two kinds of hart --------------------------- */

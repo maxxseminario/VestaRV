@@ -22,6 +22,15 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
+# Fine-grained handle for the tile entity whose port directions the isolation-clamp
+# gate reads (//hdl/common/power:iso_clamp_audit_test). It is inside :vhdl_sources
+# too; this label only lets the test name the file without grepping the manifest.
+filegroup(
+    name = "hart_tile_vhd",
+    srcs = ["common/hart_tile.vhd"],
+    visibility = ["//visibility:public"],
+)
+
 # The SystemRDL register descriptions (tools/rdl/README.md, hdl/common/regs/README.md).
 # They and the VHDL packages generated from them share one root, hdl/common/regs/.
 # .rdl carries no VHDL extension, so :vhdl_sources does not pick these up and no

@@ -4,7 +4,7 @@
 # Every output stays inside platform/common/: this Makefile never writes to
 # ../../hdl, ../../software or ../../tools.
 
-.PHONY: all help chip generate pdf web web-copy publish check-publish publish-chip check-chip install-hook show config verify clean install-deps
+.PHONY: all help chip generate pdf web web-copy publish check-publish publish-chip check-chip install-hook show config verify verify-lps clean install-deps
 
 # Which implementations/asic/<CHIP>/docs/TRM.pdf the publish and check targets act
 # on. `make chip` builds Castalia; a non-default chip also needs its CONFIG, so use
@@ -88,6 +88,9 @@ help:
 	@echo "                      an Xcelium behavioral flow and run the smoke suite"
 	@echo "                      (CONFIG= as for make chip; SUITE=full for the whole"
 	@echo "                       regression; MAX_PARALLEL=N, FORCE_IMAGES=1)"
+	@echo "  make verify-lps   - Prove the tile POWER GATE: run the CPF-aware Xcelium low-power"
+	@echo "                      bench (gate, clamp and relaunch sequence on rv32ui-p-shpwr)"
+	@echo "                      (LPS_MODE=monitor|plain|nolps|block)"
 	@echo "  make clean        - Remove generated output files (out/, config JSON)"
 	@echo "  make install-deps - Check Python/LaTeX dependencies"
 	@echo ""
@@ -300,6 +303,30 @@ show config:
 # NHARTS is not built.
 verify: generate
 	@./verify.sh
+
+# The power half of the proof. `make verify` shows the configuration BOOTS; this shows a
+# tile can be POWERED DOWN and relaunched with the always-on side never sampling a dark
+# pin. It needs power intent, which the behavioural suite has none of: without a CPF the
+# "gate" is only pd_rstn folding into the tile reset, so the simulation cannot tell a
+# gated tile from a reset one. The harness supplies the CPF, and the static half of the
+# same property is //hdl/common/power:iso_clamp_audit_test, which needs no licence.
+#
+# The tree lives under xcelium/, which .gitignore excludes wholesale, exactly like every
+# other simulation working directory; it is a working tree, not a tracked artifact. This
+# target is the tracked handle on it, so the row exists in the regression even where the
+# tree does not, and says how to get it back rather than failing silently.
+LPS_MODE ?= monitor
+LPS_DIR   = ../../xcelium/riscv_test/lps_mp
+verify-lps:
+	@if [ ! -x $(LPS_DIR)/run_lps_pwr.sh ]; then \
+		echo "❌ $(LPS_DIR)/run_lps_pwr.sh is missing."; \
+		echo "   The Xcelium low-power harness is a gitignored working tree (README.md,"; \
+		echo "   'Outside Bazel' -> 'The power-gate row'). Rebuild it from behavioral_mp"; \
+		echo "   scaffolding plus its own lps_mcu.cpf, or skip this row."; \
+		exit 1; \
+	fi
+	@echo "=== [verify-lps] CPF-aware tile power-down / relaunch (MODE=$(LPS_MODE)) ==="
+	@cd $(LPS_DIR) && MODE=$(LPS_MODE) ./run_lps_pwr.sh
 
 # Clean the generated Castalia outputs only. It never touches the Myshkin toolchain
 # files under ../../software or ../../tools, and keeps the
