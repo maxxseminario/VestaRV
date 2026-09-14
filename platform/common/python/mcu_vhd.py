@@ -3892,6 +3892,14 @@ class McuVhdEmitter():
 			# rows here, so they get the same treatment every other tile output does: a dark tile
 			# drives nothing into the always-on fabric.
 			rows.extend(self.overlay.call('mcuIsoClamps', default=[], emitter=self, hart=h))
+			# COMPLETENESS OF THIS ROW SET IS GATED, not inspected. A new hart_tile output that
+			# reaches the always-on side and gets no row here is a floating pin of a dark domain:
+			# it passes synthesis, P&R, LVS and the whole functional regression, because none of
+			# those power the domain down. //hdl/common/power:iso_clamp_audit_test reads the
+			# generated MCU.vhd back, matches every OUT port of every gated hart_tile instance
+			# against these assignments, and fails on an output that is neither clamped here nor
+			# carried with a reason in hdl/common/power/iso_clamp_allowlist.json. Isolation is NOT
+			# a CPF rule (cpf/hart_tile.cpf has none on purpose), so nothing else checks it.
 			# Golden-master columns: short lines pad the left side to 24 and the right to 16; the long
 			# addr and wdata pair aligns to itself with one space.
 			lhsPad, rhsPad, longPad = 24, 16, 0

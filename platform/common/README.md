@@ -125,6 +125,19 @@ stages `verify_asic_default/` (was `verify_mcu_hart/`, chipName `MCU_hart`) and
 `verify_fpga/`, chipName `FPGA`). Neither name reaches an entity: the emitted
 top is `entity MCU` in every configuration.
 
+### The power-gate row
+
+`make verify-lps` (`LPS_MODE=monitor|plain|nolps|block`) runs the CPF-aware
+Xcelium low-power bench in `xcelium/riscv_test/lps_mp/`, which gates tile 1 and
+tile 4 off through `rv32ui-p-shpwr`, checks every clamped always-on signal holds
+while the tile is dark and relaunches both tiles, and it is the only row that
+carries power intent: without a CPF the gate is merely `pd_rstn` folding into the
+tile reset, so `make verify` cannot tell a gated tile from a reset one. The tree
+is a gitignored working directory like every other one under `xcelium/`, and the
+target says how to rebuild it rather than failing silently if it is absent. Its
+static counterpart, `//hdl/common/power:iso_clamp_audit_test`, proves the clamp
+set is complete and needs no licence.
+
 `xcelium/riscv_test/behavioral_mp/` is a **fast smoke, not the regression**: it
 compiles the same generated tape-out RTL but has no polarity gate and runs the
 `DEFINES=(none)` image set, so a green run there covers the OFF-arm software

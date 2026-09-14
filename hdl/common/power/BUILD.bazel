@@ -1,0 +1,59 @@
+# VestaRV: the isolation-clamp completeness gate for the MTCMOS hart-tile domain.
+# The suite is //hdl/common/power and not //hdl/common for the reason
+# //hdl/common/cdc and //hdl/common/synth state: a BUILD file at hdl/common/ would carve
+# the whole RTL tree out of //hdl:vhdl_sources' glob. This package holds no VHDL, so the
+# glob loses nothing by stopping here.
+
+load("@rules_python//python:defs.bzl", "py_test")
+
+package(default_visibility = ["//visibility:public"])
+
+exports_files([
+    "iso_clamp_audit.py",
+    "iso_clamp_allowlist.json",
+])
+
+# The file list the auditor reads, one path per line. Same shape and same reason as
+# //hdl/common/cdc:cdc_source_manifest: $(rootpaths ...) on a command line is
+# shell-tokenized and unreadable in a failure message.
+genrule(
+    name = "iso_clamp_source_manifest",
+    testonly = True,
+    srcs = ["//hdl:vhdl_sources"],
+    outs = ["iso_clamp_source_manifest.txt"],
+    cmd = "for f in $(rootpaths //hdl:vhdl_sources); do echo $$f; done > $@",
+)
+
+# PROVES that no output of a power-gated hart_tile instance reaches the always-on side
+# unclamped. Isolation here is NOT a CPF rule and therefore NOT tool-inserted (Genus:
+# CPI-502 / CPI-517 zero isolation cells; Xcelium: LPNOISO, both correct), so nothing in
+# the implementation flow checks that the explicit RTL clamp set in the generated MCU.vhd
+# is complete. An unclamped crossing is a floating pin of a dark domain sampled by
+# always-on logic, and it passes synthesis, P&R, LVS and the whole functional regression,
+# because none of those power the domain down. The dynamic counterpart is the Xcelium LPS
+# bench (`make -C platform/common verify-lps`), which needs a Cadence licence and is
+# therefore not a Bazel test.
+#
+# A change that is intended is blessed by editing iso_clamp_allowlist.json IN THE SAME
+# COMMIT as the RTL or emitter change, with a reason. There is no --update mode on
+# purpose: an exemption is a decision a human writes down.
+py_test(
+    name = "iso_clamp_audit_test",
+    size = "small",
+    srcs = ["iso_clamp_audit.py"],
+    args = [
+        "--files-from",
+        "$(rootpath :iso_clamp_source_manifest)",
+        "--entity",
+        "$(rootpath //hdl:hart_tile_vhd)",
+        "--allowlist",
+        "$(rootpath iso_clamp_allowlist.json)",
+    ],
+    data = [
+        "iso_clamp_allowlist.json",
+        "//hdl:hart_tile_vhd",
+        "//hdl:vhdl_sources",
+        ":iso_clamp_source_manifest",
+    ],
+    main = "iso_clamp_audit.py",
+)

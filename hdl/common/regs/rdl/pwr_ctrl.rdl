@@ -37,6 +37,7 @@ reg PWRCR_t #(longint unsigned NHARTS = 5) {
 };
 
 // Read-only nibble array, 4 bits per hart: 0 ON, 1 ISO, 2 RSTOFF, 3 OFF, 4 RAIL, 5 UNISO. Hart 0's nibble reads 0.
+// WHAT THE ISO STATE ACTUALLY DRIVES. pwr_ctrl's pd_iso_en(h) row enables the isolation clamps, and those clamps are EXPLICIT RTL AND gates on the always-on MCU side of the tile boundary (hdl/common/MCU.vhd, ten per tile), not tool-inserted A2ISO cells inside the tile. hart_tile's pd_iso_en INPUT PORT is therefore RESERVED and unloaded: no rule in cpf/hart_tile.cpf references it, no tile RTL reads it, and it synthesises to a port with zero fanout. The port is kept deliberately, because `PIN pd_iso_en` is already in the hardened tile's abstract of record (innovus/common/hart_tile/out/hart_tile.lef and the ETM .libs, and hart_tile_pt's abstract), so deleting it would change the macro pin list and invalidate the signed-off tile. The register view is unaffected: the ISO nibble means the clamps are asserting either way, and completeness of the clamp set is gated by //hdl/common/power:iso_clamp_audit_test.
 // Word 0. Its nibble 0 is hart 0's, which reads 0 for a different reason from
 // every other nibble (there is no MTCMOS header for the always-on domain), so
 // it carries its own prose and this word cannot be an element of the array.
