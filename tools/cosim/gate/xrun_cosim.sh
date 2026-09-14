@@ -352,6 +352,15 @@ BOOT_ENTRY=0x00000000
 # addresses, same rationale, in the same measurement.
 # STILL TIMING-SENSITIVE by construction: the next thing that moves boot timing
 # re-opens this, and mk_inject will refuse again rather than fabricate.
+# W8 RE-MEASURE (2026-09-13): the ROM was re-cut again (rom.rcf md5
+# cea7e60f4723f63acfd92c5883716f1e; the data map moved, first changed word at
+# 0x39a), so neither read moved. This `lw` is still at pc=0x5a and the SPI0
+# RXBUF drain still at pc=0x1b6, the pair cosim_xallow.txt carries since F11
+# re-pinned 0x5c -> 0x5a and 0x15c -> 0x1b6. Bit 4 did not flip: 8 of 8
+# COSIM_BOOT=1 traces carry `# XBITS 00 00000a1f data 00000002 000000b1`, so
+# the value below is unchanged and mk_inject refused nothing.
+# THE RUN: 2026-09-13 19:37, RUN_KEY=w8_boot8b, COSIM_RCF_LINK=w80, the same
+# eight tests, 8 PASS / 0 DIVERGE / 0 INFRA-FAIL.
 BOOT_ALLOW_X_1=${BOOT_ALLOW_X_1:-'*:00004000:000000b1'}
 BOOT_ALLOW_X_2=${BOOT_ALLOW_X_2:-'*:0000420c:00000000'}
 XALLOW="${XALLOW:-$HERE/cosim_xallow.txt}"
@@ -663,6 +672,17 @@ if [ -f "$RCF_DIR/.imgset" ]; then
     IMGSET_HAVE="$(cat "$RCF_DIR/.imgset")"
     IMG_DEFINES="${IMGSET_HAVE#*DEFINES=}"
     [ "$IMG_DEFINES" = "(none)" ] && IMG_DEFINES=""
+    # The `.imgset` identity carries a trailing `TCM=0x2000` field, and the
+    # `#*DEFINES=` strip above takes everything to end of line, so that token
+    # rode into REF_GCC_OPTS (:854) as a bare gcc argument and gcc read it as a
+    # file name: every reference ELF build failed and the run aborted at the
+    # identity gate naming the symptom, not the cause (F11 2026-09-05). Keep
+    # only the -D tokens; a stamp with no TCM field is unaffected.
+    _img_d=""
+    for _t in $IMG_DEFINES; do
+        case "$_t" in -D*) _img_d="$_img_d $_t" ;; esac
+    done
+    IMG_DEFINES="${_img_d# }"
 else
     IMGSET_HAVE="NHARTS=5 DEFINES=(none)   [ASSERTED: no .imgset stamp in $COSIM_RCF_LINK/]"
 fi

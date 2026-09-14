@@ -5965,6 +5965,18 @@ class LatexUserGuide():
 			args=[['bitmask', 'The bit mask. Only bits with 1s can be changed'], ['x', 'The value to write (only masked bits will be written)'], ['addr', 'The address to write to (must be aligned to a 4-byte (32-bit) boundary)']],
 			rets=None)
 		
+		s += self.generateForthCommand('mr', 'Reads a block of memory and sends it over UART0, followed by a CRC16/CDMA2000 of the bytes sent. Bytes go out in increasing address order, so a 32-bit word arrives least-significant byte first. Byte granular: no alignment is required.',
+			args=[['mode', 'Nonzero sends a raw binary payload and the CRC as two bytes, least significant first; zero sends an ASCII hex string and the CRC as four hex characters'], ['length', 'The number of bytes to read'], ['start_address', 'The address of the first byte to read']],
+			rets=None)
+		
+		s += self.generateForthCommand('mw', 'Receives a block of data over UART0 and writes it to memory. The monitor sends a single dollar sign when it is ready for the payload, and sends the CRC16/CDMA2000 of what it received as four hex characters when the last byte has been stored. Byte granular: no alignment is required.',
+			args=[['bin_payload', 'Nonzero receives a raw binary payload of length bytes; zero receives an ASCII hex string of exactly twice that many characters, each byte most significant nibble first'], ['length', 'The number of bytes to write'], ['start_address', 'The address the first received byte is stored at']],
+			rets=None)
+		
+		s += self.generateForthCommand('ms', 'Fills a block of memory with one byte value. Byte granular, and prints nothing.',
+			args=[['set_byte', 'The value written to every byte; only the low 8 bits are used'], ['length', 'The number of bytes to set'], ['start_address', 'The address of the first byte to set']],
+			rets=None)
+		
 		s += '\\end{itemize}\n\n'
 
 		# Printing
@@ -6183,6 +6195,26 @@ class LatexUserGuide():
 		s += self.generateForthCommand('swphw', 'Swap upper 16 bits with lower 16 bits of TOS',
 			args=[['x', 'Signed integer']],
 			rets=[['ret', 'Return value']])
+		
+		s += self.generateForthCommand('call0', 'Calls a compiled routine at the address on the TOS with no arguments and pushes its 32-bit return value. The routine is entered with the standard calling convention, so any address that is not a valid function entry point will crash the monitor.',
+			args=[['func', 'The address of the routine to call']],
+			rets=[['ret', 'The value the routine returned']])
+		
+		s += self.generateForthCommand('call1', 'Calls a compiled routine at the address on the TOS with one argument and pushes its 32-bit return value. The routine is entered with the standard calling convention, so any address that is not a valid function entry point will crash the monitor.',
+			args=[['a', 'Argument 1, passed to the function'], ['func', 'The address of the routine to call']],
+			rets=[['ret', 'The value the routine returned']])
+		
+		s += self.generateForthCommand('call2', 'Calls a compiled routine at the address on the TOS with two arguments and pushes its 32-bit return value. The routine is entered with the standard calling convention, so any address that is not a valid function entry point will crash the monitor.',
+			args=[['a', 'Argument 1, passed to the function'], ['b', 'Argument 2, passed to the function'], ['func', 'The address of the routine to call']],
+			rets=[['ret', 'The value the routine returned']])
+		
+		s += self.generateForthCommand('call3', 'Calls a compiled routine at the address on the TOS with three arguments and pushes its 32-bit return value. The routine is entered with the standard calling convention, so any address that is not a valid function entry point will crash the monitor.',
+			args=[['a', 'Argument 1, passed to the function'], ['b', 'Argument 2, passed to the function'], ['c', 'Argument 3, passed to the function'], ['func', 'The address of the routine to call']],
+			rets=[['ret', 'The value the routine returned']])
+		
+		s += self.generateForthCommand('call4', 'Calls a compiled routine at the address on the TOS with four arguments and pushes its 32-bit return value. The routine is entered with the standard calling convention, so any address that is not a valid function entry point will crash the monitor.',
+			args=[['a', 'Argument 1, passed to the function'], ['b', 'Argument 2, passed to the function'], ['c', 'Argument 3, passed to the function'], ['d', 'Argument 4, passed to the function'], ['func', 'The address of the routine to call']],
+			rets=[['ret', 'The value the routine returned']])
 		
 		s += '\\end{itemize}\n\n'
 	

@@ -38,7 +38,25 @@
 #   MEASURED across 8 of 8 fresh COSIM_BOOT=1 traces (rom.rcf md5
 #   cab1bbe82d67d959d514dda9e338e3f9, 2048 words), every one carrying
 #   `# XBITS 00 00000821 data 00000002 000000b1`.
-0000005c 00004000
+#   PC RE-PINNED 0x0000005c -> 0x0000005a (2026-09-05, F11). The boot ROM was
+#   re-cut for the bounded flash polls + WDT arm (rom.rcf md5
+#   99b0c95dfb3fc0da52a49d1a68efa904, .text 7,376 -> 7,532 B), which moved this
+#   `lw` two bytes earlier. The read is unchanged: still GPIO0 P0IN at 0x4000,
+#   still `lw a4,0(a1)` (16-bit `4198`), and the very next instruction is still
+#   `and a4,a4,128` (bin/flashboot.dump, check_boot_mode / check_boot_mode+0x2).
+#   MEASURED, not inferred: 8 of 8 COSIM_BOOT=1 traces at RUN_KEY=f11_boot8
+#   (COSIM_RCF_LINK=kf8) applied this entry exactly once each, and mk_inject did
+#   NOT refuse BOOT_ALLOW_X_1='*:00004000:000000b1', i.e. the LFXT phase bit 4
+#   did not flip this time.
+#   HELD at 0x0000005a through the 2026-09-13 ROM re-cut (rom.rcf md5
+#   cea7e60f4723f63acfd92c5883716f1e): that cut moved the data map, first
+#   changed word at 0x39a, so every instruction below it kept its address.
+#   RE-MEASURED (W8), not assumed: 8 of 8 COSIM_BOOT=1 traces at
+#   RUN_KEY=w8_boot8b, COSIM_RCF_LINK=w80, applied this entry exactly once
+#   each; the kept trace (RUN_KEY=w8_keep1) carries `R 00 0000005a 4198 0e
+#   000000bx` and `# XBITS 00 00000a1f data 00000002 000000b1`, so
+#   BOOT_ALLOW_X_1='*:00004000:000000b1' still contradicts no driven bit.
+0000005a 00004000
 #
 # ENTRY 2 — SPI0 RX buffer read before any transfer has completed
 #   pc   0x00000198  `lw x5, 12(x10)`   (encoding 00c52283)
@@ -53,7 +71,16 @@
 #   000000xx. Only its address in the ROM moved.
 #   MEASURED across the same 8 of 8 traces:
 #   `# XBITS 00 0000084f data 000000ff 00000000`.
-0000015c 0000420c
+#   PC RE-PINNED 0x0000015c -> 0x000001b6 (2026-09-05, F11), same cause. Still
+#   the 32-bit `00c52283` `lw t0,12(a0)` at 0x420c (bin/flashboot.dump,
+#   spi0_tx_complete_done); the bounded-poll rewrite added the two
+#   spi0_poll_* loops ahead of it. Applied once in each of the same 8 traces.
+#   HELD at 0x000001b6 through the 2026-09-13 ROM re-cut, same cause as entry
+#   1. RE-MEASURED (W8): applied once in each of the same 8 traces; the kept
+#   trace carries `R 00 000001b6 00c52283 05 000000xx` and
+#   `# XBITS 00 00000a5a data 000000ff 00000000`. Only the FIRST read is
+#   x-tainted: every later `lw t0,12(a0)` at this pc reads a defined word.
+000001b6 0000420c
 #
 #
 # ---------------------------------------------------------------------------

@@ -275,9 +275,10 @@ GATE_FILES = [
     # generated memory map moves, and software/bootrom_mp/testdata/rom_rcf_golden.txt
     # moves with it; the three copies are one md5,
     # cea7e60f4723f63acfd92c5883716f1e.
-    # THE BOOT-MODE X PINS IN xrun_cosim.sh (pc 0x5c and 0x15c) ARE STALE: a cut
-    # moved the word at 0x004, the mhartid dispatch branch, and they must be
-    # re-measured before the cosim reference is trusted again.
+    # The boot-mode x pins in cosim_xallow.txt are pc 0x5a and pc 0x1b6, both
+    # re-measured against this image (W8, 2026-09-13): the 8-test COSIM_BOOT=1
+    # sweep applies each exactly once. Re-measure them from a fresh trace after
+    # any cut that moves a word below 0x1b8.
     ('bootrom_mp_rom.rcf',
      'software/bootrom_mp/bin/rom.rcf',
      'the boot ROM image the COSIM_BOOT reference and the behavioural ROM '
