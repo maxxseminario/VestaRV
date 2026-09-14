@@ -478,3 +478,57 @@ minute 30. When that work commits, both assemblies need one more 30-minute cut a
 the merged RTL. The hold-ECO fixes are not exercised by a cut either; the next ECO is
 their proof.
 
+
+## 4.9 W2, 2026-09-14: topology B's cut pt11 is TIMING-CLOSED, and three of the four B-PT9 blockers are closed
+
+Full report: `<scratchpad>/reports/W2_topology_B_pt11.md`. Nothing tracked was
+modified except this section; everything else is under `genus/`, `innovus/` and
+`signoff_mp/`. `hdl/` and `platform/` read-only.
+
+**The defect behind B-PT9-2, found before anything was cut (W2-1).** Ten of the
+18 chip-level `TIE_TOP` nets on pt9 drove nothing but an analog supply pad
+terminal. `PVDD3A_G/AVDD` and `PVSS3A_G/AVSS` are tphn SIGNAL pins, so ANATOP
+part 3 binds them with `attachTerm` onto the physical `AVDD`/`AVSS` nets;
+`addTieHiLo`, which runs later and does not read a physical-net attachment as a
+connection, **overrode all ten**, and pt9's own DEF shows the `AVDD` special net
+carrying only its five block-side PG pins. Every one of the eight `TIE_TOP` M3
+shorts was on those ten nets -- four against the AVDD special vias at the C-G7
+strap positions, four hi-vs-lo pairs 249 to 255 um co-linear in the 1 um strip
+between the core box and the pad row, the only corridor a core-placed tie cell
+has to a pad terminal. That is why capping the layer moved the class (pt7 1,
+pt8 3, pt9 8, b1 19) instead of closing it. **Topology A carries the same defect
+on its two analog pads and is not fixed from here.**
+
+| stage | result |
+|---|---|
+| Genus `MCU_PENTA_pt` | promoted, 00:31:04, every gate at `GATE_STRICT=1`, drift 0 of 75, against a frozen copy of HEAD `aa2d5fda`. 130,795 -> **130,859** cells, 24,407 -> **24,423** flops (**+16 = W10's `MCU` census delta exactly**), setup WNS +3,529 ps unchanged, `FOOTBUF32MA10TH` 0 |
+| Innovus chip `pt11` | 1:37:36, parked at WQ26b, closed by the out-of-flow ECO: **setup +0.016 ns / 0 violating of 34,632, hold +0.002 ns / 0 violating** at four coupled-SI views |
+| signoff | `chipdrc` **1,931** (pt9 2,369), `ant25` **clean**, LVS **MISMATCH but 503 : 191 -> 144 : 100** devices and 171 : 21 -> **29 : 9** nets, pins 77:77 with 0 unmatched, negative control discriminates |
+| ingest | `signoff_mp/castalia_B_pt11`, README first line TIMING-CLOSED, NOT SIGNED OFF |
+
+Blocker state:
+
+| # | state |
+|---|---|
+| **B-PT9-1** | **CLOSED at chip level.** `chipdrc` VIA5 **0**, against 429 on every cut from pt7 to b1. pt11 is the first chip cut carrying T2's attempt-32 tile, and its LVS netlist is from the same tile cut, so P15's pairing collision does not recur |
+| **B-PT9-2** | **CLOSED**, by delta **C17**: `addTieHiLo -excludePin` over the ten analog supply pad terminals, derived from `ANATOP_PT_APG`, with two gates after the call. Chip tie nets 18 -> 8, C16 census 0 above M4 and **14** at or below (pt9 172, b1 248), signoff `Short` **10 and all ten the waived pad-blockage class -- zero real `TIE_TOP` shorts** |
+| **B-PT9-3** | CLOSED and exercised on this lineage: 14 of 14 derived targets resolved, no -9.3 ns class |
+| **B-PT9-4** | **open, and now bounded to one class.** The footer rows and the tie-cell pairs are gone; what remains is 144 layout : 100 schematic pad-cell devices (`MP/MN(*_25OD)`, `rm1`, `rm2`, `rppolywo`, the four diode families) plus 1,400 instances present on both sides with connectivity differences. The mismatched nets are the tphn CDL's nine globals, and the records show the layout merging `AVDD` with `TAVDD` where the CDL separates them through `PVDD3A_G`'s own `rm1`/`rm2` (l=50n w=21.24u). **Not a text or cpoint issue**; deciding whether the analog ring may land on the pad row's `TAVDD`/`TAVSS` rails comes before any deck statement |
+| **B-PT11-1** | **NEW, open.** The four shared bias rails and `POC` are reported OPEN in the layout, each schematic net matching two layout nets. `anatop_biasgen_g` is a placeholder abstract, so this is probably `W-PT1-1` one level up -- but the bias rails have never been compared before |
+
+**Two flow fixes exercised for the first time, both W1's.** The hold ECO's four
+violating endpoints were all bussed (`mcu0/hart{1,3}/sh_rdata[21]`, `[23]`),
+which is precisely the class P15-4 dropped silently, and the pointer-keeping
+driver actioned all four through two delay cells. WQ25's extraction census read
+**97,287 of 97,287 (100.00 %)** on the corrected basis.
+
+**Parked: the CDC gate is not armed.** `GENUS_CDC_STRICT=1` refused the first
+attempt, and correctly. W10's three fixes land exactly as predicted --
+`nfc0/resp_bytes_reg[*][*]` 128 waived, `i3c0/ibi_req_reg` 1 waived,
+`spi?/s_spi_teif_reg` 0 endpoints, unwaived **139 -> 3** -- but three endpoints
+are new and none is in the list: `spi0/s_gap_reg/D` and `spi1/s_gap_reg/D`
+(mclk -> clk_sck, the same `spi_dl` dependence `spi?/s_counter_reg\[*\]` is
+already waived for, created by W10's own SPI fix) and `nfc0/t_etu_reg[0]/D`
+(mclk -> nfc0_rf; `t_etu` and the already-waived `t_etu_half` are assigned on one
+RTL line, `NFC.vhd:619`). Three waiver lines and the gate can be armed; `hdl/` is
+read-only for this wave.
