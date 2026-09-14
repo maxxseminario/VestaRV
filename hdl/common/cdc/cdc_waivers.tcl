@@ -22,6 +22,12 @@
 # failure scenarios and the per-entry hit counts are in the W5a and W5b reports; the
 # three former defects (nfc0 resp_bytes, i3c0 ibi_req, spi s_spi_teif) are fixed in RTL
 # by W10 and are covered by their sync instances, not by a waiver.
+#
+# W11a (2026-09-14) added the last two entries the armed census wanted, both beside the twin
+# they share a mechanism with: spi?/s_gap_reg beside spi?/s_counter_reg, and nfc0/t_etu_reg\[*\]
+# beside nfc0/t_etu_half_reg\[*\]. Both registers are W10 creations or W10 survivors, not new
+# crossing classes. With them the census on genus/MCU_PENTA_pt reads 0 NOT waived and
+# GENUS_CDC_STRICT defaults to 1.
 
 proc cdc_waiver_list {} {
 	return {
@@ -73,6 +79,7 @@ proc cdc_waiver_list {} {
 		{i2c?/RC_CG_HIER_INST*/RC_CGIC_INST "the clock gates Genus inserts for the slave flag bank; their enable is the same quasi-static address compare and held W1C level that qualifies the D pins, and Genus renumbers the instance every run"}
 
 		{spi?/s_counter_reg\\[*\\] "the terminal count that wraps the slave bit counter is selected by the quasi-static spi_dl field of SPIxCR (SPI.vhd:223, 548-566)"}
+		{spi?/s_gap_reg "the inter-transfer gap, one bit registered in the sck_slave domain on the very edge that opens it (SPI.vhd:554,558,566,573,580), whose D cone reaches mclk only through the quasi-static spi_dl field of SPIxCR that selects the terminal count (SPI.vhd:226), the same dependence spi?/s_counter_reg is waived for; sampling it is safe because the slave sample process is held in asynchronous reset whenever spi_en, spi_mode or cs_in deselects the slave (SPI.vhd:548-554), so spi_dl is programmed before CS falls and holds still for the whole selected window, and because the only reader of s_gap is u_sync_s_gap (SPI.vhd:527-531), so a mid-word spi_dl change resolves one way or the other inside the sck domain and can move nothing but SPITEIF, by one sck edge, with no data captured on it"}
 		{spi?/s_spi_tcif_reg "set at that same spi_dl-selected terminal count and cleared by clr_spi_tcif, so the only crossing is the quasi-static data-length field (SPI.vhd:548-566, 583)"}
 		{spi?/RC_CG_HIER_INST*/RC_CGIC_INST "the clock gate Genus inserts for the slave counter bank; its enable is the same quasi-static spi_dl compare that qualifies the D pins, and Genus renumbers the instance every run"}
 
@@ -91,6 +98,7 @@ proc cdc_waiver_list {} {
 		{nfc0/t_sak_reg\\[*\\] "quasi-static NFCxCFG.SAK latched at rx_soc (NFC.vhd:752), programmed while NFCxCR.NFCEN is clear and latched transaction-locally in the rf domain; nfcen_r2, the 2-FF copy of NFCEN, holds the rf core in asynchronous reset until the enable releases it (NFC.vhd:528,721)"}
 		{nfc0/t_fdt_reg\\[*\\] "quasi-static NFCxTIM.FDT latched at rx_soc (NFC.vhd:753), programmed while NFCxCR.NFCEN is clear and latched transaction-locally in the rf domain; nfcen_r2, the 2-FF copy of NFCEN, holds the rf core in asynchronous reset until the enable releases it (NFC.vhd:528,721)"}
 		{nfc0/t_etu_half_reg\\[*\\] "quasi-static NFCxTIM.ETU halved and latched at the SOC pause edge (NFC.vhd:582), programmed while NFCxCR.NFCEN is clear and latched transaction-locally in the rf domain; nfcen_r2, the 2-FF copy of NFCEN, holds the rf core in asynchronous reset until the enable releases it (NFC.vhd:528,721); Genus merged t_etu bits 7 to 1 into this bank"}
+		{nfc0/t_etu_reg\\[*\\] "the transaction-locally latched timing word: quasi-static NFCxTIM.ETU zero-extended and latched at the SOC pause edge (NFC.vhd:611,619), programmed while NFCxCR.NFCEN is clear and latched in the rf domain, with nfcen_r2, the 2-FF copy of NFCEN, holding the decoder in asynchronous reset until the enable releases it (NFC.vhd:541,590); bit 0 is the only bit of t_etu that survives as its own flop, because t_etu(7 downto 1) carries the same NFCxTIM bits as t_etu_half(6 downto 0) and Genus merged them into nfc0/t_etu_half_reg, waived above, while t_etu(15 downto 8) is constant zero"}
 		{nfc0/t_eoc_thresh_reg\\[*\\] "quasi-static NFCxTIM.ETU summed as 2*ETU+ETU/2 and latched at the SOC pause edge (NFC.vhd:583), programmed while NFCxCR.NFCEN is clear and latched transaction-locally in the rf domain; nfcen_r2, the 2-FF copy of NFCEN, holds the rf core in asynchronous reset until the enable releases it (NFC.vhd:528,721)"}
 		{nfc0/t_subc_reg\\[*\\] "quasi-static NFCxTIM.SUBCDIV latched at tx_start in TXP_IDLE (NFC.vhd:653), programmed while NFCxCR.NFCEN is clear and latched transaction-locally in the rf domain; nfcen_r2, the 2-FF copy of NFCEN, holds the rf core in asynchronous reset until the enable releases it (NFC.vhd:528,721)"}
 		{nfc0/state_s2_reg\\[*\\] "four-phase MCP: the rf side holds state_cap until state_ack returns, and the clk side takes the whole word only on the synchronised u_sync_state_req edge (NFC.vhd:479,483,510)"}
