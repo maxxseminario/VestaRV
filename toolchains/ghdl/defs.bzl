@@ -86,7 +86,7 @@ also accept a plain ordered label_list and this rule can go away.
     },
 )
 
-# Shared source resolution for ghdl_library / ghdl_test
+# Shared source resolution for ghdl_library / ghdl_test / vhdl_source_manifest
 
 def _resolve_srcs(ctx):
     """Ordered analysis list: source sets expand in place, files stay in order."""
@@ -97,6 +97,41 @@ def _resolve_srcs(ctx):
         else:
             out.extend(t[DefaultInfo].files.to_list())
     return out
+
+# vhdl_source_manifest
+
+def _vhdl_source_manifest_impl(ctx):
+    srcs = _resolve_srcs(ctx)
+    out = ctx.actions.declare_file(ctx.label.name + ".f")
+    ctx.actions.write(
+        output = out,
+        content = "".join([f.path + "\n" for f in srcs]),
+    )
+    return [DefaultInfo(files = depset([out]), runfiles = ctx.runfiles(files = srcs))]
+
+vhdl_source_manifest = rule(
+    doc = """Write an ordered VHDL analysis list to a .f file, one path per line.
+
+Vendor synthesis lives outside Bazel, and the one thing it cannot be allowed to
+reinvent is the ORDER: `entity work.x` binds at analysis, hdl/common/sim/ and
+hdl/fpga/ declare the same entities and exactly one of the two may appear, and a
+tool handed the whole of //hdl:vhdl_sources binds whichever architecture it read
+last. This rule hands the vendor the same list a ghdl_test analyzes, built from
+the same source sets, so the two cannot drift.
+
+Paths are exec-root relative, which is what they are relative to the workspace
+root once bazel-out is resolved: run the vendor tool from the repo root and the
+lines resolve as written, generated files included.
+""",
+    implementation = _vhdl_source_manifest_impl,
+    attrs = {
+        "srcs": attr.label_list(
+            mandatory = True,
+            allow_files = [".vhd", ".vhdl"],
+            doc = "Source sets and single files, in analysis order.",
+        ),
+    },
+)
 
 # ghdl_library
 

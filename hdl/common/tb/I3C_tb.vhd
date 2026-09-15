@@ -142,9 +142,10 @@ begin
         end if;
     end process cb_mon;
 
-    -- clock / gated register-bus clock
+    -- clock / free-running register-bus clock
     clk    <= not clk after PERIOD / 2;
-    ClkMem <= clk when pbus.en_mem = '0' else '0';
+    -- Register-bus clock free-runs, as mclk does at the MCU: SR and RX are carried into that domain by work.sync chains a gated clock would starve.
+    ClkMem <= clk;
 
     -- sda_bus / scl_bus resolution: the DUT drives when its *_DIR='1', each target model when its *_oe='1', and a released driver contributes 'Z' so the constant 'H' sets the idle level.
     -- std_logic resolution gives wired-AND for the open-drain phases (any '0' wins), and DUT and models all see the SAME resolved nets on their *_IN ports.

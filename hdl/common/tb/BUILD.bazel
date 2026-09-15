@@ -473,6 +473,7 @@ vhdl_source_set(
     name = "i2c_rtl",
     paths = [
         "hdl/common/constants.vhd",
+        "hdl/common/sync.vhd",
         "hdl/common/MemoryMap.vhd",
         "hdl/common/sim/ClkGate.vhd",
         "hdl/common/commune/ClkDivPower2.vhd",
@@ -826,6 +827,7 @@ vhdl_source_set(
     name = "qspi_rtl",
     paths = [
         "hdl/common/constants.vhd",
+        "hdl/common/sync.vhd",
         "hdl/common/sim/ClkGate.vhd",
         "hdl/common/periph_regs.vhd",
         "hdl/common/regs/vhdl/qspi_regs_pkg.vhd",

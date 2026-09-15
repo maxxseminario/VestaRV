@@ -1,5 +1,5 @@
 -- VestaRV: SPI flash XIP testbench
--- self-checking testbench for the SPI peripheral's extended-memory (flash XIP) path, SPI.vhd built with ENABLE_EXTENDED_MEM = true against the AT45DB021E behavioral model in tb/serial_flash.vhd, on the usual periph_tb_pkg scoreboard and register-bus BFM (en_mem and wen active-low, gated clk_mem).
+-- self-checking testbench for the SPI peripheral's extended-memory (flash XIP) path, SPI.vhd built with ENABLE_EXTENDED_MEM = true against the AT45DB021E behavioral model in tb/serial_flash.vhd, on the usual periph_tb_pkg scoreboard and register-bus BFM (en_mem and wen active-low, free-running clk_mem as at the MCU).
 -- No core is present: the bench plays the tile's adddec, driving en_mem_flash, clk_mem_flash and mab and consuming rdata_flash and disable_clk_cpu exactly as adddec.vhd does for a data_addr in the flash window; the flash image ../rcf/spiflash_xiptest_a.rcf holds 32 binary chars per line, one 32-bit word MSB-first, word i being the expected XIP read at 0x20000+4*i.
 -- Coverage: the deep-power-down wake handshake (a CS-framed 0xAB resume issued as a normal 8-bit transfer with spi_fen = 0, plus 35 us of tRDPD), the XIP read FSM (CS low, opcode 0x0B, 24-bit address of mab(23:0) plus SPIxFOS, dummy byte, 32-bit word), SPIxFOS = 0xFE0000 mapping XIP address 0x20000+4*i onto flash word i in the 24-bit adder, the SPIxCR rx-swap MSB-first 32-bit alignment back to a little-endian word, and the disable_clk_cpu core stall.
 
@@ -77,7 +77,9 @@ begin
     -- Clock and reset infrastructure.
     smclk   <= not smclk after SM_PERIOD / 2;
     mclk    <= not mclk  after MC_PERIOD / 2;
-    clk_mem <= smclk when pbus.en_mem = '0' else '0';
+    -- clk_mem FREE-RUNS, as mclk does at the MCU: SPIxSR and SPIxRX are carried into that domain by work.sync chains a gated clock would starve (Z1, 2026-09-15).
+    -- UNPROVEN: no bazel target builds this bench, so the change is by inspection against SPI_tb, which was re-run against the unchanged RTL under a free-running clock before the RTL moved.
+    clk_mem <= smclk;
 
     -- serial_flash reloads its image on the RISING edge of mem_reset, so resetn starts high and drops in the stimulus to give a clean edge while the DUT is in reset.
     mem_reset <= not resetn;

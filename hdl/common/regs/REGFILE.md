@@ -21,7 +21,9 @@ class and every byte lane against the module alone.
 | `MABPart(7:2)` | - | word slot inside the 256 B window |
 | `wdata` / `rdata_out` | - | 32-bit data, read registered |
 
-One access, one `ClkMem` cycle:
+One access, one `ClkMem` cycle. **`ClkMem` FREE-RUNS**: `MCU.vhd` wires every
+peripheral's `ClkMem` to the ungated `mclk`, and `EnMemPeriph` selects the block
+for one rising edge of it.
 
 ```
                  ___     ___     ___
@@ -30,17 +32,124 @@ One access, one `ClkMem` cycle:
                  |__________________|
  MABPart     ----<      slot       >-----
  WEn         ----<  lanes / 1111   >-----
-                 ^        ^         ^
-                 |        |         `- strobes retire (STROBE_HOLD) / deselect
-                 |        `- T: storage written, strobes set, rdata_out registered
-                 `- the peripheral's own falling-edge pre-latch fires here
+                          ^         ^
+                          |         `- strobes retire (STROBE_HOLD) / deselect
+                          `- T: storage written, strobes set, rdata_out registered
  rdata_out   ========< word read at T >====
 ```
 
-`rdata_out` is a flop loaded every `ClkMem` edge from the decoded word. While the
-peripheral is deselected the decode points at `WORD_BASE`, so an idle read
-register holds word 0 - which is what every hand-written decode does today, and
-the reason this is stated rather than fixed.
+**T, the one rising `ClkMem` edge inside the select window, is the whole timing
+of the protocol.** Nothing in the bus is clocked by `EnMemPeriph` or by anything
+derived from it: the select reaches the decode combinationally, the storage, the
+strobes and the read register are all on rising `ClkMem`, and the only place
+`EnMemPeriph` appears on a control pin is `STROBE_HOLD`'s asynchronous strobe
+clear, which is a level and not an edge.
+
+`rdata_out` is a flop loaded every `ClkMem` edge from the decoded word, so a read
+returns the decoded word **as it stands at T**: a source that moves between the
+select and T is returned whole at its new value, and one that moves after T is
+not seen until the next access. The word is one register's value from one edge -
+the read mux selects exactly one row and one flop captures it - so it can never
+be a mixture of two instants. `periph_regs_tb` GROUP 13 is that case, driven with
+two values that differ in every bit but 31 (which the bench's `img` cannot format).
+
+While the peripheral is deselected the decode points at `WORD_BASE`, so an idle
+read register holds word 0 - which is what every hand-written decode does today,
+and the reason this is stated rather than fixed.
+
+### The peripheral side: what T implies for a volatile word (2026-09-15, Z1 and Z2b)
+
+Until 2026-09-15 eight peripherals snapshotted their volatile status and receive
+words on `falling_edge(EnMemPeriph)` - a flop whose clock pin was the address
+decode - and fed the snapshot to `hw_rd`. **None of them does now.** The
+replacement is stated once here because it is the same in all of them, and it is
+what makes T a legitimate snapshot edge for a word the block does not own:
+
+| word shape | how it reaches `hw_rd` | age at T |
+|---|---|---|
+| already in the `ClkMem` domain (GPIO's `PxIF` and `prt_in_s2`, UART's whole `UART_SR`) | read directly | 0 edges: the flop's value before T |
+| a FLAG word, n independent bits (`SPIxSR`, `I2CxSR`, `QSPIxSR`, `I3CxSR`, TIMER's status) | `work.sync` `WIDTH = n`, `DEPTH = 2`, on `ClkMem` | 2 edges |
+| a DATA word whose validity a flag carries (`UART_RX`, `SPIxRX`, `QSPIxRX`, `I3CxRX`, `I2CxMRX`, `I2CxSRX`, `TIMxCAP0/1`) | the source domain flips a TOGGLE when it writes the word; the toggle crosses on `work.sync`; a `ClkMem` flop copies the whole word on the synchronized edge | 2 edges, and the copy holds until the next event |
+| a word that changes every cycle (`TIMxVAL` alone) | gray mirror, `work.sync` `WIDTH = 32`, one decode register | 2 edges |
+| a BINARY word that may not cross bit by bit at all (`NFCxSR.NFCSTATE`) | a four-phase MCP handshake: the source holds the word and flips a request, the destination captures it whole on the synchronized request edge and answers | 2 edges plus the handshake's own round trip, and a change arriving while one is in flight waits |
+
+A read therefore returns a value up to **two `ClkMem` edges older** than the
+select edge. Nothing in the bus protocol depends on the age of the datum, only on
+its coherence, and both shapes above are coherent by construction: a flag word's
+bits are independent, so a per-bit chain cannot assemble a word that was never
+present, and a data word is copied whole by one flop at one edge.
+
+Two places where two edges of age WOULD change the register contract, and what
+each block does instead:
+
+- **A launch the firmware polls for.** `SPIxSR.SPIBUSY` and `QSPIxSR/I3CxSR.BUSY`
+  must read 1 on the access right after the write that launched the transfer.
+  Each block ORs a **launch-pending** bit into the read: a `ClkMem` flop set by
+  the same `wr_hit`/`acc_hit` the launch takes and retired at the first `ClkMem`
+  edge where the synchronized BUSY reads high. The two overlap, so the level
+  never dips mid-transfer.
+- **A write-1-to-clear the firmware reads back.** The flags are cleared
+  ASYNCHRONOUSLY in their own domains, so a clear needs the same two `ClkMem`
+  edges to travel back through the synchroniser that the set needed coming in.
+  Each block masks the read with a **clear shadow**: the armed W1C pattern, held
+  over exactly those two edges. A flag therefore retires on the next access as it
+  did off the pre-latch, and a hardware set inside the window is not lost,
+  because the source flag is sticky and reappears when the mask retires. The
+  shadow is armed from the COMBINATIONAL `wr_hit`/`acc_hit`, valid AT T; the
+  registered `w1c_hit` levels rise after T and (under `STROBE_HOLD`) retire on
+  deselect, so no `ClkMem` edge ever samples them high.
+
+**NFC, the eighth block (Z2b).** Its four volatile words take three of the four
+shapes at once and are worth naming, because the next block with a hard word will
+look like one of them. `NFCxSR` splits: eight independent flag and level bits on a
+`work.sync` `WIDTH = 8` chain, and `NFCSTATE` on the MCP row above, a SECOND
+handshake behind the `rf_clk` one R14b built, because the 4-bit ISO state is binary,
+gray coding is provably unavailable for it (see the comment at `state_mcp_src`) and
+no ratio of `ClkMem` to `clk` is guaranteed. `NFCxRXST` and the nine live receive
+bytes take the DATA row, published together on one `rf_clk` toggle when the receive
+group goes final. `NFCxDBG` takes the DATA row rather than a gray mirror even though
+it is two counters: they step once per FRAME, four orders of magnitude slower than
+the two-edge sync latency, and one shared toggle keeps the 32-bit word coherent
+across both halves, which per-counter gray coding would not. `NFCxDATA`'s payload
+half needs no crossing at all - it is written on `ClkMem` - and is read
+combinationally into `periph_regs`' own read register at T, with the pre-increment
+index, which is the byte the pre-latch captured at the select.
+
+### A held strobe is only as wide as the fabric's select (2026-09-15, Z1)
+
+`STROBE_HOLD = true` retires the strobe ASYNCHRONOUSLY while `EnMemPeriph` is high,
+so **the strobe's width is the fabric's, not the module's**. In `MCU.vhd` the
+arbiter's `s_en` is a registered one-cycle strobe that self-clears on the very edge
+the slave captures, so a shim carrying the RAW select deasserts `EnMemPeriph` on
+that same mclk edge and the held strobe is a runt. The blocks that pre-latched were
+shielded from this by their falling-mclk `en_q` shim, which put the deselect half a
+cycle after the capture edge; removing the shim removes the shield.
+
+**A peripheral must therefore not rely on a held strobe to reach an asynchronous
+clear or load in another clock domain.** The seven converted blocks OR their held
+strobe with a `ClkMem` level of their own: the combinational access condition
+(`wr_hit` / `acc_hit` qualified by its lane) plus the two stages of the clear shadow,
+about two and a half `ClkMem` periods, generated in `ClkMem` and independent of the
+select. It is additive - the held strobe still contributes - and it costs 2 flops per
+level. The price is that a hardware SET landing inside that window is swallowed, where
+the old half-cycle window would have kept it; every event in these blocks is at serial
+bit rate, orders of magnitude slower than two `mclk` periods.
+
+**`SYSTEM` was the one block genuinely exposed (closed by Z2b).** Its four bus levels
+-- `unlock`, `clr_wdt`, `clr_wdt_rf` and `clr_wdt_if` -- each reach a process clocked or
+reset in another domain, and `clr_wdt_if` is sampled SYNCHRONOUSLY on `clk_wdt`, so a
+select-wide level reached no edge of it at all. All four now take the same additive
+`clk_mem` level. `SYSTEM_tb` GROUP 5d measures the WIDTH at the signal rather than the
+value, because an event simulator resolves the race in delta cycles and can show the
+clear landing anyway: 50 ns before, 250 ns after, against a 100 ns bus period.
+
+**`DMA` was never exposed, and the reason is the pattern to copy.** Every
+`periph_regs` strobe port in `DMA.vhd` is left `open`. Each of its five commands
+(`CHnGO`, `CHnABORT`, the two SR write-1-to-clear requests and the CRC seed commit)
+is armed from the COMBINATIONAL `acc_hit` into a `ClkMem` flop that flips a toggle,
+and the toggle is what crosses. A block built that way has no held strobe to be a
+runt. `DMA_tb` GROUP G-SEL is the standing proof: every access in it is a plain
+single-cycle `bus_write`.
 
 ## Entity
 
@@ -160,10 +269,10 @@ What stays in the peripheral:
 
 - the datapath, the FSMs and every clock domain but `ClkMem`;
 - hardware-set flags, their CDC and their set-wins-over-clear ordering;
-- the falling-`EnMemPeriph` pre-latch of asynchronous read values. The module does
+- the CDC that carries an asynchronous read value into `ClkMem`. The module does
   not offer one: which of a peripheral's signals are asynchronous to `ClkMem` is a
-  CDC judgement, and the existing `reg_sync` processes (inverted storage included)
-  stay where they are and keep feeding `hw_rd`;
+  CDC judgement, and the `work.sync` chains and event-toggle copies that replaced
+  the old `reg_sync` pre-latches stay where they are and keep feeding `hw_rd`;
 - read side effects beyond `rclr`: a FIFO pop, a claim, a consume. `rd_strobe` is
   the hook. `rd_strobe or wr_strobe` is the hook for "any access to this slot",
   which is what `UARTxRX` and `SPIxRX` mean today.
@@ -206,6 +315,15 @@ either way.
 Both paths park on `WORD_BASE` while deselected, so a combinational `rdata_out`
 collapses to word 0 on deselect - which is exactly what `I2C.vhd` does today, and
 what the bridge exists to catch.
+
+**The Z1 wave did not retire the bridge, and deliberately.** Once I2C's status and
+receive words are `ClkMem` copies (above), `REGISTERED_READ = false` plus the
+bridge and `REGISTERED_READ = true` with no bridge present the same word at the
+same edge - the bridge captures `rd_comb` on the rising `mclk` edge of the access,
+which is T. What separates them is only WHERE the flop sits, and moving it changes
+the emitter (`combinationalRead` metadata, `crossCheck`'s bridge membership, the
+I2C1 template) and the NPU's half of the same bridge, which no part of this wave
+touched. That is a brief of its own; nothing in the pre-latch removal depends on it.
 
 ## `wr_inhibit`: a write the peripheral refuses
 
@@ -380,7 +498,9 @@ the `.rdl` still describes 1 to 32.
    recipe instead, and declares `subtype reg_arr_t` itself off `NWORDS(...)`; see
    the section above.
 3. Replace the `case` decode, the read mux and the strobe retirement with one
-   `periph_regs` instance. Keep the `reg_sync` pre-latch and feed `hw_rd`.
+   `periph_regs` instance. Carry every volatile read value into `ClkMem` by the
+   table in "The peripheral side" above and feed `hw_rd`; never clock a flop from
+   `EnMemPeriph`.
 4. Replace each `SIGNAL_REG(a downto b)` field read with
    `regs(W_x)(FIELD_MSB downto FIELD_LSB)`, so no bit literal survives.
 5. `ghdl --synth` before and after and compare cell and latch counts. Zero latches

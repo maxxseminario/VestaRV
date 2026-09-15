@@ -1,8 +1,8 @@
 -- VestaRV: peripheral bench support package
 -- Shared support for the peripheral testbenches: img / crc16_byte formatting and reference models, a self-checking scoreboard, and the peripheral register-bus record with its BFM.
 -- The bus is narrow and active-low: b.en_mem selects, b.wen writes, b.addr_periph is the word-slot index, and read_data is observed directly off the DUT.
--- Each bench keeps its own gated memory-bus clock, since it depends on that bench's reference clock: clk_mem gets clk while b.en_mem is '0', else '0'.
--- Sharp edges of this bus: the gated clk_mem, SR reads that snapshot on select, and clear pulses that stick until the next access.
+-- Each bench drives its own memory-bus clock, since it depends on that bench's reference clock. A bench whose DUT carries volatile read words into that domain on work.sync must FREE-RUN it, as mclk does at the MCU (GPIO, TIMER, SPI, UART, QSPI, I2C, I3C, NFC since 2026-09-15): a clock gated to one edge per access starves the chain. DMA and SYSTEM free-run it too, not because they read through a chain but because a gated clock cannot present the one-edge select the arbiter drives, which is what makes a held strobe a runt. The remaining benches still gate it, which is legal only while their DUT neither reads through a synchroniser nor consumes a held strobe.
+-- Sharp edges of this bus: a status read returns a value up to two clk_mem edges older than the select, and clear pulses that stick until the next access.
 
 library ieee;
 use ieee.std_logic_1164.all;

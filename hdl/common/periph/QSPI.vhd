@@ -99,10 +99,18 @@ architecture behavioral of QSPI is
     signal QSPIxRX  : std_logic_vector(31 downto 0);
     signal QSPIxSR  : std_logic_vector(3 downto 0);  -- [0]BUSY [1]TXEIF [2]RXFULL [3]TCIF
 
-    -- Registered-read pre-latch: falling_edge(EnMemPeriph) latches the INVERTED value of every register with volatile bits, and the read process un-inverts it on the next rising_edge(ClkMem).
-    -- Only SR and RX are volatile (BUSY/flags, and RX's serial-core-written data); CR/CMD/ADR/TX are plain software registers read straight out of the write-side register.
-    signal QSPIxSR_ltch : std_logic_vector(3 downto 0);
-    signal QSPIxRX_ltch : std_logic_vector(31 downto 0);
+    -- Read CDC. Only SR and RX are volatile (BUSY/flags, and RX's serial-core-written data); CR/CMD/ADR/TX are plain software registers read straight out of the write-side register.
+    signal QSPIxSR_mem : std_logic_vector(3 downto 0);   -- QSPIxSR carried into ClkMem, four independent flag chains
+    signal QSPIxSR_rd  : std_logic_vector(3 downto 0);   -- ... with the launch-pending OR and the clear shadow applied
+    signal sr_sync_d, sr_sync_q : std_logic_vector(3 downto 0);
+    signal QSPIxRX_mem : std_logic_vector(31 downto 0);  -- ClkMem copy of the receive word
+    signal rx_tgl      : std_logic;                      -- clk_baud domain: receive-word event
+    signal rx_tgl_d, rx_tgl_q : std_logic_vector(0 downto 0);
+    signal rx_tgl_prev : std_logic;                      -- ClkMem edge-detect stage
+    signal busy_pend   : std_logic;                      -- launch taken, synchronized BUSY not yet high
+    signal sr_clr_now  : std_logic_vector(3 downto 0);   -- QSPIxSR bits this access writes a 1 to
+    signal sr_clr_pipe0, sr_clr_pipe1 : std_logic_vector(3 downto 0);
+    signal write_data_sr : std_logic_vector(3 downto 0);  -- the QSPIxSR-width slice of wdata, W1C bits only
 
     -- QSPIxCR bit-field taps, live and combinational.
     signal q_en    : std_logic;
@@ -232,19 +240,104 @@ begin
             ClkOut  => clk_baud
         );
 
-    -- Pre-latch the volatile registers inverted; the read process un-inverts them.
-    reg_sync: process(EnMemPeriph, QSPIxRX, QSPIxSR)
+    /* -------- Register read CDC ---------------------------------------------
+       Nothing here is clocked by EnMemPeriph. The two volatile words are carried
+       into ClkMem permanently and periph_regs' read register captures them on the
+       rising ClkMem edge of the access, so the word it returns is one register's
+       value from one edge.
+
+       QSPIxSR is four INDEPENDENT flags in the clk_baud domain, which is what
+       work.sync's WIDTH is for; each bit is two ClkMem edges behind its source.
+       BUSY takes qspi_launch with it, so the level never dips between the
+       launching write and the FSM leaving IDLE, and busy_pend below covers the
+       two edges before the synchronized copy rises.
+
+       QSPIxRX is a 32-bit word and may not cross bit by bit, so it does not go
+       through work.sync at all: the receive-word EVENT crosses as a toggle and
+       the data is copied by an ordinary ClkMem flop on the synchronized edge. At
+       that edge rx_sreg's destination has been stable for two ClkMem periods,
+       because the FSM writes QSPIxRX once per transaction. */
+    sr_sync_d <= tcif_flag & rxfull_flag & txeif_flag & (busy or qspi_launch);
+    u_sync_QSPIxSR : entity work.sync
+        generic map (WIDTH => 4, DEPTH => 2)
+        port map (clk => ClkMem, areset => resetn, d => sr_sync_d, q => sr_sync_q);
+
+    rx_tgl_d(0) <= rx_tgl;
+    u_sync_rx_tgl : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => ClkMem, areset => resetn, d => rx_tgl_d, q => rx_tgl_q);
+
+    rx_cap_proc: process(ClkMem, resetn)
     begin
-        if falling_edge(EnMemPeriph) then
-            QSPIxRX_ltch <= not QSPIxRX;
-            QSPIxSR_ltch <= not QSPIxSR;
+        if resetn = '0' then
+            rx_tgl_prev <= '0';
+            QSPIxRX_mem <= (others => '0');
+        elsif rising_edge(ClkMem) then
+            rx_tgl_prev <= rx_tgl_q(0);
+            if rx_tgl_q(0) /= rx_tgl_prev then
+                QSPIxRX_mem <= QSPIxRX;
+            end if;
         end if;
     end process;
 
-    -- The words this block owns rather than stores: the status snapshot and the
-    -- receive word, both re-inverted out of the pre-latch above.
-    sr_rd <= (31 downto QSPIxSR_ltch'high + 1 => '0') & (not QSPIxSR_ltch);
-    rx_rd <= not QSPIxRX_ltch;
+    -- Launch-side pending: firmware polls BUSY on the access right after the
+    -- QSPIxCMD write and the synchronized copy is two ClkMem edges behind it.
+    busy_pend_proc: process(ClkMem, resetn)
+    begin
+        if resetn = '0' then
+            busy_pend <= '0';
+        elsif rising_edge(ClkMem) then
+            -- Retired by a disable as well as by the synchronized BUSY: with
+            -- QSPIEN cleared the baud clock stops, the FSM never leaves IDLE and
+            -- the pending bit would otherwise stick.
+            if q_en = '0' then
+                busy_pend <= '0';
+            elsif acc_s(SLOT_CMD) = '1' and WEn(0) = '0' and busy = '0' then
+                busy_pend <= '1';
+            elsif sr_sync_q(QSPIBUSY_LSB) = '1' then
+                busy_pend <= '0';
+            end if;
+        end if;
+    end process;
+
+    /* Clear shadow: the three W1C flags are cleared ASYNCHRONOUSLY in the
+       clk_baud domain, so the clear needs the two ClkMem edges back through
+       u_sync_QSPIxSR that the set needed coming in. The armed pattern is held
+       over exactly those two edges, so a flag retires on the next access as it
+       did off the pre-latch; a hardware set inside the window is not lost,
+       because the source flag is sticky. The arming term is the combinational
+       acc_hit qualified by its own lane, valid AT the access edge, and not the
+       held clr_* levels, which rise after it and retire on deselect. */
+    sr_clr_now <= write_data_sr when (acc_s(SLOT_SR) = '1' and WEn(0) = '0')
+                  else (others => '0');
+    write_data_sr <= (QSPITCIF_LSB   => wdata(QSPITCIF_LSB),
+                      QSPIRXFULL_LSB => wdata(QSPIRXFULL_LSB),
+                      QSPITXEIF_LSB  => wdata(QSPITXEIF_LSB),
+                      QSPIBUSY_LSB   => '0');
+
+    sr_shadow_proc: process(ClkMem, resetn)
+    begin
+        if resetn = '0' then
+            sr_clr_pipe0 <= (others => '0');
+            sr_clr_pipe1 <= (others => '0');
+        elsif rising_edge(ClkMem) then
+            sr_clr_pipe0 <= sr_clr_now;
+            sr_clr_pipe1 <= sr_clr_pipe0;
+        end if;
+    end process;
+
+    QSPIxSR_mem <= sr_sync_q;
+    QSPIxSR_rd(QSPIBUSY_LSB)   <= QSPIxSR_mem(QSPIBUSY_LSB) or busy_pend;
+    QSPIxSR_rd(QSPITXEIF_LSB)  <= QSPIxSR_mem(QSPITXEIF_LSB)
+                                  and not (sr_clr_pipe0(QSPITXEIF_LSB) or sr_clr_pipe1(QSPITXEIF_LSB));
+    QSPIxSR_rd(QSPIRXFULL_LSB) <= QSPIxSR_mem(QSPIRXFULL_LSB)
+                                  and not (sr_clr_pipe0(QSPIRXFULL_LSB) or sr_clr_pipe1(QSPIRXFULL_LSB));
+    QSPIxSR_rd(QSPITCIF_LSB)   <= QSPIxSR_mem(QSPITCIF_LSB)
+                                  and not (sr_clr_pipe0(QSPITCIF_LSB) or sr_clr_pipe1(QSPITCIF_LSB));
+
+    -- The words this block owns rather than stores: the status and receive copies.
+    sr_rd <= (31 downto QSPIxSR_rd'high + 1 => '0') & QSPIxSR_rd;
+    rx_rd <= QSPIxRX_mem;
 
     hw_rd_s <= (SLOT_RX => rx_rd,
                 SLOT_SR => sr_rd,
@@ -291,9 +384,24 @@ begin
     -- The three write-1-to-clear flags, as held levels into the asynchronous
     -- clears in fsm_proc. BUSY is hardware-driven and outside W1C, so a 1
     -- written to it reaches nothing, exactly as before.
-    clr_txeif  <= w1c_s(SLOT_SR)(QSPITXEIF_LSB);
-    clr_rxfull <= w1c_s(SLOT_SR)(QSPIRXFULL_LSB);
-    clr_tcif   <= w1c_s(SLOT_SR)(QSPITCIF_LSB);
+    /* Each reaches an ASYNCHRONOUS clear in the clk_baud domain, so its WIDTH is
+       what makes it land. Each takes the registered held strobe as before,
+       WIDENED by the ClkMem clear shadow: the combinational access condition plus
+       the two shadow stages is a level about two and a half ClkMem periods wide,
+       in the ClkMem domain, and it does not depend on how long the fabric holds
+       the select. The held strobe alone does: periph_regs retires it
+       asynchronously on EnMemPeriph, which the MCU deasserts on the same mclk edge
+       the strobe is set, so with the falling-mclk en_q shim gone it would be a
+       runt. Additive: nothing the held strobe did is taken away. */
+    clr_txeif  <= w1c_s(SLOT_SR)(QSPITXEIF_LSB)
+                  or sr_clr_now(QSPITXEIF_LSB)
+                  or sr_clr_pipe0(QSPITXEIF_LSB) or sr_clr_pipe1(QSPITXEIF_LSB);
+    clr_rxfull <= w1c_s(SLOT_SR)(QSPIRXFULL_LSB)
+                  or sr_clr_now(QSPIRXFULL_LSB)
+                  or sr_clr_pipe0(QSPIRXFULL_LSB) or sr_clr_pipe1(QSPIRXFULL_LSB);
+    clr_tcif   <= w1c_s(SLOT_SR)(QSPITCIF_LSB)
+                  or sr_clr_now(QSPITCIF_LSB)
+                  or sr_clr_pipe0(QSPITCIF_LSB) or sr_clr_pipe1(QSPITCIF_LSB);
 
     -- The SOLE transaction trigger: a lane-0 write to QSPIxCMD. periph_regs
     -- captures the register content whatever happens; the launch is suppressed
@@ -451,6 +559,7 @@ begin
                         -- Latch QSPIxRX and the flags together so RXFULL and TCIF settle on the same edge.
                         if t_dir = '1' then
                             QSPIxRX     <= rx_sreg;
+                            rx_tgl      <= not rx_tgl;  -- receive-word event into ClkMem
                             rxfull_flag <= '1';
                         end if;
                         tcif_flag <= '1';
@@ -490,6 +599,7 @@ begin
         -- Reset only and deliberately not q_en=0: disabling the peripheral does not wipe data.
         if resetn = '0' then
             QSPIxRX <= (others => '0');
+            rx_tgl  <= '0';
         end if;
 
         -- Status flag W1C application, a level-sensitive tail clear.

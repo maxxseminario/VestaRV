@@ -1,9 +1,11 @@
 -- VestaRV: SPI testbench
 -- standalone self-checking testbench for the SPI peripheral in its base configuration (ENABLE_EXTENDED_MEM = false), with the flash-side ports tied off inactive.
--- Coverage: register read/write, master transfers at 8/16/32 bits checked by MISO-driven-from-MOSI loopback, MSB-first and LSB-first ordering, CPOL idle level, busy/TC/TE flags with their interrupt lines and clear paths, and a basic slave-mode receive.
+-- Coverage: register read/write, master transfers at 8/16/32 bits checked by MISO-driven-from-MOSI loopback, MSB-first and LSB-first ordering, CPOL idle level, busy/TC/TE flags with their interrupt lines and clear paths, a basic slave-mode receive, a 32-bit slave receive at an asynchronous SCK ratio, and a 32-bit slave TRANSMIT graded on the MISO bits an external master would latch.
+-- GROUPS 1 to 11 all pass on the sck_slave-clocked slave and on the oversampled one alike, at the SCK rates this file now drives: the extended bench was run green on the pin-clocked RTL first, and GROUP 11's expected MISO stream is that run's recording.
 -- Support packages: periph_tb_pkg (scoreboard and register-bus BFM) and spi_bfm_pkg (external-master byte driver).
--- One free-running smclk drives both the SPI core and the gated register bus (clk_mem is smclk while en_mem is low).
--- Bus contract: en_mem and the per-lane wen are active-low, SR and RX return a snapshot latched on the falling edge of en_mem, and reading RX also clears the transmit-complete flag.
+-- One free-running smclk drives both the SPI core and the register bus.
+-- clk_mem must FREE-RUN here, as it does in the integration: MCU.vhd wires every peripheral's ClkMem to the ungated mclk, and SR and RX are carried into that domain by work.sync chains a gated clock would starve. The gated form this bench used until 2026-09-15 advanced clk_mem once per access and is not a shape the chip ever presents.
+-- Bus contract: en_mem and the per-lane wen are active-low, SR and RX return a clk_mem copy captured by periph_regs' read register on the rising clk_mem edge of the access, and reading RX also clears the transmit-complete flag.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -20,9 +22,22 @@ end entity SPI_tb;
 architecture sim of SPI_tb is
 
     constant PERIOD   : time := 100 ns;     -- smclk period
-    constant SCK_HALF : time := 250 ns;     -- slave-drive SCK half period
-    -- GROUP 10 drives SCK at a ratio that shares no common factor with the smclk period, so the sck_slave edges walk through every phase of smclk over one word instead of repeating one alignment.
-    constant SCK_ASY  : time := 137 ns;     -- asynchronous slave-drive SCK half period
+    /* Slave SCK phase time. The BFM spends three phases per bit (set MOSI, SCK
+       high, SCK low), so one SCK period is 3 * SCK_*, and the phase between the
+       leading and the trailing edge -- the window in which the slave must have
+       launched MISO -- is one SCK_*.
+
+       Both were shorter until 2026-09-15 (250 ns and 137 ns, the latter 1.4
+       smclk periods per phase). The oversampled slave needs four peripheral
+       clock periods in that window, so they are now 450 ns and 417 ns, which
+       are 4.5 and 4.2. The change is stimulus only: the unchanged RTL was run
+       green at these SCK rates before the sampler moved.
+
+       SCK_ASY still shares no common factor with the smclk period, so the
+       sck_slave edges walk through every phase of smclk over one word instead
+       of repeating one alignment. */
+    constant SCK_HALF : time := 450 ns;     -- slave-drive SCK phase, 4.5 smclk periods
+    constant SCK_ASY  : time := 417 ns;     -- asynchronous slave-drive SCK phase, 4.17 smclk periods
 
     -- clocks / reset
     signal smclk    : std_logic := '0';
@@ -82,15 +97,22 @@ begin
         end if;
     end process teif_mon;
 
-    -- Register-bus clock runs only while the peripheral is selected (en_mem is active-low)
-    clk_mem <= smclk when pbus.en_mem = '0' else '0';
+    -- Register-bus clock free-runs, as mclk does at the MCU.
+    clk_mem <= smclk;
 
     -- MISO loopback for master tests
     miso_in <= mosi_out when mloop = '1' else miso_drv;
 
     -- DUT in base configuration; the flash-side ports are held inactive
     dut : entity work.SPI
-        generic map ( ENABLE_EXTENDED_MEM => false )
+        -- PCLK_HZ / SCK_SLAVE_MAX_HZ are this bench's own numbers. clk is 10 MHz
+        -- here, and the tightest MISO launch window any group drives is SCK_ASY,
+        -- 417 ns, which is the half period of a 1.2 MHz SCK with an even duty.
+        -- The ratio is therefore 8.3 against the minimum of 8, so the elaboration
+        -- assert is graded at the limit rather than with slack.
+        generic map ( ENABLE_EXTENDED_MEM => false,
+                      PCLK_HZ             => 10000000,
+                      SCK_SLAVE_MAX_HZ    => 1200000 )
         port map (
             clk         => smclk,
             mclk        => '0',
@@ -139,6 +161,18 @@ begin
         constant SLAVE_WORDS : slave_word_arr := (x"C3A55A3C", x"0F7E81F0");
         variable sword : std_logic_vector(31 downto 0);
 
+        -- GROUP 11: the word the slave transmits, and the 32 MISO bits an external
+        -- master latches for it. SLAVE_TX_MISO is a RECORDING of the pin-clocked
+        -- slave at this SCK rate, not a derivation. It comes out equal to the
+        -- transmit word because the shift register's reload branch has priority
+        -- over its shift branch while the slave counter reads zero, so bit 0 is
+        -- held through the first bit period and bit k is presented in period k.
+        -- That priority is load-bearing and the oversampled rewrite keeps it.
+        constant SLAVE_TX_WORD : std_logic_vector(31 downto 0) := x"5AC33C5A";
+        constant SLAVE_TX_MISO : std_logic_vector(31 downto 0) := x"5AC33C5A";
+        variable misobit   : std_logic;
+        variable miso_seen : std_logic_vector(31 downto 0) := (others => '0');
+
         -- Poll the status register until the master clears BUSY (bounded).
         procedure wait_master_done is
             variable s : std_logic_vector(31 downto 0);
@@ -185,6 +219,21 @@ begin
         begin
             e.mosi <= b;   wait for half;
             e.sck  <= '1'; wait for half;   -- leading edge (slave shifts out)
+            e.sck  <= '0'; wait for half;   -- trailing edge (slave samples MOSI)
+        end procedure;
+
+        -- The same bit, with the MISO sample a real master would take. The slave
+        -- launches MISO from the LEADING edge and the master reads it at the
+        -- TRAILING edge, so q is what an external master would latch and the check
+        -- on it is a check on the launch latency: exactly what oversampling costs.
+        procedure spi_ext_xfer_bit(signal e : inout spi_ext_master_t;
+                                   b : in std_logic; half : in time;
+                                   signal miso : in std_logic;
+                                   q : out std_logic) is
+        begin
+            e.mosi <= b;   wait for half;
+            e.sck  <= '1'; wait for half;   -- leading edge (slave shifts out)
+            q := miso;                      -- the master samples at the trailing edge
             e.sck  <= '0'; wait for half;   -- trailing edge (slave samples MOSI)
         end procedure;
 
@@ -485,6 +534,49 @@ begin
 
         cs_in <= '1';
         wait for PERIOD;
+        bus_write(smclk, pbus, RegSlotSPIxCR, x"00000000");
+
+        /* GROUP 11: slave TRANSMIT at the asynchronous SCK ratio.
+           Nothing in this bench graded MISO before, and MISO is the half of the
+           slave that oversampling puts at risk: the shift register is launched
+           from the SCK leading edge and the master reads it at the trailing
+           edge, so the slave has one SCK phase to get the bit out. A pin-clocked
+           slave launches at the edge; an oversampled one launches two
+           synchroniser edges and one edge-decode edge later, which is what fixes
+           the maximum slave SCK at an eighth of the peripheral clock rather than
+           the quarter the receive path alone would allow.
+           The expected MISO stream is the ORACLE: it was recorded from the
+           pin-clocked slave at this SCK rate before the sampler moved, and the
+           oversampled slave must reproduce it bit for bit. Both words are dense,
+           so one bit of slip reads back wrong rather than by luck the same. */
+        report "=== GROUP 11: slave transmit, MISO launched from the SCK edge ===" severity note;
+
+        cs_in <= '1';
+        spie  <= SPI_EXT_MASTER_IDLE;
+        wait for PERIOD;
+        bus_write(smclk, pbus, RegSlotSPIxCR, x"00040098");   -- en, slave, 32-bit, mode0, LSB
+        bus_write(smclk, pbus, RegSlotSPIxTX, SLAVE_TX_WORD);
+        cs_in <= '0';
+        wait for PERIOD;
+
+        sword := SLAVE_WORDS(0);
+        for b in 0 to 31 loop
+            spi_ext_xfer_bit(spie, sword(b), SCK_ASY, miso_out, misobit);
+            miso_seen(b) := misobit;
+        end loop;
+        wait for 8 * PERIOD;
+
+        sb.check_slv("GROUP11: MISO stream matches the transmit word",
+                     miso_seen, SLAVE_TX_MISO);
+        bus_read(smclk, pbus, read_data, RegSlotSPIxSR, rdw);
+        sb.check_bit("GROUP11: TCIF set at the end of the word", rdw(1), '1');
+        -- RX last: any access to that slot retires SPITCIF.
+        bus_read(smclk, pbus, read_data, RegSlotSPIxRX, rdw);
+        sb.check_slv("GROUP11: the same transfer still receives the word", rdw, sword);
+
+        cs_in <= '1';
+        wait for PERIOD;
+        bus_write(smclk, pbus, RegSlotSPIxSR, x"00000003");
         bus_write(smclk, pbus, RegSlotSPIxCR, x"00000000");
 
         -- Final verdict

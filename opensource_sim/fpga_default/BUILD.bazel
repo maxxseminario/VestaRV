@@ -24,9 +24,9 @@
 # RAM from it.
 
 load("//platform/common/bazel:chipgen.bzl", "chip_artifact")
-load("//toolchains/ghdl:defs.bzl", "ghdl_test", "vhdl_source_set")
+load("//toolchains/ghdl:defs.bzl", "ghdl_test", "vhdl_source_manifest", "vhdl_source_set")
 load("//opensource_sim/mcu:defs.bzl", "rom_image_pkg")
-load(":defs.bzl", "FPGA_DEFAULT_HEAD", "FPGA_DEFAULT_MACROS", "FPGA_DEFAULT_MID")
+load(":defs.bzl", "FPGA_DEFAULT_HEAD", "FPGA_DEFAULT_MACROS", "FPGA_DEFAULT_MID", "FPGA_DEFAULT_MID_VIVADO")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -70,6 +70,15 @@ vhdl_source_set(
     pool = ["//hdl:vhdl_sources"],
 )
 
+# The same MID list with hdl/fpga/ClockPrimitives_xilinx.vhd in place of
+# ClockPrimitives_generic.vhd, for the Vivado manifest below. It is NOT analyzed
+# by any GHDL target: BUFGCE and BUFG have no model here.
+vhdl_source_set(
+    name = "fpga_default_mid_vivado_srcs",
+    paths = FPGA_DEFAULT_MID_VIVADO,
+    pool = ["//hdl:vhdl_sources"],
+)
+
 # Order is analysis order, and it is load bearing twice over: a direct
 # `entity work.x` instantiation binds at ANALYSIS, so the macro models have to
 # precede hart_tile.vhd and MCU.vhd; and the GENERATED MemoryMap.vhd has to sit
@@ -101,4 +110,19 @@ ghdl_test(
     sim_timeout_s = 45,
     stop_time = "1ns",
     tags = ["ghdl"],
+)
+
+# The ordered file list a Vivado run reads, so the vendor flow cannot invent its
+# own order and bind the simulation cells. implementations/fpga/synth/README.md
+# is the recipe; implementations/fpga/synth/vivado_ooc_synth.tcl is the script
+# that consumes this file.
+vhdl_source_manifest(
+    name = "fpga_default_vivado_files",
+    srcs = [
+        ":fpga_default_macro_srcs",
+        ":fpga_default_head_srcs",
+        ":fpga_default_memorymap_vhd",
+        ":fpga_default_mid_vivado_srcs",
+        ":fpga_default_mcu_vhd",
+    ],
 )

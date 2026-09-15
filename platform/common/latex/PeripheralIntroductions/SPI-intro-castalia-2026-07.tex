@@ -86,6 +86,8 @@ f_\textrm{SCK} = \frac{f_\textrm{SMCLK}}{2 \times (1 + \bitfield{SPIBR})}
 \end{equation*}
 so the fastest clock is half SMCLK. The port's serial engine runs on SMCLK and its register interface on MCLK, so the registers stay readable with SMCLK stopped.
 
+In slave mode the master supplies \pin{SCKx}, and the port oversamples it on SMCLK rather than clocking flip-flops from the pad. SMCLK must be at least eight times the slave \pin{SCKx} rate, which at 24 MHz allows a slave \pin{SCKx} up to 3 MHz. The binding half of that ratio is \pin{MISOx}: the port launches each bit from the leading \pin{SCKx} edge and the master latches it at the trailing edge, so the master's half period has to cover the sampling latency. Receive alone would run at a quarter of SMCLK.
+
 \subsection{Transmit queue}
 
 A write to \register{SPIxTX} queues one word. In master mode with no frame in progress the frame starts at once and \bitfield{SPITEIF} is set immediately; with a frame in progress the queued word starts when that frame ends, and \bitfield{SPITEIF} is set then. In slave mode the last word written is loaded when the master's first clock edge arrives, and \bitfield{SPITEIF} is set at that edge. The queue holds one word, so a second write during one frame overwrites the first; software waits for \bitfield{SPITEIF} = 1 or \bitfield{SPIBUSY} = 0 before each write.
@@ -165,7 +167,7 @@ Each flag has an enable in \register{SPIxCR} (\bitfield{SPITCIE}, \bitfield{SPIT
 	\item Write the first word to \register{SPI1TX}.
 \end{enumerate}
 
-In slave mode \bitfield{SPITEIF} at the start of each frame asks for the next word, and \bitfield{SPITCIF} at the end delivers the received one in \register{SPI1RX}; the received word must be read before the next frame ends, because the next frame overwrites it.
+In slave mode \bitfield{SPITEIF} at the start of each frame asks for the next word, and \bitfield{SPITCIF} at the end delivers the received one in \register{SPI1RX}; the received word must be read before the next frame ends, because the next frame overwrites it. The external master's \pin{SCK1} must not exceed an eighth of SMCLK, 3 MHz at 24 MHz.
 
 \subsection{Enabling the flash window}
 
@@ -182,6 +184,8 @@ In slave mode \bitfield{SPITEIF} at the start of each frame asks for the next wo
 \section{Usage notes}
 
 \paragraph{Select the SMCLK source before the first transfer.} The boot ROM may leave SMCLK on LFXT (32.768 kHz), where transfers appear to hang.
+
+\paragraph{Keep SMCLK at least eight times the slave clock.} The slave port samples \pin{SCK1}, \pin{MOSI1} and \pin{CS1} on SMCLK, so a divided SMCLK caps the rate an external master may use; below the ratio the port misses bits rather than slowing down.
 
 \paragraph{Never read \register{SPIxRX} speculatively from a hart that does not own the transfer.} The read clears \bitfield{SPITCIF} on any hart's access and consumes the owner's transfer-complete event; when ownership is unclear, clear flags by writing 1s to \register{SPIxSR}.
 

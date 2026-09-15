@@ -1,7 +1,7 @@
 -- VestaRV: QSPI testbench
 -- Standalone, self-checking bench for the QSPI peripheral, driven entirely through its entity and register map. The DUT is a COMPONENT, so the bench compiles standalone and default binding resolves it once QSPI.vhd is in work.
 -- Support: periph_tb_pkg (scoreboard and register-bus BFM), qspi_bfm_pkg (slot constants, CR/CMD packing, the deterministic read-pattern formula, a bounded BUSY poll) and QSPI_flash_model as the responder.
--- Bus contract: EnMemPeriph and WEn active-low, MABPart(7:2) is the word-slot address, and ClkMem is GATED so it ticks only while EnMemPeriph = '0'.
+-- Bus contract: EnMemPeriph and WEn active-low, MABPart(7:2) is the word-slot address, and ClkMem FREE-RUNS, as it does in the integration (MCU.vhd wires every peripheral's ClkMem to the ungated mclk). SR and RX are carried into that domain by work.sync chains a gated clock would starve; the gated form this bench used until 2026-09-15 advanced ClkMem once per access and is not a shape the chip ever presents.
 -- A one-cycle W1C clear pulse can stick until the next selected access, so every W1C here is followed by a dummy CR read before SR is re-read.
 -- Contract points the register map leaves open, and what this bench assumes: the "11" width encoding is undefined and never driven; DUMMY is in the responder model's own edge units and is programmed 0 on write and command-only transactions; payloads narrower than 32 bits are right-justified; CS is active-low and cs_dir/sck_dir are not consulted.
 
@@ -84,9 +84,9 @@ architecture sim of QSPI_tb is
 
 begin
 
-    -- clock / gated register-bus clock
+    -- clock / free-running register-bus clock, as mclk is at the MCU
     clk    <= not clk after PERIOD / 2;
-    ClkMem <= clk when pbus.en_mem = '0' else '0';
+    ClkMem <= clk;
 
     -- io_bus resolution: the DUT drives io_out(i) when io_dir(i)='1', otherwise the flash model drives when it owns that bit (model_io_oe(i)='1'), otherwise the line is released (weak 'H').
     -- Both DUT and model see the SAME resolved bus on their io_in ports.

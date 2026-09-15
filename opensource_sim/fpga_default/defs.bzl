@@ -13,11 +13,20 @@ reads the package) and MCU.vhd is the LAST.
 WHAT IS SUBSTITUTED, and it is why this package exists. hdl/common/sim/ and
 hdl/fpga/ declare the same entities, and EXACTLY ONE of the two may appear in
 any file list (hdl/fpga/README.md): compile both and the tool binds whichever
-architecture it analyzed last. _FPGA_SUBS swaps the four sim cells hdl/fpga/
-supersedes for the synthesizable stand-ins, in place, so the order the shared
-spine fixes is preserved. hdl/common/sim/ClockMuxGlitchFree.vhd is the one file
-in that directory which stays: it is ordinary synthesizable RTL, SYSTEM.vhd
-instantiates it, and hdl/fpga/ does not replace it.
+architecture it analyzed last. _FPGA_SUBS swaps each superseded cell for the
+synthesizable stand-in, in place, so the order the shared spine fixes is
+preserved. A substitution may expand to SEVERAL files: hdl/fpga/ClkGate.vhd
+instantiates hdl/fpga/ClockPrimitives.vhd's ClkBufEn, and `entity work.x` binds
+at ANALYSIS, so the primitive entity and its architecture are spliced in ahead
+of it at the position the sim gate held.
+
+The clocking substitution is the whole of report Z3. hdl/common/sim/
+ClockMuxGlitchFree.vhd and hdl/common/commune/ClkDivPower2.vhd are ordinary
+synthesizable RTL and the ASIC uses them as drawn, but both build a clock
+network an FPGA cannot afford: the mux clocks three flip-flops and a gate from
+EVERY input, which turns SYSTEM.vhd's fourteen divider taps into fourteen flop
+clock pins, and the divider is a ripple chain of three clock nets. hdl/fpga/
+replaces both. Neither hdl/common/ file changes.
 
 WHAT IS DROPPED. hdl/common/periph/NPU.vhd, for the configuration and not for
 convenience: fpga_default.json sets peripherals.npu false, so the generated
@@ -54,15 +63,30 @@ _FPGA_DROP = [
     "hdl/common/periph/TRNG.vhd",
 ]
 
-# The synthesizable stand-ins, keyed by the simulation cell each one replaces.
-# A None value means the entity moved into a file another key already names:
+# The synthesizable stand-ins, keyed by the source cell each one replaces. The
+# value is the list of files that go in at that position, in analysis order; an
+# EMPTY list means the entity moved into a file another key already names, as
 # hdl/fpga/analog_stubs.vhd carries GlitchFilter, PowerOnResetCheng,
-# OscillatorCurrentStarved and DCO together, so it is listed once.
+# OscillatorCurrentStarved and DCO together and is listed once.
+#
+# hdl/fpga/ClockPrimitives.vhd declares ClkBufEn and ClkBuf, the two cells every
+# clock-generation stand-in here is built from, and ClockPrimitives_generic.vhd
+# holds their vendor-neutral architectures. Its pair file,
+# ClockPrimitives_xilinx.vhd, instantiates BUFGCE and BUFG and is what a Vivado
+# run takes instead; EXACTLY ONE of the two may appear in any file list, which
+# is hdl/fpga/README.md's one rule applied one level down. GHDL takes the
+# generic pair because it has no cell to bind a UNISIM primitive to.
 _FPGA_SUBS = {
-    "hdl/common/sim/ClkGate.vhd": "hdl/fpga/ClkGate.vhd",
-    "hdl/common/sim/PowerOnResetCheng_behav.vhd": "hdl/fpga/analog_stubs.vhd",
-    "hdl/common/sim/OscillatorCurrentStarved_simulation.vhd": None,
-    "hdl/common/sim/GlitchFilter_behav.vhd": None,
+    "hdl/common/sim/ClkGate.vhd": [
+        "hdl/fpga/ClockPrimitives.vhd",
+        "hdl/fpga/ClockPrimitives_generic.vhd",
+        "hdl/fpga/ClkGate.vhd",
+    ],
+    "hdl/common/sim/ClockMuxGlitchFree.vhd": ["hdl/fpga/ClockMuxGlitchFree.vhd"],
+    "hdl/common/commune/ClkDivPower2.vhd": ["hdl/fpga/ClkDivPower2.vhd"],
+    "hdl/common/sim/PowerOnResetCheng_behav.vhd": ["hdl/fpga/analog_stubs.vhd"],
+    "hdl/common/sim/OscillatorCurrentStarved_simulation.vhd": [],
+    "hdl/common/sim/GlitchFilter_behav.vhd": [],
 }
 
 # The memory macros, which the shared spine does not carry at all: the tracked
@@ -99,11 +123,24 @@ def _split():
         if f in _FPGA_DROP:
             continue
         if f in _FPGA_SUBS:
-            sub = _FPGA_SUBS[f]
-            if sub:
-                mid.append(sub)
+            mid.extend(_FPGA_SUBS[f])
             continue
         mid.append(f)
     return VESTA_MCU_RTL[:1], mid
 
 FPGA_DEFAULT_HEAD, FPGA_DEFAULT_MID = _split()
+
+# The same MID list with the Xilinx clock primitives in place of the
+# vendor-neutral ones, for the Vivado file manifest. GHDL cannot take this list:
+# it has no cell to bind BUFGCE and BUFG to. See implementations/fpga/synth/.
+_PRIM_GENERIC = "hdl/fpga/ClockPrimitives_generic.vhd"
+_PRIM_XILINX = "hdl/fpga/ClockPrimitives_xilinx.vhd"
+
+def _vivado_mid():
+    if _PRIM_GENERIC not in FPGA_DEFAULT_MID:
+        fail("opensource_sim/fpga_default/defs.bzl: %s is no longer in the analysis " % _PRIM_GENERIC +
+             "list, so there is nothing for the Xilinx pair file to replace; " +
+             "re-anchor this file against hdl/fpga/README.md.")
+    return [_PRIM_XILINX if f == _PRIM_GENERIC else f for f in FPGA_DEFAULT_MID]
+
+FPGA_DEFAULT_MID_VIVADO = _vivado_mid()

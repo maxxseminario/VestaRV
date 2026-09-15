@@ -2,7 +2,7 @@
 -- Standalone, self-checking testbench for the DMA controller peripheral.
 -- The DUT is declared as a COMPONENT, not an entity instantiation, so the bench compiles standalone before DMA.vhd exists; default binding resolves it once DMA.vhd is in the work library.
 -- Uses periph_tb_pkg (scoreboard + register-bus BFM), dma_bfm_pkg (slot/CR/SR/CFG constants, packers, deny/hole addresses, the independent CRC reference, bounded SR polls) and the local dma_arb_model.
--- ONE clock family: clk hosts the transfer engine, master-port FSM, CRC and pacing sync, and ClkMem is that same clock gated by the bus select.
+-- ONE clock family: clk hosts the transfer engine, master-port FSM, CRC and pacing sync, and ClkMem is that same clock, FREE-RUNNING as mclk is at the MCU.
 -- Checker independence: reference dest words and CRC come from what the bench programmed or poked, never from a DUT internal, and the modeled M_CLR targets (QSPI0SR 0x4C14, NFC0SR 0x6204) are a DUT-vs-bench contract.
 
 -- dma_arb_model : cycle-accurate mp_arbiter-plus-shared-slave model, with the modeled RAM, pacing windows and a master-port protocol monitor.
@@ -431,10 +431,14 @@ architecture sim of DMA_tb is
 
 begin
 
-    -- Clock and gated register-bus clock: both DUTs share clk, and the gate opens on either DUT's bus select.
+    -- Clock and register-bus clock: both DUTs share clk.
     -- Only one bus is active at a time in the single stim process, so the shared gate is safe.
     clk    <= not clk after PERIOD / 2;
-    ClkMem <= clk when (pbus.en_mem = '0' or pbus2.en_mem = '0') else '0';
+    -- The bus clock FREE-RUNS, as mclk does at the MCU: MCU.vhd wires ClkMem to the
+    -- ungated mclk, and DMA's u_sync_busy chain plus every command toggle lives on it.
+    -- A clock gated to one edge per access starves the chain and hides the one-edge
+    -- select the arbiter actually presents.
+    ClkMem <= clk;
 
     -- CRC reference: four chained work.CRC16 over bytes b0 through b3.
     -- crc_seed and crc_word are driven by the stim, crc_res is the folded result.
@@ -1292,6 +1296,69 @@ begin
                       evt_done_starts(0) = 1);
         sb.check_bit("G-EV g: irq_done still asserts normally on the register path", to_X01(irq_done), '1');
         dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_DONE0, 32)));
+
+        /* GROUP G-SEL: every command lands on a MINIMUM-WIDTH select.
+           periph_regs runs with STROBE_HOLD = true here, and a held strobe is retired
+           ASYNCHRONOUSLY on deselect, so it lasts only as long as the fabric holds the
+           select. The arbiter's select is one mclk cycle and self-clears on the very
+           edge the slave captures, which makes a held strobe a runt. DMA is immune by
+           construction and this group is the standing proof: it leaves every
+           periph_regs strobe port OPEN and arms each of its five commands (CHnGO,
+           CHnABORT, the two SR write-1-to-clear requests and the CRC seed commit) from
+           the COMBINATIONAL acc_hit into a ClkMem flop, which is exactly the protection
+           SYSTEM had to be given. Every access below is a plain single-cycle bus_write
+           against the free-running ClkMem the MCU presents; none uses bus_write_hold.
+           If anyone ever routes a DMA command through wr_strobe or w1c_hit instead,
+           this group is what fails. */
+        report "=== GROUP G-SEL: single-cycle select ===" severity note;
+        for k in 0 to 3 loop
+            ram_poke1(dma_word_idx(SRCA) + k, x"5E10" & std_logic_vector(to_unsigned(k, 16)));
+        end loop;
+        dma_enable(pbus, '1', '1');
+
+        -- CHnGO on one cycle.
+        prog_ch(pbus, 0, SRCA, DSTA, 4, dma_mk_cfg('1','1', DMA_TRIG_MEM, '0','0'));
+        dma_go(pbus, "0001", '1', '1');
+        dma_wait_busy_clear(clk, pbus, rdata, ok);
+        sb.check_true("G-SEL: a single-cycle CR write launches the channel", ok);
+        for k in 0 to 3 loop
+            ram_peek1(dma_word_idx(DSTA) + k, rdw);
+            sb.check_slv("G-SEL: copied word " & integer'image(k), rdw,
+                         x"5E10" & std_logic_vector(to_unsigned(k, 16)));
+        end loop;
+        bus_read(clk, pbus, rdata, DMA_SLOT_SR, rdw);
+        sb.check_bit("G-SEL: CH0DONE set", to_X01(rdw(DMA_SR_DONE0)), '1');
+
+        -- The SR write-1-to-clear on one cycle.
+        bus_write(clk, pbus, DMA_SLOT_SR,
+                  std_logic_vector(to_unsigned(2**DMA_SR_DONE0, 32)));
+        wait for 6 * PERIOD;
+        bus_read(clk, pbus, rdata, DMA_SLOT_SR, rdw);
+        sb.check_bit("G-SEL: a single-cycle SR write retires CH0DONE",
+                     to_X01(rdw(DMA_SR_DONE0)), '0');
+
+        -- CHnABORT on one cycle.
+        for k in 0 to 15 loop
+            ram_poke1(dma_word_idx(SRAB) + k, x"5E20" & std_logic_vector(to_unsigned(k, 16)));
+        end loop;
+        prog_ch(pbus, 0, SRAB, DRAB, 16, dma_mk_cfg('1','1', DMA_TRIG_MEM, '0','0'));
+        dma_go(pbus, "0001", '1', '0');
+        wait for 20 * PERIOD;
+        bus_write(clk, pbus, DMA_SLOT_CR, dma_mk_cr('1', "0000", "0001", '0', '0'));
+        dma_wait_busy_clear(clk, pbus, rdata, ok);
+        sb.check_true("G-SEL: a single-cycle CR write aborts the channel", ok);
+        bus_read(clk, pbus, rdata, DMA_SLOT_SR, rdw);
+        sb.check_bit("G-SEL: an aborted channel sets no CH0DONE",
+                     to_X01(rdw(DMA_SR_DONE0)), '0');
+
+        -- The CRC seed commit on one cycle.
+        bus_write(clk, pbus, DMA_SLOT_CRC, x"00005A5A");
+        wait for 4 * PERIOD;
+        bus_read(clk, pbus, rdata, DMA_SLOT_CRC, rdw);
+        sb.check_slv("G-SEL: a single-cycle CRC write commits the seed",
+                     rdw(15 downto 0), x"5A5A");
+        dma_w1c(pbus, std_logic_vector(to_unsigned(2**DMA_SR_DONE0
+                                                 + 2**DMA_SR_ERR0, 32)));
 
         -- GROUP G-NEG: negative control, mandatory and LAST.
         -- Exactly ONE deliberately-wrong expected value: a clean copy checked against a WRONG expected dst word.

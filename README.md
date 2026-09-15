@@ -82,6 +82,10 @@ make -C platform/common generate CONFIG=config/fpga_default.json
 tools/bin/bazel test //opensource_sim/fpga_default:fpga_default_elaborate
 ```
 
+The FPGA clock cells (27 clock nets on an Artix-7's 32 buffers), the out-of-context
+Vivado run and the constraints template are in
+[`implementations/fpga/synth/`](implementations/fpga/synth/README.md).
+
 ---
 
 Both recipes are written out with the gate that refuses each mistake in
@@ -144,6 +148,7 @@ for plain `bazel`.
 | Frozen flop, latch and cell counts for those entities | `tools/bin/bazel test //toolchains/ghdl:synth_census_test` |
 | Python tooling and docs gates | `tools/bin/bazel test //tools/... //docs/...` |
 | Bind the FPGA cut against the synthesizable stand-in cells | `tools/bin/bazel test //opensource_sim/fpga_default:fpga_default_elaborate` |
+| Write the ordered VHDL file list a Vivado run reads | `tools/bin/bazel build //opensource_sim/fpga_default:fpga_default_vivado_files` |
 
 Configurations live in [`platform/common/config`](platform/common/config) and are
 selected with `CONFIG=`. `castalia.json` is the reference chip: hart 0 is an

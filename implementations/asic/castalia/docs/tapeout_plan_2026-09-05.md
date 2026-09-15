@@ -533,6 +533,96 @@ already waived for, created by W10's own SPI fix) and `nfc0/t_etu_reg[0]/D`
 RTL line, `NFC.vhd:619`). Three waiver lines and the gate can be armed; `hdl/` is
 read-only for this wave.
 
+## 4.13 X3, 2026-09-15: core cut `c3` on the re-hardened tile, and the 52 dead clocks
+
+Full report: `<scratchpad>/reports/X3_core_c3.md`. `hdl/`, `platform/`,
+topology A (`genus/MCU_PENTA`, `innovus/common/MCU_castalia_penta`) and
+`hdl/common/cdc/cdc_waivers.tcl` were never written. No commits.
+
+**Genus `MCU_PENTA_pt` from a frozen staging of HEAD `767819ae`**
+(`genus/common/in/x3_frozen`, tracked `hdl/` verified equal to `git archive HEAD
+hdl`), 00:30:37, every gate at `GATE_STRICT=1`, **CDC census ARMED
+(`GENUS_CDC_STRICT=1`) and 0 NOT waived** -- 1248 cross-domain endpoints, 90 on
+sync `stage_reg[0]`, 1158 waived, against W2's 1476/3. Clock-pin census 0
+without a waveform, latch 0, pmk 0, drift 0 of 75. Netlist md5 `5eb906fa`,
+promoted; the W2 cut is in `genus/attic/20260915/`.
+
+**The 48 dead `create_clock` lines are not hand-written: Genus creates them.**
+Attempt 1 FATALed in three minutes at `f12_one pin:MCU/gpio0/gen_if_clks[0].CGClkIFG/CG1/CK`
+(TUI-182). The F12 "pin-event clocks" block is deleted whole -- **52 clocks, not
+48**: the 48 GPIO ones name hardware commit `f1082c42` removed, and the four
+`timer?_cap?` ones name pins that still exist but no longer clock anything
+(`TIMER.vhd:362-364`), so they would have passed any existence test in silence
+while declaring a domain on a data pin. Chip SDC 105 -> **53 clocks**; core SDC
+83 -> **31 `create_clock`**. A new census,
+`MCU_castalia_penta_pt_core/sdc_clock_census.py`, resolves every target by
+walking the Verilog hierarchy and is FATAL inside `gen_core_sdc.py`: 31 of 31
+resolved, and on the previous SDC against the new netlist it reports exactly the
+48 dead ones. Eight waivers now match 0 endpoints, five of them in
+`cdc_waivers.tcl` (X2's file): reported, not edited.
+
+**Cut `c3` at 1400 x 2814, on X1's `pt13` tile, closes setup and leaves one hold
+endpoint at -0.000 ns.**
+
+| | core `c2` | **core `c3`** |
+|---|---:|---:|
+| tile | `pt10`/attempt 32 (305 floating switch gates) | **`pt13`/attempt 34, 728 of 728 reachable, 0 floating** |
+| netlist | W2, md5 `2355f2f3` | **X3, md5 `5eb906fa`** |
+| signoff setup | +0.073 ns, 0 of 34,780 | **+0.061 ns, 0 of 35,501** |
+| signoff hold | +0.001 ns, 0 of 34,782 | **-0.000 ns, 1 of 35,503** (`hart1/tcm_ext_addr[1]`) |
+| density | 63.105 % | **63.25 %** |
+| WQ26c repeaters | 26 (4 landed inside macros; repaired out of flow) | **28, all relocated onto legal sites; Short 0 / Overlap 0** |
+| blockdrc | 115 = 64 + 51 | **127 = 65 density + 62 real**, 0 CSR / PO.R.8 / ESD |
+| ant25 | 2 (12) `MIM_SWITCH.WARN.1` | **identical** |
+| LVS | MISMATCH, AVDD/AVSS only | **identical class, devices 7,953,962 : 7,953,962, 0 : 0 unmatched** |
+| negative control | 1 inverter -> 2 devices | **1 AND2 -> exactly 6 (3 PCH_HVT + 3 NCH_HVT)** |
+
+**Two flow defects were found by this cut and fixed at source, both in the `_pt`
+chip flow that the core flow is generated from (frozen source rebased twice,
+deliberately; the regenerated core flow differs from its predecessor by exactly
+these edits).**
+
+1. **W14's own macro guard refused 44 of 45 hold endpoints.** WQ26c's insertion
+   point is the endpoint's pin coordinate, and a tile boundary pin's coordinate
+   is inside the tile abstract BY CONSTRUCTION, so "do not place it there"
+   became "do not fix it at all": attempt 1 parked at hold -0.013 ns with 13
+   violating and WQ26b FATALed. The guard now **relocates** -- nearest free row
+   site, clear of every macro and every non-filler instance, refusal only beyond
+   60 um -- which is what c2's out-of-flow repair did by hand. Attempt 2: 24 of
+   24 relocated in pass 1, 3 of 4 in pass 2, legalisation moved 0 instances,
+   and `verifyGeometry` read **Short 0 / Overlap 0** where c2 read 96 / 9.
+2. **The WQ27 dangling-wire waiver was keyed on the layer.** All 12 of this
+   cut's dangling wires are **zero-length VDD/VSS stubs** (via landing pads
+   whose wire `editTrim` removed); 5 sat on M7 and were waived, 7 identical
+   objects on M4/M5/M6 were not, and the gate stopped the cut. The predicate is
+   re-keyed from the layer to the shape: a PG net AND a zero-area stub. A
+   dangling wire with real length, or on any signal net, is still fatal.
+
+`c3`'s GDS was written from the flow's own saved signoff database by the new
+`tcl/MCU_castalia_penta_pt_core_signoff_stream.tcl`, which modifies nothing,
+re-verifies on the restored database, refuses to write unless the census passes,
+and checks that its copy of the WQ27b predicate still matches the flow's. GDS
+`out/...c3.gds2`, 173,142,490 B, md5 `c733b7829c7005dc63ab0bdce33a68af`, plus
+both per-view SDFs.
+
+**Ingested as `castalia_B_core_c3`** (0 errors, all gates fired) with a README
+whose first line carries the status, **promoted into `castalia_B_core`**, and
+proved from a fresh headless `virtuoso -nograph` through `ic/cds.lib`:
+`castalia_B_core` and `castalia_B_core_c3` both open at
+(0,0)-(1400.13,2814.0) with **231,818** instances, against c2's 231,720.
+
+**PARKED, in order:**
+
+| # | item |
+|---|---|
+| **X3-A** | **AVDD/AVSS (W14-C), with the answer measured.** The layout is right: eight PG pins, four disjoint nets per rail. The SOURCE merges them -- `globalNetConnect AVDD -inst *` in the LVS netlist tcl, one `addNet AVDD` in the flow -- and the CDL says so literally (`assign AVDD_1 = AVDD` x4). A **cpoint cannot** close it without asserting a join no metal makes, and is refused. A **pin-naming agreement can**: four independent nets per rail on both sides, which is a 2-line flow edit plus a 2-line LVS-tcl edit and one cut, and it states the boundary contract in the LEF's own pin names. The alternative the owner may prefer is the opposite one -- a core-level 2.5 V analog strap -- which needs no rename. Owner's call, as W14-C said. |
+| **X3-B** | **one hold endpoint at -0.000 ns**, `hart1/tcm_ext_addr[1]`, declined by WQ26c's cap of 24 with 21 endpoints still queued in pass 1. `PENTA_HOLD_ECO_PASSES=3` or `PENTA_HOLDREP_MAX=32` is the one-knob experiment; one cut. WQ26's slack gate passed it because the parsed WNS rounds to zero, which is stated in the README rather than rounded away. |
+| **X3-C** | **the DRC ECO, W14-B, unchanged and now 62 results.** The +11 over c2 are on the metal the 28 relocated repeaters and their scoped re-routes added. `verifyGeometry` still reads Wiring 0 / Short 0, so `ecoRoute -fix_drc` still has no marker; it needs the Calibre-marker-driven ECO in the shape of `hart_tile/tcl/drc_eco.tcl`. |
+| **X3-D** | **eight waivers that now match zero endpoints.** Five are in `hdl/common/cdc/cdc_waivers.tcl` (`gpio?/PxIF_reg[*]`, `gpio?/gen_if_clks[*].CGClkIFG/CG1`, `timer?/capture0_reg_reg[*]`, `timer?/capture1_reg_reg[*]`, `timer?/RC_CG_HIER_INST*/RC_CGIC_INST`) and belong to X2's wave; three are clock-pin waivers in the two assembly flows (`hart?/tile/core/is_compressed_reg/G`, `spi?/s_spi_teif_reg/G`, `system0/wdt_rf_reg/CK*`) and are deliberately kept, because the census prints each waiver's hit count on every run and a zero there is the measurement that the RTL change landed. |
+| **X3-E** | **W14-E, extended.** `MCU_castalia_penta_pt` (the B CHIP flow) now carries four X3/W3-era fixes it has never been cut with -- the WQ26c relocation and the WQ27b predicate on top of W14's two. `pt11` remains the B chip cut of record and carries none of them. |
+| **X3-F** | the 13 `verifyGeometry` Antenna results (W13-A2) are unchanged and still unclassified in Innovus terms; Calibre `ant25` is clean, and that is the antenna verdict of record. |
+
+
 ## 4.12 X1, 2026-09-15: both tiles re-hardened. W14-A is CLOSED and the header-switch chain is whole.
 
 Full report: `<scratchpad>/reports/X1_tiles_rehardened.md`. `hdl/` and

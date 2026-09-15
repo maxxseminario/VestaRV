@@ -173,6 +173,22 @@ architecture rtl of SYSTEM is
     signal clr_wdt_if         : std_logic;
     signal smclk_en_out       : std_logic_vector(7 downto 0);
 
+    /* The four bus levels that leave the clk_mem domain, WIDENED. Each is a level
+       into a process clocked or reset somewhere else -- clr_wdt into an asynchronous
+       reset on clk_wdt, clr_wdt_if SYNCHRONOUSLY on clk_wdt, clr_wdt_rf into an
+       asynchronous reset on mclk, unlock into an asynchronous load on clk_unlock --
+       and periph_regs' held strobe is only as wide as the fabric holds the select,
+       because STROBE_HOLD retires it asynchronously on en_mem. The MCU's select is
+       one mclk cycle and self-clears on the very edge the slave captures, so on the
+       raw strobe the held level is a runt: clr_wdt_if is never sampled at all.
+       lvl_now is the COMBINATIONAL access condition, valid at the capture edge, and
+       the two pipe stages hold it for two more clk_mem edges. */
+    constant LVL_UNLOCK : natural := 0;
+    constant LVL_CLRWDT : natural := 1;
+    constant LVL_WDTRF  : natural := 2;
+    constant LVL_WDTIF  : natural := 3;
+    signal lvl_now, lvl_pipe0, lvl_pipe1 : std_logic_vector(3 downto 0);
+
 
 
 begin
@@ -595,6 +611,8 @@ begin
     -- STROBE_HOLD is TRUE: unlock, clr_wdt and the two flag clears are level
     -- inputs to processes on clk_wdt and clk_unlock and must last the whole
     -- select window, which is what `if en_mem = '1' then <strobe> <= '0'` said.
+    -- The select window is not enough on its own; each of the four is OR-ed with a
+    -- clk_mem level of about two and a half periods. See the declarations of lvl_now.
     u_regs: entity work.periph_regs
         generic map (
             NWORDS      => NWORDS,
@@ -642,18 +660,56 @@ begin
     -- WDT_CR takes a write only while the unlock window is open.
     wr_inh <= (RegSlotSYS_WDT_CR => not unlocked, others => '0');
 
+    /* The widened levels. Each arm reproduces periph_regs' own qualifier for that
+       word: WDT_PASS is FULLWR, so a partial write is not a password; the two SR
+       flags are W1C, so a written 1 on that lane is the request. The arming term is
+       combinational and valid AT the capture edge, unlike the registered strobe,
+       which rises after it and retires on deselect. */
+    lvl_now(LVL_UNLOCK) <= '1' when acc_s(RegSlotSYS_WDT_PASS) = '1' and wen = "0000"
+                                and write_data = WDT_UNLCK_PASSWD else '0';
+    lvl_now(LVL_CLRWDT) <= '1' when acc_s(RegSlotSYS_WDT_PASS) = '1' and wen = "0000"
+                                and write_data = WDT_CLR_PASSWD   else '0';
+    lvl_now(LVL_WDTRF)  <= '1' when acc_s(RegSlotSYS_WDT_SR) = '1' and wen(0) = '0'
+                                and write_data(SYSWDTRF_LSB) = '1' else '0';
+    lvl_now(LVL_WDTIF)  <= '1' when acc_s(RegSlotSYS_WDT_SR) = '1' and wen(0) = '0'
+                                and write_data(SYSWDTIF_LSB) = '1' else '0';
+
+    bus_lvl_proc: process(resetn_sys, clk_mem)
+    begin
+        if resetn_sys = '0' then
+            lvl_pipe0 <= (others => '0');
+            lvl_pipe1 <= (others => '0');
+        elsif rising_edge(clk_mem) then
+            lvl_pipe0 <= lvl_now;
+            lvl_pipe1 <= lvl_pipe0;
+        end if;
+    end process;
+
     -- The two passwords. wr_strobe is already qualified on the full-word write by
-    -- FULLWR above, and write_data holds for the select window, so this level is
-    -- exactly the flop the case arm used to set and deselect used to clear.
-    unlock  <= '1' when wr_str(RegSlotSYS_WDT_PASS) = '1'
-                    and write_data = WDT_UNLCK_PASSWD else '0';
-    clr_wdt <= '1' when wr_str(RegSlotSYS_WDT_PASS) = '1'
-                    and write_data = WDT_CLR_PASSWD   else '0';
+    -- FULLWR above, and write_data holds for the select window, so that term is
+    -- exactly the flop the case arm used to set and deselect used to clear. It is
+    -- kept and the clk_mem level is ADDED: nothing the held strobe did is taken away,
+    -- and the result is about two and a half clk_mem periods wide whatever the fabric
+    -- does with the select.
+    unlock  <= '1' when (wr_str(RegSlotSYS_WDT_PASS) = '1'
+                         and write_data = WDT_UNLCK_PASSWD)
+                     or lvl_now(LVL_UNLOCK)   = '1'
+                     or lvl_pipe0(LVL_UNLOCK) = '1'
+                     or lvl_pipe1(LVL_UNLOCK) = '1' else '0';
+    clr_wdt <= '1' when (wr_str(RegSlotSYS_WDT_PASS) = '1'
+                         and write_data = WDT_CLR_PASSWD)
+                     or lvl_now(LVL_CLRWDT)   = '1'
+                     or lvl_pipe0(LVL_CLRWDT) = '1'
+                     or lvl_pipe1(LVL_CLRWDT) = '1' else '0';
 
     -- The two status flags are hardware's, so their flops stay with the hardware
-    -- that sets them and periph_regs only reports the written 1.
-    clr_wdt_rf <= w1c_s(RegSlotSYS_WDT_SR)(SYSWDTRF_LSB);
-    clr_wdt_if <= w1c_s(RegSlotSYS_WDT_SR)(SYSWDTIF_LSB);
+    -- that sets them and periph_regs only reports the written 1. Same widening; for
+    -- clr_wdt_if it is not an improvement but the fix, since that clear is sampled
+    -- SYNCHRONOUSLY on clk_wdt and a select-wide level reaches no edge of it.
+    clr_wdt_rf <= w1c_s(RegSlotSYS_WDT_SR)(SYSWDTRF_LSB) or lvl_now(LVL_WDTRF)
+                  or lvl_pipe0(LVL_WDTRF) or lvl_pipe1(LVL_WDTRF);
+    clr_wdt_if <= w1c_s(RegSlotSYS_WDT_SR)(SYSWDTIF_LSB) or lvl_now(LVL_WDTIF)
+                  or lvl_pipe0(LVL_WDTIF) or lvl_pipe1(LVL_WDTIF);
 
     -- The CRC chain: a data-byte write advances it, a state write restarts it.
     -- Both are write side effects on the ENGINE, not on storage, so they take the

@@ -428,8 +428,8 @@ GENERIC_BLOCKS = {
                          r'STROBE_HOLD => true',
                          r'RDTHRU      => SPI_RDTHRU',
                          r'r\(RegSlotSPIxFOS\) := \x271\x27;',
-                         r'clr_spi_teif <= w1c_s\(RegSlotSPIxSR\)\(SPITEIF_LSB\);',
-                         r'or rd_str\(RegSlotSPIxRX\) or wr_str\(RegSlotSPIxRX\);',
+                         r'clr_spi_teif <= w1c_s\(RegSlotSPIxSR\)\(SPITEIF_LSB\) or clr_teif_now or teif_shadow;',
+                         r'or rd_str\(RegSlotSPIxRX\) or wr_str\(RegSlotSPIxRX\)',
                          r"if wrh_s\(RegSlotSPIxTX\) = '1'"]),
     # TIMER is a periph_regs pilot: no case decode, no reset
     # branch, no write-1 arm to read. WIDEWR marks TIMxVAL, word 2 of 8, as the
@@ -440,8 +440,8 @@ GENERIC_BLOCKS = {
                            r'STROBE_HOLD => true',
                            r'WIDEWR      => "00100000"',
                            r'RDTHRU      => "00100000"',
-                           r'latch_timer_value <= wr_str\(RegSlotTIMxVAL\);',
-                           r'clear_compare0_flag <= w1c_s\(RegSlotTIMxSR\)\(CMP0IF_LSB\);']),
+                           r'latch_timer_value <= wr_str\(RegSlotTIMxVAL\)',
+                           r'clear_compare0_flag <= w1c_s\(RegSlotTIMxSR\)\(CMP0IF_LSB\)']),
     # SYSTEM is on periph_regs, and is the first block whose table
     # is SPARSE: eleven registers over eighteen words, the seven retired SYS_IRQ
     # slots emitted as all-zero _reserved_ rows so a row index is still a word
@@ -455,7 +455,7 @@ GENERIC_BLOCKS = {
                             r"wr_inh <= \(RegSlotSYS_WDT_CR => not unlocked, others => '0'\);",
                             r'and write_data = WDT_UNLCK_PASSWD else',
                             r'and write_data = WDT_CLR_PASSWD   else',
-                            r'clr_wdt_if <= w1c_s\(RegSlotSYS_WDT_SR\)\(SYSWDTIF_LSB\);']),
+                            r'clr_wdt_if <= w1c_s\(RegSlotSYS_WDT_SR\)\(SYSWDTIF_LSB\)']),
     # NPU is a periph_regs block: no MMR_WRITE case, no reset branch,
     # and no read splice -- NPUTHINK is NPUCR bit 16 of the register file's own
     # storage, set by the fabric task through hw_set and cleared by NpuDone through
@@ -476,7 +476,7 @@ GENERIC_BLOCKS = {
     'qspi': dict(vhdl='QSPI.vhd', regfile='qspi_regs_pkg',
                  require=[r'u_regs\s*:\s*entity work\.periph_regs',
                           r'STROBE_HOLD => true',
-                          r'clr_tcif\s+<= w1c_s\(SLOT_SR\)\(QSPITCIF_LSB\);',
+                          r'clr_tcif\s+<= w1c_s\(SLOT_SR\)\(QSPITCIF_LSB\)',
                           r"acc_s\(SLOT_CMD\) = '1' and WEn\(0\) = '0'",
                           r'constant SLOT_SR\s*:\s*natural\s*:=\s*5;']),
     # I2C is on periph_regs. Its read stays COMBINATIONAL and
@@ -490,7 +490,7 @@ GENERIC_BLOCKS = {
                          r'RSTVAL_OR       => RSTVAL_OR_I2C',
                          r'RegSlotI2CxAR => pad\(default_SAD\)',
                          r"wr_inh <= \(RegSlotI2CxMTX => not I2CMEN, others => '0'\);",
-                         r'ClearI2CSTR\s*<=\s*w1c_s\(RegSlotI2CxSR\)\(I2CSTR_LSB\);']),
+                         r'ClearI2CSTR\s*<=\s*w1c_s\(RegSlotI2CxSR\)\(I2CSTR_LSB\)']),
     # CLINT is a periph_regs block. Its register SET is a function of
     # NHARTS and its layout of MTIME_W / CMP_W, so clint_regs_pkg carries the eight
     # tables as FUNCTIONS of all three; rdl_vhdl._checkRegfileFn grades them
@@ -558,7 +558,7 @@ GENERIC_BLOCKS = {
                 require=[r'u_regs\s*:\s*entity work\.periph_regs',
                          r'STROBE_HOLD => true',
                          r'RDTHRU      => "000001110"',
-                         r'clr_ibip\s+<= w1c_s\(SLOT_SR\)\(I3CIBIP_LSB\);',
+                         r'clr_ibip\s+<= w1c_s\(SLOT_SR\)\(I3CIBIP_LSB\)',
                          r"acc_s\(SLOT_TX\) = '1' and WEn\(0\) = '0'",
                          r"acc_s\(SLOT_DAT\) = '1'"]),
     # NFC is a periph_regs block. RDTHRU marks NFCxDATA, word 7 of
@@ -572,7 +572,7 @@ GENERIC_BLOCKS = {
                          r'RDTHRU      => "0000000100"',
                          r'idx_inc  <= acc_s\(SLOT_DATA\) and idx_ainc;',
                          r'NFCIDX_MSB downto NFCIDX_LSB => idx_inc',
-                         r'clr_fieldf   <= w1c_s\(SLOT_SR\)\(NFCFIELDF_LSB\);',
+                         r'clr_fieldf   <= w1c_s\(SLOT_SR\)\(NFCFIELDF_LSB\)',
                          r'payload_mem\(idx\) <= wdata\(NFCDATA_MSB downto NFCDATA_LSB\);']),
     # RTC is a periph_regs block. SEC and SUB store the write
     # staging pair and read the counter's coherent snapshot (RDTHRU); the four

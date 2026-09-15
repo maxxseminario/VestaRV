@@ -58,15 +58,23 @@ architecture it analyzed last. That is a silent way to synthesize the simulation
 cells, and the simulation ROM alone hardcodes an absolute image path and loads
 its array in a time-zero process.
 
-`hdl/fpga/README.md` is the authority on the substitution set: which single file
-to keep from `sim/`, which peripheral sources to drop for a given
+`hdl/fpga/README.md` is the authority on the substitution set: which files to
+drop from `sim/` and `commune/`, which peripheral sources to drop for a given
 configuration, where the boot ROM image comes from, what the stand-ins
 deliberately do not model (the DCOs produce no clock; retention and power
 gating are accepted and ignored), and what is still missing before a bitstream
 exists at all - a top level, IOBUF resolution for the bidirectional pads,
 constraints, a board clock on the HFXT pad, and a reset held past configuration.
 
-Read it before assembling a project.
+Read it before assembling a project. You do not have to assemble the list by
+hand: `//opensource_sim/fpga_default:fpga_default_vivado_files` writes it, in
+analysis order, out of the same source sets the GHDL gate analyzes, so the
+vendor flow and the simulation flow cannot drift.
+
+`implementations/fpga/synth/` is the worked version of everything below the
+"Building" heading: a non-project out-of-context Vivado run with `MCU` as the
+top, a clock constraints template, and a 24 MHz MMCM wrapper for the HFXT pad.
+It needs no board, and it is where the clock-buffer budget is measured.
 
 Never run `bazel run //:generate` - that is the raw generator and it writes
 wherever it happens to be invoked. The hermetic path is
@@ -130,9 +138,22 @@ Full map of the Bazel build: [`BAZEL.md`](../../../BAZEL.md).
 
 ## Building
 
+Out of context, no board needed, from the repo root:
+
 ```bash
-# Synthesis tool commands
-[Add vivado/quartus commands here]
+tools/bin/bazel build //opensource_sim/fpga_default:fpga_default_vivado_files
+vivado -mode batch -nojournal -nolog \
+    -source implementations/fpga/synth/vivado_ooc_synth.tcl \
+    -tclargs part=<device>
+```
+
+For a real board, replace the top: instantiate `MCU`, resolve its bidirectional
+pads into IOBUFs, feed `prt1_in(5)` from `implementations/fpga/synth/mmcm_24mhz.vhd`,
+and hold `resetn_in` low until the MMCM locks.
+
+```bash
+# Board-specific implementation commands
+[Add the project-mode or place-and-route commands here]
 ```
 
 ## Programming the FPGA
@@ -150,6 +171,11 @@ Full map of the Bazel build: [`BAZEL.md`](../../../BAZEL.md).
 | FFs      | -    | -         | - %         |
 | BRAM     | -    | -         | - %         |
 | DSP      | -    | -         | - %         |
+| BUFGCTRL | -    | 32        | - %         |
+
+The clock row is the one that is already accounted for without a tool:
+`fpga_default` asks for 27 clock nets, 25 of them generated, against 32 BUFGCTRL
+on an Artix-7. The derivation is in `implementations/fpga/synth/README.md`.
 
 ## Testing
 

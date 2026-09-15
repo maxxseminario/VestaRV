@@ -30,14 +30,14 @@
       "latch_modules": []
     },
     "GPIO": {
-      "cells": 982,
-      "flop_bits": 194,
+      "cells": 975,
+      "flop_bits": 178,
       "latch_bits": 0,
       "latch_modules": []
     },
     "I2C": {
-      "cells": 976,
-      "flop_bits": 202,
+      "cells": 1127,
+      "flop_bits": 278,
       "latch_bits": 2,
       "latch_modules": [
         "clkgate_Bbehavioral"
@@ -50,8 +50,8 @@
       "latch_modules": []
     },
     "I3C": {
-      "cells": 2066,
-      "flop_bits": 738,
+      "cells": 2159,
+      "flop_bits": 780,
       "latch_bits": 2,
       "latch_modules": [
         "clkgate_Bbehavioral"
@@ -62,8 +62,8 @@
         "macro_blackbox.vhd",
         "system_blackbox.vhd"
       ],
-      "cells": 136292,
-      "flop_bits": 30397,
+      "cells": 137058,
+      "flop_bits": 30707,
       "latch_bits": 144,
       "latch_modules": [
         "clkgate_Bbehavioral",
@@ -71,8 +71,8 @@
       ]
     },
     "NFC": {
-      "cells": 58819,
-      "flop_bits": 3038,
+      "cells": 58928,
+      "flop_bits": 3150,
       "latch_bits": 0,
       "latch_modules": []
     },
@@ -97,8 +97,8 @@
       "latch_modules": []
     },
     "QSPI": {
-      "cells": 1063,
-      "flop_bits": 355,
+      "cells": 1121,
+      "flop_bits": 372,
       "latch_bits": 2,
       "latch_modules": [
         "clkgate_Bbehavioral"
@@ -111,8 +111,8 @@
       "latch_modules": []
     },
     "SPI": {
-      "cells": 795,
-      "flop_bits": 378,
+      "cells": 871,
+      "flop_bits": 399,
       "latch_bits": 2,
       "latch_modules": [
         "clkgate_Bbehavioral"
@@ -122,8 +122,8 @@
       "skipped": "ghdl --synth 6.0.0 raises CONSTRAINT_ERROR at vhdl-nodes.adb:407 on the `ClkEn(1) => open` individual association at SYSTEM.vhd:497; --out=none and the file-list form crash identically"
     },
     "TIMER": {
-      "cells": 1152,
-      "flop_bits": 541,
+      "cells": 1210,
+      "flop_bits": 575,
       "latch_bits": 6,
       "latch_modules": [
         "clkgate_Bbehavioral",
@@ -143,8 +143,8 @@
       "latch_modules": []
     },
     "UART": {
-      "cells": 549,
-      "flop_bits": 184,
+      "cells": 544,
+      "flop_bits": 176,
       "latch_bits": 3,
       "latch_modules": [
         "clkgate_Bbehavioral"

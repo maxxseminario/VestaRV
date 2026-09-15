@@ -1,6 +1,7 @@
 -- VestaRV: I2C controller
 -- Combined master/slave: memory-mapped registers, open-drain pads and one interrupt line per event.
 -- Bus specification: https://www.nxp.com/docs/en/user-guide/UM10204.pdf
+-- The slave is OVERSAMPLED: SDA and SCL reach the logic through work.sync on smclk and a spike filter, START/STOP and the two SCL edges are decoded from the filtered values, and every slave flop is on smclk. No flop in this file has SDA_IN or SCL_IN on its clock pin, which is what makes the block implementable on an FPGA without two pin clocks and what buys the fast-mode spike suppression the pin-clocked sampler could not give. PCLK_HZ / SCL_MAX_HZ state the ratio the sampler needs and are asserted at elaboration.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -14,7 +15,10 @@ use work.i2c_regs_pkg.all;
 
 entity I2C is
 	generic (
-		default_SAD	: std_logic_vector(6 downto 0) := (others => '0')	-- The default slave address for this I2C peripheral
+		default_SAD	: std_logic_vector(6 downto 0) := (others => '0');	-- The default slave address for this I2C peripheral
+		-- The peripheral clock (the smclk port) and the fastest SCL this instance must serve, both in Hz. They infer no logic: they state the ratio the oversampled slave needs and are checked at elaboration. Software owns the other half of the rule, because smclk is divisible at run time -- see the SYS_CLK_CR=0 rule in MCU.vhd.
+		PCLK_HZ		: natural := 24000000;
+		SCL_MAX_HZ	: natural := 400000
 	);
 	port
 	(
@@ -60,19 +64,30 @@ end I2C;
 
 architecture behavioral of I2C is
 
-	constant mem_assert : std_logic := '0';
-
 
 	-- Register and Bit Field Signal Declarations ----------
 	-- Registers
 	signal I2CxCR		: std_logic_vector(21 downto 0);	-- I2C control register
 	signal I2CxSR		: std_logic_vector(15 downto 0);	-- I2C status register
-	signal I2CxSRLat	: std_logic_vector(15 downto 0);	-- Inverted latched copy of I2CxSR for the memory read path
+	signal I2CxSR_mem	: std_logic_vector(15 downto 0);	-- I2CxSR carried into ClkMem, sixteen independent flag chains
+	signal I2CxSR_rd	: std_logic_vector(15 downto 0);	-- ... with the clear shadow applied
+	signal sr_clr_now	: std_logic_vector(15 downto 0);	-- I2CxSR bits this access writes a 1 to
+	signal sr_clr_pipe0	: std_logic_vector(15 downto 0);	-- ... held over the two ClkMem edges the asynchronous clear needs
+	signal sr_clr_pipe1	: std_logic_vector(15 downto 0);
 	signal I2CxMTX		: std_logic_vector(7 downto 0);	-- I2C master mode transmit register
 	signal I2CxMRX		: std_logic_vector(7 downto 0);	-- I2C master mode receive register
 	signal I2CxSTX		: std_logic_vector(7 downto 0);	-- I2C slave mode transmit register
 	signal I2CxSRX		: std_logic_vector(7 downto 0);	-- I2C slave mode receive register
-	signal I2CxSRXLat	: std_logic_vector(7 downto 0);	-- Inverted latched copy of I2CxSRX for the memory read path
+	signal I2CxSRX_mem	: std_logic_vector(7 downto 0);	-- ClkMem copy of I2CxSRX, loaded at the synchronized slave receive event
+	signal I2CxMRX_mem	: std_logic_vector(7 downto 0);	-- ClkMem copy of I2CxMRX, loaded at the synchronized master receive event
+	-- The receive events as toggles, and their crossing into ClkMem. A toggle
+	-- rather than the completion flag: I2CSXC and I2CMXC are sticky, so a second
+	-- byte before software clears one raises no new edge and the copy would freeze
+	-- on the first, where the pre-latch returned the newest.
+	signal srx_tgl		: std_logic;	-- smclk domain (was the SCL_IN falling-edge domain): slave receive-byte event
+	signal mrx_tgl		: std_logic;	-- ClkMaster domain: master receive-byte event
+	signal rx_tgl_d, rx_tgl_q : std_logic_vector(1 downto 0);	-- bit 1 slave, bit 0 master
+	signal srx_tgl_prev, mrx_tgl_prev : std_logic;	-- ClkMem edge-detect stage
 	signal I2CxAR		: std_logic_vector(6 downto 0);	-- I2C slave address register for this device
 	-- I2C slave address mask.
 	-- A '1' bit here makes the matching bit of the slave address register accept both '0' and '1' when listening for the slave address.
@@ -133,6 +148,8 @@ architecture behavioral of I2C is
 	signal regs_q	: reg_arr_t;						-- the stored words
 	signal hw_rd_s	: reg_arr_t;						-- the read source for every word this module does not store
 	signal w1c_s	: reg_arr_t;						-- a 1 written to an I2CxSR flag
+	signal wrh_s	: std_logic_vector(0 to NWORDS-1);	-- combinational: a lane write lands on this word now
+	signal sr_sync_d : std_logic_vector(15 downto 0);
 	signal acc_s	: std_logic_vector(0 to NWORDS-1);	-- combinational: this slot is addressed now
 	signal wr_inh	: std_logic_vector(0 to NWORDS-1);	-- per word: refuse the write
 	signal fcr_wr	: std_logic;						-- a lane-0 write to I2CxFCR, this cycle
@@ -207,8 +224,43 @@ architecture behavioral of I2C is
 	signal SlaveData			: std_logic_vector(7 downto 0);	-- The slave data
 	signal SlaveJustAddressed	: std_logic;	-- The slave was just addressed and no bytes have been sent or received yet in the current transmission
 	signal ClearI2CSC			: std_logic;	-- Clear request for I2CSC, held asserted except while a slave ACK state may consume it
-	
+
+	-- Pin sampling, the smclk side of the slave. See the block above `u_sync_pins`.
+	signal pin_sync_d			: std_logic_vector(1 downto 0);	-- (1) SDA_IN, (0) SCL_IN
+	signal pin_sync_q			: std_logic_vector(1 downto 0);
+	signal sda_s, scl_s			: std_logic;	-- synchronized
+	signal sda_h1, sda_h2		: std_logic;	-- the two older samples the filter votes with
+	signal scl_h1, scl_h2		: std_logic;
+	signal sda_f, scl_f			: std_logic;	-- filtered: three agreeing samples
+	signal sda_fd, scl_fd		: std_logic;	-- ... one smclk edge old, for the edge decode
+	signal scl_rise, scl_fall	: std_logic;	-- one smclk wide
+	signal start_det, stop_det	: std_logic;	-- one smclk wide
+
+	/* Minimum peripheral-clock-to-SCL ratio, and where the number comes from.
+	   The sampler passes a pin level only after three agreeing smclk samples
+	   behind a two-flop synchroniser, so an SCL phase must last six smclk
+	   periods to be decoded: two to clear the synchroniser, three to agree and
+	   one to raise the edge pulse. UM10204 gives fast mode a minimum SCL high
+	   time of 0.6 us in a 2.5 us bit, 24 % of the period, so six samples in the
+	   high phase need 6 / 0.24 = 25 smclk periods per bit; 32 is that rounded
+	   up, and standard mode (tHIGH at least 40 % of the period) clears it with
+	   room to spare. At 24 MHz the ratio permits SCL up to 750 kHz, against the
+	   400 kHz fast-mode maximum this design supports.
+	   The data setup time is the other side of the same coin and is not the
+	   binding one: SDA and SCL take the same path, so the sampler sees them
+	   with the same latency and only the sampling jitter, one smclk period,
+	   eats into tSU;DAT. That is 42 ns at 24 MHz against the 100 ns fast mode
+	   requires. */
+	constant MIN_PCLK_PER_SCL : natural := 32;
+
 begin
+
+	assert PCLK_HZ >= MIN_PCLK_PER_SCL * SCL_MAX_HZ
+		report "I2C: peripheral clock " & integer'image(PCLK_HZ)
+		       & " Hz is below the " & integer'image(MIN_PCLK_PER_SCL)
+		       & "x minimum for SCL_MAX_HZ " & integer'image(SCL_MAX_HZ)
+		       & " Hz; the oversampled slave cannot follow that bus."
+		severity failure;
 
 	-- Register Signal Routing ----------
 	-- The five stored registers are periph_regs' storage; the field slices below
@@ -295,46 +347,110 @@ begin
 
 
 
-	-- I2C Bus State Sensor
-	process (resetn, I2CMEN, I2CSEN, ClearStartSlaveRX, ClearI2CSTR, SDA_IN)
+	/* -------- Pin sampling ----------
+	   SDA and SCL are asynchronous open-drain lines and were, until 2026-09-15,
+	   the clock pins of five flops in this file. They are now sampled on smclk.
+
+	   Two stages: work.sync carries each line into smclk (two INDEPENDENT
+	   chains, which is what WIDTH is for; the lines are unrelated bits and
+	   never a word), then a three-sample agreement filter passes a level only
+	   once the synchronised value has held for three consecutive edges. The
+	   filter is the fast-mode spike suppression UM10204 asks for (tSP, 50 ns):
+	   a pulse narrower than two smclk periods is seen on at most two samples
+	   and never wins the vote, which is 83 ns at 24 MHz. The pin-clocked
+	   sampler had no such floor -- any SDA edge was a START to it, and a
+	   glitch left the bus latched busy with no SCL edge coming to retire it.
+
+	   START and STOP require SCL filtered high on BOTH samples either side of
+	   the SDA edge, so a coincident SCL transition cannot be read as either. */
+	pin_sync_d <= SDA_IN & SCL_IN;
+
+	u_sync_pins : entity work.sync
+		generic map (WIDTH => 2, DEPTH => 2, RST_VAL => "11")
+		port map (clk => smclk, areset => resetn, d => pin_sync_d, q => pin_sync_q);
+
+	sda_s <= pin_sync_q(1);
+	scl_s <= pin_sync_q(0);
+
+	pin_filter_proc: process(smclk, resetn)
 	begin
-		-- Watch for a start condition (or restart condition), which happens when SDA has a falling edge while SCL is stable on '1'
+		if resetn = '0' then
+			-- An idle I2C bus is both lines released, so the whole chain resets high and no edge is manufactured at reset release.
+			sda_h1 <= '1'; sda_h2 <= '1'; sda_f <= '1'; sda_fd <= '1';
+			scl_h1 <= '1'; scl_h2 <= '1'; scl_f <= '1'; scl_fd <= '1';
+		elsif rising_edge(smclk) then
+			sda_h1 <= sda_s;  sda_h2 <= sda_h1;
+			scl_h1 <= scl_s;  scl_h2 <= scl_h1;
+			if sda_s = sda_h1 and sda_h1 = sda_h2 then
+				sda_f <= sda_s;
+			end if;
+			if scl_s = scl_h1 and scl_h1 = scl_h2 then
+				scl_f <= scl_s;
+			end if;
+			sda_fd <= sda_f;
+			scl_fd <= scl_f;
+		end if;
+	end process;
+
+	scl_rise  <= scl_f and not scl_fd;
+	scl_fall  <= (not scl_f) and scl_fd;
+	-- A start condition (or restart condition) is a falling edge of SDA while SCL is stable on '1'; a stop condition is a rising edge of SDA while SCL is stable on '1'.
+	start_det <= (not sda_f) and sda_fd and scl_f and scl_fd;
+	stop_det  <= sda_f and (not sda_fd) and scl_f and scl_fd;
+
+
+	/* -------- I2C Bus State Sensor ----------
+	   The three sensors below keep the shape they had when SDA_IN and SCL_IN
+	   were their clocks: an asynchronous clear or level branch, then one edge
+	   branch that sets. Only the edge changed, from the pin to smclk qualified
+	   by the decoded pulse. The Clear* levels stay ASYNCHRONOUS on purpose:
+	   they are raised in the ClkMem domain and smclk is divisible against it,
+	   so a synchronous clear could be missed where a level cannot be. */
+	process (resetn, I2CMEN, I2CSEN, ClearStartSlaveRX, smclk)
+	begin
 		if resetn = '0' or (I2CMEN = '0' and I2CSEN = '0') or ClearStartSlaveRX = '1' then
 			StartSlaveRX <= '0';
-		elsif falling_edge(SDA_IN) then
-			if SCL_IN = '1' then
+		elsif rising_edge(smclk) then
+			if start_det = '1' then
 				StartSlaveRX <= '1';
-				I2CSTR <= '1';
 			end if;
 		end if;
+	end process;
 
+	process (resetn, I2CMEN, I2CSEN, ClearI2CSTR, smclk)
+	begin
 		if resetn = '0' or (I2CMEN = '0' and I2CSEN = '0') or ClearI2CSTR = '1' then
 			I2CSTR <= '0';
+		elsif rising_edge(smclk) then
+			if start_det = '1' then
+				I2CSTR <= '1';
+			end if;
 		end if;
 	end process;
 
 	-- Retire the start flag one SCL falling edge after the start condition was seen.
-	process (resetn, I2CMEN, I2CSEN, SCL_IN)
+	process (resetn, I2CMEN, I2CSEN, smclk)
 	begin
 		if resetn = '0' or (I2CMEN = '0' and I2CSEN = '0') then
 			ClearStartSlaveRX <= '0';
-		elsif falling_edge(SCL_IN) then
-			-- Clear the start slave RX line
-			-- One known limitation: a start condition immediately followed by a stop condition (no data sent, so no SCL transitions) is not recognized as a stop.
-			ClearStartSlaveRX <= StartSlaveRX;
+		elsif rising_edge(smclk) then
+			if scl_fall = '1' then
+				-- Clear the start slave RX line
+				-- One known limitation: a start condition immediately followed by a stop condition (no data sent, so no SCL transitions) is not recognized as a stop.
+				ClearStartSlaveRX <= StartSlaveRX;
+			end if;
 		end if;
 	end process;
 
 	-- Bus busy tracking and the stop-received flag.
-	process (resetn, I2CMEN, I2CSEN, StartSlaveRX, ClearI2CSPR, SDA_IN)
+	process (resetn, I2CMEN, I2CSEN, StartSlaveRX, ClearI2CSPR, smclk)
 	begin
-		-- Watch for a stop condition, which happens when SDA has a rising edge while SCL is stable on '1'
 		if resetn = '0' or (I2CMEN = '0' and I2CSEN = '0') then
 			I2CBS <= '0';
 		elsif StartSlaveRX = '1' then
 			I2CBS <= '1';
-		elsif rising_edge(SDA_IN) then
-			if SCL_IN = '1' then
+		elsif rising_edge(smclk) then
+			if stop_det = '1' then
 				I2CBS <= '0';
 				I2CSPR <= '1';
 			end if;
@@ -533,6 +649,7 @@ begin
 						if MasterSCL = '1' then
 							I2CMXC <= '1';
 							I2CxMRX <= MasterData;
+							mrx_tgl <= not mrx_tgl;	-- receive-byte event into ClkMem
 						end if;
 						
 						-- Wait for a command to either read another byte, send a repeated start condition, or send a stop condition
@@ -636,6 +753,7 @@ begin
 
 		if resetn = '0' then
 			I2CxMRX <= (others => '0');
+			mrx_tgl <= '0';
 		end if;
 		
 	end process;
@@ -643,13 +761,16 @@ begin
 
 
 	-- Slave Mode FSM
-	-- Sample SDA on each SCL rising edge; the FSM below consumes SDA_LAT, not the live pin.
-	process (resetn, I2CSEN, I2CBS, I2CMCB, SCL_IN)
+	-- Sample SDA at each decoded SCL rising edge; the FSM below consumes SDA_LAT, not the live pin.
+	-- The value taken is the FILTERED SDA, which carries the same latency as the filtered SCL that produced the pulse, so the bit captured is the bit that stood on the wire when SCL rose.
+	process (resetn, I2CSEN, I2CBS, I2CMCB, smclk)
 	begin
 		if resetn = '0' or I2CSEN = '0' or I2CBS = '0' or I2CMCB = '1' then
 			SDA_LAT <= '0';
-		elsif rising_edge (SCL_IN) then
-			SDA_LAT <= SDA_IN;
+		elsif rising_edge (smclk) then
+			if scl_rise = '1' then
+				SDA_LAT <= sda_f;
+			end if;
 		end if;
 	end process;
 
@@ -660,7 +781,8 @@ begin
 	SlaveSCL <= '0' when I2CSCS = '1' and I2CSC = '0' and SlaveState = SlaveStateAck else '1';
 
 	-- Slave transfer sequencer: address match, ACK/NACK, then receiver or transmitter.
-	process (resetn, I2CSEN, I2CBS, StartSlaveRX, I2CMCB, ClearI2CSXC, ClearI2CSNR, ClearI2CSOVF, ClearI2CSTXE, ClearI2CSA, SCL_IN)
+	-- Everything below advances on the decoded SCL falling edge, on smclk. The ACK drive and the clock stretch are combinational on SlaveState as before, so both now move about three smclk periods into the SCL low phase instead of at its edge: 125 ns at 24 MHz against a fast-mode minimum low time of 1.3 us.
+	process (resetn, I2CSEN, I2CBS, StartSlaveRX, I2CMCB, ClearI2CSXC, ClearI2CSNR, ClearI2CSOVF, ClearI2CSTXE, ClearI2CSA, smclk)
 	begin
 		if resetn = '0' or I2CSEN = '0' or I2CBS = '0' or StartSlaveRX = '1' or I2CMCB = '1' then
 			SlaveState <= SlaveStateAddr;
@@ -669,7 +791,8 @@ begin
 			SlaveJustAddressed <= '0';
 			ClearI2CSC <= '1';
 			I2CSTM <= '0';
-		elsif falling_edge(SCL_IN) then
+		elsif rising_edge(smclk) then
+		  if scl_fall = '1' then
 			SlaveJustAddressed <= '0';
 			ClearI2CSC <= '1';
 			
@@ -692,6 +815,7 @@ begin
 
 							-- Latch the receive register
 							I2CxSRX <= SlaveData(6 downto 0) & SDA_LAT;
+							srx_tgl <= not srx_tgl;	-- receive-byte event into ClkMem
 
 							-- Check for an overflow
 							if I2CSXC = '1' then
@@ -747,6 +871,7 @@ begin
 						-- This is the last bit
 						-- Latch the receive register
 						I2CxSRX <= SlaveData(6 downto 0) & SDA_LAT;
+						srx_tgl <= not srx_tgl;	-- receive-byte event into ClkMem
 
 						-- Check for an overflow
 						if I2CSXC = '1' then
@@ -783,6 +908,7 @@ begin
 					-- Wait here until the end of the transaction
 					SlaveFsmSDA <= '1';
 			end case;
+		  end if;
 		end if;
 
 		-- Status Register synchronizers
@@ -808,6 +934,7 @@ begin
 
 		if resetn = '0' then
 			I2CxSRX <= (others => '0');
+			srx_tgl <= '0';
 			SlaveData <= (others => '0');
 		end if;
 
@@ -815,36 +942,89 @@ begin
 
 
 
-	/* -------- Register Synchronizer ----------
-	   The asynchronous status registers are sampled only during a memory access, which is safe because EnMemPeriph leads the rdata latch by exactly one clock cycle; the double inversion reduces the chance of an undefined bit.
-	   One generate arm per EnMemPeriph polarity, of which only the mem_assert one is elaborated. */
-	GenRegSync0: if mem_assert = '0' generate
-		process (EnMemPeriph)
-		begin
-			if falling_edge(EnMemPeriph) then
-				I2CxSRLat <= not I2CxSR;
-				I2CxSRXLat <= not I2CxSRX;
-			end if;
-		end process;
-	end generate;
+	/* -------- Register read CDC ----------
+	   Nothing here is clocked by EnMemPeriph. The three volatile words are carried
+	   into ClkMem permanently, and the word the read path presents is one
+	   register's value from one ClkMem edge. I2C's rdata_out is COMBINATIONAL
+	   (REGISTERED_READ = false) and MCU.vhd's i2c_rdata_bridge is the flop that
+	   captures it, on the rising mclk edge of the access; that edge is the
+	   snapshot edge, and these copies are what it samples.
 
-	GenRegSync1: if mem_assert = '1' generate
-		process (EnMemPeriph)
-		begin
-			if rising_edge(EnMemPeriph) then
-				I2CxSRLat <= not I2CxSR;
-				I2CxSRXLat <= not I2CxSRX;
+	   I2CxSR is sixteen INDEPENDENT flags in the ClkMaster and smclk domains,
+	   which is what work.sync's WIDTH is for; each bit is two ClkMem edges
+	   behind its source. Four of them stood in the SDA_IN and SCL_IN domains
+	   until the slave was oversampled; none does now.
+
+	   I2CxMRX and I2CxSRX are 8-bit words and may not cross bit by bit, so they do
+	   not go through work.sync at all: each receive EVENT crosses as a toggle and
+	   the byte is copied by an ordinary ClkMem flop on the synchronized edge. At
+	   that edge the source has been stable for two ClkMem periods, because the
+	   next byte is a further eight SCL periods away. I2CxMRX used to be read
+	   COMBINATIONALLY out of the ClkMaster domain with no snapshot at all; it now
+	   crosses like its slave counterpart. */
+	sr_sync_d <= I2CxSR;
+	u_sync_I2CxSR : entity work.sync
+		generic map (WIDTH => 16, DEPTH => 2)
+		port map (clk => ClkMem, areset => resetn, d => sr_sync_d, q => I2CxSR_mem);
+
+	rx_tgl_d <= srx_tgl & mrx_tgl;
+	u_sync_rx_tgl : entity work.sync
+		generic map (WIDTH => 2, DEPTH => 2)
+		port map (clk => ClkMem, areset => resetn, d => rx_tgl_d, q => rx_tgl_q);
+
+	rx_cap_proc: process(ClkMem, resetn)
+	begin
+		if resetn = '0' then
+			mrx_tgl_prev <= '0';
+			srx_tgl_prev <= '0';
+			I2CxMRX_mem  <= (others => '0');
+			I2CxSRX_mem  <= (others => '0');
+		elsif rising_edge(ClkMem) then
+			mrx_tgl_prev <= rx_tgl_q(0);
+			srx_tgl_prev <= rx_tgl_q(1);
+			if rx_tgl_q(0) /= mrx_tgl_prev then
+				I2CxMRX_mem <= I2CxMRX;
 			end if;
-		end process;
-	end generate;
+			if rx_tgl_q(1) /= srx_tgl_prev then
+				I2CxSRX_mem <= I2CxSRX;
+			end if;
+		end if;
+	end process;
+
+	/* Clear shadow. The thirteen W1C flags are cleared ASYNCHRONOUSLY in their own
+	   domains, so a clear needs the same two ClkMem edges to travel back through
+	   u_sync_I2CxSR that the set needed coming in, and a read on the access after
+	   the clearing write would still see the old 1. The armed pattern is held over
+	   exactly those two edges, so a flag retires on the next access as it did off
+	   the falling-EnMemPeriph pre-latch. A hardware set inside the window is not
+	   lost: the source flag is sticky and reappears when the mask retires. The
+	   arming term is the COMBINATIONAL wr_hit, valid AT the access edge; the held
+	   Clear* levels rise after it and retire on deselect, so no ClkMem edge ever
+	   samples them high. */
+	sr_clr_now <= (W1C(RegSlotI2CxSR)(15 downto 8) and wdata(15 downto 8) and (15 downto 8 => not WEn(1)))
+	            & (W1C(RegSlotI2CxSR)(7 downto 0)  and wdata(7 downto 0)  and (7 downto 0 => not WEn(0)))
+	              when wrh_s(RegSlotI2CxSR) = '1' else (others => '0');
+
+	sr_shadow_proc: process(ClkMem, resetn)
+	begin
+		if resetn = '0' then
+			sr_clr_pipe0 <= (others => '0');
+			sr_clr_pipe1 <= (others => '0');
+		elsif rising_edge(ClkMem) then
+			sr_clr_pipe0 <= sr_clr_now;
+			sr_clr_pipe1 <= sr_clr_pipe0;
+		end if;
+	end process;
+
+	I2CxSR_rd <= I2CxSR_mem and not (sr_clr_pipe0 or sr_clr_pipe1);
 
 
 
 	-- Register Memory Interface ----------
 	-- One periph_regs instance replaces the slot decode, the byte-lane write case,
 	-- the write-1-to-clear arm and the read mux. What stays here is the datapath:
-	-- the flow-control command flops, which the consuming FSM clears, and the two
-	-- falling-EnMemPeriph snapshot latches, which are a CDC judgement.
+	-- the flow-control command flops, which the consuming FSM clears, and the read
+	-- CDC above, which is a CDC judgement.
 	--
 	-- REGISTERED_READ is FALSE. I2C's read has always been combinational and
 	-- MCU.vhd's i2c_rdata_bridge is the flop that captures it at the access edge;
@@ -853,7 +1033,7 @@ begin
 	--
 	-- STROBE_HOLD is TRUE: the status clear requests are asynchronous clears in
 	-- the smclk and pin-edge domains and must last the whole select window, which
-	-- is what `if EnMemPeriph /= mem_assert then Clear* <= '0'` used to say.
+	-- is what `if EnMemPeriph /= '0' then Clear* <= '0'` used to say.
 	u_regs: entity work.periph_regs
 		generic map (
 			NWORDS          => NWORDS,
@@ -880,6 +1060,7 @@ begin
 			wr_inhibit  => wr_inh,
 			hw_rd       => hw_rd_s,
 			acc_hit     => acc_s,
+			wr_hit      => wrh_s,
 			rd_strobe   => open,
 			wr_strobe   => open,
 			wr_pulse    => open,
@@ -888,33 +1069,57 @@ begin
 			wot_hit     => open,
 			rd_clr      => open);
 
-	-- The three words that hold no flop here: I2CxSR and I2CxSRX come back through
-	-- their inverted snapshot latches and are re-inverted, I2CxMRX is the master
-	-- receive byte. I2CxFCR is write-1-only and reads 0, which it does by holding
-	-- no storage and no hw_rd row.
-	hw_rd_s <= (RegSlotI2CxSR  => pad(not I2CxSRLat),
-	            RegSlotI2CxMRX => pad(I2CxMRX),
-	            RegSlotI2CxSRX => pad(not I2CxSRXLat),
+	-- The three words that hold no flop here: I2CxSR, I2CxMRX and I2CxSRX read the
+	-- ClkMem copies built above. I2CxFCR is write-1-only and reads 0, which it does
+	-- by holding no storage and no hw_rd row.
+	hw_rd_s <= (RegSlotI2CxSR  => pad(I2CxSR_rd),
+	            RegSlotI2CxMRX => pad(I2CxMRX_mem),
+	            RegSlotI2CxSRX => pad(I2CxSRX_mem),
 	            others         => (others => '0'));
 
 	-- I2CxMTX is the one storage word whose write is conditional: it lands only
 	-- while the master is enabled, because the same write launches a byte.
 	wr_inh <= (RegSlotI2CxMTX => not I2CMEN, others => '0');
 
-	-- The thirteen status clear requests, held for the select window.
-	ClearI2CSPR		<= w1c_s(RegSlotI2CxSR)(I2CSPR_LSB);
-	ClearI2CSTR		<= w1c_s(RegSlotI2CxSR)(I2CSTR_LSB);
-	ClearI2CMXC		<= w1c_s(RegSlotI2CxSR)(I2CMXC_LSB);
-	ClearI2CMNR		<= w1c_s(RegSlotI2CxSR)(I2CMNR_LSB);
-	ClearI2CMTXE	<= w1c_s(RegSlotI2CxSR)(I2CMTXE_LSB);
-	ClearI2CMARB	<= w1c_s(RegSlotI2CxSR)(I2CMARB_LSB);
-	ClearI2CMSPS	<= w1c_s(RegSlotI2CxSR)(I2CMSPS_LSB);
-	ClearI2CMSTS	<= w1c_s(RegSlotI2CxSR)(I2CMSTS_LSB);
-	ClearI2CSXC		<= w1c_s(RegSlotI2CxSR)(I2CSXC_LSB);
-	ClearI2CSNR		<= w1c_s(RegSlotI2CxSR)(I2CSNR_LSB);
-	ClearI2CSOVF	<= w1c_s(RegSlotI2CxSR)(I2CSOVF_LSB);
-	ClearI2CSTXE	<= w1c_s(RegSlotI2CxSR)(I2CSTXE_LSB);
-	ClearI2CSA		<= w1c_s(RegSlotI2CxSR)(I2CSA_LSB);
+	-- The thirteen status clear requests.
+	/* Each reaches an ASYNCHRONOUS clear in the ClkMaster or smclk domain, so
+	   its WIDTH is what makes it land. The clears stay ASYNCHRONOUS after the
+	   oversampling: smclk is divisible against ClkMem at run time, so a level
+	   two and a half ClkMem periods wide is not guaranteed to meet an smclk
+	   edge, and a level-sensitive clear does not need to. Each takes the registered held
+	   strobe as before, WIDENED by the ClkMem clear shadow: the combinational
+	   access condition plus the two shadow stages is a level about two and a half
+	   ClkMem periods wide, in the ClkMem domain, and it does not depend on how long
+	   the fabric holds the select. The held strobe alone does: periph_regs retires
+	   it asynchronously on EnMemPeriph, which the MCU deasserts on the same mclk
+	   edge the strobe is set, so with the falling-mclk en_q shim gone it would be a
+	   runt. Additive: nothing the held strobe did is taken away. */
+	ClearI2CSPR	<= w1c_s(RegSlotI2CxSR)(I2CSPR_LSB) or sr_clr_now(I2CSPR_LSB)
+					or sr_clr_pipe0(I2CSPR_LSB) or sr_clr_pipe1(I2CSPR_LSB);
+	ClearI2CSTR	<= w1c_s(RegSlotI2CxSR)(I2CSTR_LSB) or sr_clr_now(I2CSTR_LSB)
+					or sr_clr_pipe0(I2CSTR_LSB) or sr_clr_pipe1(I2CSTR_LSB);
+	ClearI2CMXC	<= w1c_s(RegSlotI2CxSR)(I2CMXC_LSB) or sr_clr_now(I2CMXC_LSB)
+					or sr_clr_pipe0(I2CMXC_LSB) or sr_clr_pipe1(I2CMXC_LSB);
+	ClearI2CMNR	<= w1c_s(RegSlotI2CxSR)(I2CMNR_LSB) or sr_clr_now(I2CMNR_LSB)
+					or sr_clr_pipe0(I2CMNR_LSB) or sr_clr_pipe1(I2CMNR_LSB);
+	ClearI2CMTXE	<= w1c_s(RegSlotI2CxSR)(I2CMTXE_LSB) or sr_clr_now(I2CMTXE_LSB)
+					or sr_clr_pipe0(I2CMTXE_LSB) or sr_clr_pipe1(I2CMTXE_LSB);
+	ClearI2CMARB	<= w1c_s(RegSlotI2CxSR)(I2CMARB_LSB) or sr_clr_now(I2CMARB_LSB)
+					or sr_clr_pipe0(I2CMARB_LSB) or sr_clr_pipe1(I2CMARB_LSB);
+	ClearI2CMSPS	<= w1c_s(RegSlotI2CxSR)(I2CMSPS_LSB) or sr_clr_now(I2CMSPS_LSB)
+					or sr_clr_pipe0(I2CMSPS_LSB) or sr_clr_pipe1(I2CMSPS_LSB);
+	ClearI2CMSTS	<= w1c_s(RegSlotI2CxSR)(I2CMSTS_LSB) or sr_clr_now(I2CMSTS_LSB)
+					or sr_clr_pipe0(I2CMSTS_LSB) or sr_clr_pipe1(I2CMSTS_LSB);
+	ClearI2CSXC	<= w1c_s(RegSlotI2CxSR)(I2CSXC_LSB) or sr_clr_now(I2CSXC_LSB)
+					or sr_clr_pipe0(I2CSXC_LSB) or sr_clr_pipe1(I2CSXC_LSB);
+	ClearI2CSNR	<= w1c_s(RegSlotI2CxSR)(I2CSNR_LSB) or sr_clr_now(I2CSNR_LSB)
+					or sr_clr_pipe0(I2CSNR_LSB) or sr_clr_pipe1(I2CSNR_LSB);
+	ClearI2CSOVF	<= w1c_s(RegSlotI2CxSR)(I2CSOVF_LSB) or sr_clr_now(I2CSOVF_LSB)
+					or sr_clr_pipe0(I2CSOVF_LSB) or sr_clr_pipe1(I2CSOVF_LSB);
+	ClearI2CSTXE	<= w1c_s(RegSlotI2CxSR)(I2CSTXE_LSB) or sr_clr_now(I2CSTXE_LSB)
+					or sr_clr_pipe0(I2CSTXE_LSB) or sr_clr_pipe1(I2CSTXE_LSB);
+	ClearI2CSA	<= w1c_s(RegSlotI2CxSR)(I2CSA_LSB) or sr_clr_now(I2CSA_LSB)
+					or sr_clr_pipe0(I2CSA_LSB) or sr_clr_pipe1(I2CSA_LSB);
 
 	-- A write that LAUNCHES something on the edge it lands takes the unregistered
 	-- hook, qualified with its own lane exactly as the raw decode was: a registered

@@ -100,13 +100,20 @@ architecture rtl of TIMER is
     signal hw_set_s            : reg_arr_t;                      -- task_start on TIMxCR.TEN
     signal hw_clr_s            : reg_arr_t;                      -- task_stop  on TIMxCR.TEN
     signal wr_str              : std_logic_vector(0 to NWORDS-1);
+    signal wrh_s               : std_logic_vector(0 to NWORDS-1);  -- combinational: a lane write lands on this word now
     signal w1c_s               : reg_arr_t;                      -- a 1 written to a TIMxSR flag
     signal sr_rd, cap0_rd      : std_logic_vector(31 downto 0);  -- assembled read words
     signal cap1_rd             : std_logic_vector(31 downto 0);
 
     -- Timer registers.
     signal status_reg          : std_logic_vector(7 downto 0);   -- Timer status register
-    signal status_reg_latched  : std_logic_vector(7 downto 0);   -- Latched status for read
+    signal status_reg_mem      : std_logic_vector(7 downto 0);   -- status_reg carried into clk_mem, eight independent chains
+    signal status_reg_rd       : std_logic_vector(7 downto 0);   -- ... with the clear shadow applied
+    signal sr_clr_now          : std_logic_vector(7 downto 0);   -- TIMxSR bits this access writes a 1 to
+    signal sr_clr_pipe0        : std_logic_vector(7 downto 0);   -- ... held over the two clk_mem edges the clear needs
+    signal sr_clr_pipe1        : std_logic_vector(7 downto 0);
+    signal val_wr_now          : std_logic;                      -- a lane write lands on TIMxVAL now
+    signal val_wr_pipe         : std_logic_vector(1 downto 0);   -- ... held over the two clk_mem edges the load needs
     signal timer_value         : std_logic_vector(31 downto 0);  -- Current timer count value
     signal timer_value_next    : std_logic_vector(31 downto 0);  -- Counter increment, shared by the counter and its gray mirror
     -- TIMxVAL read CDC: timer_value lives in the timer_clock domain, which is asynchronous to clk_mem
@@ -122,8 +129,16 @@ architecture rtl of TIMER is
     signal compare2_reg        : std_logic_vector(31 downto 0);  -- Compare 2 threshold (TIMxCMP2 storage)
     signal capture0_reg        : std_logic_vector(31 downto 0);  -- Capture 0 value
     signal capture1_reg        : std_logic_vector(31 downto 0);  -- Capture 1 value
-    signal capture0_latched    : std_logic_vector(31 downto 0);  -- Latched capture 0 for read
-    signal capture1_latched    : std_logic_vector(31 downto 0);  -- Latched capture 1 for read
+    signal capture0_mem        : std_logic_vector(31 downto 0);  -- clk_mem copy of capture0_reg, loaded at the synchronized capture event
+    signal capture1_mem        : std_logic_vector(31 downto 0);  -- clk_mem copy of capture1_reg
+    -- The capture EVENT as a toggle, one per channel, and its crossing into
+    -- clk_mem. A toggle rather than the flag: CAPxIF is sticky, so a second
+    -- capture before software clears it raises no new edge and the copy would
+    -- freeze on the first, where the pre-latch returned the newest.
+    signal capture0_tgl        : std_logic;                      -- timer_clock domain: capture 0 event
+    signal capture1_tgl        : std_logic;                      -- timer_clock domain: capture 1 event
+    signal cap_tgl_d, cap_tgl_q : std_logic_vector(1 downto 0);  -- bit 1 channel 1, bit 0 channel 0
+    signal cap0_tgl_prev, cap1_tgl_prev : std_logic;             -- clk_mem edge-detect stage
 
     -- Control register bit fields.
     signal clock_divider       : std_logic_vector(3 downto 0);   -- Clock divider selection
@@ -386,12 +401,14 @@ begin
         if resetn = '0' then
             capture0_reg <= (others => '0');
             capture0_int_flag <= '0';
+            capture0_tgl <= '0';
         elsif clear_capture0_flag = '1' then
             capture0_int_flag <= '0';
         elsif rising_edge(timer_clock) then
             if capture0_edge = '1' then
                 capture0_reg <= timer_value;  -- Capture current timer value
                 capture0_int_flag <= '1';     -- Set interrupt flag
+                capture0_tgl <= not capture0_tgl;  -- capture event into clk_mem
             end if;
         end if;
     end process;
@@ -425,12 +442,14 @@ begin
         if resetn = '0' then
             capture1_reg <= (others => '0');
             capture1_int_flag <= '0';
+            capture1_tgl <= '0';
         elsif clear_capture1_flag = '1' then
             capture1_int_flag <= '0';
         elsif rising_edge(timer_clock) then
             if capture1_edge = '1' then
                 capture1_reg <= timer_value;  -- Capture current timer value
                 capture1_int_flag <= '1';     -- Set interrupt flag
+                capture1_tgl <= not capture1_tgl;  -- capture event into clk_mem
             end if;
         end if;
     end process;
@@ -533,23 +552,82 @@ begin
     irq_cmp1 <= compare1_int_flag and compare1_int_enable;
     irq_cmp2 <= compare2_int_flag and compare2_int_enable;
 
-    -- Falling en_mem snapshots the free-running status and capture values for the read mux; they are stored inverted and re-inverted on read.
-    -- This stays in the peripheral: which of its signals are asynchronous to clk_mem is a CDC judgement periph_regs cannot make. It feeds hw_rd below.
-    -- timer_value is NOT snapshotted here: TIMxVAL reads the gray-coded clk_mem copy built above, and the timer_value_latched flops this process used to write were read by nothing.
-    reg_sync: process(en_mem)
+    /* -------- Register read CDC ---------------------------------------------
+       Nothing here is clocked by en_mem. The three volatile words are carried
+       into clk_mem permanently and periph_regs' read register captures them on
+       the rising clk_mem edge of the access, so the word it returns is one
+       register's value from one edge.
+
+       status_reg is eight INDEPENDENT bits (six sticky flags plus the two
+       compare output levels), all in the timer_clock domain, which is what
+       work.sync's WIDTH is for; each bit is two clk_mem edges behind its source.
+
+       TIMxCAP0 and TIMxCAP1 are 32-bit words and may not cross bit by bit, so
+       they do not go through work.sync at all: the capture EVENT crosses as a
+       toggle and the data is copied by an ordinary clk_mem flop on the
+       synchronized edge. At that edge capture_reg has been stable for two
+       clk_mem periods, because a second capture needs at least three more
+       timer_clock edges (the level synchroniser plus its edge detector). */
+    u_sync_status_reg : entity work.sync
+        generic map (WIDTH => 8, DEPTH => 2)
+        port map (clk => clk_mem, areset => resetn, d => status_reg, q => status_reg_mem);
+
+    cap_tgl_d <= capture1_tgl & capture0_tgl;
+    u_sync_cap_tgl : entity work.sync
+        generic map (WIDTH => 2, DEPTH => 2)
+        port map (clk => clk_mem, areset => resetn, d => cap_tgl_d, q => cap_tgl_q);
+
+    cap_cap_proc: process(clk_mem, resetn)
     begin
-        if falling_edge(en_mem) then
-            status_reg_latched  <= not status_reg;
-            capture0_latched    <= not capture0_reg;
-            capture1_latched    <= not capture1_reg;
+        if resetn = '0' then
+            cap0_tgl_prev <= '0';
+            cap1_tgl_prev <= '0';
+            capture0_mem  <= (others => '0');
+            capture1_mem  <= (others => '0');
+        elsif rising_edge(clk_mem) then
+            cap0_tgl_prev <= cap_tgl_q(0);
+            cap1_tgl_prev <= cap_tgl_q(1);
+            if cap_tgl_q(0) /= cap0_tgl_prev then
+                capture0_mem <= capture0_reg;
+            end if;
+            if cap_tgl_q(1) /= cap1_tgl_prev then
+                capture1_mem <= capture1_reg;
+            end if;
         end if;
     end process;
 
-    -- The words this block owns rather than stores: the status snapshot, the
-    -- clk_mem-domain count and the two capture snapshots, re-inverted here.
-    sr_rd   <= (31 downto status_reg_latched'high + 1 => '0') & (not status_reg_latched);
-    cap0_rd <= not capture0_latched;
-    cap1_rd <= not capture1_latched;
+    /* Clear shadow. The six TIMxSR flags are cleared ASYNCHRONOUSLY in the
+       timer_clock domain, so a clear needs the same two clk_mem edges to travel
+       back through u_sync_status_reg that the set needed coming in, and a read on
+       the access after the clearing write would still see the old 1. The armed
+       pattern is held over exactly those two edges, so a flag retires on the next
+       access as it did off the falling-en pre-latch. A hardware set inside the
+       window is not lost: the source flag is sticky and reappears when the mask
+       retires. The arming term is the COMBINATIONAL wr_hit, valid AT the access
+       edge; the registered clear_*_flag levels are held strobes that rise after
+       that edge and retire on deselect, so no clk_mem edge samples them high. */
+    sr_clr_now <= (W1C(RegSlotTIMxSR)(7 downto 0) and write_data(7 downto 0))
+                  when (wrh_s(RegSlotTIMxSR) = '1' and wen(0) = '0')
+                  else (others => '0');
+
+    sr_shadow_proc: process(clk_mem, resetn)
+    begin
+        if resetn = '0' then
+            sr_clr_pipe0 <= (others => '0');
+            sr_clr_pipe1 <= (others => '0');
+        elsif rising_edge(clk_mem) then
+            sr_clr_pipe0 <= sr_clr_now;
+            sr_clr_pipe1 <= sr_clr_pipe0;
+        end if;
+    end process;
+
+    status_reg_rd <= status_reg_mem and not (sr_clr_pipe0 or sr_clr_pipe1);
+
+    -- The words this block owns rather than stores: the status copy, the
+    -- clk_mem-domain count and the two capture copies.
+    sr_rd   <= (31 downto status_reg_rd'high + 1 => '0') & status_reg_rd;
+    cap0_rd <= capture0_mem;
+    cap1_rd <= capture1_mem;
 
     hw_rd_s <= (RegSlotTIMxSR   => sr_rd,
                 RegSlotTIMxVAL  => timer_value_mem,   -- see the TIMxVAL read CDC above
@@ -597,6 +675,7 @@ begin
             hw_set      => hw_set_s,
             hw_clr      => hw_clr_s,
             acc_hit     => open,
+            wr_hit      => wrh_s,
             rd_strobe   => open,
             wr_strobe   => wr_str,
             wr_pulse    => open,
@@ -607,15 +686,43 @@ begin
 
     -- A TIMxVAL write loads the counter asynchronously; the level is held for the
     -- whole access, exactly as the hand-written latch_timer_value strobe was.
-    latch_timer_value <= wr_str(RegSlotTIMxVAL);
+    /* Every level below reaches an ASYNCHRONOUS clear or load in the timer_clock
+       domain, so its WIDTH is what makes it land. Each takes the registered held
+       strobe as before, WIDENED by the clk_mem shadow: the combinational access
+       condition plus the two shadow stages is a level about two and a half clk_mem
+       periods wide, in the clk_mem domain, and it does not depend on how long the
+       fabric holds the select. The held strobe alone does: periph_regs retires it
+       asynchronously on en_mem, which the MCU deasserts on the same mclk edge the
+       strobe is set, so with the falling-mclk en_q shim gone it would be a runt.
+       Additive: nothing the held strobe did is taken away. */
+    latch_timer_value <= wr_str(RegSlotTIMxVAL)
+                         or val_wr_now or val_wr_pipe(0) or val_wr_pipe(1);
+
+    val_wr_now <= wrh_s(RegSlotTIMxVAL);
+
+    val_wr_proc: process(clk_mem, resetn)
+    begin
+        if resetn = '0' then
+            val_wr_pipe <= (others => '0');
+        elsif rising_edge(clk_mem) then
+            if val_wr_now = '1' then val_wr_pipe <= (others => '1');
+            else val_wr_pipe <= '0' & val_wr_pipe(1); end if;
+        end if;
+    end process;
 
     -- The TIMxSR flag clears: one per write-1-to-clear bit, in the timer_clock domain.
-    clear_compare0_flag <= w1c_s(RegSlotTIMxSR)(CMP0IF_LSB);
-    clear_compare1_flag <= w1c_s(RegSlotTIMxSR)(CMP1IF_LSB);
-    clear_compare2_flag <= w1c_s(RegSlotTIMxSR)(CMP2IF_LSB);
-    clear_overflow_flag <= w1c_s(RegSlotTIMxSR)(OVIF_LSB);
-    clear_capture0_flag <= w1c_s(RegSlotTIMxSR)(CAP0IF_LSB);
-    clear_capture1_flag <= w1c_s(RegSlotTIMxSR)(CAP1IF_LSB);
+    clear_compare0_flag <= w1c_s(RegSlotTIMxSR)(CMP0IF_LSB)
+                                or sr_clr_now(CMP0IF_LSB) or sr_clr_pipe0(CMP0IF_LSB) or sr_clr_pipe1(CMP0IF_LSB);
+    clear_compare1_flag <= w1c_s(RegSlotTIMxSR)(CMP1IF_LSB)
+                                or sr_clr_now(CMP1IF_LSB) or sr_clr_pipe0(CMP1IF_LSB) or sr_clr_pipe1(CMP1IF_LSB);
+    clear_compare2_flag <= w1c_s(RegSlotTIMxSR)(CMP2IF_LSB)
+                                or sr_clr_now(CMP2IF_LSB) or sr_clr_pipe0(CMP2IF_LSB) or sr_clr_pipe1(CMP2IF_LSB);
+    clear_overflow_flag <= w1c_s(RegSlotTIMxSR)(OVIF_LSB)
+                                or sr_clr_now(OVIF_LSB) or sr_clr_pipe0(OVIF_LSB) or sr_clr_pipe1(OVIF_LSB);
+    clear_capture0_flag <= w1c_s(RegSlotTIMxSR)(CAP0IF_LSB)
+                                or sr_clr_now(CAP0IF_LSB) or sr_clr_pipe0(CAP0IF_LSB) or sr_clr_pipe1(CAP0IF_LSB);
+    clear_capture1_flag <= w1c_s(RegSlotTIMxSR)(CAP1IF_LSB)
+                                or sr_clr_now(CAP1IF_LSB) or sr_clr_pipe0(CAP1IF_LSB) or sr_clr_pipe1(CAP1IF_LSB);
 
 end rtl;
 

@@ -80,7 +80,51 @@ architecture sim of SYSTEM_tb is
     constant CRC_77_FROM_FF00   : std_logic_vector(15 downto 0) := x"E3C9";
     constant CRC_123456_FROM_FFFF : std_logic_vector(15 downto 0) := x"BD38";
 
+    /* ---- GROUP 5d: WIDTH monitors on the two WDT clear levels ------------
+       The defect these measure is a WIDTH, not a value, so the bench measures the
+       width. A held strobe out of periph_regs is retired asynchronously on deselect,
+       so it lasts only as long as the fabric holds the select; the MCU's select is
+       one mclk cycle and self-clears on the edge the slave captures. An event
+       simulator resolves the resulting race in delta cycles and can show the clear
+       landing anyway, which is exactly why a value check is not the oracle here.
+       Both monitors reach into the DUT through VHDL-2008 external names. */
+    signal clr_mon_arm : std_logic := '0';
+    signal clr_if_w, clr_wdt_w : time    := 0 ns;   -- last high phase seen while armed
+    signal clr_if_n, clr_wdt_n : natural := 0;      -- high phases seen while armed
+
 begin
+
+    clr_if_mon : process
+        alias a is << signal dut.clr_wdt_if : std_logic >>;
+        variable t0 : time := 0 ns;
+    begin
+        wait on a;
+        if to_X01(a) = '1' then
+            t0 := now;
+        elsif t0 > 0 ns then
+            if clr_mon_arm = '1' then
+                clr_if_w <= now - t0;
+                clr_if_n <= clr_if_n + 1;
+            end if;
+            t0 := 0 ns;
+        end if;
+    end process;
+
+    clr_wdt_mon : process
+        alias a is << signal dut.clr_wdt : std_logic >>;
+        variable t0 : time := 0 ns;
+    begin
+        wait on a;
+        if to_X01(a) = '1' then
+            t0 := now;
+        elsif t0 > 0 ns then
+            if clr_mon_arm = '1' then
+                clr_wdt_w <= now - t0;
+                clr_wdt_n <= clr_wdt_n + 1;
+            end if;
+            t0 := 0 ns;
+        end if;
+    end process;
 
     -- Reference clock and oscillators, all free-running from t=0.
     clk         <= not clk         after PERIOD / 2;
@@ -88,8 +132,11 @@ begin
     clk_dco0_in <= not clk_dco0_in after 70 ns;
     clk_dco1_in <= not clk_dco1_in after 90 ns;
 
-    -- Gated memory-bus clock: ticks only while the peripheral is selected.
-    clk_mem <= clk when pbus.en_mem = '0' else '0';
+    -- Memory-bus clock. It FREE-RUNS, as mclk does at the MCU: SYSTEM's clk_mem port
+    -- is wired to the ungated mclk there, and the widened W1C clear levels are
+    -- generated on it, so a clock gated to one edge per access would not exercise
+    -- the shape the chip presents.
+    clk_mem <= clk;
 
     -- Edge counters, one per clock output, used by the clock-activity checks.
     process(mclk_out)     begin if rising_edge(mclk_out)     then cnt_mclk  <= cnt_mclk  + 1; end if; end process;
@@ -452,6 +499,62 @@ begin
         bus_write(clk, pbus, RegSlotSYS_WDT_SR, x"00000001");   -- W1C retires it
         bus_read(clk, pbus, read_data, RegSlotSYS_WDT_SR, rdw);
         sb.check_bit("a written 1 clears WDTRF", rdw(0), '0');
+
+        /* GROUP 5d: a MINIMUM-WIDTH select must land every WDT side effect.
+           periph_regs runs with STROBE_HOLD = true here, and a held strobe is retired
+           ASYNCHRONOUSLY while en_mem is high, so it is only as wide as the fabric holds
+           the select. The MCU's arbiter drives a one-mclk select that self-clears on the
+           very edge the slave captures, so the strobe rises and falls on the same edge
+           and a consumer clocked elsewhere never samples it. clr_wdt_if is exactly such a
+           consumer: it is read SYNCHRONOUSLY on clk_wdt. GROUP 5 (e) works around it with
+           bus_write_hold and three cycles, which no chip-level access provides.
+           Every access below is a plain single-cycle bus_write. */
+        report "=== GROUP 5d: single-cycle select ===" severity note;
+
+        bus_write(clk, pbus, RegSlotSYS_WDT_PASS, WDT_UNLCK_PASSWD);
+        bus_write(clk, pbus, RegSlotSYS_WDT_CR, x"00000094");   -- en=1, cdiv=5, ie=0
+        wait for 60 * PERIOD;                                   -- past WDT_VAL(5)
+        bus_read(clk, pbus, read_data, RegSlotSYS_WDT_SR, rdw);
+        sb.check_bit("GROUP5d: precondition, the timeout has set wdt_if", rdw(1), '1');
+
+        clr_mon_arm <= '1';
+        bus_write(clk, pbus, RegSlotSYS_WDT_SR, x"00000002");   -- ONE-cycle W1C
+        wait for 6 * PERIOD;
+        clr_mon_arm <= '0';
+        sb.check_true("GROUP5d: the clr_wdt_if monitor is not vacuous, "
+                      & integer'image(clr_if_n) & " high phase(s)", clr_if_n = 1);
+        sb.check_true("GROUP5d: clr_wdt_if is at least two clk_mem periods wide, measured "
+                      & integer'image(clr_if_w / 1 ns) & " ns against "
+                      & integer'image((2 * PERIOD) / 1 ns) & " ns",
+                      clr_if_w >= 2 * PERIOD);
+        bus_read(clk, pbus, read_data, RegSlotSYS_WDT_SR, rdw);
+        sb.check_bit("GROUP5d: a single-cycle SR write retires wdt_if", rdw(1), '0');
+
+        -- The counter clear is a level into an ASYNCHRONOUS reset on clk_wdt, and the
+        -- unlock a level into an asynchronous load of unlock_timer: neither can be caught
+        -- by a simulator, which has no runt, but both are the same width and are pinned
+        -- here so the widened level is not narrowed again by accident.
+        bus_read(clk, pbus, read_data, RegSlotSYS_WDT_VAL, rdw);
+        v1 := to_integer(unsigned(rdw(23 downto 0)));
+        clr_mon_arm <= '1';
+        bus_write(clk, pbus, RegSlotSYS_WDT_PASS, WDT_CLR_PASSWD);
+        wait for 6 * PERIOD;
+        clr_mon_arm <= '0';
+        sb.check_true("GROUP5d: the clr_wdt monitor is not vacuous, "
+                      & integer'image(clr_wdt_n) & " high phase(s)", clr_wdt_n = 1);
+        sb.check_true("GROUP5d: clr_wdt is at least two clk_mem periods wide, measured "
+                      & integer'image(clr_wdt_w / 1 ns) & " ns against "
+                      & integer'image((2 * PERIOD) / 1 ns) & " ns",
+                      clr_wdt_w >= 2 * PERIOD);
+        bus_read(clk, pbus, read_data, RegSlotSYS_WDT_VAL, rdw);
+        v2 := to_integer(unsigned(rdw(23 downto 0)));
+        sb.check_true("GROUP5d: a single-cycle clear password resets the counter", v2 < v1);
+
+        bus_write(clk, pbus, RegSlotSYS_WDT_PASS, WDT_UNLCK_PASSWD);
+        bus_write(clk, pbus, RegSlotSYS_WDT_CR, x"00000000");   -- disable, inside the window
+        bus_read(clk, pbus, read_data, RegSlotSYS_WDT_CR, rdw);
+        sb.check_slv("GROUP5d: a single-cycle password opens the unlock window "
+                     & "(WDT_CR takes the write)", rdw(7 downto 0), x"00");
 
         -- GROUP 6: clock tree activity.
         report "=== GROUP 6: clocks ===" severity note;

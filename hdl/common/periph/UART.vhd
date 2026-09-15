@@ -76,8 +76,7 @@ architecture Behavioral of UART is
     signal UART_RX : std_logic_vector(7 downto 0);
     signal UART_TX : std_logic_vector(7 downto 0);
     signal UART_BR : std_logic_vector(11 downto 0); -- Baud = smclk / (16 * (UARTxBR + 1))
-    signal UART_SR_ltch : std_logic_vector(7 downto 0); -- Latched version for reading
-    signal UART_RX_ltch : std_logic_vector(7 downto 0); -- Latched version for reading
+    signal UART_RX_mem : std_logic_vector(7 downto 0); -- clk_mem copy of UART_RX, loaded at the synchronized rx_done edge
 
     -- UART Control Register Bit Definitions
     signal UCR_EN   : std_logic; -- UART Enable
@@ -482,6 +481,7 @@ begin
             tx_done_s3 <= '0';
             tx_empty_s3 <= '0';
             rx_done_s3 <= '0';
+            UART_RX_mem <= (others => '0');
             USR_UTCIF <= '0';
             USR_UTEIF <= '0';
             USR_RCIF  <= '0';
@@ -526,6 +526,10 @@ begin
                 USR_RCIF <= '1';
                 USR_FEF  <= fef_val; -- frame-status payload (stable in flight)
                 USR_PEF  <= pef_val;
+                -- UART_RX rides the same toggle as FEF/PEF and is loaded on the same
+                -- edge that sets RCIF, so the byte a read returns is one clk_baud
+                -- register's value sampled at one clk_mem edge, never a mix.
+                UART_RX_mem <= UART_RX;
             end if;
         end if;
     end process;
@@ -541,24 +545,19 @@ begin
     RX_DIR <= '0'; -- RX pad in input mode
     RX_REN <= '0'; -- Disable pull resistor
 
-    /*
-       Register Synchronization for Memory Interface
-       Latch SR and RX, stored inverted, at the end of a bus access so a read returns a stable snapshot.
-       This stays here: which of a peripheral's signals are asynchronous to clk_mem is a CDC judgement periph_regs cannot make. It feeds hw_rd below. */
-    reg_sync: process(en_mem, UART_RX, UART_SR)
-    begin
-        if falling_edge(en_mem) then 
-            UART_SR_ltch <= not UART_SR;
-            UART_RX_ltch <= not UART_RX;
-        end if;
-    end process;
-
     --    Memory-Mapped Register Interface
 
-    -- The two words the register file does not store: the status and receive
-    -- snapshots, re-inverted here.
-    sr_rd <= (31 downto UART_SR_ltch'high + 1 => '0') & (not UART_SR_ltch);
-    rx_rd <= (31 downto UART_RX_ltch'high + 1 => '0') & (not UART_RX_ltch);
+    -- The two words the register file does not store. Both read a clk_mem flop, so
+    -- nothing here is clocked by en_mem and the word periph_regs' read register
+    -- captures is one register's value from one clk_mem edge.
+    -- UART_SR is already whole in this domain: RXBF/TXBF are the busy 2-FF outputs
+    -- and the six flags are the sticky clk_mem W1C registers, so the read is as
+    -- fresh as the falling-en snapshot was. UART_RX comes from the clk_mem copy
+    -- loaded at the synchronized rx_done edge, two clk_mem edges after the serial
+    -- core wrote it and on the same edge that sets RCIF, so a read qualified by
+    -- RCIF returns that frame's byte.
+    sr_rd <= (31 downto UART_SR'high + 1 => '0') & UART_SR;
+    rx_rd <= (31 downto UART_RX_mem'high + 1 => '0') & UART_RX_mem;
 
     hw_rd_s <= (RegSlotUARTxSR => sr_rd,
                 RegSlotUARTxRX => rx_rd,
