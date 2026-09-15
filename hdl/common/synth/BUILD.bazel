@@ -319,7 +319,6 @@ ghdl_synth_test(
     name = "GPIO",
     size = "small",
     srcs = ["//hdl/common/tb:gpio_rtl"],
-    allow_latches = ICG_LATCHES,
     entity = "GPIO",
     generics = {"num_pins": "8"},
     tags = ["ghdl"],

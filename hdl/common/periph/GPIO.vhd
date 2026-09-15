@@ -96,9 +96,11 @@ architecture behavioral of GPIO is
     signal PxIF     : std_logic_vector(num_pins - 1 downto 0);	-- Interrupt flag. '0' = no interrupt pending, '1' = interrupt pending.
     signal PxIF_ltch : std_logic_vector(num_pins - 1 downto 0);	-- Latched version of PxIF.
 
-    signal clk_if_comb : std_logic_vector(num_pins - 1 downto 0);	-- Combinational interrupt flag clock.
+    signal edge_sel_comb : std_logic_vector(num_pins - 1 downto 0);	-- Edge-select vector, prt_in xor PxIES, exported to the event fabric.
     signal PxTASK      : std_logic_vector(num_pins - 1 downto 0);	-- Task pin-select: which pins task_outset and task_outclr act on.
-    signal clk_if : std_logic_vector(num_pins - 1 downto 0);	-- Enabled interrupt flag clock.
+    signal prt_in_s2 : std_logic_vector(num_pins - 1 downto 0);	-- prt_in after the two-flop synchroniser, in the clk_mem domain.
+    signal prt_in_prev : std_logic_vector(num_pins - 1 downto 0);	-- prt_in_s2 delayed one clk_mem, the edge reference.
+    signal pin_edge : std_logic_vector(num_pins - 1 downto 0);	-- The PxIES-selected transition between prt_in_s2 and prt_in_prev.
     signal clr_if : std_logic_vector(num_pins - 1 downto 0);	-- Clear interrupt flag signal, active high.
 
     constant zero_vector : std_logic_vector(num_pins - 1 downto 0) := (others => '0');
@@ -218,35 +220,49 @@ begin
 
 
     -- Interrupts.
-    clk_if_comb <= prt_in xor PxIES; -- Flag clock, polarity chosen by the edge select.
-    evt_edge_raw <= clk_if_comb;     -- Raw event-fabric export, pre-mask and pre-sync.
+    edge_sel_comb <= prt_in xor PxIES;  -- Polarity chosen by the edge select.
+    evt_edge_raw <= edge_sel_comb;      -- Raw event-fabric export, pre-mask and pre-sync.
 
     -- TODO: allow these flags to be polled without interrupts, that is, separate the interrupt enables from the status flags.
     irq <= PxIF; -- The IRQ lines are the interrupt flags themselves.
 
-    -- One gated flag clock and one flag flop per pin.
-    gen_if_clks: for i in 0 to num_pins - 1 generate
-		CGClkIFG: entity work.ClkGate
-		port map
-		(
-			ClkIn	=> clk_if_comb(i),
-			En		=> PxIE(i),
-			ClkOut	=> clk_if(i)
-		);
-    
+    -- The pin NEVER reaches a clock pin: prt_in crosses into clk_mem through the
+    -- house synchroniser and the edge is detected against a previous-value
+    -- register, so an FPGA build infers no clock from a pad and the ASIC flow has
+    -- no per-pin gated clock to constrain.
+    -- The cost is that an edge narrower than a clk_mem period is not captured and
+    -- a flag appears three clk_mem edges after the pin edge. Neither matters for
+    -- the wake path: clk_mem is the free-running mclk, which nothing gates.
+    u_sync_prt_in : entity work.sync
+        generic map (WIDTH => num_pins, DEPTH => 2)
+        port map (clk => clk_mem, areset => resetn, d => prt_in, q => prt_in_s2);
 
-        if_gen_proc: process(clk_if(i), resetn, clr_if(i))
-        begin
-            if resetn = '0' or clr_if(i) = '1' then
-                PxIF(i) <= '0'; -- Clear the interrupt flag.
-            elsif rising_edge(clk_if(i)) then
-                if PxIE(i) = '1' then -- Kept explicit so genus does not optimize the enable away.
-                    PxIF(i) <= '1';
-                end if;
-            end if;
-        end process;
-
+    -- PxIES picks which transition of the synchronised pin counts, matching the
+    -- event fabric's rising edge of prt_in xor PxIES.
+    gen_pin_edge: for i in 0 to num_pins - 1 generate
+        pin_edge(i) <= (prt_in_s2(i) and not prt_in_prev(i)) when PxIES(i) = '0'
+                  else (prt_in_prev(i) and not prt_in_s2(i));
     end generate;
+
+    -- One flag flop per pin, all on clk_mem. A set coincident with the W1C wins,
+    -- as the event fabric's stickies do, so software never loses an edge to its
+    -- own clear.
+    if_proc: process(clk_mem, resetn)
+    begin
+        if resetn = '0' then
+            prt_in_prev <= (others => '0');
+            PxIF        <= (others => '0');
+        elsif rising_edge(clk_mem) then
+            prt_in_prev <= prt_in_s2;
+            for i in 0 to num_pins - 1 loop
+                if pin_edge(i) = '1' and PxIE(i) = '1' then
+                    PxIF(i) <= '1';
+                elsif clr_if(i) = '1' then
+                    PxIF(i) <= '0';
+                end if;
+            end loop;
+        end if;
+    end process;
 
 
 
@@ -338,8 +354,8 @@ begin
     hw_clr_s   <= (RegSlotPxOUT => w1c_s(RegSlotPxOUTC) or task_clr,
                    others       => (others => '0'));
 
-    -- PxIF's flops are the pin domain's, one gated flag clock per pin, so they
-    -- stay here and periph_regs only reports which flag a 1 was written to.
+    -- PxIF's flops stay here, on clk_mem with the edge detector that sets them,
+    -- and periph_regs only reports which flag a 1 was written to.
     clr_if <= w1c_s(RegSlotPxIF)(num_pins - 1 downto 0);
 
 end behavioral;

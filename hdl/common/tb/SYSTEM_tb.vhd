@@ -53,6 +53,9 @@ architecture sim of SYSTEM_tb is
     signal cnt_lfxt  : natural := 0;
     signal cnt_ref   : natural := 0;
 
+    -- Counts resetn_sys assertions, so a reset narrower than a bus access is still graded.
+    signal cnt_sys_reset : natural := 0;
+
     shared variable sb : scoreboard;
 
     /* ---- independent CRC16 reference values --------------------------------
@@ -94,6 +97,7 @@ begin
     process(clk_hfxt_out) begin if rising_edge(clk_hfxt_out) then cnt_hfxt  <= cnt_hfxt  + 1; end if; end process;
     process(clk_lfxt_out) begin if rising_edge(clk_lfxt_out) then cnt_lfxt  <= cnt_lfxt  + 1; end if; end process;
     process(clk)          begin if rising_edge(clk)          then cnt_ref   <= cnt_ref   + 1; end if; end process;
+    process(resetn_sys)   begin if falling_edge(resetn_sys) then cnt_sys_reset <= cnt_sys_reset + 1; end if; end process;
 
     dut : entity work.SYSTEM
         port map (
@@ -422,6 +426,32 @@ begin
         bus_write(clk, pbus, RegSlotSYS_WDT_PASS, WDT_UNLCK_PASSWD);
         bus_write(clk, pbus, RegSlotSYS_WDT_CR, x"00000000");
         wdt_irq_routed <= '0';
+
+        -- GROUP 5c: watchdog RESET path and WDTRF.
+        -- The only configuration that resets: enabled, interrupt enabled, routed to no
+        -- hart. resetn_sys must pulse low and WDTRF must be standing afterwards, having
+        -- survived the reset it records. Added 2026-09-14 (Y2) as the oracle for moving
+        -- the flag off the resetn_wdt edge and onto mclk.
+        report "=== GROUP 5c: watchdog reset ===" severity note;
+
+        bus_write(clk, pbus, RegSlotSYS_WDT_SR, x"00000001");   -- retire any standing WDTRF
+        bus_read(clk, pbus, read_data, RegSlotSYS_WDT_SR, rdw);
+        sb.check_bit("WDTRF clear before the reset case", rdw(0), '0');
+        v1 := cnt_sys_reset;
+
+        bus_write(clk, pbus, RegSlotSYS_WDT_PASS, WDT_UNLCK_PASSWD);
+        bus_write(clk, pbus, RegSlotSYS_WDT_CR, x"00000096");   -- en=1, cdiv=5, ie=1, unrouted
+        wait for 120 * PERIOD;                                  -- past WDT_VAL(5) and the reset
+
+        sb.check_true("an unrouted WDT timeout pulses resetn_sys low", cnt_sys_reset > v1);
+        bus_read(clk, pbus, read_data, RegSlotSYS_WDT_SR, rdw);
+        sb.check_bit("... and sets WDTRF (SR bit0)", rdw(0), '1');
+        bus_read(clk, pbus, read_data, RegSlotSYS_WDT_CR, rdw);
+        sb.check_slv("... and the reset returns WDT_CR to its default", rdw(7 downto 0), x"00");
+
+        bus_write(clk, pbus, RegSlotSYS_WDT_SR, x"00000001");   -- W1C retires it
+        bus_read(clk, pbus, read_data, RegSlotSYS_WDT_SR, rdw);
+        sb.check_bit("a written 1 clears WDTRF", rdw(0), '0');
 
         -- GROUP 6: clock tree activity.
         report "=== GROUP 6: clocks ===" severity note;

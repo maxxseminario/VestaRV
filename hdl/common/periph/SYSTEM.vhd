@@ -156,6 +156,8 @@ architecture rtl of SYSTEM is
 
     -- WDT Signals 
     signal resetn_wdt         : std_logic;
+    signal wdt_rst_cond       : std_logic;
+    signal wdt_rst_req        : std_logic;
     signal en_clk_wdt         : std_logic;
     signal clk_wdt            : std_logic;
     signal wdt_trigger        : std_logic;
@@ -317,18 +319,35 @@ begin
     end process;
 
     -- The WDT reset fires when the timeout interrupt is undeliverable ANYWHERE (interrupts off or no router row enables source 0), or after its end-of-interrupt.
-    resetn_wdt <= '0' when wdt_en = '1' and wdt_trigger = '1' and
+    wdt_rst_cond <= '1' when wdt_en = '1' and wdt_trigger = '1' and
                     (wdt_ie = '0' or wdt_irq_routed = '0' or
                     (wdt_ie = '1' and wdt_interrupt_ret = '1'))
-                    else '1';
+                    else '0';
 
-    -- WDT reset flag: set on a WDT-driven reset, cleared by POR or a WDT_SR write-1-to-clear.
-    wdt_rf_proc: process(resetn_por, clr_wdt_rf, resetn_wdt)
+    -- The request is REGISTERED before it becomes resetn_wdt, so the reset is one mclk wide.
+    -- Driven combinationally it closed a loop through resetn_sys onto wdt_trigger's asynchronous clear and collapsed to a few gate delays, and the flag below was clocked by that runt.
+    -- resetn_por, not resetn_sys, resets this flop: the reset it requests must not retire the request.
+    wdt_rst_req_proc: process(resetn_por, mclk)
+    begin
+        if resetn_por = '0' then
+            wdt_rst_req <= '0';
+        elsif rising_edge(mclk) then
+            wdt_rst_req <= wdt_rst_cond;
+        end if;
+    end process;
+
+    resetn_wdt <= not wdt_rst_req;
+
+    -- WDT reset flag: set on mclk while the request stands, cleared by POR or a WDT_SR write-1-to-clear.
+    -- Setting it again while the same request stands is idempotent, so no edge detector is needed.
+    wdt_rf_proc: process(resetn_por, clr_wdt_rf, mclk)
     begin
         if resetn_por = '0' or clr_wdt_rf = '1' then
             wdt_rf <= '0';
-        elsif falling_edge(resetn_wdt) then
-            wdt_rf <= '1';
+        elsif rising_edge(mclk) then
+            if wdt_rst_req = '1' then
+                wdt_rf <= '1';
+            end if;
         end if;
     end process;
 

@@ -415,15 +415,37 @@
     },
     "hdl/common/periph/GPIO.vhd": {
       "clocks": {
-        "en": {
+        "clk_mem": {
           "main": true,
+          "port": true,
+          "processes": 1,
+          "sync": true
+        },
+        "en": {
+          "main": false,
           "port": true,
           "processes": 1,
           "sync": false
         }
       },
-      "main_clock": "en",
-      "syncs": []
+      "main_clock": "clk_mem",
+      "syncs": [
+        {
+          "areset": "resetn",
+          "clk": "clk_mem",
+          "d": [
+            "prt_in"
+          ],
+          "depth": "2",
+          "line": 236,
+          "name": "u_sync_prt_in",
+          "q": [
+            "prt_in_s2"
+          ],
+          "rst_val": "",
+          "width": "num_pins"
+        }
+      ]
     },
     "hdl/common/periph/I2C.vhd": {
       "clocks": {
@@ -1070,24 +1092,18 @@
           "sync": false
         },
         "clk_wdt": {
-          "main": true,
+          "main": false,
           "port": false,
           "processes": 2,
           "sync": false
         },
         "mclk": {
-          "main": false,
+          "main": true,
           "port": false,
-          "processes": 2,
+          "processes": 4,
           "sync": false
         },
         "mclk_undiv": {
-          "main": false,
-          "port": false,
-          "processes": 1,
-          "sync": false
-        },
-        "resetn_wdt": {
           "main": false,
           "port": false,
           "processes": 1,
@@ -1100,23 +1116,11 @@
           "sync": false
         }
       },
-      "main_clock": "clk_wdt",
+      "main_clock": "mclk",
       "syncs": []
     },
     "hdl/common/periph/TIMER.vhd": {
       "clocks": {
-        "capture0_clock": {
-          "main": false,
-          "port": false,
-          "processes": 1,
-          "sync": false
-        },
-        "capture1_clock": {
-          "main": false,
-          "port": false,
-          "processes": 1,
-          "sync": false
-        },
         "clk_mem": {
           "main": false,
           "port": true,
@@ -1138,12 +1142,42 @@
         "timer_clock": {
           "main": true,
           "port": false,
-          "processes": 6,
-          "sync": false
+          "processes": 10,
+          "sync": true
         }
       },
       "main_clock": "timer_clock",
       "syncs": [
+        {
+          "areset": "resetn",
+          "clk": "timer_clock",
+          "d": [
+            "capture0_lvl"
+          ],
+          "depth": "2",
+          "line": 366,
+          "name": "u_sync_capture0_lvl",
+          "q": [
+            "capture0_s2"
+          ],
+          "rst_val": "",
+          "width": "1"
+        },
+        {
+          "areset": "resetn",
+          "clk": "timer_clock",
+          "d": [
+            "capture1_lvl"
+          ],
+          "depth": "2",
+          "line": 404,
+          "name": "u_sync_capture1_lvl",
+          "q": [
+            "capture1_s2"
+          ],
+          "rst_val": "",
+          "width": "1"
+        },
         {
           "areset": "resetn",
           "clk": "clk_mem",
@@ -1151,7 +1185,7 @@
             "timer_gray"
           ],
           "depth": "2",
-          "line": 341,
+          "line": 347,
           "name": "u_sync_timer_gray",
           "q": [
             "timer_gray_s2"

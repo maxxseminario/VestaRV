@@ -518,6 +518,30 @@ begin
         bus_read(clk, pbus, read_data, RegSlotTIMxCAP0, rdw);
         sb.check_true("G6l: clearing the flag leaves TIMxCAP0 standing", rdw /= x"00000000");
 
+        -- G6m-G6p: the capture EDGE SELECT, a second capture, and the edge that must be
+        -- ignored. Added 2026-09-14 (Y2) as the oracle for moving the capture off the
+        -- pin-derived clock onto a timer_clock detector. cap0_in is parked high here, so
+        -- arming CAP0FE presents the detector with no edge of its own.
+        bus_write(clk, pbus, RegSlotTIMxCR, x"00001D40");   -- the same, plus CAP0FE(12)
+        wait_edges(20);
+        bus_write(clk, pbus, RegSlotTIMxSR, x"00000010");   -- retire CAP0IF
+        poll_sr_bit(4, '0', 20, ok);
+        sb.check_true("G6m: arming CAP0FE with cap0_in already high raises no flag", ok);
+
+        cap0_in <= '0';                                     -- the SELECTED edge
+        poll_sr_bit(4, '1', 80, ok);
+        sb.check_true("G6n: with CAP0FE set a FALLING cap0 edge sets CAP0IF", ok);
+        bus_read(clk, pbus, read_data, RegSlotTIMxCAP0, rdw2);
+        sb.check_true("G6o: the second capture takes a fresh, later snapshot",
+                      rdw2 /= x"00000000" and rdw2 > rdw);
+
+        bus_write(clk, pbus, RegSlotTIMxSR, x"00000010");   -- retire it again
+        poll_sr_bit(4, '0', 20, ok);
+        cap0_in <= '1';                                     -- the UNSELECTED edge
+        wait_edges(40);
+        bus_read(clk, pbus, read_data, RegSlotTIMxSR, rdw);
+        sb.check_bit("G6p: the unselected cap0 edge leaves CAP0IF clear", rdw(4), '0');
+
         bus_write(clk, pbus, RegSlotTIMxCR, x"00000000");   -- disable
         cap0_in <= '0';
         cap1_in <= '0';
