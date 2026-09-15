@@ -30,7 +30,7 @@
         "mclk": {
           "main": false,
           "port": false,
-          "processes": 3,
+          "processes": 6,
           "sync": false
         }
       },
@@ -471,7 +471,7 @@
             "sr_sync_d"
           ],
           "depth": "2",
-          "line": 965,
+          "line": 966,
           "name": "u_sync_I2CxSR",
           "q": [
             "I2CxSR_mem"
@@ -501,7 +501,7 @@
             "rx_tgl_d"
           ],
           "depth": "2",
-          "line": 970,
+          "line": 971,
           "name": "u_sync_rx_tgl",
           "q": [
             "rx_tgl_q"
@@ -611,7 +611,7 @@
             "sr_sync_d"
           ],
           "depth": "2",
-          "line": 309,
+          "line": 310,
           "name": "u_sync_I3CxSR",
           "q": [
             "I3CxSR_mem"
@@ -626,7 +626,7 @@
             "pin_sync_d"
           ],
           "depth": "2",
-          "line": 1266,
+          "line": 1267,
           "name": "u_sync_i3c_pins",
           "q": [
             "pin_sync_q"
@@ -641,7 +641,7 @@
             "rx_tgl_d"
           ],
           "depth": "2",
-          "line": 314,
+          "line": 315,
           "name": "u_sync_rx_tgl",
           "q": [
             "rx_tgl_q"

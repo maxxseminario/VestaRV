@@ -533,6 +533,74 @@ already waived for, created by W10's own SPI fix) and `nfc0/t_etu_reg[0]/D`
 RTL line, `NFC.vhd:619`). Three waiver lines and the gate can be armed; `hdl/` is
 read-only for this wave.
 
+## 4.14 X2, 2026-09-15: topology A cut `d13d` is TIMING-CLOSED on the re-hardened tile, and the CDC gate is armed
+
+Full report: `<scratchpad>/reports/X2_topology_A_d13d.md`. One tracked file written,
+and only the two lines the brief named: `hdl/common/cdc/cdc_waivers.tcl`. No commits.
+`genus/MCU_PENTA_pt` and `innovus/common/MCU_castalia_penta_pt_core` (X3's blocks)
+never touched.
+
+| stage | result |
+|---|---|
+| Genus `MCU_PENTA` | promoted, **00:30:42**, every gate at `GATE_STRICT=1`, drift 0 of 72, from a frozen staging of HEAD `8a1b0bf4` (RTL = `767819ae`). **CDC census ARMED and passing: 1,248 endpoints, 1,158 waived, 0 NOT waived.** 130,863 -> **131,059** cells, 24,355 -> **24,512** flops, ICGs 1,364 -> **1,316**, setup slack +3,529 ps unchanged |
+| the per-chip SDC | `create_clock` **83 -> 35**; the diff is exactly Y1's 48 dead `gpio?_if?` lines. New **P8 census**: 87 clock targets, **0 unresolved**, with a discriminating negative control |
+| Innovus chip `d13d` | 01:40:05 on attempt 4: **setup +0.246 ns / 0 violating of 35,182, hold 0.000 ns / 0 violating of 35,184** at four coupled-SI views. Per-view SDF written |
+| signoff | `chipdrc` **1758** (d13c 1792), `ant25` **CLEAN** and identical, LVS **one documented waiver** with 0 unmatched layout devices, negative control **PASSES** |
+| ingest + promote | `castalia_A_d13d`, README first line TIMING-CLOSED / NOT SIGNED OFF, promoted into **`castalia_A`** and proved from a fresh headless Virtuoso |
+
+**Three censuses measured the RTL change rather than assuming it.** The GPIO waivers
+`gpio?/PxIF_reg\[*\]` and `gpio?/gen_if_clks\[*\].CGClkIFG/CG1` matched **0**
+endpoints, so they are removed from `hdl/common/cdc/cdc_waivers.tcl`; the clock-pin
+census fell to **0 unconstrained pins, 0 waived** (the `system0/wdt_rf_reg/CK*` waiver
+is dead, the watchdog flag having moved to mclk); and a new dead-clock census named
+the four `timer?_cap?` clocks as the only declared clocks with no sequential sink.
+`tools/bin/bazel test //hdl/common/cdc:all` is RED **on another session's uncommitted
+peripheral rewrite**, and the two-line edit was graded in isolation against
+`git archive HEAD hdl`: `OK: CDC manifest unchanged - 47 file(s), 46 sync instance(s)`.
+
+**The 48 dead `create_clock` lines could not have been left in.** `f12_one` in the
+Genus flow resolves each clock source and `exit 1`s on a zero-object resolution, so
+the run stops at the constraints block; the lines are deleted at their source with a
+tombstone, and the chip SDC loses them by construction. What catches the next one is
+`sdc_clock_census.py`, which walks every `create_clock` target through the instance
+tree of the netlist about to be placed -- Innovus drops an SDC object that matches
+nothing with a warning inside a 2 GB log, which is why the 48 survived a day.
+
+**Two flow defects closed, both at source, both measured.** (1) W14's WQ26c macro
+guard, ported to A, **refused all 28 violating hold endpoints** -- every one a
+`hart_tile` boundary INPUT whose pin coordinate sits 0.26 um inside the tile bbox,
+which is where a macro boundary pin is -- and optDesign refuses that class too, so
+three passes inserted nothing and the cut FATALed with hold at -0.038 ns. The point is
+now PUSHED to the nearest macro edge plus 2.0 um and re-tested; 28 inserted, 0 skipped,
+hold to 0.000 ns. (2) **The flow had no post-signoff setup repair at all**, so a
+-0.001 ns `reg2cgate` path that only the coupled-SI re-time opens reached the slack
+gate with nothing tried; the WQ26 ECO loop now arms on setup and runs WQ26e.
+
+**The number that made WQ26e work is measured, and it is worth carrying to both
+topologies.** At `-setupTargetSlack` 0.05 the pass changed nothing, three times, and
+optDesign's own `Initial SI Timing Summary` on that database says why: it reads
+**+0.124 ns, 0 violating** where `timeDesign -signoff` reads **-0.001 ns**. **A 125 ps
+gap between the optimiser's timing view and the signoff engine's, both SI-aware** --
+the setup twin of the ~36 ps hold gap the WQ26 header already documents. Below the gap
+the optimiser correctly has nothing to do. `PENTA_SETUP_TARGET=0.20` closes the path
+and buys 247 ps.
+
+**`PO.R.8` 172 -> 132, and the improvement is entirely inside the tile.** The
+per-cell census reads `CELL hart_tile` **1 (4)** against d13c's `53 (212)`: X1's
+re-hardened tile contributes **zero** `PO.R.8`. All 132 that remain are top level, in
+the band W3 measured and parked.
+
+**PARKED, in order:**
+
+| # | item |
+|---|---|
+| **X2-A** | **the 125 ps optimiser-vs-signoff setup gap.** `PENTA_SETUP_TARGET=0.20` is a workaround with a measured basis, not an explanation. The same gap exists on topology B and its flows have no WQ26e at all; X3's block should carry the delta. What would close it properly is finding why two SI-aware engines on one database disagree by 125 ps on a `reg2cgate` path. |
+| **X2-B** | **three more CDC waivers are now dead** and were left in place because `hdl/` is writable this wave only for the two the brief named: `timer?/capture0_reg_reg\[*\]`, `timer?/capture1_reg_reg\[*\]` and `timer?/RC_CG_HIER_INST*/RC_CGIC_INST`, all matching 0 endpoints after the timer capture moved onto `timer_clock`. The dead clock-pin waiver `system0/wdt_rf_reg/CK*` lives in the Genus flow file and is likewise left and reported. |
+| **X2-C** | **the four `timer?_cap?` clocks are now declared on DATA pins.** Their capture flops moved behind `u_sync_capture?_lvl`, so they launch nothing; they are kept because their pins exist and the domain still names a real external event, and the dead-clock census makes them visible. Deleting them is a constraint change that wants a measured CTS comparison. |
+| **X2-D** | `PO.R.8` **132**, all top level, unchanged in mechanism from W3's measurement. The floorplan change (snapping the analog-window cut at `TOP_NF` = 2149 and the macro halo cut at 2170 to whole tap boundaries) is still the thing to try and is still the owner's. |
+| **X2-E** | the chip cut took **four attempts** against the brief's bound of two. Attempts 1 and 2 each removed a distinct flow defect and are reported as such; attempt 3 was stopped early once its log had measured the 125 ps gap, and attempt 4 is the one-knob consequence. |
+| **X2-F** | **HEAD has moved past d13d.** A concurrent session committed `bb66f0fd` at 05:23, sweeping up this wave's two waiver lines along with its own second peripheral rewrite. d13d's RTL is `8a1b0bf4` = `767819ae`'s `hdl/` = `f1082c42`; `bb66f0fd` is a different design and its own message holds it from the remote until gate-level runs on netlists cut from it pass (O9). d13d stands as topology A's cut of record until then, and the next A cut is a re-synthesis. |
+
 ## 4.13 X3, 2026-09-15: core cut `c3` on the re-hardened tile, and the 52 dead clocks
 
 Full report: `<scratchpad>/reports/X3_core_c3.md`. `hdl/`, `platform/`,
@@ -941,3 +1009,63 @@ README that states what the cut does NOT establish: the 172 open `PO.R.8`, the
 placeholder macro, the absent ERA verdict, the three unwaived CDC crossings, and
 LEC never having run. All three signoff knobs, `DRC_WAIVERS_d13c.md`, both
 runbooks and the attic index moved with it.
+
+## 4.15 Z5, 2026-09-15: O9 IS SATISFIED. Both assemblies pass every gate and the chip regression
+
+Full report: `<scratchpad>/reports/Z5_o9_evidence.md`. Z4 left O9 unmet for exactly two
+reasons and both are closed.
+
+**Z4-1, the shim.** Z1 removed the falling-mclk re-register of the shared-slave peripheral
+enables; Z4 bisected topology B's zero-delay gate regression (0/14 TIMEOUT against 13/14) to
+that 72-line delta alone. It is restored at its source in
+`platform/common/python/mcu_vhd.py` and `MCU.template.vhd` -- eleven flops. A negative-edge
+flop on `mclk` is a clock on a clock pin, so the owner's rule (no DATA signal on a flop clock
+pin) is untouched and the clock-pin census still reads 0 / 0 waived / 0 NOT waived. The
+emitted VHDL is byte-identical to the pre-Z generation: the diff against the `MCU.vhd.pre_z4`
+Z4 staged for `out.z4bx` is a timestamp and six comment lines, zero statements, on both chip
+configurations. The prose is new because the reason changed under the set: no peripheral
+clocks a snapshot latch on falling `en_mem` any more, but the arbiter still clears `s_en` on
+the same rising mclk edge at which the slave samples `EnMemPeriph`, so a raw-strobe shim
+deasserts the select in the same delta as its own capture edge -- fatal at zero delay,
+invisible with real cell delays.
+
+**The CDC gate.** Z4's armed census refused both assemblies at 248 unwaived crossings in four
+register classes. All four are the toggle-qualified multi-cycle payload the waiver file
+already accepts three times over; each was read out of the RTL before it was waived
+(`NFC.vhd:356-358, 372-380, 784, 787` on `u_sync_rf_pub`; `TIMER.vhd:409-411, 450-452,
+576-578, 591, 594` on `u_sync_cap_tgl`). Five globs, because `capture0_mem` and
+`capture1_mem` take one each. Z4's fourteen deletions are kept and the eighteen zero-hit
+globs are kept and re-measured at zero on both new cuts.
+
+| | topology B `out.z5b_20260915` | topology A `out.z5a_20260915` |
+|---|---|---|
+| netlist md5 | **`b5c78884`** | **`f8b3e421`** |
+| gates | `all gates passed (GATE_STRICT=1)`, drift 0 of 75 | same, drift 0 of 72 |
+| **CDC, ARMED** | 1000 endpoints, **891 waived, 0 NOT waived** | 1000, **891 / 0** |
+| pmk / latch / clock-pin | 0 / 0 / 0-0-0 | 0 / 0 / 0-0-0 |
+| flops | 24,862 -> **24,873** | 24,794 -> **24,805** |
+| worst setup slack | +3,548 ps unchanged | +3,548 ps unchanged |
+| zero delay | **13 / 14**, `shtcm` FAIL at 20089645511899 FS | **13 / 14**, same FS |
+| genus SDF, tt/25 C | **14 / 14** ALL ROWS PASSED | `shtcm` **PASS** at 34005728622575 FS |
+
+Both femtoseconds are T1's, W4's and Z4's, so the regression reproduces the reference table
+row for row and flag for flag. `*W,SDFNET` is 0 on both SDF legs. Tile netlists are untouched
+(md5s unchanged and the intersection of `hart_tile_pt`'s staged read list with this wave's
+seven changed files is empty), so the tile harness was not re-run. Both netlists are promoted
+into their flows' `out/`, previous cuts kept as `out.pre_z5_20260915`.
+
+**Z5-1, a flow defect worth the name.** A gate harness names its netlist in *both*
+`harness.conf` and its cell list, and `run_gate_suite.sh` rewrites only the cell-list line
+that equals `NETLIST_DEFAULT`. A freshly staged harness with the two disagreeing therefore
+printed `out.z5b` in its header, its md5 and its results file while `xmvlog` compiled Z4's
+shim-less `out.z4b2` -- a clean 0/14 for a netlist that was never read. The shared runner now
+FATALs when the netlist it just printed is not among its Verilog inputs; the negative control
+discriminates.
+
+**What O9 unblocks, and what it does not.** The push and the merge are clear. Both promoted
+chip cuts now postdate the Innovus runs that read their predecessors (`d13d` on A, `c3` on B),
+so a re-harden on each is the next physical step. Still open and unchanged by this wave: the
+`_pt` flow has no dead-clock census, 24 to 28 dead `create_clock` lines stand in the two flow
+files, no `_pt` chip cut has written a P&R SDF (so both SDF legs here are the pre-layout genus
+SDF at tt/25 C and `SDF_RECOVERY` remains a tile-harness knob only), and the eighteen zero-hit
+waivers still want X2's and Z2a's decision.
