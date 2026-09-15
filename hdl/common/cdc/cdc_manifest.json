@@ -30,7 +30,7 @@
         "mclk": {
           "main": false,
           "port": false,
-          "processes": 6,
+          "processes": 3,
           "sync": false
         }
       },
@@ -420,12 +420,6 @@
           "port": true,
           "processes": 1,
           "sync": true
-        },
-        "en": {
-          "main": false,
-          "port": true,
-          "processes": 1,
-          "sync": false
         }
       },
       "main_clock": "clk_mem",
@@ -437,7 +431,7 @@
             "prt_in"
           ],
           "depth": "2",
-          "line": 236,
+          "line": 232,
           "name": "u_sync_prt_in",
           "q": [
             "prt_in_s2"
@@ -458,30 +452,64 @@
         "clkmem": {
           "main": false,
           "port": true,
-          "processes": 1,
-          "sync": false
+          "processes": 3,
+          "sync": true
         },
-        "enmemperiph": {
-          "main": false,
-          "port": true,
-          "processes": 2,
-          "sync": false
-        },
-        "scl_in": {
+        "smclk": {
           "main": true,
           "port": true,
-          "processes": 3,
-          "sync": false
-        },
-        "sda_in": {
-          "main": false,
-          "port": true,
-          "processes": 2,
-          "sync": false
+          "processes": 7,
+          "sync": true
         }
       },
-      "main_clock": "scl_in",
-      "syncs": []
+      "main_clock": "smclk",
+      "syncs": [
+        {
+          "areset": "resetn",
+          "clk": "ClkMem",
+          "d": [
+            "sr_sync_d"
+          ],
+          "depth": "2",
+          "line": 965,
+          "name": "u_sync_I2CxSR",
+          "q": [
+            "I2CxSR_mem"
+          ],
+          "rst_val": "",
+          "width": "16"
+        },
+        {
+          "areset": "resetn",
+          "clk": "smclk",
+          "d": [
+            "pin_sync_d"
+          ],
+          "depth": "2",
+          "line": 368,
+          "name": "u_sync_pins",
+          "q": [
+            "pin_sync_q"
+          ],
+          "rst_val": "\"11\"",
+          "width": "2"
+        },
+        {
+          "areset": "resetn",
+          "clk": "ClkMem",
+          "d": [
+            "rx_tgl_d"
+          ],
+          "depth": "2",
+          "line": 970,
+          "name": "u_sync_rx_tgl",
+          "q": [
+            "rx_tgl_q"
+          ],
+          "rst_val": "",
+          "width": "2"
+        }
+      ]
     },
     "hdl/common/periph/I2CTarget.vhd": {
       "clocks": {
@@ -552,7 +580,7 @@
         "clk": {
           "main": true,
           "port": true,
-          "processes": 2,
+          "processes": 4,
           "sync": true
         },
         "clk_baud": {
@@ -570,35 +598,53 @@
         "clkmem": {
           "main": false,
           "port": true,
-          "processes": 1,
-          "sync": false
-        },
-        "enmemperiph": {
-          "main": false,
-          "port": true,
-          "processes": 1,
-          "sync": false
-        },
-        "sda_in": {
-          "main": false,
-          "port": true,
-          "processes": 2,
-          "sync": false
+          "processes": 4,
+          "sync": true
         }
       },
       "main_clock": "clk",
       "syncs": [
         {
           "areset": "resetn",
-          "clk": "clk",
+          "clk": "ClkMem",
           "d": [
-            "ibi_sync_d"
+            "sr_sync_d"
           ],
           "depth": "2",
-          "line": 467,
-          "name": "u_sync_ibi_req",
+          "line": 309,
+          "name": "u_sync_I3CxSR",
           "q": [
-            "ibi_sync_q"
+            "I3CxSR_mem"
+          ],
+          "rst_val": "",
+          "width": "11"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "pin_sync_d"
+          ],
+          "depth": "2",
+          "line": 1266,
+          "name": "u_sync_i3c_pins",
+          "q": [
+            "pin_sync_q"
+          ],
+          "rst_val": "\"11\"",
+          "width": "2"
+        },
+        {
+          "areset": "resetn",
+          "clk": "ClkMem",
+          "d": [
+            "rx_tgl_d"
+          ],
+          "depth": "2",
+          "line": 314,
+          "name": "u_sync_rx_tgl",
+          "q": [
+            "rx_tgl_q"
           ],
           "rst_val": "",
           "width": "1"
@@ -610,25 +656,19 @@
         "clk": {
           "main": false,
           "port": true,
-          "processes": 2,
+          "processes": 3,
           "sync": true
         },
         "clkmem": {
           "main": false,
           "port": true,
-          "processes": 1,
-          "sync": false
-        },
-        "enmemperiph": {
-          "main": false,
-          "port": true,
-          "processes": 1,
-          "sync": false
+          "processes": 4,
+          "sync": true
         },
         "rf_clk": {
           "main": true,
           "port": true,
-          "processes": 5,
+          "processes": 6,
           "sync": true
         }
       },
@@ -636,12 +676,27 @@
       "syncs": [
         {
           "areset": "resetn",
+          "clk": "ClkMem",
+          "d": [
+            "sr_sync_d"
+          ],
+          "depth": "2",
+          "line": 350,
+          "name": "u_sync_NFCxSR",
+          "q": [
+            "sr_sync_q"
+          ],
+          "rst_val": "",
+          "width": "NFCHALTED_MSB - NFCBUSY_LSB + 1"
+        },
+        {
+          "areset": "resetn",
           "clk": "clk",
           "d": [
             "field_detect"
           ],
           "depth": "2",
-          "line": 420,
+          "line": 611,
           "name": "u_sync_field_detect",
           "q": [
             "field_s2"
@@ -656,7 +711,7 @@
             "pay_wr_tgl"
           ],
           "depth": "2",
-          "line": 569,
+          "line": 760,
           "name": "u_sync_pay_wr_tgl",
           "q": [
             "pay_wr_s2"
@@ -671,7 +726,7 @@
             "evt_lvl_d"
           ],
           "depth": "2",
-          "line": 426,
+          "line": 617,
           "name": "u_sync_rf_evt_lvl",
           "q": [
             "evt_lvl_q"
@@ -680,13 +735,28 @@
           "width": "4"
         },
         {
+          "areset": "resetn",
+          "clk": "ClkMem",
+          "d": [
+            "pub_tgl_d"
+          ],
+          "depth": "2",
+          "line": 357,
+          "name": "u_sync_rf_pub",
+          "q": [
+            "pub_tgl_q"
+          ],
+          "rst_val": "",
+          "width": "2"
+        },
+        {
           "areset": "rx_rstn",
           "clk": "rf_clk",
           "d": [
             "rf_rx"
           ],
           "depth": "2",
-          "line": 580,
+          "line": 799,
           "name": "u_sync_rf_rx",
           "q": [
             "rx_s2"
@@ -701,7 +771,7 @@
             "stat_lvl_d"
           ],
           "depth": "2",
-          "line": 437,
+          "line": 628,
           "name": "u_sync_rf_status",
           "q": [
             "stat_lvl_q"
@@ -716,7 +786,7 @@
             "state_ack"
           ],
           "depth": "2",
-          "line": 496,
+          "line": 687,
           "name": "u_sync_state_ack",
           "q": [
             "state_ack_q"
@@ -728,10 +798,40 @@
           "areset": "resetn",
           "clk": "clk",
           "d": [
+            "state_mack"
+          ],
+          "depth": "2",
+          "line": 400,
+          "name": "u_sync_state_mack",
+          "q": [
+            "state_mack_q"
+          ],
+          "rst_val": "",
+          "width": "1"
+        },
+        {
+          "areset": "resetn",
+          "clk": "ClkMem",
+          "d": [
+            "state_mreq"
+          ],
+          "depth": "2",
+          "line": 396,
+          "name": "u_sync_state_mreq",
+          "q": [
+            "state_mreq_q"
+          ],
+          "rst_val": "",
+          "width": "1"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
             "state_req"
           ],
           "depth": "2",
-          "line": 492,
+          "line": 683,
           "name": "u_sync_state_req",
           "q": [
             "state_req_q"
@@ -858,18 +958,43 @@
         "clkmem": {
           "main": true,
           "port": true,
-          "processes": 1,
-          "sync": false
-        },
-        "enmemperiph": {
-          "main": false,
-          "port": true,
-          "processes": 1,
-          "sync": false
+          "processes": 4,
+          "sync": true
         }
       },
       "main_clock": "clkmem",
-      "syncs": []
+      "syncs": [
+        {
+          "areset": "resetn",
+          "clk": "ClkMem",
+          "d": [
+            "sr_sync_d"
+          ],
+          "depth": "2",
+          "line": 261,
+          "name": "u_sync_QSPIxSR",
+          "q": [
+            "sr_sync_q"
+          ],
+          "rst_val": "",
+          "width": "4"
+        },
+        {
+          "areset": "resetn",
+          "clk": "ClkMem",
+          "d": [
+            "rx_tgl_d"
+          ],
+          "depth": "2",
+          "line": 266,
+          "name": "u_sync_rx_tgl",
+          "q": [
+            "rx_tgl_q"
+          ],
+          "rst_val": "",
+          "width": "1"
+        }
+      ]
     },
     "hdl/common/periph/RTC.vhd": {
       "clocks": {
@@ -989,9 +1114,9 @@
     "hdl/common/periph/SPI.vhd": {
       "clocks": {
         "clk": {
-          "main": false,
+          "main": true,
           "port": true,
-          "processes": 1,
+          "processes": 4,
           "sync": true
         },
         "clk_baud": {
@@ -1009,8 +1134,8 @@
         "clk_mem": {
           "main": false,
           "port": true,
-          "processes": 1,
-          "sync": false
+          "processes": 4,
+          "sync": true
         },
         "clk_mem_flash": {
           "main": false,
@@ -1024,26 +1149,14 @@
           "processes": 1,
           "sync": false
         },
-        "en_mem": {
-          "main": false,
-          "port": true,
-          "processes": 1,
-          "sync": false
-        },
         "mclk": {
           "main": false,
           "port": true,
           "processes": 1,
           "sync": true
-        },
-        "sck_slave": {
-          "main": true,
-          "port": false,
-          "processes": 2,
-          "sync": false
         }
       },
-      "main_clock": "sck_slave",
+      "main_clock": "clk",
       "syncs": [
         {
           "areset": "resetn",
@@ -1052,7 +1165,7 @@
             "cfa_sync_d"
           ],
           "depth": "2",
-          "line": 610,
+          "line": 699,
           "name": "u_sync_ClearFlashActive_smclk",
           "q": [
             "cfa_sync_q"
@@ -1062,18 +1175,48 @@
         },
         {
           "areset": "resetn",
-          "clk": "clk",
+          "clk": "clk_mem",
           "d": [
-            "gap_sync_d"
+            "sr_sync_d"
           ],
           "depth": "2",
-          "line": 529,
-          "name": "u_sync_s_gap",
+          "line": 871,
+          "name": "u_sync_SPIxSR",
           "q": [
-            "gap_sync_q"
+            "sr_sync_q"
           ],
           "rst_val": "",
-          "width": "1"
+          "width": "3"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk_mem",
+          "d": [
+            "rx_tgl_d"
+          ],
+          "depth": "2",
+          "line": 930,
+          "name": "u_sync_rx_tgl",
+          "q": [
+            "rx_tgl_q"
+          ],
+          "rst_val": "",
+          "width": "2"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk",
+          "d": [
+            "slv_sync_d"
+          ],
+          "depth": "2",
+          "line": 574,
+          "name": "u_sync_slave_pins",
+          "q": [
+            "slv_sync_q"
+          ],
+          "rst_val": "\"100\"",
+          "width": "3"
         }
       ]
     },
@@ -1082,7 +1225,7 @@
         "clk_mem": {
           "main": false,
           "port": true,
-          "processes": 1,
+          "processes": 2,
           "sync": false
         },
         "clk_unlock": {
@@ -1124,18 +1267,12 @@
         "clk_mem": {
           "main": false,
           "port": true,
-          "processes": 1,
+          "processes": 4,
           "sync": true
         },
         "divider_input": {
           "main": false,
           "port": false,
-          "processes": 1,
-          "sync": false
-        },
-        "en_mem": {
-          "main": false,
-          "port": true,
           "processes": 1,
           "sync": false
         },
@@ -1150,12 +1287,27 @@
       "syncs": [
         {
           "areset": "resetn",
+          "clk": "clk_mem",
+          "d": [
+            "cap_tgl_d"
+          ],
+          "depth": "2",
+          "line": 576,
+          "name": "u_sync_cap_tgl",
+          "q": [
+            "cap_tgl_q"
+          ],
+          "rst_val": "",
+          "width": "2"
+        },
+        {
+          "areset": "resetn",
           "clk": "timer_clock",
           "d": [
             "capture0_lvl"
           ],
           "depth": "2",
-          "line": 366,
+          "line": 382,
           "name": "u_sync_capture0_lvl",
           "q": [
             "capture0_s2"
@@ -1170,7 +1322,7 @@
             "capture1_lvl"
           ],
           "depth": "2",
-          "line": 404,
+          "line": 423,
           "name": "u_sync_capture1_lvl",
           "q": [
             "capture1_s2"
@@ -1182,10 +1334,25 @@
           "areset": "resetn",
           "clk": "clk_mem",
           "d": [
+            "status_reg"
+          ],
+          "depth": "2",
+          "line": 571,
+          "name": "u_sync_status_reg",
+          "q": [
+            "status_reg_mem"
+          ],
+          "rst_val": "",
+          "width": "8"
+        },
+        {
+          "areset": "resetn",
+          "clk": "clk_mem",
+          "d": [
             "timer_gray"
           ],
           "depth": "2",
-          "line": 347,
+          "line": 362,
           "name": "u_sync_timer_gray",
           "q": [
             "timer_gray_s2"
@@ -1287,12 +1454,6 @@
           "port": false,
           "processes": 1,
           "sync": true
-        },
-        "en_mem": {
-          "main": false,
-          "port": true,
-          "processes": 1,
-          "sync": false
         }
       },
       "main_clock": "clk_mem",
@@ -1304,7 +1465,7 @@
             "busy_sync_d"
           ],
           "depth": "2",
-          "line": 456,
+          "line": 455,
           "name": "u_sync_busy",
           "q": [
             "busy_sync_q"
@@ -1319,7 +1480,7 @@
             "evt_sync_d"
           ],
           "depth": "2",
-          "line": 447,
+          "line": 446,
           "name": "u_sync_evt_tgl",
           "q": [
             "evt_sync_q"
@@ -1334,7 +1495,7 @@
             "starttx_sync_d"
           ],
           "depth": "2",
-          "line": 472,
+          "line": 471,
           "name": "u_sync_start_tx",
           "q": [
             "starttx_sync_q"
@@ -1349,7 +1510,7 @@
             "ack_sync_d"
           ],
           "depth": "2",
-          "line": 464,
+          "line": 463,
           "name": "u_sync_tx_start_ack_tgl",
           "q": [
             "ack_sync_q"

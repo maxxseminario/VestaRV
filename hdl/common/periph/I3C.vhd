@@ -70,9 +70,19 @@ architecture behavioral of I3C is
     signal I3CxRX  : std_logic_vector(7 downto 0);  -- volatile (FSM-written)
     signal I3CxSR  : std_logic_vector(10 downto 0); -- assembled status word
 
-    -- Registered-read pre-latch snapshots: only SR and RX carry volatile bits, CR/CMD/TX are plain software registers read straight.
-    signal I3CxSR_ltch : std_logic_vector(10 downto 0);
-    signal I3CxRX_ltch : std_logic_vector(7 downto 0);
+    -- Read CDC: only SR and RX carry volatile bits, CR/CMD/TX are plain software registers read straight.
+    signal I3CxSR_mem : std_logic_vector(10 downto 0);  -- I3CxSR carried into ClkMem, eleven independent flag chains
+    signal I3CxSR_rd  : std_logic_vector(10 downto 0);  -- ... with the launch-pending OR and the clear shadow applied
+    signal sr_sync_d  : std_logic_vector(10 downto 0);
+    signal I3CxRX_mem : std_logic_vector(7 downto 0);   -- ClkMem copy of I3CxRX, loaded at the synchronized receive event
+    signal rx_tgl     : std_logic;                      -- clk_baud domain: receive-byte event
+    signal rx_tgl_d, rx_tgl_q : std_logic_vector(0 downto 0);
+    signal rx_tgl_prev : std_logic;                     -- ClkMem edge-detect stage
+    signal busy_pend   : std_logic;                     -- launch taken, synchronized BUSY not yet high
+    signal sr_clr_now  : std_logic_vector(10 downto 0); -- I3CxSR bits this access writes a 1 to
+    signal sr_clr_pipe0, sr_clr_pipe1 : std_logic_vector(10 downto 0);
+    signal sr_busy_or : std_logic_vector(10 downto 0);  -- busy_pend in its own bit, zeros elsewhere
+    signal wrh_s : std_logic_vector(0 to NWORDS-1);     -- combinational: a lane write lands on this word now
 
     -- ---- CR field taps (live, combinational) -----------------------------
     signal q_en  : std_logic;
@@ -176,13 +186,17 @@ architecture behavioral of I3C is
 
     -- ---- IBI monitor -----------------------------------------------------
     signal ibien : std_logic;                       -- CR.IBIEN live tap
-    -- Level request: the START sensor latches it when a target START arrives while the controller is idle, and the FSM retires it with clr_ibi_req at service entry.
-    signal ibi_req     : std_logic;
-    -- ibi_req's clock pin is the SDA pad, so it is asynchronous to clk and to everything derived from clk. It is carried into clk through u_sync_ibi_req and only the synchronised copy is read, by the baud-gate enable and by the framer. W5b-1.
-    signal ibi_sync_d  : std_logic_vector(0 downto 0);
-    signal ibi_sync_q  : std_logic_vector(0 downto 0);
+    -- Level request: the START sensor latches it when a target START arrives while the controller is idle, and the FSM retires it with clr_ibi_req at service entry. It carries the _s2 suffix it had when a synchroniser stood between the sensor and its readers; the readers are unchanged.
+    -- ibi_req used to have the SDA pad on its clock pin, which W5b-1 answered with u_sync_ibi_req on its OUTPUT. Since 2026-09-15 the PINS are synchronised instead and the sensor is a clk flop, so ibi_req is born in clk and ibi_req_s2 is the same signal under its old name; the baud-gate enable and the framer read it unchanged.
     signal ibi_req_s2  : std_logic;
     signal clr_ibi_req : std_logic;
+
+    -- Pin sampling for the START sensor. See `u_sync_i3c_pins`.
+    signal pin_sync_d  : std_logic_vector(1 downto 0);  -- (1) SDA_IN, (0) SCL_IN
+    signal pin_sync_q  : std_logic_vector(1 downto 0);
+    signal sda_s, scl_s   : std_logic;                  -- synchronised
+    signal sda_sd, scl_sd : std_logic;                  -- ... one clk edge old
+    signal start_det   : std_logic;                     -- one clk wide
     signal t_ibien     : std_logic;                 -- IBIEN latched at detect
     -- IBI service scratch (clk_baud domain).
     signal ibi_acc      : std_logic_vector(7 downto 0);  -- header {addr,RnW}
@@ -274,22 +288,100 @@ begin
 
     -- End Signal Routing -------------------------------
 
-    -- Registered-read pre-latch: the volatile registers are snapshotted (inverted) at deselect.
-    reg_sync: process(EnMemPeriph, I3CxRX, I3CxSR)
+    /* -------- Register read CDC ---------------------------------------------
+       Nothing here is clocked by EnMemPeriph. The two volatile words are carried
+       into ClkMem permanently and periph_regs' read register captures them on the
+       rising ClkMem edge of the access, so the word it returns is one register's
+       value from one edge.
+
+       I3CxSR is eleven INDEPENDENT flags in the clk_baud and clk domains, which
+       is what work.sync's WIDTH is for; each bit is two ClkMem edges behind its
+       source. The SDA_IN domain this comment used to name is gone: the only flop
+       that stood in it was the target-START sensor, now sampled on clk. BUSY takes i3c_launch with it so the level never dips between
+       the launching write and the framer leaving P_IDLE, and busy_pend below
+       covers the two edges before the synchronized copy rises.
+
+       I3CxRX is an 8-bit word and may not cross bit by bit, so it does not go
+       through work.sync at all: the receive EVENT crosses as a toggle and the
+       byte is copied by an ordinary ClkMem flop on the synchronized edge. At that
+       edge rx_acc's destination has been stable for two ClkMem periods, because
+       the next byte is a further eight SCL periods away. */
+    sr_sync_d <= I3CxSR(10 downto 1) & (I3CxSR(I3CBUSY_LSB) or i3c_launch);
+    u_sync_I3CxSR : entity work.sync
+        generic map (WIDTH => 11, DEPTH => 2)
+        port map (clk => ClkMem, areset => resetn, d => sr_sync_d, q => I3CxSR_mem);
+
+    rx_tgl_d(0) <= rx_tgl;
+    u_sync_rx_tgl : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => ClkMem, areset => resetn, d => rx_tgl_d, q => rx_tgl_q);
+
+    rx_cap_proc: process(ClkMem, resetn)
     begin
-        if falling_edge(EnMemPeriph) then
-            I3CxRX_ltch <= not I3CxRX;
-            I3CxSR_ltch <= not I3CxSR;
+        if resetn = '0' then
+            rx_tgl_prev <= '0';
+            I3CxRX_mem  <= (others => '0');
+        elsif rising_edge(ClkMem) then
+            rx_tgl_prev <= rx_tgl_q(0);
+            if rx_tgl_q(0) /= rx_tgl_prev then
+                I3CxRX_mem <= I3CxRX;
+            end if;
         end if;
     end process;
 
-    -- The words this block owns rather than stores: the status and receive
-    -- snapshots re-inverted out of the pre-latch above, the DAT window read
-    -- through the persisted IDX, and the IBI capture. All four are read
-    -- combinationally here and registered by periph_regs' read flop on the same
-    -- ClkMem edge the hand-written read mux used.
-    sr_rd <= (31 downto I3CxSR_ltch'high + 1 => '0') & (not I3CxSR_ltch);
-    rx_rd <= (31 downto I3CxRX_ltch'high + 1 => '0') & (not I3CxRX_ltch);
+    -- Launch-side pending: firmware polls BUSY on the access right after the
+    -- I3CxCMD write and the synchronized copy is two ClkMem edges behind it.
+    busy_pend_proc: process(ClkMem, resetn)
+    begin
+        if resetn = '0' then
+            busy_pend <= '0';
+        elsif rising_edge(ClkMem) then
+            -- Retired by a disable as well as by the synchronized BUSY: with
+            -- I3CEN cleared the serial core is held in reset, the framer never
+            -- leaves P_IDLE and the pending bit would otherwise stick.
+            if q_en = '0' then
+                busy_pend <= '0';
+            elsif acc_s(SLOT_CMD) = '1' and WEn(0) = '0' and busy = '0' then
+                busy_pend <= '1';
+            elsif I3CxSR_mem(I3CBUSY_LSB) = '1' then
+                busy_pend <= '0';
+            end if;
+        end if;
+    end process;
+
+    /* Clear shadow: the nine W1C flags are cleared ASYNCHRONOUSLY in the clk_baud
+       domain, so a clear needs the two ClkMem edges back through u_sync_I3CxSR
+       that the set needed coming in. The armed pattern is held over exactly those
+       two edges, so a flag retires on the next access as it did off the
+       pre-latch; a hardware set inside the window is not lost, because the source
+       flag is sticky. The arming term is the COMBINATIONAL wr_hit, valid AT the
+       access edge, and not the held clr_* levels, which rise after it. */
+    sr_clr_now <= (W1C(SLOT_SR)(10 downto 8) and wdata(10 downto 8) and (10 downto 8 => not WEn(1)))
+                & (W1C(SLOT_SR)(7 downto 0)  and wdata(7 downto 0)  and (7 downto 0 => not WEn(0)))
+                  when wrh_s(SLOT_SR) = '1' else (others => '0');
+
+    sr_shadow_proc: process(ClkMem, resetn)
+    begin
+        if resetn = '0' then
+            sr_clr_pipe0 <= (others => '0');
+            sr_clr_pipe1 <= (others => '0');
+        elsif rising_edge(ClkMem) then
+            sr_clr_pipe0 <= sr_clr_now;
+            sr_clr_pipe1 <= sr_clr_pipe0;
+        end if;
+    end process;
+
+    sr_busy_or(I3CBUSY_LSB) <= busy_pend;
+    sr_busy_or(10 downto I3CBUSY_LSB + 1) <= (others => '0');
+
+    I3CxSR_rd <= (I3CxSR_mem or sr_busy_or) and not (sr_clr_pipe0 or sr_clr_pipe1);
+
+    -- The words this block owns rather than stores: the status and receive ClkMem
+    -- copies, the DAT window read through the persisted IDX, and the IBI capture.
+    -- All are read combinationally here and registered by periph_regs' read flop
+    -- on the same ClkMem edge the hand-written read mux used.
+    sr_rd <= (31 downto I3CxSR_rd'high + 1 => '0') & I3CxSR_rd;
+    rx_rd <= (31 downto I3CxRX_mem'high + 1 => '0') & I3CxRX_mem;
 
     -- DAT window, entry selected by the persisted IDX.
     -- Only 4 entries exist, so indices 4-7 read back the IDX field alone.
@@ -350,6 +442,7 @@ begin
             regs        => regs_q,
             hw_rd       => hw_rd_s,
             acc_hit     => acc_s,
+            wr_hit      => wrh_s,
             rd_strobe   => open,
             wr_strobe   => open,
             wr_pulse    => open,
@@ -361,15 +454,33 @@ begin
     -- The nine write-1-to-clear flags, as held levels into the asynchronous
     -- clears in fsm_proc. BUSY and IBIWON are hardware-driven and outside W1C,
     -- so a 1 written to either reaches nothing, exactly as before.
-    clr_tcif    <= w1c_s(SLOT_SR)(I3CTCIF_LSB);
-    clr_rxfull  <= w1c_s(SLOT_SR)(I3CRXFULL_LSB);
-    clr_txeif   <= w1c_s(SLOT_SR)(I3CTXEIF_LSB);
-    clr_anack   <= w1c_s(SLOT_SR)(I3CANACK_LSB);
-    clr_eodf    <= w1c_s(SLOT_SR)(I3CEODF_LSB);
-    clr_arblost <= w1c_s(SLOT_SR)(I3CARBLOST_LSB);
-    clr_daadone <= w1c_s(SLOT_SR)(I3CDAADONE_LSB);
-    clr_daafull <= w1c_s(SLOT_SR)(I3CDAAFULL_LSB);
-    clr_ibip    <= w1c_s(SLOT_SR)(I3CIBIP_LSB);
+    /* Each reaches an ASYNCHRONOUS tail clear in the clk_baud domain, so its
+       WIDTH is what makes it land. Each takes the registered held strobe as
+       before, WIDENED by the ClkMem clear shadow: the combinational access
+       condition plus the two shadow stages is a level about two and a half
+       ClkMem periods wide, in the ClkMem domain, and it does not depend on how
+       long the fabric holds the select. The held strobe alone does: periph_regs
+       retires it asynchronously on EnMemPeriph, which the MCU deasserts on the
+       same mclk edge the strobe is set, so with the falling-mclk en_q shim gone
+       it would be a runt. Additive: nothing the held strobe did is taken away. */
+    clr_tcif <= w1c_s(SLOT_SR)(I3CTCIF_LSB) or sr_clr_now(I3CTCIF_LSB)
+             or sr_clr_pipe0(I3CTCIF_LSB) or sr_clr_pipe1(I3CTCIF_LSB);
+    clr_rxfull <= w1c_s(SLOT_SR)(I3CRXFULL_LSB) or sr_clr_now(I3CRXFULL_LSB)
+               or sr_clr_pipe0(I3CRXFULL_LSB) or sr_clr_pipe1(I3CRXFULL_LSB);
+    clr_txeif <= w1c_s(SLOT_SR)(I3CTXEIF_LSB) or sr_clr_now(I3CTXEIF_LSB)
+              or sr_clr_pipe0(I3CTXEIF_LSB) or sr_clr_pipe1(I3CTXEIF_LSB);
+    clr_anack <= w1c_s(SLOT_SR)(I3CANACK_LSB) or sr_clr_now(I3CANACK_LSB)
+              or sr_clr_pipe0(I3CANACK_LSB) or sr_clr_pipe1(I3CANACK_LSB);
+    clr_eodf <= w1c_s(SLOT_SR)(I3CEODF_LSB) or sr_clr_now(I3CEODF_LSB)
+             or sr_clr_pipe0(I3CEODF_LSB) or sr_clr_pipe1(I3CEODF_LSB);
+    clr_arblost <= w1c_s(SLOT_SR)(I3CARBLOST_LSB) or sr_clr_now(I3CARBLOST_LSB)
+                or sr_clr_pipe0(I3CARBLOST_LSB) or sr_clr_pipe1(I3CARBLOST_LSB);
+    clr_daadone <= w1c_s(SLOT_SR)(I3CDAADONE_LSB) or sr_clr_now(I3CDAADONE_LSB)
+                or sr_clr_pipe0(I3CDAADONE_LSB) or sr_clr_pipe1(I3CDAADONE_LSB);
+    clr_daafull <= w1c_s(SLOT_SR)(I3CDAAFULL_LSB) or sr_clr_now(I3CDAAFULL_LSB)
+                or sr_clr_pipe0(I3CDAAFULL_LSB) or sr_clr_pipe1(I3CDAAFULL_LSB);
+    clr_ibip <= w1c_s(SLOT_SR)(I3CIBIP_LSB) or sr_clr_now(I3CIBIP_LSB)
+             or sr_clr_pipe0(I3CIBIP_LSB) or sr_clr_pipe1(I3CIBIP_LSB);
 
     -- The two held request levels the serial core retires itself, so neither can
     -- be a periph_regs strobe: a lane-0 CMD write is the sole launch trigger,
@@ -460,16 +571,18 @@ begin
     /* -------- baud generator (two chained ClkGates) ------------------------
        Reload is muxed by the latched phase drive-mode pp_rate: open-drain phases reload ODBR, push-pull data phases reload PPBR, and pp_rate flips only on phase boundaries so it cannot glitch mid-bit.
        baud_counter is held cleared while idle so the first clk_baud edge after a launch, or after an ibi_req wake, is prompt and BUSY rises within a couple of clk cycles. */
-    /* The IBI wake enters through the synchroniser, never raw. ibi_req is clocked by the SDA pad; driven straight into these two ClkGate enables it moved inside the enable latch's own setup window, so the gate could emit a runt and that runt clocked fsm_proc while ibi_req was still resolving, arming the framer with only part of its transaction context loaded (W5b-1, 9 census endpoints). u_sync_ibi_req gives it two clk edges to settle before any enable or any FSM arm reads it; the wake costs 2 clk (80 ns at 25 MHz) against an I3C bus-available time of microseconds.
-       ibi_req_s2 stays high for two more clk edges after clr_ibi_req retires the source flop. That is harmless: busy is '1' by then so the gates stay open regardless, and the arm below is reachable only from P_IDLE, which the framer has already left. */
-    ibi_sync_d(0) <= ibi_req;
-
-    u_sync_ibi_req : entity work.sync
-        generic map (WIDTH => 1, DEPTH => 2)
-        port map (clk => clk, areset => resetn, d => ibi_sync_d, q => ibi_sync_q);
-
-    ibi_req_s2 <= ibi_sync_q(0);
-
+    /* The IBI wake enters resolved, never raw. W5b-1 made that true by putting
+       u_sync_ibi_req on the output of a flop whose clock pin was the SDA pad;
+       the pins are synchronised instead now and the sensor itself runs on clk,
+       so ibi_req_s2 is the sensor's own output and there is nothing left to
+       settle. The failure W5b-1 closed is closed the same way: the enable these
+       two ClkGates read changes only on a clk edge, so it cannot move inside the
+       enable latch's own setup window and the gate cannot emit a runt.
+       One behaviour moved with it. The old chain held ibi_req_s2 high for two clk
+       edges after clr_ibi_req retired the source flop; it now retires with it.
+       That is harmless in both directions: busy is '1' by then so the gates stay
+       open regardless, and the arm below is reachable only from P_IDLE, which the
+       framer has already left. */
     en_clk_baud_src <= q_en and (busy or i3c_launch or ibi_req_s2);
 
     cg_clk_baud_src: entity work.ClkGate
@@ -742,6 +855,7 @@ begin
                                   scl_r <= '0';
                                   if bitno = 7 then
                                       bitno <= 0; I3CxRX <= rx_acc; rxfull_flag <= '1';
+                                      rx_tgl <= not rx_tgl;  -- receive-byte event into ClkMem
                                       ph <= P_RT;
                                   else
                                       bitno <= bitno + 1;
@@ -1117,6 +1231,7 @@ begin
         -- RX has no write-side reset elsewhere and the FSM only assigns it, so reset it here or its readback is 'X' until the first received byte.
         if resetn = '0' then
             I3CxRX <= (others => '0');
+            rx_tgl <= '0';
         end if;
 
         -- Status-flag W1C application and reset (async level-sensitive, with clr_* in the sensitivity list).
@@ -1142,16 +1257,42 @@ begin
         end if;
     end process;
 
-    /* -------- async target-START / IBI sensor ------------------------------
+    /* -------- target-START / IBI sensor, oversampled ------------------------
        START is SDA falling while SCL is high; one seen while the controller is idle and enabled is a target-driven IBI, so ibi_req wakes the framer and clr_ibi_req retires it at service entry (controller STARTs run with busy=1 and never latch it).
-       Keep the single-edge shape (async reset/retire plus one falling_edge(SDA_IN) set clause): synthesis rejects a process referencing two clock edges, and SDA_IN is this flop's clock pin, so it needs its own async SDC group. */
-    ibi_sensor: process(resetn, SDA_IN, clr_ibi_req)
+       SDA_IN was this flop's clock pin until 2026-09-15: one pin clock per instance on an FPGA, and its own asynchronous SDC group in the ASIC. It is sampled on clk instead.
+       The 12.5 MHz of I3C SDR does not bear on this sampler and the ratio is not the one to measure. The sensor is armed only while busy = '0', which is the bus idle with SCL parked high and no data on SDA at all; an IBI is a target pulling SDA low and HOLDING it low until this controller drives SCL, so what has to be caught is a level of unbounded length, not a 80 ns bit. The rate this design can drive is a separate and lower number: one I3C bit is four clk sub-states, so SCL tops out at clk/4, which is 6 MHz at 24 MHz smclk and half the 12.5 MHz SDR maximum. Nothing here samples SDA at 12.5 MHz, before or after this change.
+       Two clk edges of latency are added to the wake, 83 ns at 24 MHz, against an I3C bus-available time of microseconds. The two the retired u_sync_ibi_req cost are given back, so the wake is no slower than it was. */
+    pin_sync_d <= SDA_IN & SCL_IN;
+
+    u_sync_i3c_pins : entity work.sync
+        generic map (WIDTH => 2, DEPTH => 2, RST_VAL => "11")
+        port map (clk => clk, areset => resetn, d => pin_sync_d, q => pin_sync_q);
+
+    sda_s <= pin_sync_q(1);
+    scl_s <= pin_sync_q(0);
+
+    pin_edge_proc: process(clk, resetn)
+    begin
+        if resetn = '0' then
+            -- An idle I3C bus is both lines high, so the chain resets high and no edge is manufactured at reset release.
+            sda_sd <= '1';
+            scl_sd <= '1';
+        elsif rising_edge(clk) then
+            sda_sd <= sda_s;
+            scl_sd <= scl_s;
+        end if;
+    end process;
+
+    -- SCL must read high on BOTH samples either side of the SDA fall, so a coincident SCL transition cannot be read as a START.
+    start_det <= (not sda_s) and sda_sd and scl_s and scl_sd;
+
+    ibi_sensor: process(resetn, clr_ibi_req, clk)
     begin
         if resetn = '0' or clr_ibi_req = '1' then
-            ibi_req <= '0';
-        elsif falling_edge(SDA_IN) then
-            if SCL_IN = '1' and busy = '0' and q_en = '1' then
-                ibi_req <= '1';
+            ibi_req_s2 <= '0';
+        elsif rising_edge(clk) then
+            if start_det = '1' and busy = '0' and q_en = '1' then
+                ibi_req_s2 <= '1';
             end if;
         end if;
     end process;

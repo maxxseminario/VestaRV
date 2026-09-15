@@ -76,8 +76,6 @@ end GPIO;
 
 architecture behavioral of GPIO is 
 
-	signal PxIN		: std_logic_vector(num_pins - 1 downto 0);	-- Pin read register. '0' = low or GND, '1' = high or VDD.
-	signal PxINLat	: std_logic_vector(PxIN'high downto PxIN'low);	-- Latched version of PxIN.
 	signal PxOUT	: std_logic_vector(num_pins - 1 downto 0);	-- Output drive register. '0' = low or GND, '1' = high or VDD.
     signal PxDIR	: std_logic_vector(num_pins - 1 downto 0);	-- Pin direction register. '0' = input, '1' = output.
 	signal PxSEL	: std_logic_vector(num_pins - 1 downto 0);	-- Peripheral select register. '0' = GPIO, '1' = alternate function.
@@ -94,7 +92,6 @@ architecture behavioral of GPIO is
     signal PxIES    : std_logic_vector(num_pins - 1 downto 0);	-- Interrupt edge select. '0' = low-to-high, '1' = high-to-low.
     signal PxIE     : std_logic_vector(num_pins - 1 downto 0);	-- Interrupt enable. '0' = disabled, '1' = enabled.
     signal PxIF     : std_logic_vector(num_pins - 1 downto 0);	-- Interrupt flag. '0' = no interrupt pending, '1' = interrupt pending.
-    signal PxIF_ltch : std_logic_vector(num_pins - 1 downto 0);	-- Latched version of PxIF.
 
     signal edge_sel_comb : std_logic_vector(num_pins - 1 downto 0);	-- Edge-select vector, prt_in xor PxIES, exported to the event fabric.
     signal PxTASK      : std_logic_vector(num_pins - 1 downto 0);	-- Task pin-select: which pins task_outset and task_outclr act on.
@@ -146,7 +143,6 @@ architecture behavioral of GPIO is
     constant RSTVAL_OR_GPIO : reg_arr_t := rstValOr;
 begin
 
-    PxIN <= prt_in;
 	PxOUT_out <= PxOUT;
 	PxDIR_out <= PxDIR;
 	PxREN_out <= PxREN;
@@ -264,17 +260,6 @@ begin
         end if;
     end process;
 
-
-
-    -- Snapshot the pin and flag states at the end of a bus access, inverted for the readback mux.
-    pin_reg_sync: process (en, PxIN)
-    begin
-        if falling_edge(en) then
-            PxINLat <= not PxIN;
-            PxIF_ltch <= not PxIF; 
-        end if;
-    end process;
-
     -- Register Memory Interface ----------
     -- One periph_regs instance replaces the slot decode, the byte-lane write case,
     -- the three alias arms, the flag-clear strobe and the registered read mux.
@@ -330,13 +315,17 @@ begin
 
     -- The five words that hold no flop here. The three aliases read PxOUT, and
     -- PxOUTC reads it INVERTED, which is what the readback mux has always done.
-    -- PxIN and PxIF come back through their falling-en snapshot latches, which
-    -- are a CDC judgement and stay in this file.
-    hw_rd_s <= (RegSlotPxIN   => pad(not PxINLat),
+    -- PxIN and PxIF read clk_mem flops directly: prt_in_s2 is the pin after the
+    -- house synchroniser and PxIF is the flag register, both in this domain, so
+    -- the word periph_regs' read register captures is one register's value from
+    -- one clk_mem edge. PxIN is therefore the pin as it was two clk_mem edges
+    -- before the select, where the deleted falling-en latch sampled the raw pad
+    -- asynchronously and could return a metastable bit.
+    hw_rd_s <= (RegSlotPxIN   => pad(prt_in_s2),
                 RegSlotPxOUTS => pad(PxOUT),
                 RegSlotPxOUTC => pad(not PxOUT),
                 RegSlotPxOUTT => pad(PxOUT),
-                RegSlotPxIF   => pad(not PxIF_ltch),
+                RegSlotPxIF   => pad(PxIF),
                 others        => (others => '0'));
 
     -- Consumer tasks: one-clk_mem fabric pulses acting on the PxTASK-selected pins.

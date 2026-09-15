@@ -2,6 +2,7 @@
 -- Self-checking unit bench for the shared peripheral register file. It exercises every mask class the .rdl can produce (IMPL, W1C, WOSET, WOT, PULSE, RCLR, HWOWN) and the three RTL-side generics (RDTHRU, WIDEWR, STROBE_HOLD), each byte lane on its own, the two strobe retirements side by side, and the three unregistered hooks (acc_hit, rd_hit, wr_hit) against a negative control that raises acc_hit and neither of the other two.
 -- Two instances run off one bus with one synthetic table: dut_p at STROBE_HOLD false, dut_h at true. Everything but the strobe width is checked on dut_p, because the two differ in nothing else.
 -- The bus is driven here rather than through periph_tb_pkg.bus_write, which always asserts all four lanes and therefore cannot test a lane at all.
+-- GROUP 13 grades the READ TIMING itself: that the snapshot is the one rising ClkMem edge inside the select window, that the word it returns is one register's value from that one edge, and that back-to-back accesses under a held select each return their own word.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -542,6 +543,76 @@ begin
         sb.check_bit("deselected: acc_hit is down", p_acc(W_WIDE), '0');
         sb.check_bit("deselected: rd_hit is down",  p_rdh(W_WIDE), '0');
         sb.check_bit("deselected: wr_hit is down",  p_wrh(W_WIDE), '0');
+
+        /* GROUP 13: the read snapshot edge, and that the word it returns is whole.
+           Added 2026-09-15 (Z1) with the peripherals' falling-EnMemPeriph pre-latches.
+           This module never had one -- its select is combinational and every flop in
+           it is on rising ClkMem -- and these cases are what makes that a stated
+           contract rather than an accident of the code: the read register loads the
+           decoded word on the RISING ClkMem EDGE INSIDE THE SELECT WINDOW, so a
+           source that moves between the select and that edge is returned whole at
+           its new value, and one that moves after it is not seen until the next
+           access. W_FLAGS holds no IMPL bit, so its read source is hw_rd alone and
+           the two values below differ in every bit but 31, which img() cannot format
+           (periph_tb_pkg keeps expect words below 0x80000000): a word assembled from
+           two instants could not read as either. */
+        report "=== GROUP 13: the snapshot edge and word coherence ===" severity note;
+        hw_rd(W_FLAGS) <= x"0000FFFF";
+        wait until clk = '1';
+        wait until clk = '0';
+
+        -- Select, then move the source a quarter cycle before the capture edge.
+        addr <= std_logic_vector(to_unsigned(W_FLAGS, 6));
+        wen  <= (others => '1');
+        en_n <= '0';
+        wait for PERIOD / 4;
+        hw_rd(W_FLAGS) <= x"7FFF0000";
+        wait until clk = '1';
+        wait for 1 ns;
+        sb.check_slv("a source that moves between select and the capture edge is returned WHOLE at its new value",
+                     p_rdata, x"7FFF0000");
+
+        -- Still selected, past the capture edge: a further move is not this read's.
+        hw_rd(W_FLAGS) <= x"05A5A5A5";
+        wait for PERIOD / 4;
+        sb.check_slv("a source that moves AFTER the capture edge does not reach this read",
+                     p_rdata, x"7FFF0000");
+        release_bus;
+        hw_rd(W_FLAGS) <= x"000000A5";
+        wait until clk = '1';
+        wait until clk = '0';
+
+        /* Back-to-back reads: the select never rises between the two accesses, the
+           slot moves on the falling edge between the two capture edges, and each
+           edge returns its own word. A read register loaded from a stale decode, or
+           a decode that did not follow the slot inside a held select, fails here.
+           The deselected decode parks on WORD_BASE, so the CTRL value the first read
+           returns is also what an idle read register holds; W_WIDE is written to a
+           different value first so the second edge cannot pass by accident. */
+        wr(W_CTRL, "0000", x"00005678");
+        wr(W_WIDE, "0000", x"1234ABCD");
+        wait until clk = '0';
+        addr <= std_logic_vector(to_unsigned(W_CTRL, 6));
+        wen  <= (others => '1');
+        en_n <= '0';
+        wait until clk = '1';        -- capture edge 1: CTRL
+        wait until clk = '0';
+        addr <= std_logic_vector(to_unsigned(W_WIDE, 6));   -- still selected
+        wait for 1 ns;
+        sb.check_slv("back-to-back: the first word stands while the second is addressed",
+                     p_rdata, x"00005678");
+        wait until clk = '1';        -- capture edge 2: WIDE
+        wait for 1 ns;
+        sb.check_slv("back-to-back: the second word arrives one ClkMem edge later",
+                     p_rdata, x"1234ABCD");
+        release_bus;
+
+        -- And the documented idle behaviour: deselected, the decode parks on
+        -- WORD_BASE, so the next edge reloads word 0 over the snapshot.
+        wait until clk = '1';
+        wait for 1 ns;
+        sb.check_slv("deselected, the read register reloads WORD_BASE on the next edge",
+                     p_rdata, x"00005678");
 
         wait for 2 * PERIOD;
         sb.report_summary("PERIPH_REGS TB");

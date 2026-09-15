@@ -1,6 +1,7 @@
 -- VestaRV: SPI controller
 -- Master/slave SPI with CR/SR/TX/RX/FOS registers, a two-chained-ClkGate baud divider and one IRQ each for transfer-complete and transmit-empty.
 -- ENABLE_EXTENDED_MEM instantiates the SPI flash XIP core, which adds a second read port on en_mem_flash.
+-- The SLAVE is OVERSAMPLED: SCK, MOSI and CS reach the slave logic through work.sync on clk, the two SCK edges are decoded from the synchronised value, and the slave shift registers, the bit counter and the gap flag are all clk flops. No flop in this file has an external pad on its clock pin. The cost is launch latency on MISO, which is what fixes the maximum slave SCK at an eighth of the peripheral clock: PCLK_HZ / SCK_SLAVE_MAX_HZ state it and it is asserted at elaboration.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -14,7 +15,10 @@ use work.spi_regs_pkg.all;
 entity SPI is
     generic
     (
-        ENABLE_EXTENDED_MEM : boolean := false  -- true instantiates the SPI flash XIP core  
+        ENABLE_EXTENDED_MEM : boolean := false;  -- true instantiates the SPI flash XIP core
+        -- The peripheral clock (the clk port) and the fastest SCK an external master may drive into the slave port, both in Hz. They infer no logic: they state the ratio the oversampled slave needs and are checked at elaboration. Master-mode SCK is unaffected -- that one is generated here and SPIxCR.SPIBR sets it.
+        PCLK_HZ             : natural := 24000000;
+        SCK_SLAVE_MAX_HZ    : natural := 3000000
     );
     port
     (
@@ -76,12 +80,13 @@ architecture behavioral of SPI is
     -- The bus side is one periph_regs instance driven by spi_regs_pkg's tables;
     -- see hdl/common/regs/REGFILE.md. SPIxCR, SPIxTX and SPIxFOS are its storage;
     -- SPIxSR and SPIxRX hold no flop there, because the hardware that sets those
-    -- flags and that fills the receive register owns them, and their pre-latch
-    -- CDC lives below.
+    -- flags and that fills the receive register owns them, and the CDC that
+    -- carries them into clk_mem lives below.
     signal regs_q  : reg_arr_t;
     signal hw_rd_s : reg_arr_t;
     signal w1c_s   : reg_arr_t;                        -- a 1 written to a SPIxSR flag
     signal wrh_s   : std_logic_vector(0 to NWORDS-1);  -- ... and the access is a lane write
+    signal acc_s   : std_logic_vector(0 to NWORDS-1);  -- combinational: this slot is addressed now
     signal rd_str  : std_logic_vector(0 to NWORDS-1);
     signal wr_str  : std_logic_vector(0 to NWORDS-1);
     signal sr_rd, rx_rd : std_logic_vector(31 downto 0);
@@ -106,9 +111,17 @@ architecture behavioral of SPI is
 
     -- Register Signals 
     signal SPIxSR : std_logic_vector(2 downto 0); -- Status Register
-    signal SPIxSR_ltch : std_logic_vector(2 downto 0); -- Status Register Latched
+    signal SPIxSR_mem : std_logic_vector(2 downto 0); -- SPIxSR carried into clk_mem, three independent flag chains
     signal SPIxRX : std_logic_vector(31 downto 0); -- Receive Register
-    signal SPIxRX_ltch : std_logic_vector(31 downto 0); -- Receive Register Latched
+    signal SPIxRX_mem : std_logic_vector(31 downto 0); -- clk_mem copy of the receive word, loaded at the synchronized receive-event edge
+    -- The receive-event toggles, one per core, and their crossing into clk_mem.
+    -- A toggle rather than the flag itself: SPITCIF is sticky and a second word
+    -- arriving before software clears it raises no new edge, so the copy would
+    -- freeze on the first word where the pre-latch returned the newest one.
+    signal m_rx_tgl : std_logic;  -- clk_baud domain: master receive-word event
+    signal s_rx_tgl : std_logic;  -- clk domain (was the sck_slave domain): slave receive-word event
+    signal rx_tgl_d, rx_tgl_q : std_logic_vector(1 downto 0);  -- bit 1 slave, bit 0 master
+    signal m_rx_prev, s_rx_prev : std_logic;  -- clk_mem edge-detect stage
     signal SPIxTX : std_logic_vector(31 downto 0); -- Transmit Register (tap of the register file)
     signal SPIxFOS : std_logic_vector(23 downto 0); -- SPI Flash memory address offset (tap of the register file)
 
@@ -155,15 +168,44 @@ architecture behavioral of SPI is
     signal s_counter : std_logic_vector(5 downto 0); -- Slave Counter
     signal s_spi_tcif : std_logic; -- Slave SPI Transmit Complete Interrupt Flag
     signal s_spi_teif : std_logic; -- Slave SPI Transmit Empty Interrupt Flag
-    -- The inter-transfer gap, registered in the sck_slave domain (W5b-2). s_counter is a BINARY counter clocked by the external SCK pad; its zero decode sampled on clk is the crossing hdl/common/sync.vhd forbids by name, because the bits that fall at a carry can reach the decode before the bit that rises and 000111 -> 001000 reads transiently as zero. Registering the decode where it is generated makes the crossing one glitch-free bit, which work.sync then carries.
+    -- The inter-transfer gap. W5b-2 made it a flop in the sck_slave domain carried through work.sync, because s_counter was a BINARY counter clocked by the external SCK pad and its zero decode sampled on clk is the crossing hdl/common/sync.vhd forbids by name: at a carry the falling bits can reach the decode before the rising one and 000111 -> 001000 reads transiently as zero. With the counter oversampled, s_gap is generated on clk and read on clk, so the crossing is gone rather than synchronised and u_sync_s_gap went with it. The flag itself is unchanged: raised in the reset arm and at each terminal count, cleared on every other sampled edge.
     signal s_gap : std_logic;
-    signal gap_sync_d, gap_sync_q : std_logic_vector(0 downto 0);
+    signal sr_sync_d, sr_sync_q : std_logic_vector(2 downto 0);
+    signal tcif_clr_pipe, teif_clr_pipe : std_logic_vector(1 downto 0);
+    signal tcif_shadow, teif_shadow : std_logic;
+    signal clr_tcif_now, clr_teif_now : std_logic;
+    signal busy_pend : std_logic;  -- launch taken, synchronized SPIBUSY not yet high
     signal s_tx_sreg : std_logic_vector(31 downto 0); -- Slave Tx Shift Reg
     signal s_rx_sreg : std_logic_vector(31 downto 0); -- Slave Rx Shift Reg
     signal s_SPIxRX : std_logic_vector(31 downto 0); -- Slave Receive Register
     signal s_rx_hold_rev : std_logic_vector(31 downto 0); -- Slave Rx Hold Reg Reversed
-    signal s_rx_hold : std_logic_vector(31 downto 0); -- Slave Rx Hold Reg: the completed word, captured on the sck_slave falling edge that wraps s_counter
-    signal sck_slave : std_logic; -- SPI Clock for Slave. May be inverted sck depending on cpol and cpha
+    signal s_rx_hold : std_logic_vector(31 downto 0); -- Slave Rx Hold Reg: the completed word, captured at the sck_slave trailing edge that wraps s_counter
+    signal sck_slave : std_logic; -- SPI Clock for Slave, SYNCHRONISED and then inverted by cpol. A data signal, not a clock.
+
+    -- Slave-side pin sampling on clk. See `u_sync_slave_pins`.
+    signal slv_sync_d, slv_sync_q : std_logic_vector(2 downto 0); -- (2) cs_in, (1) sck_in, (0) mosi_in
+    signal cs_s        : std_logic;  -- synchronised chip select
+    signal sck_pin_s   : std_logic;  -- synchronised SCK pad, before the cpol inversion
+    signal mosi_s      : std_logic;  -- synchronised MOSI
+    signal sck_slave_d : std_logic;  -- sck_slave one clk edge old
+    signal sck_lead    : std_logic;  -- decoded leading edge, one clk wide
+    signal sck_trail   : std_logic;  -- decoded trailing edge, one clk wide
+
+    /* Minimum peripheral-clock-to-slave-SCK ratio, and where the number comes from.
+       The RECEIVE path needs four: the synchroniser resolves a level in two clk
+       edges and the edge decode takes a third, so each SCK phase must hold at
+       least two clk periods for both edges to be seen. The TRANSMIT path is what
+       binds. MISO is launched from the decoded LEADING edge, three clk periods
+       after the pad edge in the worst case, and an external master latches it at
+       the TRAILING edge one half period later, so the half period must exceed
+       three clk periods. Eight clk periods per SCK period is that with one
+       period of margin, and it is 3 MHz at 24 MHz.
+       No generic keeps the pad-clocked slave alive beside this one. Nothing in
+       the tree specifies a slave SCK above 3 MHz -- spi.rdl documents the MASTER
+       baud ladder only, and that one is untouched -- and a second architecture
+       would have kept sck_slave on a flop clock pin in every mechanical count
+       and in the CDC manifest, which is the thing this change exists to remove. */
+    constant MIN_PCLK_PER_SCK : natural := 8;
 
     -- GP Signals 
     signal tx_data_align : std_logic_vector(31 downto 0); -- Aligns and orders Tx Data
@@ -207,6 +249,13 @@ architecture behavioral of SPI is
     signal ClearFlashActive_pulse : std_logic;
 
 begin
+
+    assert PCLK_HZ >= MIN_PCLK_PER_SCK * SCK_SLAVE_MAX_HZ
+        report "SPI: peripheral clock " & integer'image(PCLK_HZ)
+               & " Hz is below the " & integer'image(MIN_PCLK_PER_SCK)
+               & "x minimum for SCK_SLAVE_MAX_HZ " & integer'image(SCK_SLAVE_MAX_HZ)
+               & " Hz; the oversampled slave cannot follow that master."
+        severity failure;
 
 
     /* ------------------- Signal Routing ---------------------
@@ -390,6 +439,7 @@ begin
             clr_start_tx <= '0';
             m_tx_sreg <= (others => '0');
             m_rx_sreg <= (others => '0');
+            m_rx_tgl <= '0';
         elsif rising_edge(clk_baud) then
             clr_start_tx <= '0'; -- Clear start transmit signal
             if tx_in_progress = '0' then
@@ -448,6 +498,7 @@ begin
                         m_spi_tcif <= '1'; -- Set Transmit Complete Interrupt Flag
                     end if;
                     m_SPIxRX <= m_rx_data_align; -- Align received data
+                    m_rx_tgl <= not m_rx_tgl;    -- receive-word event into clk_mem
 
                     -- Check for another transfer start condition
                     if start_tx = '1' or StartTXFlash = '1' then
@@ -506,36 +557,67 @@ begin
 
 
 
+    /* -------- Slave-side pin sampling ----------
+       SCK, MOSI and CS are asynchronous pads driven by an external master. Until
+       2026-09-15 sck_slave was the clock pin of the two processes below, which on
+       an FPGA is a fabric clock net (the cpol xor put a LUT between the pad and
+       the clock, so it could not even take the dedicated pin route) and in the
+       ASIC is a clock domain with one pad in it.
+
+       work.sync carries all three into clk as three INDEPENDENT chains, and the
+       cpol inversion is applied AFTER the synchroniser, so the pad reaches a flop
+       D pin and nothing else. The two SCK edges are then decoded on clk and every
+       slave flop runs on clk. spi_cpol is only ever changed while the block is
+       disabled, so the xor cannot manufacture an edge in service. */
+    slv_sync_d <= cs_in & sck_in & mosi_in;
+
+    u_sync_slave_pins : entity work.sync
+        generic map (WIDTH => 3, DEPTH => 2, RST_VAL => "100")
+        port map (clk => clk, areset => resetn, d => slv_sync_d, q => slv_sync_q);
+
+    cs_s      <= slv_sync_q(2);
+    sck_pin_s <= slv_sync_q(1);
+    mosi_s    <= slv_sync_q(0);
+
+    sck_slave <= sck_pin_s xor spi_cpol; -- Invert SCK for Slave if CPOL is set
+
+    sck_edge_proc: process(clk, resetn)
+    begin
+        if resetn = '0' then
+            sck_slave_d <= '0';
+        elsif rising_edge(clk) then
+            sck_slave_d <= sck_slave;
+        end if;
+    end process;
+
+    sck_lead  <= sck_slave and not sck_slave_d;
+    sck_trail <= (not sck_slave) and sck_slave_d;
+
     -- SPI Slave FSM, update phase on the leading edge of sck_slave
-    sck_slave <= sck_in xor spi_cpol; -- Invert SCK for Slave if CPOL is set
-    process(resetn, spi_mode, spi_en, cs_in, sck_slave, tx_data_align, s_counter)
+    process(resetn, spi_mode, spi_en, clk)
     begin
         if resetn = '0' or spi_en = '0' or spi_mode = '0' then
             -- Reset State
             s_tx_sreg <= (others => '0');
-        elsif s_counter = "000000" then
-            -- Asynchronously reload the slave shift register between transfers
-            s_tx_sreg <= tx_data_align; -- Load Tx Data
-        elsif rising_edge(sck_slave) then -- Leading edge of sck_slave: update phase
-                -- Shift Data 
+        elsif rising_edge(clk) then
+            if s_counter = "000000" then
+                -- Reload the slave shift register between transfers. This branch keeps its PRIORITY over the shift below, as it had when it was an asynchronous level: the counter reads zero for the whole of the first bit period, so bit 0 is held there and bit k is presented in bit period k. SPI_tb GROUP 11 grades that stream bit for bit.
+                s_tx_sreg <= tx_data_align; -- Load Tx Data
+            elsif sck_lead = '1' then -- Leading edge of sck_slave: update phase
+                -- Shift Data
                 s_tx_sreg <= '0' & s_tx_sreg(31 downto 1); -- Shift out data
+            end if;
         end if;
     end process;
 
     -- Slave transmit-empty flag, F12 (2026-09-05). Was set inside the process above by the LEVEL s_counter = 0 and cleared by a trailing if: an SR latch by construction (Genus CDFG-241; 2 LATQX1 cells in every cut). Sampled on clk instead: the gap holds for the whole inter-transfer interval, so the flag rises at the first clk edge of that gap and stays until the bus clears it; its readers (the SR shadow, the irq) are clk-domain, and the clear keeps its priority exactly as before.
-    -- What crosses is s_gap, one bit registered on the sck_slave edge that creates the gap, and not the six-bit s_counter's combinational zero decode (W5b-2). F12 moved the flag off the latch and was right to; it left the multi-bit sample behind, which is what this completes. 8-bit mode was immune because the counter only ever spans 0 to 7 and enters zero by the intended wrap; 16-bit mode had one hazardous carry per word and 32-bit mode two.
-    gap_sync_d(0) <= s_gap;
-
-    u_sync_s_gap : entity work.sync
-        generic map (WIDTH => 1, DEPTH => 2)
-        port map (clk => clk, areset => resetn, d => gap_sync_d, q => gap_sync_q);
-
+    -- What it reads is s_gap, one bit raised at the edge that creates the gap, and not the six-bit s_counter's combinational zero decode (W5b-2). W5b-2 carried that bit across a domain boundary with work.sync; with the slave oversampled there is no boundary left, s_gap is a clk flop, and the synchroniser is gone. 8-bit mode was immune to the original defect because the counter only ever spans 0 to 7 and enters zero by the intended wrap; 16-bit mode had one hazardous carry per word and 32-bit mode two.
     process(clk, resetn, clr_spi_teif, spi_en, spi_mode)
     begin
         if resetn = '0' or clr_spi_teif = '1' or spi_en = '0' or spi_mode = '0' then
             s_spi_teif <= '0'; -- Clear Transmit Empty Interrupt Flag
         elsif rising_edge(clk) then
-            if gap_sync_q(0) = '1' then
+            if s_gap = '1' then
                 s_spi_teif <= '1'; -- Set Transmit Empty Interrupt Flag
             end if;
         end if;
@@ -544,16 +626,18 @@ begin
     -- Was a self-feedback latch ("... when s_counter = 0 else s_SPIxRX") whose enable is an unconstrained level in the external sck_slave pad domain; the capture is now the s_rx_hold register below, matching the master-side m_SPIxRX idiom.
     s_SPIxRX <= s_rx_data_align; -- Assign Slave Receive Register
 
-    -- SPI Slave FSM, sample phase on the trailing edge of sck_slave
-    process(resetn, sck_slave, spi_en, spi_mode, cs_in, clr_spi_tcif)
+    -- SPI Slave FSM, sample phase on the trailing edge of sck_slave.
+    -- The reset takes the SYNCHRONISED chip select, so no pad reaches a flop's asynchronous clear either.
+    process(resetn, spi_en, spi_mode, cs_s, clr_spi_tcif, clk)
     begin 
-        if resetn = '0' or spi_en = '0' or spi_mode = '0' or cs_in = '1' then
+        if resetn = '0' or spi_en = '0' or spi_mode = '0' or cs_s = '1' then
             -- Reset State
             s_counter <= (others => '0');
             s_rx_sreg <= (others => '0');
             s_gap     <= '1'; -- deselected or disabled is one long inter-transfer gap
 
-        elsif falling_edge(sck_slave) then -- Sample phase
+        elsif rising_edge(clk) then
+          if sck_trail = '1' then -- Sample phase
             s_counter <= s_counter + 1; -- Increment counter
             s_gap     <= '0'; -- default: mid-word; the terminal-count arms below re-raise it
             
@@ -564,21 +648,24 @@ begin
                         s_spi_tcif <= '1'; -- Set Transmit Complete Interrupt Flag
                         s_counter <= (others => '0'); -- Reset counter
                         s_gap <= '1'; -- word done: the gap opens on this same edge
-                        s_rx_hold <= mosi_in & s_rx_sreg(31 downto 1); -- Capture the completed word, including the bit shifted in on this same edge
+                        s_rx_hold <= mosi_s & s_rx_sreg(31 downto 1); -- Capture the completed word, including the bit shifted in on this same edge
+                        s_rx_tgl  <= not s_rx_tgl;  -- receive-word event into clk_mem
                     end if;
                 when "01" => -- 16-bit transfer
                     if s_counter = "001111" then
                         s_spi_tcif <= '1'; -- Set Transmit Complete Interrupt Flag
                         s_counter <= (others => '0'); -- Reset counter
                         s_gap <= '1'; -- word done: the gap opens on this same edge
-                        s_rx_hold <= mosi_in & s_rx_sreg(31 downto 1); -- Capture the completed word, including the bit shifted in on this same edge
+                        s_rx_hold <= mosi_s & s_rx_sreg(31 downto 1); -- Capture the completed word, including the bit shifted in on this same edge
+                        s_rx_tgl  <= not s_rx_tgl;  -- receive-word event into clk_mem
                     end if;
                 when "10" => -- 32-bit transfer
                     if s_counter = "011111" then
                         s_spi_tcif <= '1'; -- Set Transmit Complete Interrupt Flag
                         s_counter <= (others => '0'); -- Reset counter
                         s_gap <= '1'; -- word done: the gap opens on this same edge
-                        s_rx_hold <= mosi_in & s_rx_sreg(31 downto 1); -- Capture the completed word, including the bit shifted in on this same edge
+                        s_rx_hold <= mosi_s & s_rx_sreg(31 downto 1); -- Capture the completed word, including the bit shifted in on this same edge
+                        s_rx_tgl  <= not s_rx_tgl;  -- receive-word event into clk_mem
                     end if;
                 when others =>
                     -- Reserved or unsupported data length, do nothing. s_gap therefore stays low here, so SPITEIF does not set in the reserved mode; before W5b-2 the free-running counter's wrap through zero set it once every 64 edges, which was an accident of the decode and not a documented behaviour.
@@ -586,13 +673,15 @@ begin
             end case;
 
              -- Shift in data
-            s_rx_sreg <= mosi_in & s_rx_sreg(31 downto 1); -- Shift in data
-           
+            s_rx_sreg <= mosi_s & s_rx_sreg(31 downto 1); -- Shift in data
+
+          end if;
         end if;
 
         -- The receive hold register survives cs_in deassertion, unlike the shift register; only a disable or reset clears it.
         if resetn = '0' or spi_en = '0' or spi_mode = '0' then
             s_rx_hold <= (others => '0');
+            s_rx_tgl  <= '0';
         end if;
         -- Check if spi_tcif flag clear condition is met
         if resetn = '0' or clr_spi_tcif = '1' or spi_en = '0' or spi_mode = '0' then
@@ -753,22 +842,120 @@ begin
     end generate;
 
 
-    -- Register Synchronization Process
-    -- RX and SR are latched INVERTED at the end of the bus access and inverted again on read, so a read returns the value sampled when en_mem fell.
-    reg_sync: process(en_mem, SPIxRX, SPIxSR)
+    /* -------- Register read CDC ---------------------------------------------
+       Nothing here is clocked by en_mem. The two volatile words are carried into
+       clk_mem permanently and periph_regs' read register captures them on the
+       rising clk_mem edge of the access, so the word it returns is one register's
+       value from one edge.
+
+       SPIxSR is three INDEPENDENT flags (busy in the cs_in / clk_baud domains,
+       TCIF and TEIF in clk_baud and clk; the slave halves stood in the sck_slave
+       domain until it was oversampled), which is what work.sync's WIDTH is for; each bit is two clk_mem edges behind its source. SPIBUSY then ORs
+       busy_pend back in, the launch-side pending bit: firmware reads SPIBUSY on
+       the very next bus access to see its own launch, and the synchronized copy
+       is two clk_mem edges behind it. busy_pend is set by the same wr_hit the
+       launch takes and retired by the first clk_mem edge at which the
+       synchronized SPIBUSY reads high, so the two overlap and the level never
+       dips mid-transfer. It cannot stick: spi_busy is start_tx OR tx_in_progress
+       and neither drops before the other rises, so the level is continuously
+       high for the whole transfer, which is at least sixteen baud periods; in
+       SLAVE mode, where SPIBUSY is not cs_in and start_tx is never consumed, the
+       pending bit is not armed at all.
+
+       SPIxRX is a 32-bit word and may not cross bit by bit, so it does not go
+       through work.sync at all: the receive-word EVENT crosses as a toggle and
+       the data is copied by an ordinary clk_mem flop on the synchronized edge.
+       At that edge the source has been stable for two clk_mem periods, because
+       the core that wrote it cannot write it again before the next word. */
+    sr_sync_d <= SPIxSR;
+    u_sync_SPIxSR : entity work.sync
+        generic map (WIDTH => 3, DEPTH => 2)
+        port map (clk => clk_mem, areset => resetn, d => sr_sync_d, q => sr_sync_q);
+
+    /* Clear shadow. The two W1C flags are cleared ASYNCHRONOUSLY in their own
+       domains, so the clear needs the same two clk_mem edges to travel back
+       through u_sync_SPIxSR that the set needed coming in, and a read on the
+       access after the clearing write would still see the old 1. The two edges
+       are masked here, so a flag retires on the next access exactly as it did
+       off the falling-en pre-latch. A hardware set inside the window is not
+       lost: the source flag is sticky and reappears when the mask retires.
+       The arming terms are the COMBINATIONAL access conditions, valid AT the
+       access edge, and not the registered clr_spi_* levels: those are held
+       strobes that rise after the edge and retire on deselect, so no clk_mem
+       edge ever samples them high. */
+    clr_tcif_now <= (wrh_s(RegSlotSPIxSR) and not wen(0) and write_data(SPITCIF_LSB))
+                    or acc_s(RegSlotSPIxRX);
+    clr_teif_now <= wrh_s(RegSlotSPIxSR) and not wen(0) and write_data(SPITEIF_LSB);
+
+    clr_shadow_proc: process(clk_mem, resetn)
     begin
-        if falling_edge(en_mem) then 
-            SPIxRX_ltch <= not SPIxRX; -- Latch Receive Register
-            SPIxSR_ltch <= not SPIxSR; -- Latch Status Register
+        if resetn = '0' then
+            tcif_clr_pipe <= (others => '0');
+            teif_clr_pipe <= (others => '0');
+        elsif rising_edge(clk_mem) then
+            if clr_tcif_now = '1' then tcif_clr_pipe <= (others => '1');
+            else tcif_clr_pipe <= '0' & tcif_clr_pipe(1); end if;
+            if clr_teif_now = '1' then teif_clr_pipe <= (others => '1');
+            else teif_clr_pipe <= '0' & teif_clr_pipe(1); end if;
+        end if;
+    end process;
+
+    tcif_shadow <= tcif_clr_pipe(0) or tcif_clr_pipe(1);
+    teif_shadow <= teif_clr_pipe(0) or teif_clr_pipe(1);
+
+    busy_pend_proc: process(clk_mem, resetn)
+    begin
+        if resetn = '0' then
+            busy_pend <= '0';
+        elsif rising_edge(clk_mem) then
+            -- Master only, and retired by a disable: in SLAVE mode SPIBUSY is
+            -- `not cs_in` and start_tx is never consumed, so a pending bit armed
+            -- there would never see a synchronized BUSY and would stick.
+            if spi_en = '0' or spi_mode = '1' then
+                busy_pend <= '0';
+            elsif wrh_s(RegSlotSPIxTX) = '1'
+               and (spi_fen = '0' or not ENABLE_EXTENDED_MEM) then
+                busy_pend <= '1';
+            elsif sr_sync_q(SPIBUSY_LSB) = '1' then
+                busy_pend <= '0';
+            end if;
+        end if;
+    end process;
+
+    SPIxSR_mem(SPIBUSY_LSB)  <= sr_sync_q(SPIBUSY_LSB) or busy_pend;
+    SPIxSR_mem(SPITCIF_LSB)  <= sr_sync_q(SPITCIF_LSB) and not tcif_shadow;
+    SPIxSR_mem(SPITEIF_LSB)  <= sr_sync_q(SPITEIF_LSB) and not teif_shadow;
+
+    rx_tgl_d <= s_rx_tgl & m_rx_tgl;
+    u_sync_rx_tgl : entity work.sync
+        generic map (WIDTH => 2, DEPTH => 2)
+        port map (clk => clk_mem, areset => resetn, d => rx_tgl_d, q => rx_tgl_q);
+
+    -- Master and slave are mutually exclusive by spi_mode, so only one arm ever fires.
+    rx_cap_proc: process(clk_mem, resetn)
+    begin
+        if resetn = '0' then
+            m_rx_prev  <= '0';
+            s_rx_prev  <= '0';
+            SPIxRX_mem <= (others => '0');
+        elsif rising_edge(clk_mem) then
+            m_rx_prev <= rx_tgl_q(0);
+            s_rx_prev <= rx_tgl_q(1);
+            if rx_tgl_q(0) /= m_rx_prev then
+                SPIxRX_mem <= m_SPIxRX;
+            end if;
+            if rx_tgl_q(1) /= s_rx_prev then
+                SPIxRX_mem <= s_SPIxRX;
+            end if;
         end if;
     end process;
 
     --  Memory Logic ---------------------------
 
-    -- The two words the register file does not store: the status and receive
-    -- snapshots, re-inverted here.
-    sr_rd <= (31 downto SPIxSR_ltch'high + 1 => '0') & (not SPIxSR_ltch);
-    rx_rd <= not SPIxRX_ltch;
+    -- The two words the register file does not store: the clk_mem status and
+    -- receive copies built above.
+    sr_rd <= (31 downto SPIxSR_mem'high + 1 => '0') & SPIxSR_mem;
+    rx_rd <= SPIxRX_mem;
 
     hw_rd_s <= (RegSlotSPIxSR => sr_rd,
                 RegSlotSPIxRX => rx_rd,
@@ -803,7 +990,7 @@ begin
             rdata_out   => read_data,
             regs        => regs_q,
             hw_rd       => hw_rd_s,
-            acc_hit     => open,
+            acc_hit     => acc_s,
             rd_hit      => open,
             wr_hit      => wrh_s,
             rd_strobe   => rd_str,
@@ -814,14 +1001,23 @@ begin
             wot_hit     => open,
             rd_clr      => open);
 
-    -- The transmit-empty flag retires only on a written 1 to its own SR bit.
-    clr_spi_teif <= w1c_s(RegSlotSPIxSR)(SPITEIF_LSB);
+    /* The two flag clears reach ASYNCHRONOUS clears in the clk_baud and slave-sck
+       domains, so their width is what makes them land. They take the registered
+       held strobe as before, WIDENED by the clk_mem clear shadow: the access
+       condition plus the two shadow stages is a level about two and a half clk_mem
+       periods wide, in the clk_mem domain, and it does not depend on how long the
+       fabric holds the select. The held strobe alone does: periph_regs retires it
+       asynchronously on EnMemPeriph, which the MCU deasserts on the same mclk edge
+       the strobe is set, so with the falling-mclk en_q shim gone it would be a runt.
+       This is additive - nothing the held strobe did is taken away. */
+    clr_spi_teif <= w1c_s(RegSlotSPIxSR)(SPITEIF_LSB) or clr_teif_now or teif_shadow;
 
     -- The transmit-complete flag retires on a written 1 to its SR bit OR on ANY
     -- access to SPIxRX, a read as much as a write. That is a read side effect on a
     -- DIFFERENT register, so it is a hook here rather than an onread property there.
     clr_spi_tcif <= w1c_s(RegSlotSPIxSR)(SPITCIF_LSB)
-                    or rd_str(RegSlotSPIxRX) or wr_str(RegSlotSPIxRX);
+                    or rd_str(RegSlotSPIxRX) or wr_str(RegSlotSPIxRX)
+                    or clr_tcif_now or tcif_shadow;
 
     -- A write to SPIxTX launches a transfer on the edge it lands, so the set term
     -- takes the module's COMBINATIONAL wr_hit, which is acc_hit qualified by the

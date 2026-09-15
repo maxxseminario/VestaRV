@@ -45,6 +45,8 @@ With \bitfield{I2CSEN} set, the port compares every address byte against \regist
 
 The bus engine runs on SMCLK, divided by \bitfield{I2CMDIV} to the bus rate; the register interface runs on MCLK, so the registers stay readable with SMCLK stopped. The boot ROM may leave SMCLK on LFXT (32.768 kHz), which would put the bus in the low kilohertz range.
 
+The slave is oversampled: \pin{SDAx} and \pin{SCLx} are sampled on SMCLK, and START, STOP and both \pin{SCLx} edges are decoded from the sampled values rather than clocking flip-flops directly. SMCLK must therefore be at least 32 times the \pin{SCLx} rate an external master drives, which at 24 MHz allows \pin{SCLx} up to 750 kHz and covers both standard mode (100 kHz) and fast mode (400 kHz). The same sampler suppresses spikes shorter than two SMCLK periods, 83 ns at 24 MHz, which meets the fast-mode requirement of 50 ns. Master mode is unaffected: it generates \pin{SCLx} itself from \bitfield{I2CMDIV}.
+
 \section{Interrupts and events}
 
 Each flag in \register{I2CxSR} has its own enable in \register{I2CxCR} and its own vector. All thirteen flags are write-1-to-clear. Table \ref{t:i2c-irq} lists them for \peripheral{I2C0}; \peripheral{I2C1}, in configurations that include it, uses the same order from vector 70 (70 to 82).
@@ -116,6 +118,8 @@ The register descriptions in Section \ref{peripheralI2Cx} give the remaining seq
 \section{Usage notes}
 
 \paragraph{Set the SMCLK source before using the bus.} The bus clock is derived from SMCLK, and the boot-time SMCLK source is a boot-ROM implementation detail.
+
+\paragraph{Keep SMCLK at least 32 times the slave bus rate.} The slave samples \pin{SDAx} and \pin{SCLx} on SMCLK, so dividing SMCLK below that ratio, or moving it to LFXT, stops the port answering an external master even though the registers stay readable. At 24 MHz the ratio holds for any \pin{SCLx} up to 750 kHz.
 
 \paragraph{Choose the acknowledge before the next byte in master receiver mode.} \bitfield{I2CMXC} is raised before the master's ACK/NACK, because the last byte of a read must be answered with a NACK to end the transfer cleanly.
 

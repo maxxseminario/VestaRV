@@ -1,7 +1,7 @@
 -- VestaRV: UART testbench
 -- Standalone, self-checking testbench for the UART peripheral: drives the peripheral memory bus and the RX pad while observing the TX pad, status flags, interrupt lines and the evt_rx event tap.
 -- Support packages: periph_tb_pkg (scoreboard and register-bus BFM) and uart_bfm_pkg (pad-level TX capture and RX drive); the scoreboard prints a single PASS/FAIL banner at the end.
--- Bus contract: en_mem and wen are ACTIVE-LOW, SR and RX read back a snapshot taken on the falling edge of en_mem, and reading the RX slot also clears the RX status flags (OVF/FEF/PEF/RCIF).
+-- Bus contract: en_mem and wen are ACTIVE-LOW, SR and RX read back a clk_mem copy captured on the rising clk_mem edge of the access, and reading the RX slot also clears the RX status flags (OVF/FEF/PEF/RCIF).
 -- Baud timing: one UART bit lasts 16*(BR+1) core-clock periods.
 -- clk_mem must FREE-RUN here: all flag/status logic lives in the clk_mem domain and synchronizes the serial-side events in through a toggle plus 3-stage synchronizer, which a gated clk_mem starves (TX corruption, RCIF/irq_rc never seen, framing/parity/overflow flags never observed).
 

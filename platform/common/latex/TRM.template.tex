@@ -357,6 +357,8 @@ The interrupt vector table (IVT) begins at \texttt{\VectorsStartAddress}, the ba
 
 Peripheral registers occupy one 4-byte slot each, at 4-byte aligned offsets from the instance base address, whatever their width. The \peripheral{GPIOx} port registers are 8 bits wide, one bit per pin, and occupy byte lane 0 of their slot; a 32-bit register uses the whole slot. The register index in Appendix~\ref{s:regMemMap} gives the width of every register.
 
+A read of a register that the peripheral's own clock domain writes, a status word or a receive buffer, returns a value up to two bus-clock edges older than the access, because the peripheral carries such a word into the bus clock through a synchroniser rather than sampling it on the select; the value is always a coherent snapshot of one register taken at one edge, a transfer launched by a write is already visible in that peripheral's busy bit on the next access, and a write-1-to-clear flag reads back cleared on the next access.
+
 \clearpage
 
 

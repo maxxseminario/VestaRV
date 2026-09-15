@@ -1,5 +1,6 @@
 -- VestaRV: FPGA stand-in for the ClkGate technology cell
--- The ASIC flow maps this entity onto an integrated clock-gating cell, and the simulation model in hdl/common/sim/ClkGate.vhd builds it from a level-sensitive latch. Vivado infers a real latch from that model and reports it on every clock path that carries one, so this version captures the enable in a falling-edge flip-flop: the same runt-free behaviour out of a primitive the fabric has.
+-- The ASIC flow maps this entity onto an integrated clock-gating cell, and the simulation model in hdl/common/sim/ClkGate.vhd builds it from a level-sensitive latch. Vivado infers a real latch from that model and reports it on every clock path that carries one, so this version hands the job to ClkBufEn: BUFGCE on a 7-series part, a falling-edge flop and an AND anywhere else.
+-- One instance costs one global clock buffer. fpga_default holds 14 live ClkGate instances; hdl/fpga/README.md's clock-net table is the budget they come out of.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -15,21 +16,15 @@ end ClkGate;
 
 architecture fpga of ClkGate is
 
-	signal EnReg : std_logic := '0';
-
 begin
 
-	-- The enable is sampled on the falling edge, so it is stable well before the next rising edge and the gate passes a high phase whole or not at all.
-	process (ClkIn)
-	begin
-		if falling_edge(ClkIn) then
-			EnReg <= En;
-		end if;
-	end process;
-
-	/* The AND lands in fabric, which means every gated clock in the design becomes a fabric-routed clock net.
-	   That is fine at the low clock rates this target runs at.
-	   If timing closure starts failing on the gated domains, the fix is a BUFGCE on the few gates that carry real traffic, or converting those consumers to clock enables; do not raise the clock and hope. */
-	ClkOut <= EnReg and ClkIn;
+	-- ClkBufEn is the only cell in hdl/fpga/ that knows whether this is a BUFGCE or a flop and an AND. See ClockPrimitives.vhd.
+	gate : entity work.ClkBufEn
+		port map
+		(
+			ClkIn  => ClkIn,
+			En     => En,
+			ClkOut => ClkOut
+		);
 
 end fpga;

@@ -28,6 +28,24 @@
 # beside nfc0/t_etu_half_reg\[*\]. Both registers are W10 creations or W10 survivors, not new
 # crossing classes. With them the census on genus/MCU_PENTA_pt reads 0 NOT waived and
 # GENUS_CDC_STRICT defaults to 1.
+#
+# Z2a (2026-09-15) oversampled the I2C slave, the SPI slave and the I3C target-START sensor, so
+# SDA_IN, SCL_IN and sck_slave stopped being clocks. i3c0/ibi_req_reg is DELETED: the register is
+# gone (the sensor is ibi_req_s2_reg on clk, with no crossing in its cone), and a waiver glob that
+# matches nothing is the hazard this file's header is about. The i2c ClearStartSlaveRX and spi
+# s_gap justifications are rewritten because the domains they named no longer exist; the mechanism
+# each waives, a quasi-static control word in the D cone, is unchanged. The remaining i2c slave
+# entries (SlaveData, SlaveState, SlaveJustAddressed, I2CSA, I2CSXC, I2CSTXE, I2CSOVF, ClearI2CSC)
+# and spi s_counter / s_spi_tcif keep their wording: every one of them waives the address compare
+# or the spi_dl compare, which crosses into the slave whatever clocks the slave. THESE ENTRIES ARE
+# NOT RE-CENSUSED: Genus was not run in this wave, so the endpoint names are read from the RTL and
+# the next armed census is what confirms the set.
+#
+# Z2b (2026-09-15) removed NFC's bus pre-latch, so the four nfc0/*_ltch_reg globs are DELETED for
+# the reason above: they match nothing now. The eight remaining *_ltch globs (gpio?/PxIF_ltch,
+# i2c?/I2CxSRLat, i2c?/I2CxSRXLat, i3c0/I3CxRX_ltch, i3c0/I3CxSR_ltch, qspi0/*, spi?/*, timer?/*,
+# uart?/*) went dead in the Z1 wave the same way and are LEFT IN PLACE, because they were not this
+# agent's to retire; the next armed Genus census is what should clear them.
 
 proc cdc_waiver_list {} {
 	return {
@@ -36,10 +54,6 @@ proc cdc_waiver_list {} {
 		{i2c?/I2CxSRXLat_reg\\[*\\] "bus-strobe shadow, falling EnMemPeriph (I2C.vhd:846)"}
 		{i3c0/I3CxRX_ltch_reg\\[*\\] "bus-strobe shadow on EnMemPeriph, the idiom F12 block (a) declares as its own domain"}
 		{i3c0/I3CxSR_ltch_reg\\[*\\] "bus-strobe shadow on EnMemPeriph, the idiom F12 block (a) declares as its own domain"}
-		{nfc0/data_ltch_reg\\[*\\] "bus-strobe shadow on EnMemPeriph, the idiom F12 block (a) declares as its own domain"}
-		{nfc0/dbg_ltch_reg\\[*\\] "bus-strobe shadow on EnMemPeriph, the idiom F12 block (a) declares as its own domain"}
-		{nfc0/NFCxSR_ltch_reg\\[*\\] "bus-strobe shadow on EnMemPeriph, the idiom F12 block (a) declares as its own domain"}
-		{nfc0/rxst_ltch_reg\\[*\\] "bus-strobe shadow on EnMemPeriph, the idiom F12 block (a) declares as its own domain"}
 		{qspi0/QSPIxRX_ltch_reg\\[*\\] "bus-strobe shadow on EnMemPeriph, the idiom F12 block (a) declares as its own domain"}
 		{qspi0/QSPIxSR_ltch_reg\\[*\\] "bus-strobe shadow on EnMemPeriph, the idiom F12 block (a) declares as its own domain"}
 		{spi?/SPIxRX_ltch_reg\\[*\\] "bus-strobe shadow on falling en_mem (SPI.vhd:693, F12 block (a))"}
@@ -50,8 +64,6 @@ proc cdc_waiver_list {} {
 		{uart?/UART_RX_ltch_reg\\[*\\] "bus-strobe shadow on falling en_mem (UART.vhd:537, F12 block (a))"}
 		{uart?/UART_SR_ltch_reg\\[*\\] "bus-strobe shadow on falling en_mem (UART.vhd:537, F12 block (a))"}
 
-		{gpio?/PxIF_reg\\[*\\] "pin-event capture: the interrupt flag is set by its own pin through a ClkGate and read back through PxIF_ltch (GPIO.vhd:169-190, F12 block (c))"}
-		{gpio?/gen_if_clks\\[*\\].CGClkIFG/CG1 "the RTL clock gate of the pin-event flag bank; its enable is the bus-domain interrupt enable and it gates the pin edge, not a data path (GPIO.vhd:169-190)"}
 		{timer?/capture0_reg_reg\\[*\\] "pin-event capture: the free-running counter sampled on the capture pin edge and read later through capture0_latched (TIMER.vhd:333, F12 block (c))"}
 		{timer?/capture1_reg_reg\\[*\\] "pin-event capture: the free-running counter sampled on the capture pin edge and read later through capture1_latched (TIMER.vhd:333, F12 block (c))"}
 		{timer?/RC_CG_HIER_INST*/RC_CGIC_INST "the clock gate Genus inserts for the pin-event capture bank; its enable is the bank's own bus-domain enable, and the instance number is renumbered every synthesis, hence the wildcard"}
@@ -73,13 +85,13 @@ proc cdc_waiver_list {} {
 		{i2c?/I2CSXC_reg "slave status flag set at the FSM terminal count and cleared by a W1C level held for the whole select window (periph_regs STROBE_HOLD, I2C.vhd:757, 854, 913)"}
 		{i2c?/I2CSTXE_reg "slave status flag set with the transmit reload and cleared by a W1C level held for the whole select window (periph_regs STROBE_HOLD, I2C.vhd:724, 854, 916)"}
 		{i2c?/I2CSOVF_reg "slave status flag set on the quasi-static address-compare arm and cleared by a W1C level held for the whole select window (periph_regs STROBE_HOLD, I2C.vhd:697-698, 854, 915)"}
-		{i2c?/ClearStartSlaveRX_reg "StartSlaveRX is sampled on the next falling SCL, and the I2C START hold time t_HD;STA of 600 ns in fast mode is the guaranteed setup margin (I2C.vhd:302-324)"}
+		{i2c?/ClearStartSlaveRX_reg "smclk flop since the slave was oversampled: it samples StartSlaveRX, another smclk flop, at the DECODED falling SCL, so the only crossing left in its cone is the quasi-static I2CMEN / I2CSEN enable pair on its asynchronous clear (I2C.vhd:398-410)"}
 		{i2c?/ClearI2CSC_reg "clock-stretch retire, qualified by the quasi-static I2CSCS control bit and by the same address compare (I2C.vhd:660, 707)"}
 		{i2c?/I2CMSTS_reg "master start flag: its branch condition I2CBS is a level polled on every ClkMaster edge and monotone once the bus frees, so a metastable sample only defers the START by one ClkMaster period (I2C.vhd:400-405)"}
 		{i2c?/RC_CG_HIER_INST*/RC_CGIC_INST "the clock gates Genus inserts for the slave flag bank; their enable is the same quasi-static address compare and held W1C level that qualifies the D pins, and Genus renumbers the instance every run"}
 
 		{spi?/s_counter_reg\\[*\\] "the terminal count that wraps the slave bit counter is selected by the quasi-static spi_dl field of SPIxCR (SPI.vhd:223, 548-566)"}
-		{spi?/s_gap_reg "the inter-transfer gap, one bit registered in the sck_slave domain on the very edge that opens it (SPI.vhd:554,558,566,573,580), whose D cone reaches mclk only through the quasi-static spi_dl field of SPIxCR that selects the terminal count (SPI.vhd:226), the same dependence spi?/s_counter_reg is waived for; sampling it is safe because the slave sample process is held in asynchronous reset whenever spi_en, spi_mode or cs_in deselects the slave (SPI.vhd:548-554), so spi_dl is programmed before CS falls and holds still for the whole selected window, and because the only reader of s_gap is u_sync_s_gap (SPI.vhd:527-531), so a mid-word spi_dl change resolves one way or the other inside the sck domain and can move nothing but SPITEIF, by one sck edge, with no data captured on it"}
+		{spi?/s_gap_reg "the inter-transfer gap, one clk flop raised at the decoded sck_slave edge that opens it, whose D cone reaches mclk only through the quasi-static spi_dl field of SPIxCR that selects the terminal count, the same dependence spi?/s_counter_reg is waived for; spi_dl is programmed before CS falls and holds still for the whole selected window, because the slave sample process is held in asynchronous reset whenever spi_en, spi_mode or the synchronised cs_s deselects the slave, so a mid-word spi_dl change can move nothing but SPITEIF, by one sck edge, with no data captured on it. The sck_slave domain this register used to live in is gone: the slave is oversampled on clk and u_sync_s_gap went with the crossing"}
 		{spi?/s_spi_tcif_reg "set at that same spi_dl-selected terminal count and cleared by clr_spi_tcif, so the only crossing is the quasi-static data-length field (SPI.vhd:548-566, 583)"}
 		{spi?/RC_CG_HIER_INST*/RC_CGIC_INST "the clock gate Genus inserts for the slave counter bank; its enable is the same quasi-static spi_dl compare that qualifies the D pins, and Genus renumbers the instance every run"}
 
@@ -135,7 +147,6 @@ proc cdc_waiver_list {} {
 		{dm0/tramp_arm_reg "the trampoline plant arm taken on the dmactive rise of an accepted dmcontrol write (debug_module.vhd:1067); req_hold is written in the TCK domain only at an arming Update-DR and held until the response toggle returns, and the DM captures only while dmi_req_valid, raised on the synchronised u_sync_req_tgl edge, is high (jtag_dtm.vhd:291,326,366,391; debug_module.vhd:1022)"}
 		{nfc0/resp_bytes_reg\\[*\\]\\[*\\] "AUTOREAD copy of the payload window, interlocked rather than handshaked: the 16-byte copy is taken on one rf_clk edge (NFC.vhd:948-950) and payload_mem is written on ClkMem (NFC.vhd:397), so the rf side snapshots the payload-write toggle carried in on u_sync_pay_wr_tgl at the copy (NFC.vhd:569) and compares it again before the reply is composed; any write whose ClkMem edge fell in that span, the coincident one included, has reached pay_wr_s2 by then and the reply is DROPPED, which an ISO 14443-3 reader retries, so a torn byte cannot be CRCed onto the air. NFC_tb GROUP 5b drives the race. Was defect W5a-1"}
 
-		{i3c0/ibi_req_reg "pin-event capture: the target-START sensor is clocked by the SDA pad and its D cone holds only the clk-domain qualifiers busy and q_en plus the SCL_IN port (I3C.vhd:1153), the same class as gpio PxIF; the request itself now leaves this flop through u_sync_ibi_req (I3C.vhd:467) and the framer and both baud-gate enables read only the synchronised copy, so a metastable sample here defers the IBI wake by one SDA edge and reaches nothing else. Was the root of defect W5b-1"}
 
 		{dm0/RC_CG_HIER_INST*/RC_CGIC_INST "the mclk clock gates of the DM register banks; every enable is a dmi_req_addr or dmi_req_op decode ANDed with the mclk-registered dmi_req_valid, so the TCK-domain decode can only reach the gate in a cycle where the payload is already held still (debug_module.vhd:1022), and Genus renumbers the instance every run"}
 	}

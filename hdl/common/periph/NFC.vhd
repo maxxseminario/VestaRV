@@ -1,7 +1,9 @@
 -- VestaRV: NFC controller
 -- ISO/IEC 14443-3 Type A tag and card emulation, digital protocol engine only; the analog front end is off-die, reached through the rf_* ports plus field_detect and afe_en, and rf_txmod is OOK-gated so the AFE needs no separate TX window.
 -- Three clock domains: ClkMem (gated bus, register file), clk (free-running smclk, the CDC synchronizers and the W1C retirement) and rf_clk (AFE carrier-derived, the whole protocol core). Hand-offs are held levels; there is no async FIFO.
--- House style: registered read through a falling-edge EnMemPeriph pre-latch, W1C via a lane-0 write retired on EnMemPeriph = '1', and transaction-local config latching.
+-- House style: registered read on rising ClkMem over words already carried into that domain, W1C via a lane-0 write, and transaction-local config latching. NOTHING in this file is clocked by EnMemPeriph.
+-- The four volatile words each cross on their own mechanism, because each has a different source domain and shape: NFCxSR's eight independent flag/level bits take a work.sync WIDTH=8 chain out of clk, its NFCSTATE field takes a SECOND four-phase handshake (clk to ClkMem) behind the rf_clk one, since a 4-bit binary ISO state may not cross bit by bit; NFCxRXST and the nine live receive-window bytes are copied whole on a synchronised rf_clk publication toggle; NFCxDBG's two frame counters take a second toggle rather than gray code, because they step once per FRAME and a shared toggle keeps the 32-bit word coherent across both halves, which per-counter gray coding would not.
+-- The five NFCxSR W1C clears are ClkMem levels about two and a half ClkMem periods wide, OR-ed onto periph_regs' held strobe, so they do not depend on how long the fabric holds the select. See hdl/common/regs/REGFILE.md, "A held strobe is only as wide as the fabric's select".
 -- Firmware arms the block with SYS_CLK_CR = 0 (SMCLK on HFXT), the identity in NFCxUID/NFCxCFG, a payload through NFCxIDX/NFCxDATA, then NFCxCR = NFCEN|LISTEN plus the IE bits; with AUTOREAD set, hardware answers a Type-2 READ with no firmware in the loop.
 
 library ieee;
@@ -81,7 +83,8 @@ architecture behavioral of NFC is
     -- The bus side is one periph_regs instance driven by nfc_regs_pkg's tables;
     -- see hdl/common/regs/REGFILE.md. NFCxCR, NFCxUID, NFCxCFG, NFCxTIM, NFCxIDX
     -- and NFCxTXCTL are its storage. NFCxSR, NFCxRXST, NFCxDATA and NFCxDBG hold
-    -- no flop there: they are volatile values read through the pre-latch below.
+    -- no flop there: they are volatile values carried into ClkMem by the read CDC
+    -- below and captured by periph_regs' own read register on the access edge.
     signal regs_q     : reg_arr_t;
     signal hw_rd_s    : reg_arr_t;
     signal hw_we_s    : reg_arr_t;                       -- the NFCxDATA index auto-increment
@@ -96,19 +99,46 @@ architecture behavioral of NFC is
     signal NFCxCFG   : std_logic_vector(23 downto 0); -- [15:0]ATQA [23:16]SAK
     signal NFCxTIM   : std_logic_vector(31 downto 0); -- [15:0]FDT [23:16]ETU [31:24]SUBCDIV
 
-    -- Assembled status word (volatile, read through the pre-latch).
-    signal NFCxSR    : std_logic_vector(11 downto 0);
+    -- The eight INDEPENDENT single-bit SR sources, assembled in clk; NFCSTATE is not
+    -- one of them and crosses on its own handshake.
+    signal sr_sync_d, sr_sync_q : std_logic_vector(NFCHALTED_MSB downto NFCBUSY_LSB);
 
     -- 64-byte indexed windows, one driver each: the payload TX window (firmware writes, hardware reads) and the RX frame buffer (hardware writes, firmware reads).
     type mem64_t is array (0 to 63) of std_logic_vector(7 downto 0);
     signal payload_mem : mem64_t;   -- driven ONLY by reg_write (ClkMem)
     signal rxbuf_mem   : mem64_t;   -- driven ONLY by the rf-domain FSM
 
-    -- Pre-latch snapshots of the volatile registers: SR, RXST, DATA and DBG.
-    signal NFCxSR_ltch : std_logic_vector(11 downto 0);
-    signal rxst_ltch   : std_logic_vector(23 downto 0);
-    signal data_ltch   : std_logic_vector(7 downto 0);
-    signal dbg_ltch    : std_logic_vector(31 downto 0);
+    /* ---- ClkMem-domain read path (no flop is clocked by EnMemPeriph) -------
+       The nine live receive-window bytes: the de-framer writes rxbuf_mem(0 to 8)
+       and nothing else, so nine bytes shadow the whole readable window and the
+       remaining indices read zero, exactly as the array does. A shadow rather than
+       a gated read of rxbuf_mem, because the index is a ClkMem register that moves
+       on every access and a gated read would freeze it while a frame is in flight. */
+    type rxwin_t is array (0 to 8) of std_logic_vector(7 downto 0);
+    signal rxbuf_sh  : rxwin_t;
+    signal rxst_mem  : std_logic_vector(17 downto 0);  -- [7:0]cmd [15:8]len [16]crcok [17]parok
+    signal dbg_mem   : std_logic_vector(31 downto 0);  -- [31:16]tx_frame_count [15:0]rx
+    signal data_rd   : std_logic_vector(7 downto 0);   -- combinational window byte at idx
+    signal NFCxSR_rd : std_logic_vector(NFCSTATE_MSB downto NFCBUSY_LSB);
+    -- Clear shadow: the W1C pattern this access arms, held over the two ClkMem edges
+    -- the clear needs to travel back through u_sync_NFCxSR.
+    signal write_data_sr : std_logic_vector(NFCSTATE_MSB downto NFCBUSY_LSB);
+    signal sr_clr_now    : std_logic_vector(NFCSTATE_MSB downto NFCBUSY_LSB);
+    signal sr_clr_pipe0, sr_clr_pipe1 : std_logic_vector(NFCSTATE_MSB downto NFCBUSY_LSB);
+    -- STATE, clk to ClkMem: the SECOND four-phase handshake.
+    signal state_mcap     : std_logic_vector(3 downto 0);  -- clk-domain hold of state_s2
+    signal state_mreq     : std_logic;                     -- clk: flips when state_mcap is refreshed
+    signal state_mack     : std_logic;                     -- ClkMem: flips when state_mcap is taken
+    signal state_mreq_q   : std_logic_vector(0 downto 0);  -- state_mreq in ClkMem
+    signal state_mreq_prev: std_logic;                     -- ClkMem edge-detect copy
+    signal state_mack_q   : std_logic_vector(0 downto 0);  -- state_mack in clk
+    signal state_m2       : std_logic_vector(3 downto 0);  -- the SR STATE field as the bus reads it
+    -- rf_clk publication toggles, one per word group, plus their ClkMem edge detects.
+    signal rx_pub_ev, dbg_ev     : std_logic;              -- 1-rf_clk publication pulses
+    signal rx_pub_tgl, dbg_tgl   : std_logic;
+    signal nfcen_rprev           : std_logic;              -- rf: NFCEN edge, which zeroes both groups
+    signal pub_tgl_d, pub_tgl_q  : std_logic_vector(1 downto 0);  -- 1:dbg 0:rx
+    signal rx_pub_prev, dbg_prev : std_logic;
 
     -- ---- CR / IDX field taps (live, combinational) -----------------------
     signal nfcen, listen_bit, autoread_bit           : std_logic;
@@ -266,16 +296,16 @@ begin
     NFCxCFG  <= regs_q(SLOT_CFG)(NFCSAK_MSB downto NFCATQA_LSB);
     NFCxTIM  <= regs_q(SLOT_TIM)(NFCSUBCDIV_MSB downto NFCFDT_LSB);
 
-    -- SR assembly: every volatile and rf-status bit arrives pre-synchronized.
-    NFCxSR(NFCBUSY_LSB)      <= busy_s2;
-    NFCxSR(NFCFIELDF_LSB)    <= fieldf_flag;
-    NFCxSR(NFCRXFRAMEF_LSB)  <= rxframef_flag;
-    NFCxSR(NFCTXDONEF_LSB)   <= txdonef_flag;
-    NFCxSR(NFCCRCERRF_LSB)   <= crcerrf_flag;
-    NFCxSR(NFCPARERRF_LSB)   <= parerrf_flag;
-    NFCxSR(NFCFIELDLIVE_LSB) <= field_live;
-    NFCxSR(NFCHALTED_LSB)    <= halted_s2;
-    NFCxSR(NFCSTATE_MSB downto NFCSTATE_LSB) <= state_s2;
+    -- SR assembly in the clk domain: eight independent bits, every one of them already
+    -- synchronized out of rf_clk or native to clk. NFCSTATE is deliberately absent.
+    sr_sync_d(NFCBUSY_LSB)      <= busy_s2;
+    sr_sync_d(NFCFIELDF_LSB)    <= fieldf_flag;
+    sr_sync_d(NFCRXFRAMEF_LSB)  <= rxframef_flag;
+    sr_sync_d(NFCTXDONEF_LSB)   <= txdonef_flag;
+    sr_sync_d(NFCCRCERRF_LSB)   <= crcerrf_flag;
+    sr_sync_d(NFCPARERRF_LSB)   <= parerrf_flag;
+    sr_sync_d(NFCFIELDLIVE_LSB) <= field_live;
+    sr_sync_d(NFCHALTED_LSB)    <= halted_s2;
 
     -- rf-domain status levels (combinational, synchronized into clk for SR).
     rf_busy   <= '1' when (rx_active = '1' or tx_active = '1' or act /= ACT_LISTEN) else '0';
@@ -301,30 +331,176 @@ begin
 
     -- End Signal Routing ----------------------------
 
-    -- Registered-read pre-latch: capture the volatile snapshots inverted on falling_edge(EnMemPeriph); the read mux un-inverts them.
-    reg_sync: process(EnMemPeriph, NFCxSR, rx_parok, rx_crcok, rx_len, rx_cmd,
-                      idx_sel, idx, rxbuf_mem, payload_mem, tx_frame_count, rx_frame_count)
+    /* -------- Register read CDC ---------------------------------------------
+       Nothing here is clocked by EnMemPeriph. Each volatile word is carried into
+       ClkMem permanently and periph_regs' read register captures it on the rising
+       ClkMem edge of the access, so the word it returns is one register's value
+       taken at one instant.
+
+       NFCxSR splits in two. Its eight flag/level bits are INDEPENDENT single-bit
+       lines, which is what work.sync's WIDTH is for, and each is two ClkMem edges
+       behind clk. Its NFCSTATE field is a 4-bit BINARY ISO state and may not cross
+       bit by bit at all, so it takes a second four-phase handshake; see below.
+
+       NFCxRXST, the receive window and NFCxDBG are rf_clk words and cross as DATA
+       behind an EVENT: the rf side flips a toggle when it has finished writing a
+       group, the toggle crosses on work.sync, and an ordinary ClkMem flop copies the
+       whole group on the synchronized edge. At that edge the source has been stable
+       for two ClkMem periods, because the rf side writes each group once per frame. */
+    u_sync_NFCxSR : entity work.sync
+        generic map (WIDTH => NFCHALTED_MSB - NFCBUSY_LSB + 1, DEPTH => 2)
+        port map (clk => ClkMem, areset => resetn, d => sr_sync_d, q => sr_sync_q);
+
+    pub_tgl_d(0) <= rx_pub_tgl;
+    pub_tgl_d(1) <= dbg_tgl;
+
+    u_sync_rf_pub : entity work.sync
+        generic map (WIDTH => 2, DEPTH => 2)
+        port map (clk => ClkMem, areset => resetn, d => pub_tgl_d, q => pub_tgl_q);
+
+    -- The two ClkMem copies. rxbuf_sh and rxst_mem move together, on the receive
+    -- group's toggle; dbg_mem moves on the counter group's.
+    rf_cap_proc: process(ClkMem, resetn)
     begin
-        if falling_edge(EnMemPeriph) then
-            NFCxSR_ltch <= not NFCxSR;
-            rxst_ltch   <= not ("000000" & rx_parok & rx_crcok & rx_len & rx_cmd);
-            if idx_sel = '1' then data_ltch <= not rxbuf_mem(idx);
-            else                  data_ltch <= not payload_mem(idx);
+        if resetn = '0' then
+            rx_pub_prev <= '0';
+            dbg_prev    <= '0';
+            rxst_mem    <= (others => '0');
+            dbg_mem     <= (others => '0');
+            for i in 0 to 8 loop rxbuf_sh(i) <= (others => '0'); end loop;
+        elsif rising_edge(ClkMem) then
+            rx_pub_prev <= pub_tgl_q(0);
+            dbg_prev    <= pub_tgl_q(1);
+            if pub_tgl_q(0) /= rx_pub_prev then
+                rxst_mem <= rx_parok & rx_crcok & rx_len & rx_cmd;
+                for i in 0 to 8 loop rxbuf_sh(i) <= rxbuf_mem(i); end loop;
             end if;
-            dbg_ltch <= not (tx_frame_count & rx_frame_count);
+            if pub_tgl_q(1) /= dbg_prev then
+                dbg_mem <= tx_frame_count & rx_frame_count;
+            end if;
+        end if;
+    end process;
+
+    /* -------- NFCSTATE: the second four-phase handshake, clk to ClkMem -------
+       The rf_clk to clk handshake below already delivers the whole 4-bit word into
+       state_s2 and holds it still; what it does NOT do is get it across the second
+       asynchronous boundary to the bus. state_s2 changes on one clk edge, so a bare
+       ClkMem flop on it would resolve its four bits on different edges and NFCSTATE
+       would read a code the FSM never held -- the same defect R14b fixed on the rf
+       side, one boundary further out. No ratio of ClkMem to clk is guaranteed (mclk
+       and smclk have independent sources and dividers), so a hold-off count is not
+       available either. The word therefore stays put and one bit crosses each way.
+       Cost, as on the rf side: a change arriving while one is in flight waits, so
+       NFCSTATE can lag by one transition and converges when the channel goes idle.
+       It never shows an illegal word. */
+    u_sync_state_mreq : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => ClkMem, areset => resetn, d(0) => state_mreq, q => state_mreq_q);
+
+    u_sync_state_mack : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => clk, areset => resetn, d(0) => state_mack, q => state_mack_q);
+
+    state_bus_src: process(clk, resetn)
+    begin
+        if resetn = '0' then
+            state_mcap <= (others => '0');
+            state_mreq <= '0';
+        elsif rising_edge(clk) then
+            if state_mreq = state_mack_q(0) and state_s2 /= state_mcap then
+                state_mcap <= state_s2;
+                state_mreq <= not state_mreq;
+            end if;
+        end if;
+    end process;
+
+    state_bus_dst: process(ClkMem, resetn)
+    begin
+        if resetn = '0' then
+            state_m2       <= (others => '0');   -- POWER_OFF, the FSM's own reset state
+            state_mreq_prev <= '0';
+            state_mack      <= '0';
+        elsif rising_edge(ClkMem) then
+            state_mreq_prev <= state_mreq_q(0);
+            if state_mreq_q(0) /= state_mreq_prev then
+                state_m2   <= state_mcap;
+                state_mack <= not state_mack;
+            end if;
+        end if;
+    end process;
+
+    /* Clear shadow: the five W1C flags are cleared ASYNCHRONOUSLY in the clk domain,
+       so a clear needs the two ClkMem edges back through the SR chain that the set
+       needed coming in, and a read on the next access would otherwise still see the
+       old 1. The armed pattern is held over exactly those two edges. The arming term
+       is the COMBINATIONAL acc_hit qualified by this block's own lane, valid at the
+       access edge, and not the registered w1c_hit level, which rises after it and
+       under STROBE_HOLD retires on deselect. */
+    write_data_sr <= (NFCFIELDF_LSB   => wdata(NFCFIELDF_LSB),
+                      NFCRXFRAMEF_LSB => wdata(NFCRXFRAMEF_LSB),
+                      NFCTXDONEF_LSB  => wdata(NFCTXDONEF_LSB),
+                      NFCCRCERRF_LSB  => wdata(NFCCRCERRF_LSB),
+                      NFCPARERRF_LSB  => wdata(NFCPARERRF_LSB),
+                      others          => '0');
+    sr_clr_now <= write_data_sr when (acc_s(SLOT_SR) = '1' and WEn(0) = '0')
+                  else (others => '0');
+
+    sr_shadow_proc: process(ClkMem, resetn)
+    begin
+        if resetn = '0' then
+            sr_clr_pipe0 <= (others => '0');
+            sr_clr_pipe1 <= (others => '0');
+        elsif rising_edge(ClkMem) then
+            sr_clr_pipe0 <= sr_clr_now;
+            sr_clr_pipe1 <= sr_clr_pipe0;
+        end if;
+    end process;
+
+    -- SR as the bus reads it: the synchronized bits, the five W1C ones masked by the
+    -- shadow so a flag retires on the next access, and the handshake's STATE word.
+    NFCxSR_rd(NFCBUSY_LSB)      <= sr_sync_q(NFCBUSY_LSB);
+    NFCxSR_rd(NFCFIELDF_LSB)    <= sr_sync_q(NFCFIELDF_LSB)
+                                   and not (sr_clr_pipe0(NFCFIELDF_LSB) or sr_clr_pipe1(NFCFIELDF_LSB));
+    NFCxSR_rd(NFCRXFRAMEF_LSB)  <= sr_sync_q(NFCRXFRAMEF_LSB)
+                                   and not (sr_clr_pipe0(NFCRXFRAMEF_LSB) or sr_clr_pipe1(NFCRXFRAMEF_LSB));
+    NFCxSR_rd(NFCTXDONEF_LSB)   <= sr_sync_q(NFCTXDONEF_LSB)
+                                   and not (sr_clr_pipe0(NFCTXDONEF_LSB) or sr_clr_pipe1(NFCTXDONEF_LSB));
+    NFCxSR_rd(NFCCRCERRF_LSB)   <= sr_sync_q(NFCCRCERRF_LSB)
+                                   and not (sr_clr_pipe0(NFCCRCERRF_LSB) or sr_clr_pipe1(NFCCRCERRF_LSB));
+    NFCxSR_rd(NFCPARERRF_LSB)   <= sr_sync_q(NFCPARERRF_LSB)
+                                   and not (sr_clr_pipe0(NFCPARERRF_LSB) or sr_clr_pipe1(NFCPARERRF_LSB));
+    NFCxSR_rd(NFCFIELDLIVE_LSB) <= sr_sync_q(NFCFIELDLIVE_LSB);
+    NFCxSR_rd(NFCHALTED_LSB)    <= sr_sync_q(NFCHALTED_LSB);
+    NFCxSR_rd(NFCSTATE_MSB downto NFCSTATE_LSB) <= state_m2;
+
+    -- The window byte a read returns, combinational in the ClkMem domain: the payload
+    -- half is written by reg_write on ClkMem and needs no crossing at all, and the
+    -- receive half is read out of the shadow. periph_regs registers it at the access
+    -- edge, with the pre-increment index, which is the byte the old pre-latch captured
+    -- at the select.
+    data_rd_mux: process(idx_sel, idx, rxbuf_sh, payload_mem)
+    begin
+        if idx_sel = '1' then
+            if idx <= 8 then
+                data_rd <= rxbuf_sh(idx);
+            else
+                data_rd <= (others => '0');   -- the receive path writes bytes 0 to 8 only
+            end if;
+        else
+            data_rd <= payload_mem(idx);
         end if;
     end process;
 
     -- Memory Logic -------------------------------
 
     -- The four words the register file does not store: the status, receive-status,
-    -- window-byte and debug snapshots, re-inverted here. NFCxDATA is RDTHRU: its
-    -- description gives it eight bits of storage, but the byte a read returns comes
-    -- from one of the two 64-byte windows, which stay in this file.
-    hw_rd_s <= (SLOT_SR   => (31 downto NFCxSR_ltch'high + 1 => '0') & (not NFCxSR_ltch),
-                SLOT_RXST => (31 downto rxst_ltch'high + 1   => '0') & (not rxst_ltch),
-                SLOT_DATA => (31 downto data_ltch'high + 1   => '0') & (not data_ltch),
-                SLOT_DBG  => not dbg_ltch,
+    -- window-byte and debug copies. NFCxDATA is RDTHRU: its description gives it
+    -- eight bits of storage, but the byte a read returns comes from one of the two
+    -- 64-byte windows, which stay in this file.
+    hw_rd_s <= (SLOT_SR   => (31 downto NFCxSR_rd'high + 1 => '0') & NFCxSR_rd,
+                SLOT_RXST => (31 downto rxst_mem'high + 1  => '0') & rxst_mem,
+                SLOT_DATA => (31 downto data_rd'high + 1   => '0') & data_rd,
+                SLOT_DBG  => dbg_mem,
                 others    => (others => '0'));
 
     -- The NFCxDATA index auto-increment, as a HARDWARE write to NFCxIDX.NFCIDX. It
@@ -378,13 +554,28 @@ begin
             wot_hit     => open,
             rd_clr      => open);
 
-    -- The five NFCxSR write-1-to-clear flags, as held levels into the smclk flag
-    -- process, where a clear dominates a coincident set.
-    clr_fieldf   <= w1c_s(SLOT_SR)(NFCFIELDF_LSB);
-    clr_rxframef <= w1c_s(SLOT_SR)(NFCRXFRAMEF_LSB);
-    clr_txdonef  <= w1c_s(SLOT_SR)(NFCTXDONEF_LSB);
-    clr_crcerrf  <= w1c_s(SLOT_SR)(NFCCRCERRF_LSB);
-    clr_parerrf  <= w1c_s(SLOT_SR)(NFCPARERRF_LSB);
+    /* The five NFCxSR write-1-to-clear flags, as held levels into the ASYNCHRONOUS
+       clears in the smclk flag process, where a clear dominates a coincident set.
+       Each takes the registered held strobe as before, WIDENED by the ClkMem clear
+       shadow: the combinational access condition plus the two shadow stages is a
+       level about two and a half ClkMem periods wide, generated in ClkMem and
+       independent of how long the fabric holds the select. The held strobe alone
+       does depend on it: periph_regs retires it asynchronously on EnMemPeriph, which
+       the MCU deasserts on the same mclk edge the strobe is set, so with the
+       falling-mclk en_q shim gone it would be a runt. Additive, so nothing the held
+       strobe did is taken away. The price is that a flag SET landing inside the
+       window is swallowed; every event here is at frame rate, four orders of
+       magnitude slower than two ClkMem periods. */
+    clr_fieldf   <= w1c_s(SLOT_SR)(NFCFIELDF_LSB)   or sr_clr_now(NFCFIELDF_LSB)
+                    or sr_clr_pipe0(NFCFIELDF_LSB)   or sr_clr_pipe1(NFCFIELDF_LSB);
+    clr_rxframef <= w1c_s(SLOT_SR)(NFCRXFRAMEF_LSB) or sr_clr_now(NFCRXFRAMEF_LSB)
+                    or sr_clr_pipe0(NFCRXFRAMEF_LSB) or sr_clr_pipe1(NFCRXFRAMEF_LSB);
+    clr_txdonef  <= w1c_s(SLOT_SR)(NFCTXDONEF_LSB)  or sr_clr_now(NFCTXDONEF_LSB)
+                    or sr_clr_pipe0(NFCTXDONEF_LSB)  or sr_clr_pipe1(NFCTXDONEF_LSB);
+    clr_crcerrf  <= w1c_s(SLOT_SR)(NFCCRCERRF_LSB)  or sr_clr_now(NFCCRCERRF_LSB)
+                    or sr_clr_pipe0(NFCCRCERRF_LSB)  or sr_clr_pipe1(NFCCRCERRF_LSB);
+    clr_parerrf  <= w1c_s(SLOT_SR)(NFCPARERRF_LSB)  or sr_clr_now(NFCPARERRF_LSB)
+                    or sr_clr_pipe0(NFCPARERRF_LSB)  or sr_clr_pipe1(NFCPARERRF_LSB);
 
     /* The payload TX window and the NFCxCR.HALTCLR write pulse: the two things the
        register file cannot hold. The window is 64 bytes of memory, not a register;
@@ -569,6 +760,34 @@ begin
     u_sync_pay_wr_tgl : entity work.sync
         generic map (WIDTH => 1, DEPTH => 2)
         port map (clk => rf_clk, areset => resetn, d(0) => pay_wr_tgl, q => pay_wr_s2);
+
+    /* -------- rf_clk publication toggles ----------------------------------
+       One toggle per group of rf-domain words the bus reads: the receive group
+       (NFCxRXST and rxbuf_mem(0 to 8), published on entry to ACT_DECIDE, where the
+       command, length, parity and CRC verdicts are all final) and the counter group
+       (NFCxDBG, published at each frame count). They cross on u_sync_rf_pub and the
+       ClkMem side copies the whole group on the synchronized edge.
+       The toggles live HERE and not in bfsm because bfsm's asynchronous reset is
+       `resetn = '0' or nfcen_r2 = '0'`: a toggle reset by a disable would flip only
+       half the time, and the ClkMem copies would keep the last frame while the source
+       words sat at zero. Instead the NFCEN falling edge is itself a publication, one
+       rf_clk after bfsm has zeroed both groups. */
+    rf_pub_proc: process(rf_clk, resetn)
+    begin
+        if resetn = '0' then
+            rx_pub_tgl  <= '0';
+            dbg_tgl     <= '0';
+            nfcen_rprev <= '0';
+        elsif rising_edge(rf_clk) then
+            nfcen_rprev <= nfcen_r2;
+            if rx_pub_ev = '1' or (nfcen_rprev = '1' and nfcen_r2 = '0') then
+                rx_pub_tgl <= not rx_pub_tgl;
+            end if;
+            if dbg_ev = '1' or (nfcen_rprev = '1' and nfcen_r2 = '0') then
+                dbg_tgl <= not dbg_tgl;
+            end if;
+        end if;
+    end process;
 
     /* -------- RX: modified-Miller decoder + bit assembler ------------------
        rf_rx is the raw pause envelope ('0' = pause), 2-FF synchronized and classified once per bit period on a free-running ETU grid started at the first pause (SOC, which emits no data bit): a pause in the second half is a 1, a pause in the first half or none at all is a 0.
@@ -771,11 +990,14 @@ begin
             t_uid <= (others => '0'); t_atqa <= x"0044"; t_sak <= x"00";
             t_fdt <= x"04D4"; t_autoread <= '1';
             rx_frame_count <= (others => '0'); tx_frame_count <= (others => '0');
+            rx_pub_ev <= '0'; dbg_ev <= '0';
             for i in 0 to 63 loop
                 rxbuf_mem(i) <= (others => '0'); resp_bytes(i) <= (others => '0');
             end loop;
         elsif rising_edge(rf_clk) then
             tx_start <= '0'; -- 1-cycle launch pulse default
+            -- Publication pulses into rf_pub_proc, 1 rf_clk each; see the toggles there.
+            rx_pub_ev <= '0'; dbg_ev <= '0';
             -- rxbuf_mem(9 to 63) is never written by the receive path (the de-framer writes k in 0 to 8 only), so those bytes see the reset write alone and Genus infers a latch per byte (CDFG2G-616 / CDFG-241 under hdl_error_on_latch) that it then collapses to zero. Holding them at zero on the clock edge makes that constant explicit: same netlist, reads of those indices still return 0, no latch.
             for i in 9 to 63 loop rxbuf_mem(i) <= (others => '0'); end loop;
             -- resp_bytes(16 to 63) likewise: the reply composer writes indices 0 to 15 only (the payload copy loop and the ATQA/SAK/UID arms), so the rest are the same reset-only latch class, held at zero here.
@@ -809,11 +1031,13 @@ begin
                     when ACT_PARSE =>
                         rf_rxframe_lvl <= '1';               -- reader frame landed
                         rx_frame_count <= rx_frame_count + 1;
+                        dbg_ev <= '1';                       -- publish NFCxDBG
                         if rx_nbits <= 8 then                -- 7-bit short frame
                             is_short <= '1'; shortval <= rx_raw(6 downto 0);
                             rx_cmd <= '0' & rx_raw(6 downto 0);
                             rx_len <= x"00"; rx_nbytes <= 0;
                             rx_parok <= '1'; rx_crcok <= '0';
+                            rx_pub_ev <= '1';                -- publish RXST + the window
                             act <= ACT_DECIDE;
                         else                                 -- standard/anticollision frame
                             -- Launch the serial byte-count divide; the byte de-frame and parity check run once the quotient lands.
@@ -845,7 +1069,7 @@ begin
                             if nbytes_v >= 2 then
                                 crc_reg <= x"6363"; crc_idx <= 0; act <= ACT_CRC;
                             else
-                                rx_crcok <= '0'; act <= ACT_DECIDE;
+                                rx_crcok <= '0'; rx_pub_ev <= '1'; act <= ACT_DECIDE;
                             end if;
                         end if;
 
@@ -858,6 +1082,7 @@ begin
                             else
                                 rx_crcok <= '0';
                             end if;
+                            rx_pub_ev <= '1';                -- publish RXST + the window
                             act <= ACT_DECIDE;
                         else
                             crc_reg <= crc_a_byte(crc_reg, rxbuf_mem(crc_idx));
@@ -1061,6 +1286,7 @@ begin
                         if tx_done = '1' then
                             rf_txdone_lvl <= '1';
                             tx_frame_count <= tx_frame_count + 1;
+                            dbg_ev <= '1';                   -- publish NFCxDBG
                             iso_state <= next_state;
                             act <= ACT_LISTEN;
                         end if;
