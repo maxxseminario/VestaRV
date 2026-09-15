@@ -30,12 +30,10 @@
       "latch_modules": []
     },
     "GPIO": {
-      "cells": 973,
-      "flop_bits": 170,
-      "latch_bits": 8,
-      "latch_modules": [
-        "clkgate_Bbehavioral"
-      ]
+      "cells": 982,
+      "flop_bits": 194,
+      "latch_bits": 0,
+      "latch_modules": []
     },
     "I2C": {
       "cells": 976,
@@ -64,9 +62,9 @@
         "macro_blackbox.vhd",
         "system_blackbox.vhd"
       ],
-      "cells": 136190,
-      "flop_bits": 30241,
-      "latch_bits": 192,
+      "cells": 136292,
+      "flop_bits": 30397,
+      "latch_bits": 144,
       "latch_modules": [
         "clkgate_Bbehavioral",
         "preicg_Bbehavioral"
@@ -124,8 +122,8 @@
       "skipped": "ghdl --synth 6.0.0 raises CONSTRAINT_ERROR at vhdl-nodes.adb:407 on the `ClkEn(1) => open` individual association at SYSTEM.vhd:497; --out=none and the file-list form crash identically"
     },
     "TIMER": {
-      "cells": 1128,
-      "flop_bits": 535,
+      "cells": 1152,
+      "flop_bits": 541,
       "latch_bits": 6,
       "latch_modules": [
         "clkgate_Bbehavioral",

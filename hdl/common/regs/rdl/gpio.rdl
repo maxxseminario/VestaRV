@@ -84,7 +84,7 @@ reg PxIF_t {
         sw = rw; hw = w; onwrite = woclr;
         reset = 8'h0;
         vesta_access = "rw1";
-        desc = "Interrupt flags. Hardware sets bit y when the edge selected by PxIES occurs on pin y while PxIE bit y is 1, and holds it until software writes 1 to the bit; writing 0 has no effect. Each flag drives the interrupt vector of its pin directly, and bits 31:8 read 0.";
+        desc = "Interrupt flags. Hardware sets bit y when the edge selected by PxIES occurs on pin y while PxIE bit y is 1, and holds it until software writes 1 to the bit; writing 0 has no effect. The pin is sampled on the peripheral clock, so the flag appears three clock cycles after the edge, a pulse shorter than one clock period is not captured, and no edge is captured while the clock is stopped. Each flag drives the interrupt vector of its pin directly, and bits 31:8 read 0.";
     } PxIF[7:0];
 };
 

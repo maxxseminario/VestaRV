@@ -174,9 +174,15 @@ architecture rtl of TIMER is
     signal clear_compare1_flag : std_logic;                      -- Clear compare 1 interrupt flag
     signal clear_compare2_flag : std_logic;                      -- Clear compare 2 interrupt flag
 
-    -- Capture clock signals.
-    signal capture0_clock      : std_logic;                      -- Edge-detected clock for capture 0
-    signal capture1_clock      : std_logic;                      -- Edge-detected clock for capture 1
+    -- Capture edge detectors, in the timer_clock domain.
+    signal capture0_lvl        : std_logic;                      -- Capture 0 pin, polarity as selected
+    signal capture1_lvl        : std_logic;                      -- Capture 1 pin, polarity as selected
+    signal capture0_s2         : std_logic_vector(0 downto 0);   -- ... after the synchroniser
+    signal capture1_s2         : std_logic_vector(0 downto 0);
+    signal capture0_s3         : std_logic;                      -- ... one timer_clock later
+    signal capture1_s3         : std_logic;
+    signal capture0_edge       : std_logic;                      -- One timer_clock wide per selected edge
+    signal capture1_edge       : std_logic;
 
     -- Memory interface signals.
     signal timer_value_write   : std_logic_vector(31 downto 0);  -- Timer value from write bus
@@ -351,39 +357,81 @@ begin
         end if;
     end process;
 
-    -- Edge-sensitive capture clock for capture 0.
-    capture0_clock <= '0' when capture0_enable = '0' else 
+    -- Capture 0 pin in the polarity the edge select asks for: high once the selected edge has arrived.
+    capture0_lvl <= '0' when capture0_enable = '0' else 
                      cap0_in xor capture0_fall_edge;
 
+    -- cap0_in is asynchronous to timer_clock, so the level crosses on the house synchroniser and the edge is found inside the counter's own domain rather than clocking a flop from the pin.
+    -- The capture therefore needs a RUNNING timer_clock: an edge presented while the timer is stopped is lost, where the pin-clocked version snapshotted the frozen counter.
+    -- The flag rises on the THIRD timer_clock edge after the pin edge, so the snapshot reads two counts high against a pin-clocked capture.
+    u_sync_capture0_lvl : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => timer_clock, areset => resetn, d(0) => capture0_lvl, q => capture0_s2);
+
+    -- Delayed copy of the synchronised level; the pair is the rising-edge detector.
+    capture0_edge_proc: process(resetn, timer_clock)
+    begin
+        if resetn = '0' then
+            capture0_s3 <= '0';
+        elsif rising_edge(timer_clock) then
+            capture0_s3 <= capture0_s2(0);
+        end if;
+    end process;
+
+    capture0_edge <= capture0_s2(0) and not capture0_s3;
+
     -- Snapshot the counter on the selected edge and raise the capture 0 flag.
-    capture0_process: process(resetn, clear_capture0_flag, capture0_clock)
+    capture0_process: process(resetn, clear_capture0_flag, timer_clock)
     begin
         if resetn = '0' then
             capture0_reg <= (others => '0');
             capture0_int_flag <= '0';
         elsif clear_capture0_flag = '1' then
             capture0_int_flag <= '0';
-        elsif rising_edge(capture0_clock) then
-            capture0_reg <= timer_value;  -- Capture current timer value
-            capture0_int_flag <= '1';     -- Set interrupt flag
+        elsif rising_edge(timer_clock) then
+            if capture0_edge = '1' then
+                capture0_reg <= timer_value;  -- Capture current timer value
+                capture0_int_flag <= '1';     -- Set interrupt flag
+            end if;
         end if;
     end process;
 
-    -- Edge-sensitive capture clock for capture 1.
-    capture1_clock <= '0' when capture1_enable = '0' else 
+    -- Capture 1 pin in the polarity the edge select asks for: high once the selected edge has arrived.
+    capture1_lvl <= '0' when capture1_enable = '0' else 
                      cap1_in xor capture1_fall_edge;
 
+    -- cap1_in is asynchronous to timer_clock, so the level crosses on the house synchroniser and the edge is found inside the counter's own domain rather than clocking a flop from the pin.
+    -- The capture therefore needs a RUNNING timer_clock: an edge presented while the timer is stopped is lost, where the pin-clocked version snapshotted the frozen counter.
+    -- The flag rises on the THIRD timer_clock edge after the pin edge, so the snapshot reads two counts high against a pin-clocked capture.
+    u_sync_capture1_lvl : entity work.sync
+        generic map (WIDTH => 1, DEPTH => 2)
+        port map (clk => timer_clock, areset => resetn, d(0) => capture1_lvl, q => capture1_s2);
+
+    -- Delayed copy of the synchronised level; the pair is the rising-edge detector.
+    capture1_edge_proc: process(resetn, timer_clock)
+    begin
+        if resetn = '0' then
+            capture1_s3 <= '0';
+        elsif rising_edge(timer_clock) then
+            capture1_s3 <= capture1_s2(0);
+        end if;
+    end process;
+
+    capture1_edge <= capture1_s2(0) and not capture1_s3;
+
     -- Snapshot the counter on the selected edge and raise the capture 1 flag.
-    capture1_process: process(resetn, clear_capture1_flag, capture1_clock)
+    capture1_process: process(resetn, clear_capture1_flag, timer_clock)
     begin
         if resetn = '0' then
             capture1_reg <= (others => '0');
             capture1_int_flag <= '0';
         elsif clear_capture1_flag = '1' then
             capture1_int_flag <= '0';
-        elsif rising_edge(capture1_clock) then
-            capture1_reg <= timer_value;  -- Capture current timer value
-            capture1_int_flag <= '1';     -- Set interrupt flag
+        elsif rising_edge(timer_clock) then
+            if capture1_edge = '1' then
+                capture1_reg <= timer_value;  -- Capture current timer value
+                capture1_int_flag <= '1';     -- Set interrupt flag
+            end if;
         end if;
     end process;
 

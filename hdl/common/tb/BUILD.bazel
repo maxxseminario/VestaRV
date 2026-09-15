@@ -431,7 +431,7 @@ vhdl_source_set(
     paths = [
         "hdl/common/constants.vhd",
         "hdl/common/MemoryMap.vhd",
-        "hdl/common/sim/ClkGate.vhd",
+        "hdl/common/sync.vhd",
         "hdl/common/periph_regs.vhd",
         "hdl/common/regs/vhdl/gpio_regs_pkg.vhd",
         "hdl/common/periph/GPIO.vhd",
@@ -696,7 +696,7 @@ ghdl_test(
 )
 
 # TIMER_tb and GPIO_tb carry a DELIBERATE negative control as their last check
-# (TIMER_tb.vhd:508, GPIO_tb.vhd:~350), so a passing run ends with the
+# (TIMER_tb.vhd:508, GPIO_tb.vhd:~566), so a passing run ends with the
 # scoreboard reporting exactly one failure. Both benches grade that themselves
 # -- `if sb.errors = 1` -- and print a banner naming the count.
 #

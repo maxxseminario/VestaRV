@@ -1,6 +1,6 @@
 -- VestaRV: GPIO testbench
 -- standalone, self-checking bench for the GPIO peripheral, deliberately MINIMAL and TAP-FOCUSED.
--- PxSEL/PxAFS alt-function muxing and the PxIE/PxIF edge-interrupt machinery are out of scope here.
+-- PxSEL/PxAFS alt-function muxing is out of scope here. The PxIE/PxIF edge interrupt is in scope from G8 on: G8 is the behaviour any capture path must have, G9 is what the synchronous edge detector adds (a sub-clk_mem glitch is rejected and the flag lands exactly three clk_mem edges after the pin edge).
 -- Taps under test: evt_edge_raw, the purely combinational PRE-MASK edge vector prt_in xor PxIES with PxIE NEVER consulted, sampled off the DUT port and never off a DUT internal; task_outset and task_outclr, one-clk_mem pulses that set or clear the PxTASK-selected PxOUT bits OUTSIDE the en gate; and PxTASK itself, an RW register at LOCAL slot 12, one bit per pin, resetting to 0.
 -- CLR wins a same-cycle set-plus-clear, and a task wins its PxTASK pins over a coincident CPU PxOUT write, since the register write lands first in program order and the task blocks then overwrite only their own pins.
 -- Compiles into its OWN library, gpio_lib, alongside hdl/common's constants, MemoryMap, ClkGate and GPIO: GPIO.vhd needs MemoryMap.RegSlotPxAFS and GPIO_NUM_AFS, which the MemoryMap shared by the rest of this suite does not carry.
@@ -243,6 +243,31 @@ begin
             pbus.wen    <= (others => '1');
         end procedure;
 
+        -- Drive the whole port and give any capture path time to retire the edge.
+        procedure pin_level(v : in std_logic_vector(NUM_PINS - 1 downto 0)) is
+        begin
+            wait until clk = '0';
+            prt_in <= v;
+            wait for 4 * PERIOD;
+        end procedure;
+
+        -- Write 1s to PxIF and wait out the retirement, which a synchronous clear
+        -- takes one clk_mem edge past the end of the access to complete.
+        procedure clear_if(mask : in std_logic_vector(31 downto 0)) is
+        begin
+            bus_write(clk, pbus, RegSlotPxIF, mask);
+            wait for 3 * PERIOD;
+        end procedure;
+
+        -- Change PxIES with the capture masked, then retire whatever the change
+        -- itself produced, so the polarity groups start from a known flag state.
+        procedure set_edge_select(ies : in std_logic_vector(31 downto 0)) is
+        begin
+            bus_write(clk, pbus, RegSlotPxIE,  x"00000000");
+            bus_write(clk, pbus, RegSlotPxIES, ies);
+            clear_if(x"000000FF");
+        end procedure;
+
     begin
         -- Reset
         reset_pulse;
@@ -445,6 +470,91 @@ begin
         bus_write(clk, pbus, 13, x"FFFFFFFF");
         bus_read(clk, pbus, read_data, 13, rdw);
         sb.check_slv("G7g: an unmapped slot reads 0 and ignores writes", rdw, x"00000000");
+
+        -- GROUP G8: the pin-interrupt machinery, both polarities, the PxIE mask
+        -- and the W1C retirement. Every check here holds for the pin-clocked
+        -- design and for the synchronous edge detector alike.
+        report "=== GROUP G8: PxIF edge capture, both polarities ===" severity note;
+
+        set_edge_select(x"00000000");                      -- rising-edge select
+        pin_level(x"00");
+        clear_if(x"000000FF");
+        bus_write(clk, pbus, RegSlotPxIE, x"000000FF");
+
+        pin_level(x"01");
+        sb.check_slv("G8a: PxIES=0, a rising edge on pin 0 sets PxIF(0)", irq, x"01");
+
+        clear_if(x"000000FF");
+        sb.check_slv("G8a: a written 1 retires the flag", irq, x"00");
+
+        pin_level(x"00");
+        sb.check_slv("G8b: PxIES=0, a falling edge sets nothing", irq, x"00");
+
+        pin_level(x"01");
+        sb.check_slv("G8c: a second rising edge after the clear sets the flag again",
+                     irq, x"01");
+        clear_if(x"000000FF");
+
+        set_edge_select(x"000000FF");                      -- falling-edge select
+        bus_write(clk, pbus, RegSlotPxIE, x"000000FF");
+        pin_level(x"00");
+        clear_if(x"000000FF");
+        pin_level(x"01");
+        sb.check_slv("G8d: PxIES=1, a rising edge sets nothing", irq, x"00");
+        pin_level(x"00");
+        sb.check_slv("G8d: PxIES=1, the falling edge sets PxIF(0)", irq, x"01");
+        clear_if(x"000000FF");
+
+        set_edge_select(x"00000000");                      -- back to rising-edge select
+        pin_level(x"00");
+        clear_if(x"000000FF");
+        bus_write(clk, pbus, RegSlotPxIE, x"0000000A");    -- pins 1 and 3 only
+        pin_level(x"0F");
+        sb.check_slv("G8e: PxIE masks the capture, only pins 1 and 3 flag", irq, x"0A");
+        clear_if(x"00000002");
+        sb.check_slv("G8e: the W1C retires only the bit written", irq, x"08");
+        clear_if(x"000000FF");
+        sb.check_slv("G8e: the rest retire", irq, x"00");
+
+        bus_write(clk, pbus, RegSlotPxIE, x"00000000");
+        pin_level(x"00");
+        clear_if(x"000000FF");
+
+        -- GROUP G9: the SYNCHRONOUS edge detector. No pin reaches a clock pin, so
+        -- an edge narrower than a clk_mem period is never sampled and the flag
+        -- lands a fixed three clk_mem edges after the pin edge. The pin-clocked
+        -- design fails G9a and both zero checks of G9b.
+        report "=== GROUP G9: synchronous capture (glitch reject, fixed latency) ===" severity note;
+
+        set_edge_select(x"00000000");
+        bus_write(clk, pbus, RegSlotPxIE, x"000000FF");
+
+        -- G9a: a glitch of half a clock period, entirely between two rising edges.
+        wait until rising_edge(clk);
+        wait for 1 ns;
+        prt_in(0) <= '1';
+        wait for PERIOD / 2;
+        prt_in(0) <= '0';
+        wait for 4 * PERIOD;
+        sb.check_slv("G9a: a half-clock glitch sets no flag", irq, x"00");
+
+        -- G9b: the capture latency, counted in clk_mem rising edges from the edge.
+        wait until rising_edge(clk);
+        wait for 1 ns;
+        prt_in(0) <= '1';
+        wait until rising_edge(clk);
+        wait for 1 ns;
+        sb.check_bit("G9b: no flag 1 clk after the pin edge", irq(0), '0');
+        wait until rising_edge(clk);
+        wait for 1 ns;
+        sb.check_bit("G9b: no flag 2 clk after the pin edge", irq(0), '0');
+        wait until rising_edge(clk);
+        wait for 1 ns;
+        sb.check_bit("G9b: the flag is set 3 clk after the pin edge", irq(0), '1');
+
+        bus_write(clk, pbus, RegSlotPxIE, x"00000000");
+        pin_level(x"00");
+        clear_if(x"000000FF");
 
         -- GROUP G-NEG: NEGATIVE CONTROL, mandatory and LAST.
         -- Exactly ONE deliberately wrong expected value, so the scoreboard proves it can fail.

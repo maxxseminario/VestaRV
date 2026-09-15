@@ -57,7 +57,7 @@ A peripheral input that appears at more than one pin (UART receivers, timer capt
 
 \subsection{Pin interrupts}
 
-Each pin has its own interrupt. With \register{PxIE}[y] set, the edge selected by \register{PxIES}[y] (0 = rising, 1 = falling) sets \register{PxIF}[y] and raises the pin's vector. Pin interrupts stay available in alternate-function mode alongside any interrupt the governing peripheral raises. \register{PxIF} is latched on the falling edge of the memory enable signal, so a handler reads one stable sample.
+Each pin has its own interrupt. With \register{PxIE}[y] set, the edge selected by \register{PxIES}[y] (0 = rising, 1 = falling) sets \register{PxIF}[y] and raises the pin's vector. The pin is sampled on the peripheral clock rather than clocking the flag directly, so the flag appears three clock cycles after the edge, a pulse shorter than one clock period is not captured, and no edge is captured while the clock is stopped. Pin interrupts stay available in alternate-function mode alongside any interrupt the governing peripheral raises. \register{PxIF} is latched on the falling edge of the memory enable signal, so a handler reads one stable sample.
 
 \subsection{Event-fabric tasks}
 
