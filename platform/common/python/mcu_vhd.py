@@ -70,23 +70,30 @@ SHSLV = {
 	'I2C1':      {'sel': 'i2c1',  'shim': 'i2c1',  'rdata': 'i2c1_sh_rdata'},
 }
 
-# Shim peripherals whose RTL clocks status and RX snapshot registers on
-# falling_edge(en_mem). Such a shim takes a falling-mclk re-registered
-# shslv_<sel>_en_q strobe (emitPolarityShims), because a combinational en AND decode
-# glitches in the skew window after each rising mclk edge and that glitch would be a
-# spurious capture-clock edge.
-# The set is EMPTY since 2026-09-15 (Z1, completed by Z2b): every shim peripheral,
-# NFC0 included, now carries its status, receive and window words into the ClkMem
-# domain with work.sync and toggle-qualified copies and reads them with periph_regs'
-# ClkMem read register, so none has a flop clocked by the select and every shim takes
-# the raw strobe. No emitter writes a falling-mclk process any more.
-# The shim also WIDENED a held strobe: the arbiter's s_en self-clears on the mclk edge
-# the slave captures, so a raw-strobe shim deasserts EnMemPeriph on that same edge and
-# periph_regs' STROBE_HOLD retirement makes the strobe a runt. Do not put a block back
-# on the raw strobe unless its held strobes reach nothing asynchronous in a foreign
-# clock domain, or it generates its own ClkMem level beside them; see
-# hdl/common/regs/REGFILE.md, "A held strobe is only as wide as the fabric's select".
-CAPTURE_CLOCK = set()
+# Shim peripherals whose select strobe is re-registered on falling mclk before it
+# reaches the peripheral's active-low en (emitPolarityShims emits the
+# snapshot_strobe_reg process and the shslv_<sel>_en_q signals; I3C0 and NFC0 carry
+# the same flop inside their own instance regions). A negative-edge flop on mclk is a
+# clock on a clock pin, which is allowed; the rule the Z wave enforces is that no DATA
+# signal reaches a flop clock pin.
+# History, because the reason changed under the set. Before 2026-09-15 these blocks
+# clocked status and RX snapshot registers on falling_edge(en_mem), and the shim kept
+# a combinational en AND decode glitch out of that capture clock. Z1 and Z2b removed
+# every such falling-edge capture (work.sync plus toggle-qualified copies, read by
+# periph_regs' ClkMem read register), and Z1 then emptied this set. Z4 bisected the
+# topology-B zero-delay gate regression (0 of 14 TIMEOUT against 13 of 14) to exactly
+# that change, netlist out.z4bx_20260915.
+# The surviving mechanism is the one Z1's own note named: the arbiter's s_en
+# self-clears on the same rising mclk edge at which the slave samples EnMemPeriph, so
+# a raw-strobe shim deasserts the peripheral's en in the same delta as its own capture
+# edge. With zero delay the deassertion wins and the access is lost; real cell delays
+# hide it, which is why the same netlist is 14 of 14 under SDF. The falling-mclk
+# re-register moves both edges half a cycle away from every rising-edge sampler, so
+# the strobe is stable across the edge that consumes it. It costs 11 flops.
+# See hdl/common/regs/REGFILE.md, "A held strobe is only as wide as the fabric's
+# select". Do not empty this set again without a gate-level zero-delay run behind it.
+CAPTURE_CLOCK = {'SPI0', 'SPI1', 'UART0', 'UART1', 'TIMER0', 'TIMER1',
+	'I2C0', 'I2C1', 'QSPI0'}
 
 # Memory slaves: structural hard macros, not description peripherals. The sel spelling maps
 # to the macro Q net that feeds sh_rdata_mux directly, because the macro is the one-cycle
@@ -171,6 +178,8 @@ I2C_FABRIC_DECLS = [
 	"        signal shslv_rd_i2c1    : std_logic := '0';",
 	'        signal i2c0_sh_en_n     : std_logic;',
 	'        signal i2c1_sh_en_n     : std_logic;',
+	'        signal shslv_i2c0_en_q  : std_logic;   -- falling-mclk registered strobes',
+	'        signal shslv_i2c1_en_q  : std_logic;   -- (snapshot capture clocks)',
 	'        signal i2c0_sh_rdata_c  : std_logic_vector(31 downto 0); -- combinational, from the instance',
 	'        signal i2c1_sh_rdata_c  : std_logic_vector(31 downto 0);',
 	"        signal i2c0_sh_rdata    : std_logic_vector(31 downto 0) := (others => '0'); -- bridge-registered",
@@ -341,6 +350,8 @@ MOVER_FABRIC_DECLS = [
 	"        signal shslv_rd_gpio3   : std_logic := '0';",
 	'        signal tim0_sh_en_n     : std_logic;   -- periph buses are active-LOW en/wen',
 	'        signal tim1_sh_en_n     : std_logic;',
+	'        signal shslv_tim0_en_q  : std_logic;   -- falling-mclk registered strobes',
+	'        signal shslv_tim1_en_q  : std_logic;   -- (snapshot capture clocks)',
 	'        signal gpio1_sh_en_n    : std_logic;',
 	'        signal gpio2_sh_en_n    : std_logic;',
 	'        signal gpio3_sh_en_n    : std_logic;',
@@ -356,6 +367,8 @@ MOVER_FABRIC_DECLS = [
 	"        signal shslv_rd_uart1   : std_logic := '0';",
 	'        signal spi1_sh_en_n     : std_logic;',
 	'        signal uart1_sh_en_n    : std_logic;',
+	'        signal shslv_spi1_en_q  : std_logic;   -- falling-mclk registered strobes',
+	'        signal shslv_uart1_en_q : std_logic;   -- (snapshot capture clocks)',
 	'        signal spi1_sh_rdata    : std_logic_vector(31 downto 0);',
 	'        signal uart1_sh_rdata   : std_logic_vector(31 downto 0);',
 ]
@@ -1370,6 +1383,7 @@ class McuVhdEmitter():
 				"        signal shslv_rd_qspi0   : std_logic := '0';",
 				'        signal qspi0_sh_rdata   : std_logic_vector(31 downto 0);',
 				'        signal qspi0_sh_en_n    : std_logic;',
+				'        signal shslv_qspi0_en_q : std_logic;   -- falling-mclk registered strobe (snapshot capture clock)',
 				'        -- QSPI0 serial pins: the six pins (SCK, CS, IO0-3) are NOT routed through the GPIO alt-function planes.',
 				'        -- io_in is tied low and the outputs are observed by nothing (no pad hookup).',
 				'        signal qspi_sck_out, qspi_sck_dir : std_logic;',
@@ -1458,6 +1472,7 @@ class McuVhdEmitter():
 			"        signal shslv_rd_i3c0    : std_logic := '0';",
 			'        signal i3c0_sh_rdata    : std_logic_vector(31 downto 0);',
 			'        signal i3c0_sh_en_n     : std_logic;',
+			'        signal shslv_i3c0_en_q  : std_logic;   -- falling-mclk registered strobe (snapshot capture clock)',
 			'        -- I3C0 SDA/SCL pins, not routed through the GPIO alt-function planes.',
 			"        -- SDA_IN/SCL_IN are tied HIGH ('1') = idle (released) bus; the outputs and direction controls are observed by nothing (no pad).",
 			'        signal i3c0_sda_out, i3c0_sda_dir : std_logic;',
@@ -1473,8 +1488,14 @@ class McuVhdEmitter():
 		return [
 			'',
 			'    -- I3C0: I3C controller, MUTEX-page sub-slot 1 @0x6100, smclk-domain serial core (SYS_CLK_CR=0 rule), registered read with no side effects, eight irq_* lines on vectors 86-93; pins unbonded, SDA_IN/SCL_IN tied HIGH (idle bus).',
-			'    -- I3C registers its read on rising ClkMem over data already carried into that domain, so it takes the RAW active-low strobe and has no capture-clock en_q.',
-			'    i3c0_sh_en_n <= not shslv_i3c0_en;',
+			'    -- I3C registers its read on rising ClkMem, and the raw select deasserts in the same delta as that edge, so it takes the FALLING-MCLK re-registered strobe (see snapshot_strobe_reg).',
+			'    i3c0_enq_reg: process(mclk)',
+			'    begin',
+			'        if falling_edge(mclk) then',
+			'            shslv_i3c0_en_q <= shslv_i3c0_en;',
+			'        end if;',
+			'    end process;',
+			'    i3c0_sh_en_n <= not shslv_i3c0_en_q;',
 			'    i3c0: entity work.I3C',
 			'        port map (',
 			'            clk         => smclk,',
@@ -1508,13 +1529,14 @@ class McuVhdEmitter():
 		if not self.nfc:
 			return []
 		return [
-			'        /* NFC0 (ISO 14443A tag / card-emulation engine), page-2 (MUTEX page) sub-slot 2 @0x6200: registered-read shim (no bridge), PLAIN active-low one-cycle en.',
+			'        /* NFC0 (ISO 14443A tag / card-emulation engine), page-2 (MUTEX page) sub-slot 2 @0x6200: registered-read shim (no bridge), active-low one-cycle en off the falling-mclk re-registered strobe.',
 			'           Three clock domains inside NFC.vhd: ClkMem (bus), clk = smclk (the CDC synchronizers and W1C retirement; SYS_CLK_CR=0 rule), and the off-die rf_clk protocol core.',
 			'           The irq_* lines drive vectors 94-97. */',
 			'        signal shslv_nfc0_sel, shslv_nfc0_en : std_logic;',
 			"        signal shslv_rd_nfc0    : std_logic := '0';",
 			'        signal nfc0_sh_rdata    : std_logic_vector(31 downto 0);',
 			'        signal nfc0_sh_en_n     : std_logic;',
+			'        signal shslv_nfc0_en_q  : std_logic;   -- falling-mclk registered strobe (snapshot capture clock)',
 			'        -- NFC0 digital-AFE / RF interface: the six AFE signals are NOT routed to pads.',
 			"        -- rf_clk and field_detect tie '0' (no carrier, no field), rf_rx ties '1' (idle envelope, no pause), and the outputs are observed by nothing.",
 			'        signal nfc0_rf_txmod, nfc0_rf_tx_en, nfc0_afe_en : std_logic;',
@@ -1529,8 +1551,14 @@ class McuVhdEmitter():
 		lines = [
 			'',
 			'    -- NFC0: ISO 14443A tag / card-emulation engine, MUTEX-page sub-slot 2 @0x6200, bus/CDC on smclk and the protocol core on the off-die carrier-derived rf_clk, vectors 94-97; the 13.56 MHz front end is unbonded here, rf_clk/field_detect low and rf_rx high.',
-			'    -- NFC registers its read on rising ClkMem over words already carried into that domain, and its W1C clears generate their own ClkMem level, so it takes the RAW active-low strobe: no falling_edge(EnMemPeriph) pre-latch and no capture-clock en_q.',
-			'    nfc0_sh_en_n <= not shslv_nfc0_en;',
+			'    -- NFC registers its read on rising ClkMem and its W1C clears generate their own ClkMem level, so there is no falling_edge(EnMemPeriph) pre-latch left; the en still comes off the FALLING-MCLK re-registered strobe, which keeps the select stable across the sampling edge (see snapshot_strobe_reg).',
+			'    nfc0_enq_reg: process(mclk)',
+			'    begin',
+			'        if falling_edge(mclk) then',
+			'            shslv_nfc0_en_q <= shslv_nfc0_en;',
+			'        end if;',
+			'    end process;',
+			'    nfc0_sh_en_n <= not shslv_nfc0_en_q;',
 			'    nfc0: entity work.NFC',
 			'        port map (',
 			'            clk          => smclk,',
@@ -2411,8 +2439,8 @@ class McuVhdEmitter():
 		capture = [n for (c, ns, p) in self.shimGroups for n in ns if n in CAPTURE_CLOCK]
 		if capture:
 			lines += [
-				ind + '-- SPI/UART/TIMER/I2C (and QSPI when configured) CLOCK their status/RX snapshot registers on en_mem\'s FALLING EDGE, and a combinational en AND decode glitches in the skew window right after each rising mclk edge, which would be a spurious capture-clock edge racing its own D.',
-				ind + '-- Those shims therefore take a FALLING-MCLK re-registered strobe: half a cycle later the decode has long settled, and every other en_mem consumer samples on rising mclk edges, for which the registered strobe is indistinguishable from the raw one.',
+				ind + '-- SPI/UART/TIMER/I2C (and QSPI when configured) take a FALLING-MCLK re-registered select strobe, not the raw combinational decode. The arbiter clears s_en on the same rising mclk edge at which the slave samples EnMemPeriph, so the raw strobe deasserts in the same delta as the edge that consumes it, and the combinational decode also glitches in the skew window just after that edge.',
+				ind + '-- Re-registering on the falling edge moves both the assertion and the deassertion half a cycle away from every rising-edge sampler. Removing it cost the whole topology-B zero-delay gate regression (Z4, out.z4bx_20260915); with real cell delays the same netlist passes either way.',
 				ind + 'snapshot_strobe_reg: process(mclk)',
 				ind + 'begin',
 				ind + '    if falling_edge(mclk) then',

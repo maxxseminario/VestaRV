@@ -62,8 +62,8 @@
         "macro_blackbox.vhd",
         "system_blackbox.vhd"
       ],
-      "cells": 137058,
-      "flop_bits": 30707,
+      "cells": 137072,
+      "flop_bits": 30718,
       "latch_bits": 144,
       "latch_modules": [
         "clkgate_Bbehavioral",
