@@ -533,6 +533,62 @@ already waived for, created by W10's own SPI fix) and `nfc0/t_etu_reg[0]/D`
 RTL line, `NFC.vhd:619`). Three waiver lines and the gate can be armed; `hdl/` is
 read-only for this wave.
 
+## 4.12 X1, 2026-09-15: both tiles re-hardened. W14-A is CLOSED and the header-switch chain is whole.
+
+Full report: `<scratchpad>/reports/X1_tiles_rehardened.md`. `hdl/` and
+`platform/` never written; no commits.
+
+**The blocker.** 305 of 728 MTCMOS header switches per tile had a floating gate
+in every hardened tile and therefore in every chip cut taken so far. Both tiles
+are re-cut with the fix and promoted:
+
+| | `hart_tile_pt` | `hart_tile` |
+|---|---|---|
+| tile of record | **attempt 34, `CUT=pt13`**, `out.pt13_ref/` | **`CUT=d13e`**, `out.d13e_ref/` |
+| switches inserted / surviving / reachable / **floating** | 732 / 728 / 728 / **0** | 732 / 728 / 728 / **0** |
+| was | 732 / 728 / 423 / **305** | 732 / 728 / 423 / **305** |
+| LEF PIN records, and geometry | 356, **unchanged** | 283, **unchanged** |
+| signoff setup / hold WNS | +0.376 / +0.034 ns | +0.403 / +0.047 ns |
+| `blockdrc` / `ant25` | 16 (15 density + `DRM.R.1`) / **0** | 14 (12 density + `M2.S.2.1` + `DRM.R.1`) / **0** |
+| LVS | MISMATCH, one class: the `anatop_ch` VSS open, `W-PT1-1` | **MATCH** |
+| gate harness, 41 rv32ui rows | ff **41/41**, ss **41/41**, **0** timing violations | n/a |
+
+The LEF PIN sections are byte-identical to the previous tiles of record apart
+from six antenna attributes on one pin each, so **no chip floorplan moves**. X2
+takes `TILE_OUT=../hart_tile/out.d13e_ref`, X3 takes
+`../hart_tile_pt/out.pt13_ref`.
+
+**Two instruments were wrong, and both are fixed at source.** W14's reachability
+gate seeded a chain head from any SLEEP net no switch drove, which includes a net
+with **no** driver, so it read `0 UNREACHABLE` on the tile that had 305 floating
+gates. And `pgsw_resplice` was **netlist-only**: it sits after `routeDesign`, so
+`detachTerm`/`attachTerm` moved a connection and nothing drew metal. The first
+re-harden of each tile is what proved it -- a perfect `728 / 728 / 0` census on a
+database whose own `verifyConnectivity` reported 4 unconnected `pgsw_*/SLEEP`
+terminals and an open on `pd_sleep`, and **Pegasus turned topology A's tile from
+MATCH into MISMATCH** on three `pgsw_*` gates sitting on layout nets with no
+schematic counterpart. W14 lesson 8 one level up: the census measured the
+netlist, which is adjacent to the connection. The stage now routes the re-spliced
+nets selected-net-only and gates on the tool's own connectivity report read at
+that point.
+
+**Owner item 2, lattice-aligned supply pins, was NOT built.** The chip M8 mesh
+never crosses a tile in either topology: both tile masters obstruct M7 and M8
+over their whole area, both chip flows blockade layers 7 and 8 die-wide, and
+`STRIPE_Y0 = BOT_NF + 39` exists precisely to hold the mesh off the tiles' PG-pin
+band. Every tile strap on both cuts of record is already a `BLOCKWIRE` bridge, so
+"zero bridge sWires" means zero straps. Even with a stripe there, a 5 um pad row
+cannot take two nets whose stripes are 4 um apart, and the bottom tiles' y mirror
+inverts any stagger. The one change that makes all four tiles present identical
+VDD and VSS phases is `POWER_STRIPE_PATH_SPACING 4.0 -> 20.0` -- VDD/VSS 25 um
+apart, half the 50 um set pitch, so the comb is mirror-invariant in both axes --
+in both tile flows and both chip flows. That is larger than either option the
+brief named and needs a chip cut per topology to validate. **Owner decision,
+X1-A.** A second correction: W14's "37.5 um is the gap the blockPin sroute is
+proven to bridge" is not the mechanism. Topology A straps at **63.5 um** on the
+same tile master and the same `sroute` call; what differs is the corridor, 1330 um
+against the B core's 40.
+
 ## 4.11 W14, 2026-09-14: cut `c2` CLOSES, and the tile's header-switch chain is broken
 
 Full report: `<scratchpad>/reports/W14_core_c2.md`. `hdl/` and `platform/` never
