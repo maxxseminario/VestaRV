@@ -1172,3 +1172,53 @@ The ring is a ring on an empty core: `hart_tile_pt` is still the pt11 master and
 the B core is still the L-shape. The first cut that places tiles inside this
 frame is the one that proves the notches line up in metal rather than in
 arithmetic, and gate C-G9 is what will say so.
+
+## 4.17 Y2, 2026-09-16: the B core for the flat 2 mm die. Phase 1 done, the geometry is derived, c4 waits on Y1
+
+Report `reports/Y2_core_flat_c4.md`.
+
+**Core 1970 x 1690 = 3.329 mm2, die exactly 2280 x 2000 um** -- Y3's number,
+reached independently from the same three measured depths (pad 135.0 from the
+tphn LEF, pad-to-core gap 0.0 from the pt11 flow, seal 20.0 from `SEAL_OFF`).
+O10's provisional 1650 and the brief's "rounded down to the M8 lattice quantum"
+are both superseded, and the reason is a finding rather than a preference:
+**W14's `H = 2714 + k*50` is a property of a fixed 39 um M8 band inset, not of
+the mesh.** The inset is the C0 idiom and has slack, so the lattice is phased to
+the die height instead of the height being quantised to the lattice
+(`fp::solve_inset`: 18.3 um on the O10 stub, worst tile PG pad gap 14.0 um
+against the 37.5 the blockPin sroute is proven to bridge).
+
+| phase 1 item | state |
+|---|---|
+| Z5 netlist `b5c78884` staged; core SDC regenerated | DONE. X3's census: 31 of 31 `create_clock` resolved, 52 of 52 generated. |
+| the in-flow dead-clock census the `_pt` Genus flow lacked (Z5 open 1) | DONE, reported not fatal. Measured: **24 of 53 declared clocks have no sequential sink**, 17 of them `*_enmem` -- identical to Z4's out-of-flow list. |
+| X2-2 ported to the B lineage | DONE. WQ26 armed on setup as well as hold, WQ26e before the hold pass, `PENTA_SETUP_TARGET` 0.20. |
+| the flat arrangement as a first-class option | DONE, as PROCEDURES (`tcl/core_floorplan_lib.tcl`) that read the tile abstract at run time, not as a second set of literals. `PENTA_CORE_ARRANGE=quad` reproduces W13/W14/X3 exactly and that is how the derivation is checked. |
+| unit test | DONE. `tclsh tcl/core_floorplan_test.tcl`, 60 checks, 0 failures, ~1 s, no licence. Part A re-derives every W13 constant and the whole of W14 section 3.1's mesh table from the REAL pt13 abstract. |
+| floorplan stage on a stub abstract | DONE and BEYOND the brief: the floorplan+PG stage runs END TO END on an O10-geometry stub and writes a DEF. |
+| X3-A (AVDD/AVSS) | **CLOSED at both ends.** Four independent `AVDD_<h>`/`AVSS_<h>` nets with one boundary PG pin each, in the flow and in the LVS netlist tcl, matching Y3's per-tile pad sections. `lvs_cpoint` stays refused. |
+| cut `c4` | **NOT STARTED.** `hart_tile_pt/out/Y1_READY` does not exist. |
+
+**Agreed with Y3, in writing and in the log**: tile origins hart1 (0,1239) R0,
+hart2 (985,1239) R0, hart3 (0,1) MX, hart4 (985,1) MX -- **never MY or R180**, so
+tile-local x maps to chip x on all four and the ring's four analog sections are
+identical. The flow prints all four every run; Y3's C-G9 re-derives them.
+
+**Five flow defects found by the flat floorplan and fixed at source**, each a gate
+that passed on the quad floorplan for a reason that does not hold here, none of
+them fixed by relaxing it: a degenerate `cutRow -area` box with a gate keyed to
+"something was removed"; the WQ17 corridor census window inverted when there is no
+corridor; the WQ17 row-coverage POCKETS printed after the FATAL rather than before
+it (two floorplans were re-run to learn what the gate already knew); rows too
+narrow to be strapped counted instead of cut (436 of 469); and the WQ5 measured
+backstop counting a gap that exactly MEETS M7.S.4 as violating it, in double
+precision.
+
+Parked: **Y2-A** WQ19 reads 41 PG-stage special-wire opens against a budget of 20
+on the stub, 10/10/11/33 inside the four tiles -- it measures the TILE's PG pad
+pattern, which the stub invents, so it is the first thing to re-measure with Y1's
+real abstract. **Y2-B** the lattice against the real tile (a `tclsh` sweep finds a
+legal inset at H 1690 for notch depths 140/250/310, but the real pad rows decide).
+**Y2-C** the 24 dead clocks. **Y2-D** the B CHIP flow now carries X2-2 and two WQ5
+changes it has never been cut with, on top of X3-E's four. **Y2-E** two surviving
+WQ17 pockets in the band's second row.
