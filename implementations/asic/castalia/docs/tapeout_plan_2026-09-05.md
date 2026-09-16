@@ -1222,3 +1222,53 @@ legal inset at H 1690 for notch depths 140/250/310, but the real pad rows decide
 **Y2-C** the 24 dead clocks. **Y2-D** the B CHIP flow now carries X2-2 and two WQ5
 changes it has never been cut with, on top of X3-E's four. **Y2-E** two surviving
 WQ17 pockets in the band's second row.
+
+### Y1 -- `hart_tile_pt` re-floorplanned from content for the 2 mm die (2026-09-16)
+
+**PARKED one verifyGeometry marker short of collateral.** Report
+`tapeout_review/reports/Y1_tile_pt_flat.md`.
+
+The tile is **985 x 450** with an **L**-shaped die: one 355 um full-height west
+column holding the TCM, and a **630 x 310 east-flush analog notch** on the
+die-facing edge holding a **600 x 250 `anatop_ch`** at (370,190). 348 pins
+(344 digital + 4 bias) on the band-facing edge over x[4,916]; the four
+electrode/ATP pins and AVDD/AVSS on the die-facing edge. O10's "600 x 250 notch"
+is the MACRO; the notch is that plus the clearances the flow's own mechanisms
+need -- 10 um for T5c's M6 stub and the electrode via, 50 um for the T5b-2 jog
+band, 15 um each side for T-G1 and the tile abutment.
+
+**Why an L.** The TCM is 319.65 x 208.675 and a 250 um analog reservation in a
+450 um tile leaves a base band shorter than the macro, so it can only sit in a
+full-height side column of about 355 um -- and 985 - 630 = 355 um of side column
+exists in total. It is also the better shape: the PG4/F2b failures that
+bracketed the old `BASE_H` at 340 (81 and 101 um fail, 121 passes) are gone by
+construction, because the clear M2 window above ram0 is now 231 um.
+
+**Both notch walls are on the 50 um PG lattice and that is load-bearing.**
+`NOTCH_X0 = 355`, `BASE_H = 140`. A wall on the wrong phase puts an
+opposite-net stripe inside the notch ring band -- `BASE_H = 180` shorts the VSS
+floor leg to a VDD M8 stripe. Move either only in 50 um steps.
+
+**Density is about 32 %, against the tile of record's 21 %**, and the 65-75 %
+the brief asked for is unreachable at this outline: of 443,250 um^2, 150,000 is
+the analog reservation and 66,704 the TCM, so the digital logic is 11 % of the
+tile by area before a row is cut.
+
+| state | detail |
+|---|---|
+| passing on the final cut `y1e` | Y1-PSW 366 row segments / **0 uncovered**; T-G2b 348 pins / **0 relocated**; T2b 600x250; T3/T-G1/T-G3/T-G4; T5b-3 `already on a same-net M7 column` both nets; T5b GATE VDD 26 / VSS 19; PG4/F1 a+b; PG4/F2b all four repeaters; PG5 0; PG6 0; X1 pgsw 0/0/0; W14 **466 / 466 / 0 floating**; G0 MINCUT **0**, Short real **0** |
+| failing | one marker: `AREA: Special Via of Net VSS (M2) (314.650,2.410)(314.750,2.590) 0.018 < 0.052` -- the M2 landing pad of a VIA1 orphaned by the dead-rail scrub in the bottom dead-row band |
+| emitted | **nothing.** `out/` still holds pt13 (`SIZE 660 BY 880`, md5 `2e0e839a`), `out/Y1_READY` does not exist, the `anatop_ch_bbox` OA ref lib was not rebuilt, and the chip core flow does not load `anatop_ch.lef` -- so no downstream artefact is disturbed |
+| next lever | **`DEAD_ROW_BANDS {}`, one edit, one harden (~13 min) plus signoff.** Y1-PSW measured the premise the dead-row machinery rests on and found it false here: no row is uncovered, so there is nothing to block or scrub, and the scrub is what manufactures the residual. The same gate FATALs if that stops being true |
+
+**For Y2**: `PENTA_CORE_NOTCH_X0 = 355`, `PENTA_CORE_NOTCH_W = 630` (east-flush,
+`NOTCH_X1 = TILE_W = 985`), `TILE_W 985`, `TILE_H 450`, `TILE_NOTCH_Y0 140`.
+The notch is **no longer mirror-symmetric in x**, unlike pt13's, so the chip's
+notch blockage has to be mirrored with the tile -- harmless under the agreed
+R0/R0/MX/MX placement, but now an assertion rather than an inheritance. M7 PG
+pads: VDD `51 + 50k`, VSS `60 + 50k`, on the bottom edge across the full width,
+on the notch floor (y[135,140]) east of x=355, and on the top edge (y[445,450])
+west of it. Six die-facing analog ports at tile-local **607.5 + 25k**, order
+AVDD AVSS CE WE RE ATP -- with the agreed tile origins x = 0 and 985 that is
+chip x `7.5 mod 25`, which Y2 can phase away in the tile origin or Y1 can move
+with `TILE_PT_ANACH_X=362.5` at the cost of one harden.
