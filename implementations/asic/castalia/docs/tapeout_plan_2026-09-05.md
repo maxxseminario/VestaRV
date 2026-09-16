@@ -1225,7 +1225,7 @@ WQ17 pockets in the band's second row.
 
 ### Y1 -- `hart_tile_pt` re-floorplanned from content for the 2 mm die (2026-09-16)
 
-**PARKED one verifyGeometry marker short of collateral.** Report
+**DONE. Tile of record `CUT=y1f`, `out/Y1_READY` written, Y2 unblocked.** Report
 `tapeout_review/reports/Y1_tile_pt_flat.md`.
 
 The tile is **985 x 450** with an **L**-shaped die: one 355 um full-height west
@@ -1249,26 +1249,55 @@ construction, because the clear M2 window above ram0 is now 231 um.
 opposite-net stripe inside the notch ring band -- `BASE_H = 180` shorts the VSS
 floor leg to a VDD M8 stripe. Move either only in 50 um steps.
 
-**Density is about 32 %, against the tile of record's 21 %**, and the 65-75 %
-the brief asked for is unreachable at this outline: of 443,250 um^2, 150,000 is
-the analog reservation and 66,704 the TCM, so the digital logic is 11 % of the
-tile by area before a row is cut.
+| | `pt13` (660 x 880) | **`y1f` (985 x 450)** |
+|---|---|---|
+| LEF PIN records | 356 | **356**, `SIZE 985.000000 BY 450.000000` |
+| digital pin pitch | 1.598 um | **5.006 um**, 348 assigned, **0 relocated** |
+| switches inserted / reachable / floating | 732 / 728 / 0 | **477 / 477 / 0** |
+| Quantus | 11401 / 11401 | **11091 / 11091** |
+| G0 | MINCUT 0, Short real 0, Wiring 0, M1 merges 0 | **identical** |
+| signoff setup / hold WNS | +0.376 / +0.034 ns | **+0.571 / +0.030 ns**, 0 violating |
+| density | 21 % | **27.152 %** |
+| `blockdrc` | 16 = 15 density + 1 `DRM.R.1` | **15 = 14 density/dummy + 1 `DRM.R.1`** |
+| `ant25` | 0 | **0** |
+| Pegasus LVS | **MISMATCH**, `anatop_ch` VSS open, waiver `W-PT1-1` | **MATCH**, pins 356:356, no supply-pin exception |
+| gate harness, 41 rows | ff 41/41, ss 41/41 | **ff 41/41, ss 41/41** |
 
-| state | detail |
-|---|---|
-| passing on the final cut `y1e` | Y1-PSW 366 row segments / **0 uncovered**; T-G2b 348 pins / **0 relocated**; T2b 600x250; T3/T-G1/T-G3/T-G4; T5b-3 `already on a same-net M7 column` both nets; T5b GATE VDD 26 / VSS 19; PG4/F1 a+b; PG4/F2b all four repeaters; PG5 0; PG6 0; X1 pgsw 0/0/0; W14 **466 / 466 / 0 floating**; G0 MINCUT **0**, Short real **0** |
-| failing | one marker: `AREA: Special Via of Net VSS (M2) (314.650,2.410)(314.750,2.590) 0.018 < 0.052` -- the M2 landing pad of a VIA1 orphaned by the dead-rail scrub in the bottom dead-row band |
-| emitted | **nothing.** `out/` still holds pt13 (`SIZE 660 BY 880`, md5 `2e0e839a`), `out/Y1_READY` does not exist, the `anatop_ch_bbox` OA ref lib was not rebuilt, and the chip core flow does not load `anatop_ch.lef` -- so no downstream artefact is disturbed |
-| next lever | **`DEAD_ROW_BANDS {}`, one edit, one harden (~13 min) plus signoff.** Y1-PSW measured the premise the dead-row machinery rests on and found it false here: no row is uncovered, so there is nothing to block or scrub, and the scrub is what manufactures the residual. The same gate FATALs if that stops being true |
+**`W-PT1-1` can be retired**: moving the macro's two south supply ports onto the
+tile's M7 PG column lattice (done to kill a MINCUT marker) also made T5b-3's
+landing merge into a column instead of reaching 10 um for one, so the VSS strap
+lands and LVS is a clean MATCH. Promoted by the `ingest` inside
+`make signoff BLOCK=hart_tile_pt`; proved from a fresh headless Virtuoso as
+`hart_tile_pt_signoff/hart_tile_pt/layout bBox=((1.0 0.0) (984.0 450.0))`,
+41,465 instances.
 
-**For Y2**: `PENTA_CORE_NOTCH_X0 = 355`, `PENTA_CORE_NOTCH_W = 630` (east-flush,
-`NOTCH_X1 = TILE_W = 985`), `TILE_W 985`, `TILE_H 450`, `TILE_NOTCH_Y0 140`.
-The notch is **no longer mirror-symmetric in x**, unlike pt13's, so the chip's
-notch blockage has to be mirrored with the tile -- harmless under the agreed
-R0/R0/MX/MX placement, but now an assertion rather than an inheritance. M7 PG
-pads: VDD `51 + 50k`, VSS `60 + 50k`, on the bottom edge across the full width,
-on the notch floor (y[135,140]) east of x=355, and on the top edge (y[445,450])
-west of it. Six die-facing analog ports at tile-local **607.5 + 25k**, order
-AVDD AVSS CE WE RE ATP -- with the agreed tile origins x = 0 and 985 that is
-chip x `7.5 mod 25`, which Y2 can phase away in the tile origin or Y1 can move
-with `TILE_PT_ANACH_X=362.5` at the cost of one harden.
+**What closed it, after five attempts against a bound of three (Y1-E).**
+`DEAD_ROW_BANDS` is EMPTY. The new gate **Y1-PSW** -- every core row segment
+carries a header switch or is a declared dead row, measured on the database
+ninety seconds into every cut, because Innovus truncates `IMPPSO-306` at 20
+messages and that hid 107 dead rows on the first attempt -- reported **366 row
+segments, 0 uncovered**. The whole dead-row apparatus therefore had nothing to
+do, and its scrub was the sole source of the two orphan markers that stopped
+attempts 4 and 5. The second new gate, `pg1_corridor_m7_clear`, tests an AO
+repeater's link corridor rather than its strap band; without it PG4/F2b aborts
+40 minutes in.
+
+**For Y2** (all of it also in `out/Y1_READY`): `PENTA_CORE_NOTCH_X0 = 355`,
+`PENTA_CORE_NOTCH_W = 630` (east-flush, `NOTCH_X1 = TILE_W = 985`),
+`TILE_W 985`, `TILE_H 450`, `TILE_NOTCH_Y0 140`. The notch is **no longer
+mirror-symmetric in x**, unlike pt13's, so the chip's notch blockage has to be
+mirrored with the tile -- harmless under the agreed R0/R0/MX/MX placement, but
+now an assertion rather than an inheritance. M7 PG pads: VDD `51 + 50k`, VSS
+`60 + 50k`, on the bottom edge across the full width, on the notch floor
+(y[135,140]) east of x=355, and on the top edge (y[445,450]) west of it. Six
+die-facing analog ports at tile-local **607.5 + 25k**, order AVDD AVSS CE WE RE
+ATP -- with the agreed tile origins x = 0 and 985 that is chip x `7.5 mod 25`,
+which Y2 can phase away in the tile origin or Y1 can move with
+`TILE_PT_ANACH_X=362.5` at the cost of one harden.
+
+**Open (Y1-D), an ordering constraint, not a preference:**
+`signoff_mp/anatop_ch_bbox` is rebuilt at 600 x 250, so a chip signoff run
+against `pt13` collateral would now resolve the macro to the wrong footprint.
+**Open (Y1-H):** each gate-sim row logs one timing violation at t = 3-4 ps on
+`ram0`'s unannotated `$hold(negedge PGEN, posedge RETN)` retention check at the
+model default; pt13 logged none, and all 41 rows still pass at both corners.
