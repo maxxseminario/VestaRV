@@ -1301,3 +1301,39 @@ against `pt13` collateral would now resolve the macro to the wrong footprint.
 **Open (Y1-H):** each gate-sim row logs one timing violation at t = 3-4 ps on
 `ram0`'s unannotated `$hold(negedge PGEN, posedge RETN)` retention check at the
 model default; pt13 logged none, and all 41 rows still pass at both corners.
+
+### 4.17b Y2 phase 2, 2026-09-16: cut `c4` closes setup, fails hold, and names the blocker
+
+`Y1_READY` landed 04:16; all six collateral md5s verified against it, tile
+interface 356 bits / 52 base names / 4 instantiations matching bit for bit, SDC
+census 31 of 31. Cut `c4` on `out.y1f_ref`.
+
+**Signoff, coupled SI, on a floorplan and a tile neither of which had ever been
+cut:** setup **+0.074 ns, 0 violating of 37,294**; WQ19 opens **0 / 0 / 0**
+(cpr9 192/979/1620); WQ21 PASS both layers; Quantus COMPLETE 99,441 of 99,441;
+density 51.005 %. Hold **-0.765 ns, 270 violating** -- and the group split is the
+finding: `reg2reg` **-0.063 / 18**, `default` **-0.765 / 253**, and the 253 are
+**100 % `Library Clock Gating Hold Check`** launched from `timer1/en_mem`, which
+the SDC constrains as `create_clock timer1_enmem` and which this wave's own new
+in-flow dead-clock census measures as having **no sequential sink**. The ECO
+proves it: pass 1 inserted 15 cells and fixed ten real paths, pass 2 inserted
+**0**. The physical residual is 18 paths at -0.063 ns, the scale c2/c3 closed.
+
+**Second defect, fixed at source:** `wq26c_hold_violators` read only the 50-path
+`*_all_hold.tarpt.gz` and matched only `Hold Check`, so the false checks filled
+the report and the in-cut fixer reported "no violating endpoint" and did nothing.
+It now reads every per-group report and classifies; on c4's own reports it
+returns 7 ordinary endpoints and names 100 clock-gating ones, where the old proc
+returned nothing.
+
+**c4 did not stream.** No GDS, so DRC / antenna / LVS / ingest / promote / the
+chip gate regression are unrun and `castalia_B_core` still holds **c3**. Routed
+database kept at `dbs/MCU_castalia_penta_pt_core.c4.holdfail.innovus.dat`.
+
+**Y2-A and Y2-B are CLOSED** (WQ19 `IMPVFC-200 = 0` on the real abstract against
+41 on the stub; band inset 32.7 um at H 1690 with worst PG pad gap 30.2 um).
+**Y2-G is the blocker**: delete the seventeen `*_enmem` `create_clock` lines at
+their Genus source, X3's shape, then re-cut. Also found and fixed this phase:
+`QTILES` and `fp::tile_places` were two placement lists allowed to disagree
+(`FATAL (PG tile census): hart4 (R180,bottom) VDD sWires=0`) -- `set QTILES
+$FP_PLACES` removes the second. Four attempts against a bound of three, recorded.
