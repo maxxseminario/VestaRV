@@ -1337,3 +1337,80 @@ their Genus source, X3's shape, then re-cut. Also found and fixed this phase:
 `QTILES` and `fp::tile_places` were two placement lists allowed to disagree
 (`FATAL (PG tile census): hart4 (R180,bottom) VDD sWires=0`) -- `set QTILES
 $FP_PLACES` removes the second. Four attempts against a bound of three, recorded.
+
+## 4.18 Y4, 2026-09-16: the 24 dead clocks deleted at the Genus source; the c4 hold miss closes; `c5` parked at CPR6
+
+**Y2-G is closed at its source and the fix is measured.** The 24 `create_clock`
+declarations that the dead-clock census named as reaching no sequential cell are
+deleted from `genus/MCU_PENTA_pt/tcl/MCU_PENTA_pt_hier.genus.tcl`: four protocol
+source clocks (`clk_scl0/1` on `i2c?/SCL_IN`, `clk_sck0/1` on `spi?/sck_in`),
+seventeen `*_enmem`, three SDA. Each carries two independent pieces of evidence,
+the census (`all_registers -clock` = 0 on the netlist of record `b5c78884`) and
+the RTL, which states it in its own words -- `QSPI.vhd:244` "Nothing here is
+clocked by EnMemPeriph", `NFC.vhd:4`, `TIMER.vhd:556`, `UART.vhd:551` -- plus a
+structural fan-in walk of the netlist that finds no path from any of the 24 pins
+to any clock pin. The four protocol cost/path groups, the `i3c0 SCL_IN` false
+path and the Genus-19.15 `reset_clock` power workaround went with them.
+
+**One Genus cut against a bound of two**, from `genus/common/in/y4_frozen`, a
+byte-identical copy of Z5's freeze, so the constraint change is the only
+variable. `all gates passed (GATE_STRICT=1)`, CDC ARMED 1000 / 891 waived / **0
+NOT waived** (Z5's numbers to the endpoint), dead-clock census now an armed GATE
+reading **0**, clock-pin 0, latch 0, pmk 0, drift 0 of 75. The netlist
+(`d383a520`) is logically unchanged against `b5c78884`: **1462 modules both,
+24,873 flops both, worst setup slack +3,548 ps on the same endpoint**, +15
+instances of buffering and drive-strength swaps. The +158,561 um2 of area is
+Y1's `anatop_ch` abstract resize (441,600 -> 600,000 over four instances), not
+this change. `create_clock` **31 -> 7**; the core SDC is 3,181 lines and both
+censuses pass -- X3's existence census 7 of 7, and a NEW netlist-side dead-clock
+walk (`sdc_clock_census.py`) 0 of 7 dead. That walk reproduces Genus's
+timing-engine census name for name on the old pair, which is what makes it worth
+having.
+
+**The deletion does what Y2 predicted.** At the same stage on both cuts
+(`optDesign` Final SI Timing Summary, post-route, SI-aware): hold **-0.760 ns /
+TNS -104.603 / 253 violating** on c4 becomes **+0.009 ns / TNS 0.000 / 0
+violating of 37,075** on c5. The `default` group goes 252 -> 0 and `reg2reg`
+-0.016 / 2 -> **+0.010 / 0**, so the 18-path physical residual closes with the
+false checks. Setup at that stage is -0.026 ns on 3 `reg2cgate` paths (c4:
++0.144 / 0), the class the X2-2 WQ26 loop is armed for. Neither is a signoff
+number: the run never reached coupled-SI Quantus.
+
+**`c5` is parked at the three-attempt bound on an unrelated gate, Y4-A.** All
+three attempts were refused by the CPR6 acceptance gate over ONE hold-fix delay
+cell, `hart0/tile/FE_PHC18866_tx_sel (DLY2X0P5MA10TH)`. Diagnostics added in
+attempts 2 and 3 (additive only; the gate and its refusal untouched) settle what
+it is: its output net drives exactly `g2655/A` and `g2648/A`, and the ram0 clock
+mux gates `g1828`/`g2668` are NOT behind it -- they stay on the undelayed
+`tx_sel` net. The mux switch instant does not move, which is the harm the gate
+exists for; a third application of the gating-check disable, immediately before
+`optDesign -postRoute`, found the same two gates and eliminated the
+missed-clone hypothesis. The gate matches a DLY cell by INSTANCE NAME
+(`*tx_sel*`), which is wider than its own stated intent ("any DLY cell landing
+on the orchestrator's ram0 mux select"). The fix is one edit -- derive the mux
+gates from ram0/CLK, walk back through the repeater chain into their `*tx_sel*`
+input, FATAL on DLY cells on THAT path, keep the name census as a WARN -- and it
+changes the condition of a tapeout safety gate, so it is the owner's call.
+
+**`c5` did not stream (Y4-B)**, so DRC / antenna / LVS / ingest / promote / the
+headless proof and the five-scope P&R SDF leg are unrun and `castalia_B_core`
+still holds `c3`. PG stage was c4's number for number: WQ19 0/0/0, WQ21 PASS both
+layers, WQ17 51 of 389, WQ5 backstop 6 of 6, density 50.572 %.
+
+**Gate level on the new netlist: 13/14 zero delay** (only `shtcm`, at
+`20089645511899 FS`, the reference femtosecond) **and 14/14 under the pre-layout
+genus SDF**, `*W,SDFNET` 0 in simulation, and the 14-row raw `Timing violation`
+total **889,778, equal to Z5's to the digit**.
+
+**Y1-H is answered: a model-default artefact.** The `ram0`
+`$hold(negedge PGEN, posedge RETN, 1.000 : 1 NS)` is unannotated because Innovus
+writes the constraint as an SDF `SETUPHOLD` with a null setup field, which does
+not map onto the ARM model's bare `$hold`; the tile bench ties both pins
+(`tcm_pgen => lo, tcm_retn => hi`), so each has one transition in the whole run;
+and the pt13-vs-`y1f` delta is **1 ps of interconnect** (pt13 PGEN 0.006 / RETN
+0.005 ns, so RETN rises first and there is no check to fail; `y1f` 0.002 /
+0.003, so PGEN falls first). At chip level `tcm_retn` is a `logic_1` tie on all
+four tiles, so the four RETN-edge retention checks are unreachable in silicon.
+One real gap noted for power-gating bring-up (Y4-C): the two PGEN/CEN checks that
+CAN fire are also unannotated, so gate sim measures them against 1.000 ns where
+the SDF signs them off at 0.980 / 7.642 ns.
