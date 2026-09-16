@@ -1069,3 +1069,106 @@ so a re-harden on each is the next physical step. Still open and unchanged by th
 files, no `_pt` chip cut has written a P&R SDF (so both SDF legs here are the pre-layout genus
 SDF at tt/25 C and `SDF_RECOVERY` remains a tile-harness knob only), and the eighteen zero-hit
 waivers still want X2's and Z2a's decision.
+
+## 4.16 Y3, 2026-09-16: the 2 mm IO ring, built and clean; the package is the blocker
+
+Full report: `<scratchpad>/reports/Y3_io_ring_2mm.md`. Owner decision O10 fixed
+die Y at exactly 2 mm including ring and seal. The ring is built, every gate
+passes and `verifyGeometry` finds nothing.
+
+**The frame, measured.** Pad depth 135.0 um and pad pitch 25.0 um are the `SIZE`
+of every cell in `tphn65gpgv2od3_sl_8lm.lef`; the seal band is the flow's 20.0
+um. So the ring band is **155 um per edge** and **core Y = 2000 - 310 = 1690**,
+not O10's provisional 1650 -- 40 um of free core height, and the control band
+becomes 790 um tall rather than 710. **Y2 must land 1690**; the flow now FATALs
+on any die Y off 2000. Core X 1970 = two abutted 985 um tiles, so the die is
+**2280 x 2000 um**. One further constraint on Y2: **no `MY` tile orientation**
+(top row `R0`, bottom row `MX`), because four *identical* analog sections are
+only possible if tile-local x maps to chip x unchanged.
+
+**The analog section is 600 um -- exactly one notch, brackets included**, and
+four copies are cell-for-cell identical. Slots 9-14 carry AVDD, AVSS, CE, WE, RE
+and ATP and sit **exactly** over `anatop_ch`'s own die-edge ports, which the
+abstract already puts on a 25 um pitch: every electrode is a 49 um vertical drop
+with zero lateral travel. The other sixteen slots are five AVDD and five AVSS
+pads in parallel (one net pair per channel, the X3-A agreement applied at the pad
+end), **two `PVSS2A_G` latch-up anchors**, and six reserved analog debug pads.
+The shared bias island moves to the **east** row -- in the flat arrangement the
+control plane is a horizontal band, so its nearest edges are west and east, not
+pt11's north-centre -- and picks up force/sense pads on the four live bias rails.
+Five islands and ten `PRCUTA_G` as before, so gates C3 and C4 keep their literals.
+
+**The last pad-ring residual is closed.** `RN_TPHN65GPGV2OD3_SL_210B` 6(i) wants
+a bonded `PVSS2A/2AC_G` within 1 ohm of VSS bus of every `PDBxA_G`; pt11 placed
+**zero** and commit `225fadcd`'s own message records the gap. This ring places
+nine, worst `PDB3A_G`-to-anchor run **6 cells / 150 um** (measured by a new gate
+on the placed database). The 1 ohm itself is still an extracted number.
+
+**Digital: 73 pads in five arcs, every arc with its own VDDPST/VSSPST pair by
+construction.** pt11 had four pairs for five arcs and needed resolution S1 by
+hand. All 48 GPIO bits, RESETN, the five TAP pins and POC keep their cells and
+their core-side nets, and unlike pt11 **no GPIO port is split across edges**.
+171 pads sit in 292 perimeter slots; the 106 leftover slots are filler and stay
+filler, because a seventh GPIO port is a peripheral instance, a memory-map slot,
+an IRQ vector and RTL -- not a ring change.
+
+**A defect the new gates caught before anything was declared done.** An arc
+**wraps a corner**: the north edge's east span and the east edge's north span are
+one arc, joined through `PCORNER_G`. pt11's C-G3 walked the two horizontal rows
+separately and could not express that. The first digital placer used first-fit,
+put the two east runs in each other's spans, split `PAD_VDDPST_3` from
+`PAD_VSSPST_3` across two arcs and left both unsupplied -- the exact class S1 had
+to repair by hand. Runs now name their span; the gate re-derives the arcs from
+the database.
+
+**The whole ring is emitted, not typed.** `gen_padring_pt2mm.py` is the plan and
+produces the padlist tcl, the frame knob header, the chip wrapper's pad instances
+and `config/padring_pt2mm.json`; `--check` proves the tree matches and
+`run_ring.sh` refuses to start Innovus if it does not. A die-size change is one
+edit in one Python table.
+
+| gate, run `y3r4` | result |
+|---|---|
+| O10 frame | die **2280.0 x 2000.0**, core 1970.0 x 1690.0 |
+| C-G9 (new) section over notch | 4 of 4 |
+| C3 / C4 | **10** brackets; **171** pads, every one bound to the cell the padlist names |
+| C-G8 (new) latch-up | 9 anchors, worst run 6 cells, 0 islands outside budget |
+| C-G3 I/O supply per arc | **5 arcs, 0 unsupplied** |
+| C-G10 (new) pad-ring power | every supply pad bound; 10 analog nets, 44 pad terminals |
+| **verifyGeometry** | **Cells 0 / SameNet 0 / Wiring 0 / Antenna 0 / Short 0 / Overlap 0** |
+
+Generator gates: `package_die_row_test`, `castalia_b_generation_test`,
+`generation_determinism_test` and the overlay determinism test all re-run
+unchanged and pass (`padring_pt.json` and the package model are untouched); the
+new `padring_pt2mm_test` passes 15/15 and fails on a deleted latch-up anchor.
+
+**Y3-B, THE BLOCKER, and it is the owner's: LQFP-100 is exhausted by this ring.**
+The essential set -- 55 digital signals, 18 digital supply pads, 24 per-channel
+analog, 2 bias -- is **99 of its 100 fingers**, and the per-edge cap of 25 binds
+hard: twelve essential analog pads on each of the north and south rows leave the
+**east edge needing 30 fingers of its 25**. Rebalancing is arithmetically
+possible only by splitting GPIO ports across three edges, with zero margin, and
+with all 72 surplus pads unbonded -- including every `PVSS2A_G`, and 6(i) says
+*bonded*, so the latch-up fix is only a fix in a package that can bond it. No
+ball is therefore assigned anywhere in this wave and the package model is
+untouched. Three resolutions are costed in the report (QFP/QFN-176; LQFP-100
+with ports split and 72 pads unbonded; chip-on-board). **The die geometry is
+identical under all three** -- the property B3 established for pt11. Wiring
+`padring_pt2mm.json` into `generate.py` needs the decision first; the edit is one
+package-model branch in `vesta_overlay.py` plus a chip config, about 200 lines.
+
+Also open: **Y3-A**, `anatop_ch` exposes exactly ONE analog debug output (`ATP`),
+so 25 bonded pads have no internal driver -- the ask of Y1 is four to six more
+taps on the same 25 um pitch (ATP2, VOUT, VREF, VCM, RE-force), and the ring does
+not move either way. **Y3-1**, ANATOP parts 3b / C12 / C14 / C17 and the WQ27
+waiver class still name one `AVDD` / `AVSS` while part 3 now creates five
+domains; a hard gate stops the flow there rather than three thousand lines later,
+and generalising them belongs to the first cut with a real core to strap to.
+**Y3-2**, `addIoFiller -area` is unsupported on Innovus 20.12, so the
+analog-profile spacer pass never runs -- inert today because the island spans are
+gap-free, live the moment a pad is added to or removed from an island.
+
+The ring is a ring on an empty core: `hart_tile_pt` is still the pt11 master and
+the B core is still the L-shape. The first cut that places tiles inside this
+frame is the one that proves the notches line up in metal rather than in
+arithmetic, and gate C-G9 is what will say so.
