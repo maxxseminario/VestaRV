@@ -1760,7 +1760,7 @@ its census is a FATAL gate, and it is proven a strict superset of the two sed
 rules byte-for-byte. Because the bind **asserts** the well connection instead of
 comparing it, `signoff_mp/lvs_well_gate.sh` gates the **physical** well checks
 against `pvs/<lib>_<cell>.wellbaseline` and `lvs.sh` exits **12** on any increase
-even on a MATCH (gate G7). Offline test `lvs_well_gate_test.sh`, **16/16**, no
+even on a MATCH (gate G7). Offline test `lvs_well_gate_test.sh`, **21/21**, no
 licence.
 
 **The verdict.** `c7`: **MATCH**, cells 2/0, devices 7,967,112 : 7,967,112 with
