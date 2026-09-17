@@ -1530,6 +1530,38 @@ the mesh-phase change is what removed them. `VIA4.R.4:M5` goes 1 -> 2, which is
 the measured price of waiver W-Y5-1 and was named as its falsifier in advance.
 **X3-A is closed**: the AVDD/AVSS LVS class is gone.
 
+### The five-scope P&R SDF leg runs, 14/14 at both views
+
+Z5 open item 4 and Y4-B are closed. Harness
+`xcelium/riscv_test/genus_pt_y5_pnr_20260917`: the core cut's `c6.xsim.v` plus the
+tile's `hart_tile_pt.xsim.v`, five scopes (the core SDF over `:dut`, each tile's
+over `:dut:hart1..4`), `MTM_CONTROL` following the view.
+
+| leg | result |
+|---|---|
+| `setup_analysis_view` (ss 0.9 V 125 C, MAXIMUM) | **14/14** |
+| `hold_analysis_view` (ff 1.1 V -40 C, MINIMUM) | **14/14** |
+
+Every per-hart flag is Z5's and Y4's, `shpwr` 1:t 2:f 3:f 4:t included.
+`*W,SDFNET` in simulation is 0 at both views; `Timing violation` totals 803 at
+setup and 880,351 at hold, the latter within 1.1 % of the 889,778 both waves
+measured on the pre-layout genus SDF.
+
+**A module-name collision stopped all 14 rows first.** `saveNetlist` writes the
+RTL's own ICG wrapper modules into both netlists and each flow numbers them
+independently -- `ClkGate_1` is 3 ports in the tile and 4 in the core, because
+CCOpt cloned an output pin -- so `xmelab` bound the core's `i3c0/cg_clk_baud` to
+the TILE definition. `gen_gate_tile_v.py` (new) renames the colliding modules in a
+harness-local copy of the tile netlist, measures the collision set rather than
+assuming it (exactly `{ClkGate, ClkGate_1}` of 110 against 1352), and FATALs if
+any survives. The tile SDF is unaffected.
+
+**The unannotated list is the shape of a five-scope annotation**: 436 `SDFNSB` per
+row are the core SDF's entries at the tile MACRO boundary, dropped because
+`hart_tile_pt.xsim.v` is a structural netlist with no specify block; 157
+`SDFGENNF` are the behavioural leaves (`irq_gf0..3`, `dco0/1`, `por`); 500
+`SDFNET` are the `afe0`/`afe1` `fifo_reg` `RECREM` class the genus leg also has.
+
 ### Parked
 
 | # | item | what it needs |
