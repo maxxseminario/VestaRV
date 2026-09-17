@@ -1460,3 +1460,81 @@ holds `c3`. Routed database at `dbs/MCU_castalia_penta_pt_core.c5.holdfail.innov
 **One new class recorded for the next attempt**: WQ27 signoff `verifyGeometry`
 reads SameNet 151 real / Wiring 1 / Antenna 1 / Short 10 / Overlap 0 against
 wq22e's 0 / 3 / 0 / 0.
+
+## 4.19 Y5, 2026-09-17: the c5 geometry class closed at source, and core cut `c6` closes SETUP AND HOLD
+
+**`c6` is the first topology-B core cut to close both sides of timing**: setup
+WNS **+0.066 ns / 0 violating of 37,075**, hold WNS **+0.001 ns / 0 violating**,
+TNS 0.000, on one hold-ECO pass. `castalia_B_core` now holds `c6` (1970 x 1690,
+289,369 instances, proved in a fresh headless Virtuoso session). It is **NOT
+signed off**: one real LVS short class remains (Y5-A).
+
+### The c5 verifyGeometry class: 163 markers, four mechanisms, and the seam is innocent
+
+Diagnosed from c5's own reports, not re-measured. **No marker names two tiles**:
+the abutment at x = 985 is clean in both rows, so no inter-tile gap knob was
+needed or added.
+
+| class | n | where | fix |
+|---|---:|---|---|
+| SameNet spacing, band macro vs tile row | **139** | the line **y = 451**, gaps 1.00-1.44 um against a 1.5 um wide-metal minimum | `fp::band_plan -tile_gap`, knob `PENTA_CORE_TILE_GAP` = 2.0 with a 1.5 um floor gate. **Zero die cost in both axes** |
+| SameNet spacing, M7 mesh vs tile obstruction | **12** | x 515.8-516.5 / 815.8-816.5, west tiles only, 0.7 um | the mesh phase pinned to the tile's own M7 riser lattice (VDD 51 + 50k, read from the abstract), i.e. 1.0 not 1.8 |
+| SHORT, M7 | **8** | the WQ17 extension ribs, drawn through the west tiles' notch obstruction | `wq17_rib_blocked`: the census window and the drawing window are separate; a rib over a macro is refused and counted |
+| bias_bp M6 / MINCUT / Antenna | 2 / 1 / 1 | post-route | see Y5-A and waiver W-Y5-1 |
+
+**Near-alignment was the trap.** The west tile column's riser lattice is 0.8 um
+from the mesh -- close enough that `-extend_to_closest_target` pulls the stripe
+into the tile, not far enough to clear the tile's own comb. The east column is
+35 um out (985 mod 50) and was clean throughout. Pinning the phase costs the ROM
+class nothing: with the phase fixed the ROM's x is the lever (`PENTA_CORE_ROM_DX`
+8.0 -> 7.2), 2 hazards against the same budget of 2, and the gate now prints the
+ROM-shift sweep so the next value is read rather than guessed.
+
+**Proved before the cut.** A 52-second floorplan-only probe took the
+blockage-excluded `verifyGeometry` from **SameNet 151 / Short 8** to **0 / 0**.
+
+### Hold: the launch end of the path, not a bigger reach
+
+The four y = 450.74 endpoints have the band occupied edge to edge above them
+(five RAM macros plus halos, y[448,839]); the nearest free row site is ~390 um
+away, so X3's 60 um refusal was correct. `ecoAddRepeater -term` is terminal
+scoped, so the buffer may sit anywhere on the path: the policy is now
+`wq26c_choose_pt` returning `{x y how}` with `how` in {pin, near, launch}, and the
+launch point goes through the same site finder (never the driver's raw
+coordinate). On `c6` it placed **19 of 19 endpoints, 0 skipped, 6 at the launch
+end** 391-532 um away, all tile boundary pins. Unit-tested without Innovus
+(`tcl/wq26c_site_test.tcl`, 23 checks on c5's measured placement).
+
+**A third defect in the same classifier regex**, found on c6 attempt 2: a
+`VIOLATED Removal Check` on an async reset pin does not match `Hold Check` either,
+so a 6 ps miss on `i2c0/I2CSC_reg/R` stopped a cut without ever being named. A
+removal check IS fixable where a clock-gating hold check is not -- its endpoint is
+the reset pin and the reset net is the data path -- so it is now classified,
+counted and returned. Tested against c6's real signoff hold report
+(`tcl/wq26c_holdparse_test.tcl`, 6 checks).
+
+### c6's numbers
+
+| | `c4` | `c5` | **`c6`** |
+|---|---:|---:|---:|
+| setup WNS / violating | +0.074 / 0 | +0.078 / 0 | **+0.066 / 0 of 37,075** |
+| hold WNS / violating | -0.765 / 270 | -0.017 / 5 | **+0.001 / 0** |
+| WQ27 SameNet real / Short / Wiring / Antenna | -- | 151 / 10 / 1 / 1 | **0 / 0 / 2 / 0** |
+| dangling / process antenna | -- | -- | **0 / 0** |
+| density | 51.005 % | 50.585 % | **50.541 %** |
+| blockdrc real (density/dummy) | -- | -- | **23 (57)**, c3: 62 (65) |
+| ant25 | -- | -- | **2 (12) MIM_SWITCH.WARN.1** |
+
+`M7.S.2` and `M7.S.2.1`, c3's dominant real DRC pair at 11 each, are **gone** --
+the mesh-phase change is what removed them. `VIA4.R.4:M5` goes 1 -> 2, which is
+the measured price of waiver W-Y5-1 and was named as its falsifier in advance.
+**X3-A is closed**: the AVDD/AVSS LVS class is gone.
+
+### Parked
+
+| # | item | what it needs |
+|---|---|---|
+| **Y5-A** | **THE BLOCKER. `bias_bp` and `afe_ctl_1<16>` are shorted to VSS at hart1's pin band.** The tile's four M6 bias pins sit at tile-local x = 880 + 12k and its own M7 PG riser columns at x = 51/60 + 50k: `bp` at 903.9 is INSIDE the VDD column [901,906]. The tile alone is LVS-clean; the short exists only in the assembled core. c5 saw the same collision as a verifyGeometry SHORT at hart3. | Tile-side: move the bias pins off the PG lattice (one re-harden, Y1's call). Or core-side: a PG-only keep-out over the bias escape corridor. `afe_ctl_1<16>` is presumed the same mechanism -- one line of evidence, not a traced path. |
+| **Y5-B** | Waiver class **W-Y5-1**, two same-net PG `MINCUT` results (1 cut of 2) on VIA4 arrays clipped by `shbank2`'s and `ram0`'s edges. Shape- and database-keyed, capped by `PENTA_CORE_WQ27_MINCUT_MAX`. | Calibre is the verdict and read `VIA4.R.4:M5` = 2 against c3's 1. Close it with a PG-only keep-out band along macro vertical edges if it ever matters. |
+| **Y5-C** | **Every fix is in the CORE block or in its frozen source; the `_pt` CHIP flow has none of them.** Its live file has drifted 646 lines from the frozen copy, and adopting that drift is a `W14_REBASE` decision. | One rebase plus a chip cut, deliberately. |
+| **Y5-D** | The CPR6 cone ceiling was a literal (12) calibrated on c5's 9 and refused c6's 14 with both mux gates present. Re-keyed to the predicate it stood for (**every disabled mux gate must be IN the cone**) with the ceiling kept as a knob at 24. | Nothing; recorded because it changed a D19 gate's arithmetic, not its subject. |
