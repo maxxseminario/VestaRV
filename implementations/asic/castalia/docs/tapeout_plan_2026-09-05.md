@@ -1570,3 +1570,154 @@ row are the core SDF's entries at the tile MACRO boundary, dropped because
 | **Y5-B** | Waiver class **W-Y5-1**, two same-net PG `MINCUT` results (1 cut of 2) on VIA4 arrays clipped by `shbank2`'s and `ram0`'s edges. Shape- and database-keyed, capped by `PENTA_CORE_WQ27_MINCUT_MAX`. | Calibre is the verdict and read `VIA4.R.4:M5` = 2 against c3's 1. Close it with a PG-only keep-out band along macro vertical edges if it ever matters. |
 | **Y5-C** | **Every fix is in the CORE block or in its frozen source; the `_pt` CHIP flow has none of them.** Its live file has drifted 646 lines from the frozen copy, and adopting that drift is a `W14_REBASE` decision. | One rebase plus a chip cut, deliberately. |
 | **Y5-D** | The CPR6 cone ceiling was a literal (12) calibrated on c5's 9 and refused c6's 14 with both mux gates present. Re-keyed to the predicate it stood for (**every disabled mux gate must be IN the cone**) with the ceiling kept as a knob at 24. | Nothing; recorded because it changed a D19 gate's arithmetic, not its subject. |
+
+## 4.20 Y6, 2026-09-17: Y5-A closed at the tile pins; the band-facing pins are off the PG riser lattice
+
+**Y5-A was never two pins.** The tile assigns its band-facing pins on one lattice
+and its own M7 PG riser columns on another, and nothing made them avoid each
+other: digital at 4.0 + 5.006k, bias at 880 + 12k, risers at VDD 51 + 50k and
+VSS 60 + 50k, 5 um wide and 140 um long. Measured on the `y1f` abstract,
+**120 of the 348 band-facing pins were inside the required clearance of a column
+and 70 of them INSIDE one**. `bp` at 903.9 sat inside the VDD column [901,906],
+`bpc` at 915.9 against the VSS column [910,915], and **`afe_ctl[16]` at 714.7
+inside the VSS column [710,715]** -- which is the `afe_ctl_1<16>` of c6's shorts
+file, so Y5's presumption is now a traced path.
+
+The tile alone stays clean because a pin is a label and nothing inside the tile
+drives both nets. The short exists only assembled, where the core welds its M7
+mesh onto the riser pad -- Y5 pinned the mesh phase to that lattice deliberately,
+and that is right -- and routes to the pin at the same x.
+
+### The clearance, from the tech LEF
+
+`TILE_PT_PG_KEEPOUT` = **1.57 um** = M7 wide-metal spacing **1.50**
+(`tsmc_cln65_a10_6X1Z_tech.lef`, M7 `SPACINGTABLE`, WIDTH 4.50 /
+PARALLELRUNLENGTH 4.50 -- the riser is 5 x 140 um, so that is the row and the
+column that apply) + VIA6 `PREFERENCLOSURE` **0.07**, the enclosure the CORE's
+landing via needs. `TILE_PT_PG_KEEPOUT_MIN` = 1.5 is a floor the flow FATALs
+below: a value under the M7 spacing cannot be satisfied by any router on the
+other side of the boundary, so it is not a tuning knob.
+
+`TILE_PT_PG_BRIDGE_GUARD` = **2.0 um** covers the one class of M7 PG shape that
+is not on the lattice: PG4's pad-union bridges, which reach at most
+1.6 + 0.16 = 1.76 um past a VDD stripe (the `y1f` abstract carries three at this
+edge, widening the columns at 451 / 651 / 751 by 1.15 / 1.65 / 1.15). It is a
+placement allowance, never the gate. And the placement is solved at
+keep-out + 0.1, because `editPin` snaps to the 0.2 um M4/M6 track and a pin left
+on the boundary could be snapped back across the line the gate measures.
+
+### What moved
+
+| | |
+|---|---|
+| pins moved | **138 of 348** -- 134 digital (max **7.894 um**, mean 5.23) + the four bias pins (9.8 / 13.8 / 17.8 / 21.8 um west) |
+| pin order per layer, layer assignment, pin names | **unchanged** |
+| minimum pin-to-pin spacing | 0.600 um |
+| outline, notch, ram0, `anatop_ch` placement | **unchanged** |
+| analog die-edge ports (607.5 + 25k), PG pad rows, ring, OBS | **unchanged** |
+| `anatop_ch.lef` | **unchanged**, so `signoff_mp/anatop_ch_bbox` was not rebuilt and Y1-D is untouched |
+
+The bias group compresses as well as moves, and the arithmetic forces it: four
+2 um pins at a 12 um pitch span 36 um, and the widest riser-free window on this
+edge is **28.86 um**, so no placement of the group at pitch 12 exists.
+`870.1 + 8k` centres it in x[867.57,896.43] with 2.5 / 2.3 um of margin and
+leaves 6 um of clear metal between pins, against the ~5 the 1.0/1.0 shielded NDR
+and its VSS shield need.
+
+### Gate T-G2c, in two halves
+
+Part 1 checks the ASSIGNMENT against the derived lattice before a stripe is
+drawn. Part 2 re-reads the finished database after PG4's bridge pass and
+measures the PLACED coordinates against the M7 PG geometry that actually exists,
+at the **bare** keep-out, so a guard that turned out to be too small reads as a
+measurement rather than as a silent pass. Its inclusion test is "overlaps a
+derived column grown by the guard", which is the definition of a riser column
+rather than a proxy for it -- an x-band exclusion was tried first and silently
+dropped the last two columns of the 38.
+
+`tcl/pin_pg_dodge.tcl` holds the arithmetic and `tcl/pin_pg_dodge_test.tcl`
+proves it with no Innovus and no licence, against the measured columns of an
+emitted LEF and a worst-case track snap. It runs on either abstract and says
+which: `out.y1f_ref/` reports *carries the defect* (31 of 31 pass), `out/`
+reports *already clear* and that the solver is a fixed point on it (30 of 30).
+
+### Tile cut `y1i` -- the tile of record
+
+| check | `y1f` | **`y1i`** |
+|---|---|---|
+| pins on the riser lattice | 120 pairs / 70 inside | **0** |
+| achieved pin-to-riser clearance | -- | **1.85 um** (1.75 after a worst-case snap) |
+| T-G2b | 348 assigned, 0 relocated | **348, 0** |
+| T-G2c part 1 / part 2 | -- | **0 / 0** |
+| G0 GATE | MINCUT 0, Short real 0, Wiring 0, M1 merges 0, 4 SPACING | **identical** |
+| Quantus | 11091 / 11091 | **11094 / 11094** |
+| signoff setup / hold WNS | +0.571 / +0.030 | **+0.462 / +0.025 ns**, 0 violating, TNS 0.000 |
+| density | 27.152 % | **27.191 %** |
+| Calibre `blockdrc` / `ant25` | 15 / 0 | **16 = 15 density/dummy + 1 `DRM.R.1`, 0 real** / **0** |
+| Pegasus LVS | MATCH | **MATCH**, shorts 0, sentinels ARMED |
+| gate harness, 41 rows | ss 41/41, ff 41/41 | **ss 41/41, ff 41/41** |
+
+Promoted by the `ingest` inside `make signoff`; headless Virtuoso, fresh
+session: `hart_tile_pt_signoff / hart_tile_pt / layout bBox=((1.0 0.0)
+(984.0 450.0)) instances=41440`. `out/Y1_READY` rewritten.
+
+**Three launches, and the second and third are worth one line each.** `y1g`
+carried the same pin fix, and Innovus accepted every new position (`0 relocated
+by the tool`) -- then the G0 gate refused it on ONE routed M1 short 340 um from
+the nearest moved pin, placement noise from re-rolling the router. F1's targeted
+`ecoRoute -fix_drc` could not close it and the report says why: the marker
+**moved 1.4 um and stayed** inside a 4.0 x 4.4 um window, which is a window too
+small to hold a solution and not a class the router cannot fix. New stage
+**F1b** escalates a SHORT naming routed metal -- `-fix_drc` at 8 then 20 um,
+then rip the net and re-route it, then `verifyConnectivity` **scoped to the
+ripped nets by name** because a rip that trades a short for an open is the worse
+defect and this tile's PG carries a standing set of open/dangling lines a
+whole-report count would drown in. **No fence is drawn, on purpose**: the G0
+driver records a cell-bbox fence answering with Short 23 / Overlap 16, and a
+fence over the marker box can sit on the pin the net must reach. `y1h` cost 49
+seconds to an exact-equality form of T-G2c part 2's own column count, on a cut
+whose real predicate had just passed; re-keyed to the question the count stood
+for.
+
+### Core cut `c7`
+
+`c7` is c6's flow with one variable, the `y1i` abstract, plus a generator fix to
+a streamOut comment. It closes both sides of timing at the coupled-SI views --
+**setup +0.088 ns, hold +0.001 ns, 0 violating of 37,075 on each** -- with two
+hold-ECO passes and 18 repeaters, and it has **the cleanest WQ27 census of any
+topology-B core cut**: Cells 0 / SameNet 0 / **Wiring 1** / Antenna 0 / Short 0 /
+Overlap 0, the one Wiring being waiver W-Y5-1 at (976.125,609.300). CPR6 PASS,
+WQ19 0 PG opens, WQ21 M7 S3 0/0 S4 1/2 and M8 0/0, WQ25 99,252 of 99,252 nets
+extracted, density 50.801 %. GDS md5 `418c8fd3d7afbf1e23a2b35b0b4168b0`.
+
+`c7` is also the first `_pt` core cut to reach the in-flow `streamOut`, and it
+died there: `IMPTCM-48: "#" is not a legal option`. W13's F14 edit had put its
+comment INSIDE a backslash-continued command, latent through c2/c3/c6 because
+all three were refused at WQ27 and streamed out of flow. Fixed at the generator
+(F14 emits no comment, new **F14b** prepends it above the command); regenerated
+diff is exactly 8 lines. The cut was recovered with X3's out-of-flow stream
+script, the same disposition the earlier three got.
+
+Calibre on the streamed GDS: `blockdrc` 84 = 57 density/dummy + **27 real**
+against c6's 80 = 57 + 23, with `M7.S.2`/`M7.S.2.1` still at **0** on both and no
+result inside the Y6-A patch; `ant25` **2 (12)** `MIM_SWITCH.WARN.1`, the same
+count as every cut since c2.
+
+**Pegasus: the short is gone.** Devices 7,967,112 : 7,967,112 with 0 unmatched
+both sides, `anatop_ch` 4 : 4 black box at 75 : 75 pins, the four `AVDD_h`/
+`AVSS_h` pairs clean, pins 0 : 0, sentinels ARMED, and **an EMPTY shorts file**.
+`bias_bp` and `afe_ctl_1<16>` are no longer shorted to VSS: **Y5-A is closed**.
+The verdict is still MISMATCH, on 22 unmatched schematic nets that are the
+`VNW`/`VPW` bulk nets of 11 Innovus optimisation buffers in hart 0's main ALU
+(**Y6-A**). That class is not new -- c6 carried it at one cell and recorded it as
+incidental beside the short -- and it is not a short, not a device mismatch and
+not a pin mismatch. Every std cell in the kit declares those two pins, no flow in
+this repo connects them (topology A's MATCHing netlist included), and `lvs.rep`
+carries a standing SCONNECT stamping conflict (5,863 rejected nets on c7, 5,904
+on c6) while both physical well checks are unchanged since c2
+(`floating.nxwell_float` 38 (8300), `LVS_SOFTCHK nxwell` 1 (4)). The negative
+control discriminates: one deleted `AOI222X1MA10TH` moved devices to
+7,967,112 : 7,967,100 with 12 : 0 unmatched while the class stayed at exactly 22.
+
+`c7` is therefore **promoted and NOT signed off**, with Y6-A as the first item of
+the next wave.
