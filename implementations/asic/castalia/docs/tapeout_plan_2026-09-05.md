@@ -1721,3 +1721,63 @@ control discriminates: one deleted `AOI222X1MA10TH` moved devices to
 
 `c7` is therefore **promoted and NOT signed off**, with Y6-A as the first item of
 the next wave.
+
+## 4.21 Y7, 2026-09-17: Y6-A was the LVS netlist, not the wells. Core cut `c7` is LVS MATCH
+
+**Y6-A is closed without touching the silicon.** Two Pegasus runs, no Innovus
+run, no re-cut, no ECO: the GDS of record is byte-identical to the one Y6
+streamed (md5 `418c8fd3d7afbf1e23a2b35b0b4168b0`).
+
+**The mechanism is a line shape.** `signoff_mp/lvs.sh` binds `VNW=VDD VPW=VSS`
+on std-cell instance lines -- the kit's `.SUBCKT`s declare those bulk ports and
+no P&R flow writes them -- with two `sed` rules keyed on the two shapes v2cdl was
+observed to emit. **v2cdl wraps at column 80 and there is a third**: when the
+instance NAME plus the cell name fill the line, `$PINS` itself moves to the
+continuation. Census of c7's own CDL: 106,140 shape 1 + 147 shape 2 + **11 shape
+3** = 106,298 A10TH instances, 106,287 bound. 11 x 2 = **22**, the entire
+residual. The 2026-08-26 note claiming that shape does not occur was a census of
+the cpr8 CHIP netlist; the shape depends on the instance names a given
+optimisation run creates.
+
+**What it was not, measured from the cut's own database.** The layout side of all
+44 devices already reads `B: VDD` / `B: VSS` -- it is the schematic that carries
+a net with no counterpart. Tap coverage in the patch is **12.000 um on every
+4 um row** (the `addWellTap -cellInterval 24 -checkerBoard` lattice) with the 11
+cells **0.375 to 5.045 um** from a tap in their own row, against a kit rule of
+`LUP.6 <= 30 um`, which c7's `blockdrc` computes with **0 results**. The SCONNECT
+"stamping conflict" is an extraction note from a pegasus-internal cell
+(`MASCO__P13`) that topology A's **MATCHing** chip run carries too, and its
+`Rejected Nets: 5863` is **one net index, not 5,863 nets**. And all **38**
+`floating.nxwell_float` results -- the only non-zero RULECHECK in the ERC summary
+-- are inside the two vendor SRAM compiler macros, in 18 sub-cells of
+`sram1p8k_hvt_pg` / `sram1p16k_hvt_pg`, none in a core row; they are counted per
+unique master, which is why the number has been exactly 38 since c2.
+
+**The fix, and the gate that must come with it.** `signoff_mp/cdl_bind_wells.py`
+joins `+` continuations first, resolves each instance's master and binds only the
+well ports that master declares (closing the `FILLBIASPWA10TH` trap on the way);
+its census is a FATAL gate, and it is proven a strict superset of the two sed
+rules byte-for-byte. Because the bind **asserts** the well connection instead of
+comparing it, `signoff_mp/lvs_well_gate.sh` gates the **physical** well checks
+against `pvs/<lib>_<cell>.wellbaseline` and `lvs.sh` exits **12** on any increase
+even on a MATCH (gate G7). Offline test `lvs_well_gate_test.sh`, **16/16**, no
+licence.
+
+**The verdict.** `c7`: **MATCH**, cells 2/0, devices 7,967,112 : 7,967,112 with
+0 : 0 unmatched, pins 535 : 535, nets 2,963,441 : 2,963,441, `anatop_ch` 4 : 4
+black box at 75 : 75 pins, the four `AVDD_h`/`AVSS_h` pairs matched, shorts file
+empty, sentinels ARMED, well gate PASS. Negative control (one `AOI222X1MA10TH`
+deleted) gives MISMATCH with **12 : 0 unmatched devices and nothing else moved**,
+and the Y6-A class does not reappear.
+
+No promote and no ingest: nothing the OA libraries hold changed, so Y6's headless
+proof (1970.13 x 1690.0, 290,551 instances) and the five-scope P&R SDF regression
+(14/14 at both views) still stand. The `c7` README, `castalia_B_core/PROMOTED.txt`
+and `RUNBOOK_CORE.md` now say MATCH.
+
+**What is left on this block is DRC, not LVS**: 27 real `blockdrc` results, 57
+density/dummy deferred under O3, and a device-free `anatop_ch` black box. Parked
+in Y7's report: the other four signoff blocks have not been re-run against the
+new bind (the census gate makes a silent regression impossible, but no Pegasus
+run confirms it), and a MATCH on this block no longer measures well bias -- the
+physical gate is the substitute and a deleted baseline file silently disarms it.
