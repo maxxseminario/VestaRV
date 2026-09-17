@@ -1414,3 +1414,49 @@ four tiles, so the four RETN-edge retention checks are unreachable in silicon.
 One real gap noted for power-gating bring-up (Y4-C): the two PGEN/CEN checks that
 CAN fire are also unannotated, so gate sim measures them against 1.000 ns where
 the SDF signs them off at 0.980 / 7.642 ns.
+
+### 4.18b Y4, 2026-09-17: D19 applied, CPR6 passes, `c5` closes SETUP and parks on 5 hold endpoints
+
+**Owner decision D19**: the CPR6 acceptance gate is re-keyed from the `*tx_sel*`
+instance-name match to the documented path. The predicate is one file with two
+homes (`tcl/cpr6_gate_lib.tcl`, md5 `838ff197` in both the `_pt` chip flow and
+the core flow), sourced beside the other helper libraries so a missing file stops
+a run in seconds. It walks the `ram0/CLK` clock cone backwards (4 hops, never
+descending a `*tx_sel*` net), then probes every input of every cone gate
+backwards through repeater stages (6 hops); an input whose probe **reaches the
+tx_sel origin** is select-side and a DLY on it is the refusal. Keying on reaching
+the origin, not on the cone/name split, is what survives the optimiser renaming a
+stage; deriving the cone on the post-optimisation database is what makes a missed
+clone impossible. The out-of-range derived-gate count stays fatal; clock-side
+delay cells and off-path `*tx_sel*`-named ones are reported.
+
+**Unit-tested without Innovus**, `tclsh tcl/cpr6_gate_test.tcl`, **13 checks, 0
+failures**, on a stub `dbGet` over c5's measured topology: it refuses a DLY
+between `tx_sel_reg` and `g1828`/`g2668` both directly and one inverter back,
+accepts `FE_PHC18866`, reports a clock-side DLY without refusing, and refuses an
+underivable mux. The test found a defect in its own stub first (a redefined
+instance left a phantom driver behind, so one case silently tested nothing).
+
+**c5 attempt 4 passes CPR6** -- `select-path delay cells = 0`, cone 9 gates
+naming the CTS buffers and ICGs the old derivation never saw, name census 1
+reported -- **and closes SETUP at +0.078 ns, 0 violating of 37,075** at the
+coupled-SI Quantus views. **Hold is -0.017 ns / 5 violating** (from -0.022 / 29),
+and the run stops at `FATAL (WQ26b)` because ECO pass 2 inserted nothing.
+
+**Y2-G is settled by that number.** Against c4's -0.765 ns / TNS -105.362 / 270,
+TNS falls by **595x**, all 253 false clock-gating checks are gone, and WQ26c's
+classifier reports 5 ordinary endpoints and zero clock-gating ones. **Four of the
+five are physically unreachable, not mis-constrained**: `hart4/mtip_in`,
+`hart4/sh_resv_valid`, `hart3/sh_rdata[28]`, `hart3/sh_rdata[26]` all sit at
+y 450.74 -- the abutted tile edge of the flat O10 arrangement -- inside a macro
+with no free row site within the finder's 60 um reach. The quad floorplan had a
+corridor to relocate into; this one does not. The levers are `PENTA_HOLDREP_MAX`,
+the ECO pass count and that 60 um radius, none of which was touched because the
+brief authorised exactly one attempt.
+
+**Still unstreamed (Y4-B)**, so DRC / antenna / LVS / ingest / promote / the
+headless proof and the five-scope P&R SDF leg are unrun and `castalia_B_core`
+holds `c3`. Routed database at `dbs/MCU_castalia_penta_pt_core.c5.holdfail.innovus.dat`.
+**One new class recorded for the next attempt**: WQ27 signoff `verifyGeometry`
+reads SameNet 151 real / Wiring 1 / Antenna 1 / Short 10 / Overlap 0 against
+wq22e's 0 / 3 / 0 / 0.
