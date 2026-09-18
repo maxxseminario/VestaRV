@@ -1781,3 +1781,64 @@ in Y7's report: the other four signoff blocks have not been re-run against the
 new bind (the census gate makes a silent regression impossible, but no Pegasus
 run confirms it), and a MATCH on this block no longer measures well bias -- the
 physical gate is the substitute and a deleted baseline file silently disarms it.
+
+## 4.22 Y9, 2026-09-17: QFN-176 package model and ball map close D20
+
+Owner decision D20: package = QFN-176 for the 2280 x 2000 um die with Y3's ring
+(185 ring cells, 171 signal/power pads). LQFP-100 could not bond it (Y3-B: the
+essential set alone is 99 of its 100 fingers and the per-edge caps bind at
+25/25/25/25). Every latch-up anchor and every analog pad had to be bonded, not
+just the 99-pad essential set.
+
+**Package model.** `castalia-qfn176-pt2mm` (new private overlay model,
+`qfn176_pt2mm.py`): 176 pins, **non-uniform per side** (W25/S56/E40/N55) --
+no square 44-per-side catalog QFN-176 fits this ring's asymmetric demand, and no
+vendor drawing is on disk, so the body (23.0 x 23.0 mm, 0.4 mm pitch) is a stated
+assumption sized to the worst-case bond-wire fan-out angle rather than to a round
+number. The angle is computed at every build, not asserted: N and S land at
+43.7-44.8 deg against the assumed 45 deg assembler ceiling (correct by
+construction, under 1.3 deg of margin) while E and W have real margin (35.4 and
+24.5 deg). Both the body size and the resulting near-zero N/S margin are parked
+for the owner as a packaging/procurement item -- the fit itself is real
+engineering (the geometry forces it), sourcing the leadframe is not decided here.
+
+**Ball map.** Every one of the ring's 171 real pads bonds to one package pin (98
+analog including all 9 `PVSS2A_G` latch-up anchors, 73 digital), 5 spare pins
+NC. Pin numbers follow the die row's own physical order per side (a pure pitch
+change, 25 um to 0.4 mm, no reordering), so every analog island stays a
+contiguous run of balls, per-tile AVDD/AVSS are independent 5-pad rails that
+never share a ball across channels, and the bias island's force/sense pins land
+on the east side. Latch-up anchors bond to numbered peripheral pins (a 12-pin
+"Digital Core" VSS rail shared with the 3 core-ground pads, matching Y3's own
+C-G10 measurement), not to an exposed thermal pad -- `Package.py` gained an
+optional `ThermalPad` field (default None, backward-compatible) to make that a
+recorded decision rather than an omission.
+
+**The ring moved mid-wave.** `config/padring_pt2mm.json` was regenerated
+(2026-09-17 19:52, presumably by Y8's chip-flow work) while this wave was
+running: the two corner-wrap-split VDDPST/VSSPST pairs merged onto one package
+side each, moving per-side counts from W24/S55/E38/N54 to W24/S54/E40/N53 (total
+still 171) -- a real fix, since a split PST pair is exactly the S1/pt11 hazard
+Y3's own C-G3 gate exists to catch. The ball-map builder reads the ring at every
+generation and raises loudly if an instance appears or disappears without a
+matching edit to its frozen ball table, so the map was re-derived against the
+current shape rather than silently drifting.
+
+**Gates, all pass, none weakened.** Public: `package_die_row_test.py` 20/20 (4
+new `AsymmetricSidesTest` cases prove the 225fadcd ball-map gate at real-shape
+skew); the default-chip and `castalia_b` generation/determinism gates
+unaffected. Private (`private/analog/platform/common`): `padring_pt2mm_test`
+(Y3's, untouched) 15/15; new `qfn176_pt2mm_ballmap_test` 10/10 and
+`penta_wound_afe_pt_2mm_generation_test` pass; `overlay_generation_determinism_test`
+unaffected. `make generate CONFIG=.../penta_wound_afe_pt_2mm.json` ran end to
+end; verified from the artefact that `PadRing.json` carries the QFN-176 shape
+and `chip_top_padring.tcl` emits exactly 171 `lappend` + 5 NC lines with every
+analog island contiguous.
+
+Parked: package sourcing (no vendor match for the assumed body); the N/S
+wire-angle margin (re-check against a real assembler's rules once a vendor is
+chosen); the east side now has zero spare pins; the 24 reserved analog debug
+pads plus the bias island's stay bonded-but-undriven pending Y1 (Y3-A); no
+analog TRM chapter for `PentaWoundPt2mm` (cosmetic); the note 6(i) 1-ohm
+bonded-anchor check is still an extracted number pending Calibre/Quantus,
+unaffected by the package choice. Report `reports/Y9_qfn176_ballmap.md`.

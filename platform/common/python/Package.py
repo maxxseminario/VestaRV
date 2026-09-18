@@ -29,7 +29,9 @@ class PackageData():
 	DieRow = None		# the die-row pad list this model is derived from, or None
 	DieRowSource = None	# where those rows were read from, named in the gate's messages
 
-	def __init__(self, packageType:str, pinCount:int, units:str, dimensions:list, pinsOnEachSide:dict, pinPitch:float, pinWidth:float, pinDepth:float, gpioPowerDomain=None):
+	ThermalPad = None	# {'net': str, 'dimensions': [x, y]} exposed pad, or None (no paddle)
+
+	def __init__(self, packageType:str, pinCount:int, units:str, dimensions:list, pinsOnEachSide:dict, pinPitch:float, pinWidth:float, pinDepth:float, gpioPowerDomain=None, thermalPad=None):
 		allowedPackageTypes = ['QFN', 'LQFP']
 		if packageType not in allowedPackageTypes:
 			raise Exception('Package type "' + str(packageType) + '" not in list of allowed package types: ' + str(allowedPackageTypes))
@@ -75,6 +77,18 @@ class PackageData():
 		if gpioPowerDomain is not None:
 			if 'Power Domain Name' not in gpioPowerDomain or 'Voltage' not in gpioPowerDomain or 'Positive Rail Pin' not in gpioPowerDomain or 'Negative Rail Pin' not in gpioPowerDomain:
 				raise Exception
+
+		# The exposed thermal pad (paddle) a QFN/similar package may carry underneath the die.
+		# Purely descriptive: no pin number, no ball-map row, and no gate depends on it. A
+		# design that bonds latch-up anchors or ground to numbered peripheral pins instead
+		# (as every model in this tree does today) simply leaves this None; a design that
+		# ever wants a down-bond to the paddle records it here rather than inventing a fake
+		# pin number for it.
+		if thermalPad is not None:
+			if 'net' not in thermalPad or 'dimensions' not in thermalPad:
+				raise Exception("thermalPad must be {'net': str, 'dimensions': [x, y]}. Given: "
+					+ str(thermalPad))
+		self.ThermalPad = thermalPad
 
 		self.Pins = []
 		self.PowerDomains = []	# creation order; consumed by the PadRing.json emitter
