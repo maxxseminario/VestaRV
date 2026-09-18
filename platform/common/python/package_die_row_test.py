@@ -205,6 +205,81 @@ class PadListRowsTest(unittest.TestCase):
 			self.assertEqual(inst is None, pin.NoConnect)
 
 
+def _asymmetricFixture():
+	'''A synthetic 44-pin part with UNEQUAL per-side counts (W 6, S 16, E 8, N 14) and one
+	multi-pad rail spanning most of a side -- the shape a real ring with one crowded edge and
+	one nearly-empty edge takes (Y9, QFN-176), not the equal-4-a-side shape _fixture() above
+	uses. Confirms the gate still does a ball-by-ball comparison, not something that only
+	happens to work when every side is the same length.'''
+	pkg = Package.PackageData(
+		packageType='QFN', pinCount=44, units='mm', dimensions=[10, 6],
+		pinsOnEachSide={'W': 6, 'S': 16, 'E': 8, 'N': 14},
+		pinPitch=0.4, pinWidth=0.2, pinDepth=0.4)
+	rail = pkg.AddPowerDomain(
+		powerDomainName='Rail', positiveVoltage=2.5, negativeVoltage=0.0,
+		positiveRailPinNumber=7, positiveRailPinName='AVDD',
+		negativeRailPinNumber=8, negativeRailPinName='AVSS',
+		# Five more AVDD/AVSS pairs on the busy south side, the multi-pad-rail idiom the real
+		# QFN-176 ball map uses for every per-channel supply.
+		positiveRailExtraPins=[(9, 'AVDD'), (11, 'AVDD'), (13, 'AVDD')],
+		negativeRailExtraPins=[(10, 'AVSS'), (12, 'AVSS'), (14, 'AVSS')])
+	for (ball, name) in ((15, 'CE'), (16, 'WE'), (17, 'RE'), (18, 'ATP')):
+		pkg.AddPin(packagePinNumber=ball, name=name, ioType='io', powerDomain=rail)
+	for ball in (19, 20, 21, 22):
+		pkg.AddPin(packagePinNumber=ball, name='NC', ioType='', noConnect=True)
+	dieRow = [
+		{'inst': 'PAD_AVDD_0', 'net': 'AVDD', 'packagePin': 7,  'side': 'S'},
+		{'inst': 'PAD_AVSS_0', 'net': 'AVSS', 'packagePin': 8,  'side': 'S'},
+		{'inst': 'PAD_AVDD_1', 'net': 'AVDD', 'packagePin': 9,  'side': 'S'},
+		{'inst': 'PAD_AVSS_1', 'net': 'AVSS', 'packagePin': 10, 'side': 'S'},
+		{'inst': 'PAD_CE',     'net': 'CE',   'packagePin': 15, 'side': 'S'},
+		{'inst': 'PAD_WE',     'net': 'WE',   'packagePin': 16, 'side': 'S'},
+		{'inst': 'PAD_RE',     'net': 'RE',   'packagePin': 17, 'side': 'S'},
+		{'inst': 'PAD_ATP',    'net': 'ATP',  'packagePin': 18, 'side': 'S'},
+	]
+	return pkg, dieRow
+
+
+class AsymmetricSidesTest(unittest.TestCase):
+	'''The QFN-176 ball map (Y9) has W 25 / S 56 / E 40 / N 55 -- nothing near equal. This
+	fixture exercises the gate at that kind of skew, not the equal-4-a-side toy above.'''
+
+	def testConsistentDieRowPasses(self):
+		pkg, dieRow = _asymmetricFixture()
+		pkg.AttachDieRow(dieRow, 'fixture')
+		self.assertEqual(pkg.CheckDieRowBallMap(), [])
+
+	def testSideOfPinOnTheCrowdedSide(self):
+		pkg, _ = _asymmetricFixture()
+		# W is 1-6, S is 7-22, E is 23-30, N is 31-44.
+		self.assertEqual([pkg.SideOfPin(n) for n in (1, 6, 7, 22, 23, 30, 31, 44)],
+			['W', 'W', 'S', 'S', 'E', 'E', 'N', 'N'])
+
+	def testSwappedPairOnTheMultiPadRailIsCaught(self):
+		'''Transpose two balls of the SAME multi-pad rail (AVDD_0/AVDD_1, both named "AVDD"
+		with no per-instance suffix in the net) -- the case a name- or count-based check
+		cannot see at all, since neither the name nor the total pin count changes.'''
+		pkg, dieRow = _asymmetricFixture()
+		swapped = [dict(row) for row in dieRow]
+		swapped[0]['packagePin'], swapped[2]['packagePin'] = (
+			swapped[2]['packagePin'], swapped[0]['packagePin'])
+		pkg.AttachDieRow(swapped, 'fixture')
+		self.assertEqual(pkg.CheckDieRowBallMap(), [],
+			'AVDD_0 and AVDD_1 share one rail name; either assignment is legal on its own')
+		# But moving one of them onto AVSS's ball is a real cross-rail short and must fail.
+		wrong = [dict(row) for row in dieRow]
+		wrong[0]['packagePin'] = 8	# AVSS's ball
+		pkg.AttachDieRow(wrong, 'fixture')
+		self.assertTrue(pkg.CheckDieRowBallMap())
+
+	def testPadListRowsCoversEveryDeclaredPin(self):
+		pkg, dieRow = _asymmetricFixture()
+		pkg.AttachDieRow(dieRow, 'fixture')
+		rows = pkg.PadListRows()
+		self.assertEqual(len(rows), len(pkg.Pins))
+		self.assertEqual(set(side for side, pin, inst in rows if inst is not None), {'S'})
+
+
 class GateIsWiredFatalTest(unittest.TestCase):
 	'''The gate is only worth having if the generator RAISES on it. generate.py is a script and
 	cannot be imported without running a whole generation, so this reads it.'''
