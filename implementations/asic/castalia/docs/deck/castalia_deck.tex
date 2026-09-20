@@ -530,36 +530,20 @@ $^{d}$Measured: 2.8\,mW digital at 24\,MHz $+$ 258\,\textmu W AFE.\par}
 \begin{frame}{Myshkin to Castalia: what the digital side gained}
 \centering
 {\footnotesize
-\begin{columns}[T]
-\column{0.45\textwidth}
-\begin{tabular}{@{}lll@{}}
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{@{}lll@{\hspace{2.2em}}lll@{}}
 \toprule
- & Myshkin & \textbf{Castalia} \\
+ & Myshkin & \textbf{Castalia} & & Myshkin & \textbf{Castalia} \\
 \midrule
-Harts           & 1               & \textbf{5} \\
-ISA             & \texttt{rv32imc} & \texttt{rv32imac} $+$ Zb* \\
-Shared window   & --              & 80\,KiB, arbiter \\
-Sync            & --              & mutexes, CLINT, AMOs \\
-IRQ vectors     & 83              & 124, any-to-any \\
-Debug           & --              & JTAG, Debug Module \\
-Traps           & legacy          & standard M-mode \\
+Harts         & 1                & \textbf{5}                & Power domains & memories     & $+$4 MTCMOS tiles \\
+ISA           & \texttt{rv32imc} & \texttt{rv32imac} $+$ Zb* & Field power   & --           & NFC, harvested boot \\
+Shared window & --               & 80\,KiB, arbiter          & NPU modes     & 1            & 4 \\
+Sync          & --               & mutexes, CLINT, AMOs      & Peripherals   & 8 kinds      & 17 kinds \\
+IRQ vectors   & 83               & 124, any-to-any           & Measured CPI  & --           & 1.260 \\
+Debug         & --               & JTAG, Debug Module        & AFE sites     & 1, unipolar  & 4, bipolar, EIS \\
+Traps         & legacy           & standard M-mode           & Die           & 1.5\,mm$^2$  & 9.0\,mm$^2$ \\
 \bottomrule
-\end{tabular}
-\column{0.50\textwidth}
-\begin{tabular}{@{}lll@{}}
-\toprule
- & Myshkin & \textbf{Castalia} \\
-\midrule
-Power domains   & memories        & $+$4 MTCMOS tiles \\
-Field power     & --              & NFC, harvested \\
-NPU modes       & 1               & 4 \\
-Peripherals     & 8 kinds         & 17 kinds \\
-Measured CPI    & --              & 1.260 \\
-AFE sites       & 1, unipolar     & 4, bipolar, EIS \\
-Die             & 1.5\,mm$^2$     & 9.0\,mm$^2$ \\
-\bottomrule
-\end{tabular}
-\end{columns}}
+\end{tabular}}}
 \sowhat{Same core, same process, same 24\,MHz rating. Everything above the core is new, and all of it is generated from one JSON file.}
 \end{frame}
 
