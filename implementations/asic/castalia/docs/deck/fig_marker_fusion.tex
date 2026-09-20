@@ -15,7 +15,8 @@
     ylabel={Sensitivity [\%]},
     symbolic x coords={HE4, CA-125, CEA, CA19-9, fused},
     xtick=data,
-    xticklabel style={font=\small},
+    xticklabels={HE4, CA-125, CEA, CA19-9, {all four,\\fused}},
+    xticklabel style={font=\small, align=center},
     ylabel style={font=\small},
     yticklabel style={font=\small},
     ytick={0,25,50,75,100},
@@ -38,7 +39,5 @@
       (rel axis cs:0.805,0) -- (rel axis cs:0.805,1);
     \node[font=\scriptsize, black!55, anchor=north, align=center]
       at (rel axis cs:0.40,0.99) {measured individually,\\ same 458 patients};
-    \node[font=\small\bfseries, mtxA!55!black, anchor=north, align=center]
-      at (rel axis cs:0.905,0.72) {all four,\\ fused};
   \end{axis}
 \end{tikzpicture}

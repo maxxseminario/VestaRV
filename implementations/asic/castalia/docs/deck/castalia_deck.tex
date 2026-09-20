@@ -40,15 +40,19 @@
 % Sources: SEER Cancer Stat Facts per site [1]; USPSTF grades [2,3].
 % Data and citations are in the header of fig_cancer_compare.tex.
 % Two slides on the same figure: first the field, then the one we chose.
-\begin{frame}{Where cancers are caught, and whether anyone looks}
-\centering
+\begin{frame}[t]{Where cancers are caught, and whether anyone looks}
+\begin{columns}[T]
+\column{0.56\textwidth}
+\vspace{0.05cm}
 \cancerhighlightfalse
-\resizebox{!}{6.2cm}{\input{fig_cancer_compare.tex}}
-
+\resizebox{\linewidth}{!}{\input{fig_cancer_compare.tex}}
+\column{0.42\textwidth}
+\vspace{0.3cm}
 {\scriptsize [1] SEER 21, 2016--2022; [2,\,3] USPSTF}
+\end{columns}
 \end{frame}
 
-\begin{frame}{Why ovarian: late, lethal, and unscreened}
+\begin{frame}[t]{Why ovarian: late, lethal, and unscreened}
 \begin{columns}[T]
 \column{0.56\textwidth}
 \vspace{0.05cm}
@@ -523,28 +527,6 @@ $^{b}$AFE only; ADC quantisation limits the system to 153\,pA.
 $^{c}$Digital only: hart 0 awake, all four channel tiles gated, post-route SS 125\,\textdegree C 25\,MHz; one channel measuring adds 1.76\,mW (tile) $+$ 1.14\,mW (AFE).
 $^{d}$Measured: 2.8\,mW digital at 24\,MHz $+$ 258\,\textmu W AFE.\par}
 \sowhat{Still the only entries with a processor and an ML engine on the die; Castalia adds concurrency, both current polarities and EIS.}
-\end{frame}
-
-% Sources: Myshkin TRM (April 2026) and Castalia TRM (Sept. 2026) feature
-% lists; interrupt counts from each TRM's interrupt chapter (83 used; 124).
-\begin{frame}{Myshkin to Castalia: what the digital side gained}
-\centering
-{\footnotesize
-\resizebox{\linewidth}{!}{%
-\begin{tabular}{@{}lll@{\hspace{2.2em}}lll@{}}
-\toprule
- & Myshkin & \textbf{Castalia} & & Myshkin & \textbf{Castalia} \\
-\midrule
-Harts         & 1                & \textbf{5}                & Power domains & memories     & $+$4 MTCMOS tiles \\
-ISA           & \texttt{rv32imc} & \texttt{rv32imac} $+$ Zb* & Field power   & --           & NFC, harvested boot \\
-Shared window & --               & 80\,KiB, arbiter          & NPU modes     & 1            & 4 \\
-Sync          & --               & mutexes, CLINT, AMOs      & Peripherals   & 8 kinds      & 17 kinds \\
-IRQ vectors   & 83               & 124, any-to-any           & Measured CPI  & --           & 1.260 \\
-Debug         & --               & JTAG, Debug Module        & AFE sites     & 1, unipolar  & 4, bipolar, EIS \\
-Traps         & legacy           & standard M-mode           & Die           & 1.5\,mm$^2$  & 9.0\,mm$^2$ \\
-\bottomrule
-\end{tabular}}}
-\sowhat{Same core, same process, same 24\,MHz rating. Everything above the core is new, and all of it is generated from one JSON file.}
 \end{frame}
 
 % =====================================================================
