@@ -122,7 +122,7 @@
     \renewcommand{\label}[1]{}%
     \renewcommand{\FloatBarrier}{}%
     \sbox{\trmbox}{\input{#2}}%
-    \resizebox{!}{#1}{\usebox{\trmbox}}%
+    \resizebox*{!}{#1}{\usebox{\trmbox}}%
   \endgroup}
 
 % =====================================================================
@@ -181,7 +181,8 @@
     % TikZ diagram as though it were 15 cm wide, and it would run off the slide.
     \sbox{\trmbox}{\hsize=\trmnat \linewidth=\trmnat \columnwidth=\trmnat
                    \input{#4}}%
-    % natural height, then the height the box would have if scaled to width #2
+    % natural TOTAL height (ht+dp: a tabular is centred on the baseline, so dp
+    % is half of it), then the height the box would have if scaled to width #2
     \dimen0=\ht\trmbox \advance\dimen0 by \dp\trmbox
     \divide\dimen0 by 64                      % keep the product inside 2^31 sp
     \count0=\wd\trmbox  \divide\count0 by 65536
@@ -191,7 +192,8 @@
     \divide\dimen0 by \count0
     \multiply\dimen0 by 64
     \ifdim\dimen0>\dimexpr#3\relax
-      \resizebox{!}{#3}{\usebox{\trmbox}}%     height binds
+      \resizebox*{!}{#3}{\usebox{\trmbox}}%    height binds (starred: TOTAL height,
+                                               % a tabular sits centred on the baseline)
     \else
       \resizebox{#2}{!}{\usebox{\trmbox}}%     width binds
     \fi

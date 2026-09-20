@@ -61,7 +61,8 @@
     \node[font=\scriptsize, black!70, anchor=north east] at (axis cs:51,65.5) {lung};
     \node[font=\scriptsize, black!70, anchor=north east] at (axis cs:51,43.6) {pancreas};
     % legend, hand-placed
-    \node[font=\scriptsize, black!70, anchor=north west, align=left] at (axis cs:1,52)
+    \node[font=\scriptsize, black!70, anchor=north west, align=left,
+          draw=black!40, fill=white, rounded corners=1pt, inner sep=4pt] at (axis cs:1.5,53)
       {\tikz\node[circle, fill=black!35, draw=black!60, inner sep=1.6pt]{}; USPSTF-recommended screening\\
        \tikz\node[circle, draw=black!60, line width=0.9pt, inner sep=1.6pt]{}; none, or graded D};
   \end{axis}
