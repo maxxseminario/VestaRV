@@ -131,8 +131,8 @@ CEA    & CEACAM5 glycoprotein    & 5\,ng/mL \\
 \begin{tabular}{@{}ll@{}}
 Excite   & the reference DAC steps $v_{\mathrm{ref}}$ up a 4\,mV staircase and adds a 50\,mV pulse on every tread; A1 imposes it on the cell at RE \\
 Sense    & the faradaic current at WE flows through $R_f$; A2 holds WE at $v_{\mathrm{cm}}$, so $v_{\mathrm{out}} = v_{\mathrm{cm}} - i_{\mathrm{WE}} R_f$ \\
-Sample   & the SAR reads $v_{\mathrm{out}}$ 5\,ms before each edge: $S_1$ before the pulse, $S_2$ at its end; $\Delta I = I(S_2)-I(S_1)$ cancels charging current \\
-Resolve  & each reporter peaks at its own potential; peak position identifies the marker, peak height carries its concentration \\
+Sample   & the SAR reads $v_{\mathrm{out}}$ 5\,ms before each edge, after the charging spike has decayed: $S_1$ before the pulse, $S_2$ at its end \\
+Resolve  & firmware plots $\Delta I = I(S_2)-I(S_1)$ against the tread potential $E$; peak position identifies the marker, peak height its concentration \\
 \end{tabular}}}
 \sowhat{Same loop, same $R_f$, same converter as a DC measurement; only the DAC programme changes.}
 \end{frame}
