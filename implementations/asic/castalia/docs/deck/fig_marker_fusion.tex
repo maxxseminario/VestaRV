@@ -14,8 +14,9 @@
     ymin=0, ymax=105,
     ylabel={Sensitivity [\%]},
     symbolic x coords={HE4, CA-125, CEA, CA19-9, fused},
-    xtick=data,
-    xticklabels={HE4, CA-125, CEA, CA19-9, {all four,\\fused}},
+    % explicit: xtick=data would take the FIRST plot's coordinates only
+    xtick={HE4, CA-125, CEA, CA19-9, fused},
+    xticklabels={HE4, CA-125, CEA, CA19-9, all},
     xticklabel style={font=\small, align=center},
     ylabel style={font=\small},
     yticklabel style={font=\small},

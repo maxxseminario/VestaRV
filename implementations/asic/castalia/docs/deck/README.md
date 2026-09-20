@@ -1,6 +1,6 @@
 # Castalia short overview deck
 
-32 slides, figure-led, ECEN 222 lecture template (Berkeley theme, beaver colours,
+33 slides, figure-led, ECEN 222 lecture template (Berkeley theme, beaver colours,
 16:9). Built PDF is copied one level up, next to the published `TRM.pdf`.
 
     make          # two pdflatex passes, then copies ../castalia_deck.pdf
@@ -26,9 +26,9 @@ every document that inputs it agrees.
 Deck-local: `fig_cancer_compare.tex` (SEER stage/survival across eight cancers
 with USPSTF screening grades; data and sources in its header),
 `fig_marker_fusion.tex` (clinical sensitivities the paper carries as
-prose), `fig_eis_on_schematic.tex` (the TRM's potentiostat schematic with the EIS
-signal path annotated on top of it; callouts are placed as fractions of the
-schematic's box), `fig_eis_method.tex` (an unused block-chain version of the same), `fig_power_gating.tex` (digital power against tiles gated,
+prose), `fig_eis_on_schematic.tex` and `fig_dpv_on_schematic.tex` (the TRM's
+potentiostat schematic with the EIS excitation/response, respectively the DPV
+programme and resolved peaks, sketched above it), `fig_eis_method.tex` (an unused block-chain version of the same), `fig_power_gating.tex` (digital power against tiles gated,
 from the post-route reports), `preamble.tex` (the lecture template) and `trmreuse.tex` (the float- and
 caption-stripping machinery, documented in the file; same as the lab talk's but
 with repo-relative paths, the TRM's `v*` TikZ styles for the generated diagrams,

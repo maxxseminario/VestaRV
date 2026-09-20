@@ -120,6 +120,23 @@ CEA    & CEACAM5 glycoprotein    & 5\,ng/mL \\
 \sowhat{Each marker covers a subtype the others miss. The decision is a learned combination, so the chip is four channels plus the processor that fuses them.}
 \end{frame}
 
+% Sources: TRM note_electrode_dpv for the programme; the schematic is the
+% TRM's sch_tb_pixel, annotated in fig_dpv_on_schematic.tex (deck-local).
+\begin{frame}{Exercising the cell: differential-pulse voltammetry}
+\centering
+\resizebox{\linewidth}{!}{\input{fig_dpv_on_schematic.tex}}
+
+{\scriptsize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{@{}ll@{}}
+Excite   & the reference DAC steps $v_{\mathrm{ref}}$ up a 4\,mV staircase and adds a 50\,mV pulse on every tread; A1 imposes it on the cell at RE \\
+Sense    & the faradaic current at WE flows through $R_f$; A2 holds WE at $v_{\mathrm{cm}}$, so $v_{\mathrm{out}} = v_{\mathrm{cm}} - i_{\mathrm{WE}} R_f$ \\
+Sample   & the SAR reads $v_{\mathrm{out}}$ 5\,ms before each edge: $S_1$ before the pulse, $S_2$ at its end; $\Delta I = I(S_2)-I(S_1)$ cancels charging current \\
+Resolve  & each reporter peaks at its own potential; peak position identifies the marker, peak height carries its concentration \\
+\end{tabular}}}
+\sowhat{Same loop, same $R_f$, same converter as a DC measurement; only the DAC programme changes.}
+\end{frame}
+
 % Source: TRM fig_electrode_dpv (analog/), schematic-level channel.
 \begin{frame}{Four markers resolved in one differential-pulse sweep}
 \centering\trmfit{\linewidth}{5.6cm}{\MaestroRoot fig_electrode_dpv.tex}

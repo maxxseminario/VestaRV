@@ -1,0 +1,42 @@
+%% HAND-DRAWN for this deck.  The TRM's potentiostat schematic (sch_tb_pixel,
+%% input unmodified through \trmfit) with the differential-pulse voltammetry
+%% program sketched at the potential source and the resolved peaks sketched
+%% at the output.  Sketches only; the simulated waveforms are the next slide
+%% (fig_electrode_dpv).  Programme per TRM note_electrode_dpv: 4 mV treads,
+%% 50 mV pulses, current sampled 5 ms before each edge (S1 before the pulse,
+%% S2 at its end), dI = I(S2) - I(S1).
+
+\begin{tikzpicture}[
+  wv/.style={line width=1.0pt},
+  lab/.style={font=\scriptsize, text=black!70}]
+
+  \node[inner sep=0] (S) {\trmfit[20cm]{11.4cm}{3.3cm}{\MaestroRoot sch_tb_pixel.tex}};
+
+  % ---- excitation: staircase with a pulse on every tread, above the source
+  \begin{scope}[shift={($(S.north west)+(0.2,0.35)$)}]
+    \draw[black!40, line width=0.3pt] (0,-0.3) -- (2.6,-0.3);
+    \draw[wv, mtxA]
+      (0.0,-0.30) -- (0.3,-0.30) -- (0.3,-0.05) -- (0.45,-0.05) -- (0.45,-0.22)
+      -- (0.75,-0.22) -- (0.75, 0.03) -- (0.9, 0.03) -- (0.9,-0.14)
+      -- (1.2,-0.14) -- (1.2, 0.11) -- (1.35,0.11) -- (1.35,-0.06)
+      -- (1.65,-0.06) -- (1.65,0.19) -- (1.8,0.19) -- (1.8,0.02)
+      -- (2.1,0.02) -- (2.1,0.27) -- (2.25,0.27) -- (2.25,0.10) -- (2.6,0.10);
+    % the two samples on one tread
+    \fill[black!70] (1.18,-0.14) circle (0.035);
+    \fill[black!70] (1.33, 0.11) circle (0.035);
+    \node[lab, anchor=north east] at (1.16,-0.17) {$S_1$};
+    \node[lab, anchor=south west] at (1.35, 0.13) {$S_2$};
+    \node[lab, anchor=west, align=left] at (2.7,0) {$v_{\mathrm{step}}$: 4\,mV treads,\\50\,mV pulses};
+  \end{scope}
+
+  % ---- response: four resolved peaks against potential, above V_OUT
+  \begin{scope}[shift={($(S.north east)+(-3.4,0.35)$)}]
+    \draw[black!40, line width=0.3pt] (0,-0.3) -- (2.6,-0.3);
+    \draw[black!40, line width=0.3pt] (0,-0.3) -- (0,0.35);
+    \foreach \c/\px/\h in {mtxA/0.45/0.55, mtxB/1.05/0.42, mtxC/1.6/0.30, mtxD/2.15/0.22}{
+      \draw[wv, \c] plot[smooth, samples=40, domain=\px-0.32:\px+0.32]
+        (\x, {-0.3 + \h*exp(-((\x-\px)/0.11)^2)});
+    }
+    \node[lab, anchor=west, align=left] at (2.7,0) {$\Delta I = I(S_2)-I(S_1)$\\one peak per marker};
+  \end{scope}
+\end{tikzpicture}
