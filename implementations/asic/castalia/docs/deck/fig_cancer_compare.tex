@@ -6,6 +6,10 @@
 %% Filled marker: a USPSTF-recommended screening test exists (grade A/B/C).
 %% Hollow marker: none, or graded D (recommended against).
 %%
+%% \cancerhighlighttrue before \input draws ovary in the accent colour with a
+%% bold label (the "selected" view); \cancerhighlightfalse draws it like every
+%% other unscreened site.  The deck sets the switch on each slide.
+%%
 %% Data (SEER Cancer Stat Facts, seer.cancer.gov/statfacts, accessed
 %% 2026-09-20; 2026 estimates for cases/deaths):
 %%   site        distant%  5y local  5y distant  cases    deaths   USPSTF
@@ -37,9 +41,18 @@
     % no recommended screening (none or grade D): hollow
     \addplot[only marks, mark=o, mark size=3pt, line width=0.9pt, mark options={draw=black!60}]
       coordinates {(11,94.9) (51,43.6)};
-    % ovarian
-    \addplot[only marks, mark=o, mark size=4pt, line width=1.4pt, mark options={draw=mtxB!70!black}]
-      coordinates {(54,91.9)};
+    % ovarian: highlighted or plain, per the switch
+    \ifcancerhighlight
+      \addplot[only marks, mark=o, mark size=4pt, line width=1.4pt, mark options={draw=mtxB!70!black}]
+        coordinates {(54,91.9)};
+      \node[font=\small\bfseries, mtxB!60!black, anchor=south east] at (axis cs:53,93) {ovary};
+      \node[font=\scriptsize, mtxB!60!black, anchor=north, align=center] at (axis cs:54,89.5)
+        {target\\application};
+    \else
+      \addplot[only marks, mark=o, mark size=3pt, line width=0.9pt, mark options={draw=black!60}]
+        coordinates {(54,91.9)};
+      \node[font=\scriptsize, black!70, anchor=south east] at (axis cs:53,93) {ovary};
+    \fi
     \node[font=\scriptsize, black!70, anchor=north east] at (axis cs:7.5,98.6) {breast};
     \node[font=\scriptsize, black!70, anchor=south] at (axis cs:9,101.5) {prostate};
     \node[font=\scriptsize, black!70, anchor=north] at (axis cs:16,90) {cervix};
@@ -47,7 +60,6 @@
     \node[font=\scriptsize, black!70, anchor=west] at (axis cs:12.5,95.2) {uterus};
     \node[font=\scriptsize, black!70, anchor=north east] at (axis cs:51,65.5) {lung};
     \node[font=\scriptsize, black!70, anchor=north east] at (axis cs:51,43.6) {pancreas};
-    \node[font=\small\bfseries, mtxB!60!black, anchor=south east] at (axis cs:53,93) {ovary};
     % legend, hand-placed
     \node[font=\scriptsize, black!70, anchor=north west, align=left] at (axis cs:1,52)
       {\tikz\node[circle, fill=black!35, draw=black!60, inner sep=1.6pt]{}; USPSTF-recommended screening\\

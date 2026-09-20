@@ -39,10 +39,20 @@
 
 % Sources: SEER Cancer Stat Facts per site [1]; USPSTF grades [2,3].
 % Data and citations are in the header of fig_cancer_compare.tex.
+% Two slides on the same figure: first the field, then the one we chose.
+\begin{frame}{Where cancers are caught, and whether anyone looks}
+\centering
+\cancerhighlightfalse
+\resizebox{!}{6.2cm}{\input{fig_cancer_compare.tex}}
+
+{\scriptsize [1] SEER 21, 2016--2022; [2,\,3] USPSTF}
+\end{frame}
+
 \begin{frame}{Why ovarian: late, lethal, and unscreened}
 \begin{columns}[T]
 \column{0.56\textwidth}
 \vspace{0.05cm}
+\cancerhighlighttrue
 \resizebox{\linewidth}{!}{\input{fig_cancer_compare.tex}}
 \column{0.42\textwidth}
 \vspace{0.3cm}
@@ -62,7 +72,10 @@ Prostate   &  9\,\% & 11 & C, PSA \\
 Breast     &  6\,\% & 13 & B \\
 \bottomrule
 \end{tabular}}
-\vspace{0.2cm}
+\vspace{0.15cm}
+
+{\scriptsize USPSTF: A/B recommended; C offered selectively; D recommended \emph{against}; none: no statement.}
+\vspace{0.1cm}
 
 {\scriptsize [1] SEER, 2026 estimates; [2,\,3] USPSTF}
 \end{columns}
