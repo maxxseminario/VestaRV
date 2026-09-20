@@ -37,6 +37,38 @@
 % =====================================================================
 \section{Target application}
 
+% Sources: SEER Cancer Stat Facts per site [1]; USPSTF grades [2,3].
+% Data and citations are in the header of fig_cancer_compare.tex.
+\begin{frame}{Why ovarian: late, lethal, and unscreened}
+\begin{columns}[T]
+\column{0.56\textwidth}
+\vspace{0.05cm}
+\resizebox{\linewidth}{!}{\input{fig_cancer_compare.tex}}
+\column{0.42\textwidth}
+\vspace{0.3cm}
+{\scriptsize
+\begin{tabular}{@{}lrrl@{}}
+\toprule
+Site & Distant & Deaths/100 & Screening \\
+     & at dx   & cases      & (USPSTF) \\
+\midrule
+\textbf{Ovary} & \textbf{54\,\%} & \textbf{59} & \textbf{D} \\
+Pancreas   & 51\,\% & 78 & D \\
+Lung       & 51\,\% & 54 & B, LDCT \\
+Colorectal & 23\,\% & 35 & A \\
+Cervix     & 16\,\% & 31 & A \\
+Uterus     & 11\,\% & 21 & none \\
+Prostate   &  9\,\% & 11 & C, PSA \\
+Breast     &  6\,\% & 13 & B \\
+\bottomrule
+\end{tabular}}
+\vspace{0.2cm}
+
+{\scriptsize [1] SEER, 2026 estimates; [2,\,3] USPSTF}
+\end{columns}
+\sowhat{Most lethal gynecologic cancer [1]: 92\,\% survivable if caught localized, yet 54\,\% present after spread, and screening is graded D [2]. UKCTOCS moved stage, not mortality [4].}
+\end{frame}
+
 % Source: ISCAS'27 draft, Fig. 1 candidate B (outside the repo; guarded).
 \begin{frame}{One serum aliquot, four sites, one score}
 \IfFileExists{\ISCASroot Figures/concept_cand_B.tex}{%
@@ -48,12 +80,12 @@
 \end{frame}
 
 % Source: Chen et al. 2018 (458 patients), as carried in the ISCAS'27 introduction.
-\begin{frame}{No single ovarian marker is a usable test}
+\begin{frame}{No single ovarian marker is a usable test [5]}
 \begin{columns}[T]
-\column{0.64\textwidth}
+\column{0.62\textwidth}
 \vspace{0.1cm}
 \resizebox{\linewidth}{!}{\input{fig_marker_fusion.tex}}
-\column{0.34\textwidth}
+\column{0.36\textwidth}
 \vspace{0.6cm}
 {\footnotesize
 \begin{tabular}{@{}lr@{}}
@@ -63,12 +95,12 @@ Panel & Sensitivity \\
 Best single (HE4)  & 63.8\,\% \\
 Four fused         & \textbf{90.8\,\%} \\
 \midrule
-ROMA, FDA-cleared  & 2 markers \\
+ROMA, FDA-cleared [6] & 2 markers \\
 This chip          & 4 channels \\
 \bottomrule
 \end{tabular}}
 \end{columns}
-\sowhat{Clinical data, not simulation. The decision is a learned combination, so the unit of integration is four concurrent channels plus the processor that fuses them.}
+\sowhat{Clinical data (458 patients), not simulation. The decision is a learned combination, so the unit of integration is four concurrent channels plus the processor fusing them.}
 \end{frame}
 
 % Source: TRM fig_electrode_dpv (analog/), schematic-level channel.
@@ -387,6 +419,23 @@ Power     & own MTCMOS domain \\
 \end{tabular}}
 \end{columns}
 \sowhat{The logistic form of the cleared two-marker algorithm, extended to four inputs and moved from the central laboratory onto the electrode.}
+\end{frame}
+
+% =====================================================================
+\section*{References}
+
+\begin{frame}{References}
+\vspace{-0.15cm}
+{\scriptsize\setlength{\itemsep}{1pt}
+\setlength{\leftmargini}{2.2em}
+\begin{itemize}
+  \item[{[1]}] National Cancer Institute, \emph{SEER Cancer Stat Facts}, per-site pages, \url{https://seer.cancer.gov/statfacts/}, accessed 20 Sep.\ 2026. Stage and 5-year relative survival: SEER 21, 2016--2022; cases and deaths: 2026 estimates.
+  \item[{[2]}] D.~C. Grossman \emph{et al.}, ``Screening for ovarian cancer: US Preventive Services Task Force recommendation statement,'' \emph{JAMA}, vol.~319, no.~6, pp.~588--594, 2018.
+  \item[{[3]}] US Preventive Services Task Force, \emph{A and B Recommendations}; \emph{Prostate Cancer: Screening}, 2018 (C); \emph{Pancreatic Cancer: Screening}, 2019 (D). \url{https://www.uspreventiveservicestaskforce.org/}.
+  \item[{[4]}] U.~Menon \emph{et al.}, ``Ovarian cancer population screening and mortality after long-term follow-up in the UK Collaborative Trial of Ovarian Cancer Screening (UKCTOCS),'' \emph{The Lancet}, vol.~397, pp.~2182--2193, 2021.
+  \item[{[5]}] F.~Chen \emph{et al.}, ``Clinical analysis of four serum tumor markers in 458 patients with ovarian tumors: diagnostic value of the combined use of HE4, CA125, CA19-9, and CEA,'' \emph{Cancer Manag.\ Res.}, vol.~10, pp.~1313--1318, 2018.
+  \item[{[6]}] R.~G. Moore \emph{et al.}, ``A novel multiple marker bioassay utilizing HE4 and CA125 for the prediction of ovarian cancer in patients with a pelvic mass,'' \emph{Gynecol.\ Oncol.}, vol.~112, no.~1, pp.~40--46, 2009.
+\end{itemize}}
 \end{frame}
 
 \end{document}

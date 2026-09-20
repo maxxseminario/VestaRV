@@ -1,6 +1,6 @@
 # Castalia short overview deck
 
-17 slides, figure-led, ECEN 222 lecture template (Berkeley theme, beaver colours,
+19 slides, figure-led, ECEN 222 lecture template (Berkeley theme, beaver colours,
 16:9). Built PDF is copied one level up, next to the published `TRM.pdf`.
 
     make          # two pdflatex passes, then copies ../castalia_deck.pdf
@@ -18,11 +18,14 @@ same sources the TRM builds from, so a regenerated TRM updates the deck:
 | `../../../../../assets/web/` | the layout renders |
 | `~/work/ieee/ISCAS27/latek/` (outside the repo, guarded) | the concept figure and the reader-drawn block diagram; the deck falls back to a placeholder / the generated diagram if absent |
 
-Deck-local: `fig_marker_fusion.tex` (clinical sensitivities the paper carries as
+Deck-local: `fig_cancer_compare.tex` (SEER stage/survival across eight cancers
+with USPSTF screening grades; data and sources in its header),
+`fig_marker_fusion.tex` (clinical sensitivities the paper carries as
 prose), `preamble.tex` (the lecture template) and `trmreuse.tex` (the float- and
 caption-stripping machinery, documented in the file; same as the lab talk's but
 with repo-relative paths).
 
-Spec-table numbers are transcribed from the TRM build of 2026-09-15 and the
+Clinical claims carry bracketed citations resolved on the closing References
+slide. Spec-table numbers are transcribed from the TRM build of 2026-09-15 and the
 tapeout_review campaign record; each slide names its source in a comment.
 `docs/publications/castalia_lab_talk/` is the 39-slide long form.
