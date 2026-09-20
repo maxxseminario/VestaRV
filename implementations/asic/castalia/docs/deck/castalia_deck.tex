@@ -433,30 +433,12 @@ LSB at 319 & \multicolumn{2}{r}{0.824\,nA} \\
 {\centering\bsim\quad\bmc\par}
 \end{frame}
 
-% Source: TRM tab_biasgen_temp_stats.
-\begin{frame}{Local bias generator over temperature}
-\centering\trmfit[14cm]{\linewidth}{5.6cm}{\MaestroRoot tab_biasgen_temp_stats.tex}
-\vspace{0.05cm}
-{\centering\bsim\par}
-\end{frame}
-
-% Sources: TRM ss:eis (note_eis_intro, note_eis_excitation, note_eis_firmware).
-% Deck-local diagram fig_eis_method.tex; equations transcribed from the TRM.
-\begin{frame}{How impedance is measured: no impedance hardware}
+% Sources: TRM ss:eis (note_eis_intro, note_eis_firmware); the schematic is the
+% TRM's sch_tb_pixel, annotated in fig_eis_on_schematic.tex (deck-local).
+\begin{frame}{How impedance is measured: the same loop, no extra hardware}
 \centering
-\resizebox{\linewidth}{!}{\input{fig_eis_method.tex}}
-\vspace{0.25cm}
-
-{\scriptsize
-\resizebox{\linewidth}{!}{%
-\begin{tabular}{@{}lll@{}}
-\toprule
-Demodulate & $\hat{X} = \dfrac{2}{MN}\sum_{n} c_n\,\mathrm{e}^{-\mathrm{j}2\pi n/N}$ & one MAC per channel; the converter LSB and the square's $4/\pi$ cancel \\[8pt]
-Impedance  & $\hat{Z} = \hat{V}_{\mathrm{P}}/\hat{I}_{\mathrm{WE}} = -R_f\,\hat{V}_{\mathrm{P}}/\hat{V}_{\mathrm{OUT}}$ & against a known $Z_{\mathrm{cal}}$ it is a ratio of two readings, and $R_f$ drops out \\[4pt]
-Extract    & $Y = 1/(\hat{Z}-R_u) = 1/R_{\mathrm{ct}} + \mathrm{j}\omega C_{\mathrm{dl}}$ & $R_u$ from the top of the band; $R_{\mathrm{ct}}$ and $C_{\mathrm{dl}}$ from one mid-band point \\
-\bottomrule
-\end{tabular}}}
-\sowhat{The mode adds a clock divider and an accumulate to the channel, nothing else.}
+\resizebox{\linewidth}{!}{\input{fig_eis_on_schematic.tex}}
+\sowhat{No impedance hardware: the mode adds a clock divider and an accumulate to the channel. Against a known $Z_{\mathrm{cal}}$ the converter LSB, the square's $4/\pi$ and $R_f$ all cancel.}
 \end{frame}
 
 % Source: TRM fig_eis_error (analog/).
