@@ -1,7 +1,8 @@
 % =====================================================================
 % preamble.tex -- lifted from the ECEN 222 lecture template
 % (work/courses/instructor/ECEN222/latek/lectures/lecture08_opamps) via
-% docs/publications/castalia_lab_talk, so this deck matches the course slides.  Berkeley theme, beaver colours,
+% docs/publications/castalia_lab_talk; colours are the stock Berkeley/beaver
+% set the ECEN 860 lecture decks use.  Berkeley theme, beaver colours,
 % 16:9, custom two-box footline.  Additions for this deck are marked.
 % =====================================================================
 \usefonttheme{professionalfonts}
@@ -67,30 +68,14 @@
 \usepackage{colortbl}
 \sisetup{detect-weight=true, detect-family=true}
 
-% --- sidebar: dark, for readability -----------------------------------
-% Berkeley's sidebar is a light tint by default and the section names in it
-% wash out on a projector.  Dark ground with white type instead; the hue is
-% the theme's own BeaverRed so it still reads as the ECEN 222 deck.
-\definecolor{SidebarDark}{RGB}{72,18,18}
-\setbeamercolor{sidebar}{bg=SidebarDark}
-\setbeamercolor{palette sidebar primary}{fg=white}
-\setbeamercolor{palette sidebar secondary}{fg=white!78}
-\setbeamercolor{palette sidebar tertiary}{fg=white!78}
-\setbeamercolor{palette sidebar quaternary}{fg=white}
-\setbeamercolor{title in sidebar}{fg=white}
-\setbeamercolor{author in sidebar}{fg=white!80}
-\setbeamercolor{section in sidebar}{fg=white}
-\setbeamercolor{section in sidebar shaded}{fg=white!55}
-\setbeamercolor{subsection in sidebar}{fg=white!88}
-\setbeamercolor{subsection in sidebar shaded}{fg=white!50}
-\setbeamerfont{section in sidebar}{size=\tiny}
-\setbeamerfont{section in sidebar shaded}{size=\tiny}
-
+% --- colours: stock beaver, as in the ECEN 860 decks -------------------
+% The lab talk darkened Berkeley's sidebar; this deck keeps the theme's own
+% light sidebar and blue links so it sits next to the course slides unchanged.
 \usepackage{hyperref}
 \definecolor{BeaverRed}{RGB}{179,38,38}
 \hypersetup{
     colorlinks=true,
-    linkcolor=BeaverRed,
+    linkcolor=blue,
     filecolor=magenta,
     urlcolor=cyan,
     % PDF metadata: this is the name the viewer's title bar and the file
