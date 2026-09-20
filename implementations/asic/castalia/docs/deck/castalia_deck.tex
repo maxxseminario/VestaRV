@@ -490,70 +490,77 @@ Quiescent current       & 197--250\,\textmu A per channel & amplifiers $+$ local
 % =====================================================================
 \section{Against Myshkin and the field}
 
-% Source: Table I of the ISCAS'26 Myshkin paper [9] (Chen [10], Ghoreishizadeh
-% [11], Lin [12] columns verbatim), plus a Castalia column from this deck's
-% analog and digital slides.  Castalia power is digital post-route (SS, 25 MHz)
-% plus four simulated channels at 454 uA on 2.5 V (anatop_quad bench).
+% Source: Table I of the ISCAS'26 Myshkin paper [9] (Myshkin, Chen [10],
+% Ghoreishizadeh [11], Lin [12] numbers verbatim; channel counts and polarity
+% for [10]-[12] read from their abstracts).  Castalia entries are best case and
+% pre-silicon: sensitivity is the AFE alone, power is hart 0 with every tile
+% gated (the 0-tiles bar of the power-gating slide).
 \begin{frame}{Against the field: the ISCAS'26 table, plus Castalia}
 \centering
 {\footnotesize
 \resizebox{\linewidth}{!}{%
 \begin{tabular}{@{}lccccc@{}}
 \toprule
-Parameter & \textbf{Myshkin} [9] & \textbf{Castalia} & Chen '19 [10] & Ghoreishizadeh '17 [11] & Lin '23 [12] \\
+Parameter & \textbf{Castalia} (this work) & Myshkin [9] & Chen '19 [10] & Ghoreishizadeh '17 [11] & Lin '23 [12] \\
 \midrule
-Modality             & CA/CV          & CA/CV/DPV/EIS          & CA/CV     & CA/CV     & CV/EIS \\
-Channels             & 1              & \textbf{4, simultaneous} & --      & --        & -- \\
-Current direction    & source only    & \textbf{bipolar}       & $\pm$     & $\pm$     & $\pm$ \\
-Sensitivity (pA)     & 56.5$^{*}$     & 341$^{\dagger}$        & 41        & 0.47      & 1.7 \\
-$I_{\max}$ (\textmu A) & $+20$        & $\pm40.7$              & $\pm5$    & $\pm20$   & $-48/{+}16$ \\
-Power (mW)           & 3.0$^{\ddagger}$ & 15.3$^{\S}$          & 0.016     & 9.3       & 1.0 \\
-Process (nm)         & 65             & 65                     & 180       & 350       & 180 \\
-Die (mm$^2$)         & 1.5            & 9.0                    & --        & --        & -- \\
-On-chip DSP          & VestaRV, 1 hart & \textbf{VestaRV, 5 harts} & No     & No        & No \\
-On-chip ML           & NPU, 1 mode    & \textbf{NPU, 4 modes}  & No        & No        & No \\
+Modality             & \textbf{CA/CV/DPV/EIS}   & CA/CV       & CA/CV     & CA/CV           & CV/EIS \\
+Channels             & \textbf{4, simultaneous} & 1           & 1         & 1, differential & 1 \\
+Current direction    & \textbf{bipolar}         & unipolar    & bipolar   & bipolar         & bipolar \\
+Sensitivity (pA)     & 341$^{a}$                & 56.5$^{b}$  & 41        & 0.47            & 1.7 \\
+$I_{\max}$ (\textmu A) & $\pm40.7$              & $+20$       & $\pm5$    & $\pm20$         & $-48/{+}16$ \\
+Power (mW)           & 3.68$^{c}$               & 3.0$^{d}$   & 0.016     & 9.3             & 1.0 \\
+Process (nm)         & 65                       & 65          & 180       & 350             & 180 \\
+On-chip processor    & \textbf{5 RISC-V harts}  & 1 RISC-V hart & none    & none            & none \\
+On-chip ML           & \textbf{NPU, 4 modes}    & NPU, 1 mode & none      & none            & none \\
 \bottomrule
 \end{tabular}}}
-\vspace{0.15cm}
+\vspace{0.12cm}
 
-{\scriptsize
-$^{*}$AFE; ADC quantisation limits Myshkin to 153\,pA. \quad
-$^{\dagger}$Input-referred rms, 0.1--100\,Hz, maximum gain, ideal $R_f$, no electrode; LSB 0.82\,nA. \quad
-$^{\ddagger}$Measured: 2.8\,mW digital at 24\,MHz $+$ 258\,\textmu W AFE. \quad
-$^{\S}$Pre-silicon: 10.72\,mW digital post-route at SS, 125\,\textdegree C, 25\,MHz $+$ $4\times1.14$\,mW AFE, schematic. \quad
--- not tabulated in [9].\par}
+{\scriptsize\raggedright
+Castalia column is best case and pre-silicon.
+$^{a}$AFE only: input-referred rms, 0.1--100\,Hz, maximum gain, ideal $R_f$, no electrode; the converter LSB is 0.82\,nA.
+$^{b}$AFE only; ADC quantisation limits the system to 153\,pA.
+$^{c}$Digital only: hart 0 awake, all four channel tiles gated, post-route SS 125\,\textdegree C 25\,MHz; one channel measuring adds 1.76\,mW (tile) $+$ 1.14\,mW (AFE).
+$^{d}$Measured: 2.8\,mW digital at 24\,MHz $+$ 258\,\textmu W AFE.\par}
 \sowhat{Still the only entries with a processor and an ML engine on the die; Castalia adds concurrency, both current polarities and EIS.}
 \end{frame}
 
-% Sources: Myshkin TRM (April 2026, 135 pp.) and Castalia TRM (Sept. 2026,
-% 405 pp.) feature lists and chapters; interrupt counts from each TRM's
-% interrupt chapter (83 used of 96; 124, vectors 0-123).
+% Sources: Myshkin TRM (April 2026) and Castalia TRM (Sept. 2026) feature
+% lists; interrupt counts from each TRM's interrupt chapter (83 used; 124).
 \begin{frame}{Myshkin to Castalia: what the digital side gained}
 \centering
-{\scriptsize
-\resizebox{\linewidth}{!}{%
+{\footnotesize
+\begin{columns}[T]
+\column{0.49\textwidth}
 \begin{tabular}{@{}lll@{}}
 \toprule
- & \textbf{Myshkin} (Nov.\ 2025) & \textbf{Castalia} \\
+ & Myshkin & \textbf{Castalia} \\
 \midrule
-Harts                & 1                                  & \textbf{5}: orchestrator $+$ 4 hardened channel tiles \\
-ISA                  & \texttt{rv32imc}                   & \texttt{rv32imac} $+$ Zba, Zbb, Zbs, Zbc; \texttt{misa} \\
-Shared memory        & single master, no arbiter          & 80\,KiB window, round-robin arbiter, coherent atomics \\
-Synchronisation      & --                                 & 16 hardware mutexes, CLINT, LR/SC and AMOs \\
-Interrupts           & 83 vectors, one hart               & 124 vectors, claim/complete, any vector to any hart \\
-Traps                & legacy mechanism                   & standard M-mode CSRs, \texttt{mtrapctl}, recoverable illegal instruction \\
-Debug                & none                               & JTAG DTM $+$ RISC-V Debug Module, halt groups \\
-Power management     & memory-block off, CPU sleep        & $+$ 4 MTCMOS tile domains, PWRCTRL sequencer, PGOOD boot gate \\
-Field power          & --                                 & NFC ISO 14443A tag engine, harvested boot \\
-NPU                  & 1 mode (MLP)                       & 4 modes: MLP, conv-1D, XNOR-popcount, GEMM; 16\,KiB staging \\
-Peripherals added    & --                                 & QSPI, I3C, DMA, TRNG, PWM, RTC, 1-Wire, I2C target, event fabric \\
-Performance          & not characterised                  & measured CPI 1.260 over nine benchmarks \\
-AFE and converter    & 1 site, source only; dual-slope $+$ SAR & 4 sites, bipolar; one SAR and one DAC per site; EIS in firmware \\
-Die / package        & $1.5\times1.0$\,mm, QFN-44         & $3.0\times3.0$\,mm, LQFP-100 \\
-Generation           & hand-maintained                    & one JSON configuration: RTL, headers, linker, pad ring, TRM \\
+Harts           & 1               & \textbf{5} \\
+ISA             & \texttt{rv32imc} & \texttt{rv32imac} $+$ Zb* \\
+Shared window   & --              & 80\,KiB, arbiter \\
+Sync            & --              & mutexes, CLINT, AMOs \\
+IRQ vectors     & 83              & 124, any-to-any \\
+Debug           & --              & JTAG, Debug Module \\
+Traps           & legacy          & standard M-mode \\
 \bottomrule
-\end{tabular}}}
-\sowhat{Same core, same process, same 24\,MHz rating. Everything above the core is new.}
+\end{tabular}
+\column{0.49\textwidth}
+\begin{tabular}{@{}lll@{}}
+\toprule
+ & Myshkin & \textbf{Castalia} \\
+\midrule
+Power domains   & memories        & $+$4 MTCMOS tiles \\
+Field power     & --              & NFC, harvested \\
+NPU modes       & 1               & 4 \\
+Peripherals     & 8 kinds         & 17 kinds \\
+Measured CPI    & --              & 1.260 \\
+AFE sites       & 1, unipolar     & 4, bipolar, EIS \\
+Die             & 1.5\,mm$^2$     & 9.0\,mm$^2$ \\
+\bottomrule
+\end{tabular}
+\end{columns}}
+\sowhat{Same core, same process, same 24\,MHz rating. Everything above the core is new, and all of it is generated from one JSON file.}
 \end{frame}
 
 % =====================================================================
