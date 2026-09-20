@@ -1,0 +1,54 @@
+%% HAND-DRAWN for this deck.  How the channel measures impedance with no
+%% impedance hardware (TRM ss:eis, note_eis_intro / note_eis_firmware):
+%% two-code toggle on the reference DAC -> A1 applies it at RE -> the cell
+%% current flows through A2's Rf -> the one SAR samples the potential and the
+%% TIA output interleaved -> firmware I/Q multiply-accumulate over M whole
+%% periods -> Z = -Rf * V_P / V_OUT, and with a known Z_cal, Rf drops out.
+%% Waveforms are sketches (square in, lagging first-order response out).
+
+\begin{tikzpicture}[x=1cm, y=1cm, font=\small,
+  blk/.style={draw=black!60, line width=0.5pt, rounded corners=1.5pt, fill=white,
+              minimum height=0.9cm, align=center, inner sep=3pt},
+  ana/.style={blk, fill=mtxA!8},
+  dig/.style={blk, fill=mtxC!10},
+  fw/.style ={blk, fill=mtxD!12},
+  arr/.style={-{Latex[length=2.2mm]}, line width=0.6pt, draw=black!70},
+  wv/.style ={line width=0.8pt},
+  lab/.style={font=\scriptsize, text=black!70}]
+
+  % ---- signal chain -------------------------------------------------------
+  \node[dig, minimum width=1.7cm] (dac) at (0,0) {ref.\ DAC\\[-1pt]{\scriptsize two codes}};
+  \node[ana, minimum width=1.2cm] (a1)  at (2.6,0) {A1};
+  \node[blk, minimum width=2.0cm, fill=black!4] (cell) at (5.4,0)
+       {cell\\[-1pt]{\scriptsize $R_u + R_{\mathrm{ct}}\,\|\,C_{\mathrm{dl}}$}};
+  \node[ana, minimum width=1.4cm] (a2)  at (8.2,0) {A2\\[-1pt]{\scriptsize $R_f$}};
+  \node[dig, minimum width=1.6cm] (sar) at (10.7,0) {SAR\\[-1pt]{\scriptsize interleaved}};
+  \node[fw,  minimum width=2.2cm] (fw)  at (13.6,0) {firmware\\[-1pt]{\scriptsize I/Q MAC, $M$ periods}};
+
+  \draw[arr] (dac) -- node[above, lab] {$v_{\mathrm{ref}}$} (a1);
+  \draw[arr] (a1)  -- node[above, lab] {CE $\to$ RE} (cell);
+  \draw[arr] (cell)-- node[above, lab] {$i_{\mathrm{WE}}$} (a2);
+  \draw[arr] (a2)  -- node[above, lab] {$v_{\mathrm{out}}$} (sar);
+  \draw[arr] (sar) -- node[above, lab] {codes} (fw);
+  % the potential channel is also sampled, by the same converter
+  \draw[arr, dashed] (a1.south) -- ++(0,-1.15) -| (sar.south);
+  \node[lab, anchor=north] at (6.65,-1.2) {$v_{\mathrm{P}}$ at RE, sampled by the same converter};
+
+  % ---- waveform insets ----------------------------------------------------
+  % square excitation, above the DAC->A1 link
+  \begin{scope}[shift={(0.1,1.35)}]
+    \draw[black!40, line width=0.3pt] (0,0) -- (3.0,0);
+    \draw[wv, mtxA] (0,-0.3) -- (0.375,-0.3) -- (0.375,0.3) -- (1.125,0.3) -- (1.125,-0.3)
+                    -- (1.875,-0.3) -- (1.875,0.3) -- (2.625,0.3) -- (2.625,-0.3) -- (3.0,-0.3);
+    \node[lab, anchor=south] at (1.5,0.38) {two codes: $\pm$4 or $\pm$10\,mV about the setpoint};
+  \end{scope}
+  % lagging response, above the A2->SAR link
+  \begin{scope}[shift={(7.6,1.35)}]
+    \draw[black!40, line width=0.3pt] (0,0) -- (3.0,0);
+    \draw[wv, mtxB] plot[smooth, samples=90, domain=0:3.0]
+      (\x, {0.3*(1 - 2*exp(-mod(\x+0.225,0.75)*6))*(mod(floor((\x+0.225)/0.75),2)*2-1)});
+    \node[lab, anchor=south] at (1.5,0.38) {$v_{\mathrm{out}}$ lags: amplitude and phase carry $Z$};
+  \end{scope}
+  \node[lab, anchor=north, align=center] at ([yshift=-2pt]dac.south) {rides on the\\DC operating point};
+  \node[lab, anchor=north, align=center] at ([yshift=-2pt]a2.south) {same $R_f$ as a\\DC measurement};
+\end{tikzpicture}

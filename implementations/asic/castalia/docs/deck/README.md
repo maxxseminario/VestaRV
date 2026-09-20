@@ -26,7 +26,8 @@ every document that inputs it agrees.
 Deck-local: `fig_cancer_compare.tex` (SEER stage/survival across eight cancers
 with USPSTF screening grades; data and sources in its header),
 `fig_marker_fusion.tex` (clinical sensitivities the paper carries as
-prose), `preamble.tex` (the lecture template) and `trmreuse.tex` (the float- and
+prose), `fig_eis_method.tex` (the EIS signal chain and demodulation, drawn from
+the TRM's prose), `preamble.tex` (the lecture template) and `trmreuse.tex` (the float- and
 caption-stripping machinery, documented in the file; same as the lab talk's but
 with repo-relative paths and one fix: the height-bound branch of `\trmfit` uses
 `\resizebox*`, since a tabular sits centred on the baseline and the unstarred

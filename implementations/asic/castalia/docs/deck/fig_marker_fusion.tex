@@ -28,9 +28,11 @@
     every node near coord/.append style={/pgf/number format/fixed,
                                          /pgf/number format/precision=1},
   ]
-    \addplot[draw=black!45, fill=black!22] coordinates
+    % bar shift=0pt: two \addplots under ybar are otherwise offset side by
+    % side, which puts every bar off its tick.
+    \addplot[draw=black!45, fill=black!22, bar shift=0pt] coordinates
       {(HE4,63.8) (CA-125,62.8) (CEA,38.8) (CA19-9,35.7)};
-    \addplot[draw=mtxA!60!black, fill=mtxA!85] coordinates {(fused,90.8)};
+    \addplot[draw=mtxA!60!black, fill=mtxA!85, bar shift=0pt] coordinates {(fused,90.8)};
     % annotations in axis-relative coordinates, so they follow the axis box
     \draw[black!45, densely dashed, line width=0.6pt]
       (rel axis cs:0.805,0) -- (rel axis cs:0.805,1);

@@ -85,60 +85,35 @@ Breast     &  6\,\% & 13 & B \\
 % Source: ISCAS'27 draft, Fig. 1 candidate B (outside the repo; guarded).
 \begin{frame}{One serum aliquot, four sites, one score}
 \IfFileExists{\ISCASroot Figures/concept_cand_B.tex}{%
-  \centering\resizebox{!}{5.6cm}{\input{\ISCASroot Figures/concept_cand_B.tex}}%
+  \centering\resizebox{\linewidth}{!}{\input{\ISCASroot Figures/concept_cand_B.tex}}%
 }{%
   \duckph{9cm}{ISCAS'27 concept figure (\texttt{concept\_cand\_B.tex}) not found on this machine}%
 }
 \sowhat{Symptomatic-patient triage on a disposable four-site cartridge; four markers read at the same instant, fused on chip.}
 \end{frame}
 
-% Source: Chen et al. 2018 (458 patients), as carried in the ISCAS'27 introduction.
-\begin{frame}{No single ovarian marker is a usable test [5]}
+% Sources: Chen 2018 [5] (458 patients, markers measured individually, then
+% fused); Charkhchi 2020 [8] for CA-125; Moore 2009 [6] for HE4/ROMA.
+\begin{frame}{No single marker is a test; four fused are [5]}
 \begin{columns}[T]
-\column{0.62\textwidth}
+\column{0.55\textwidth}
 \vspace{0.1cm}
 \resizebox{\linewidth}{!}{\input{fig_marker_fusion.tex}}
-\column{0.36\textwidth}
-\vspace{0.6cm}
-{\footnotesize
-\begin{tabular}{@{}lr@{}}
+\column{0.43\textwidth}
+\vspace{0.5cm}
+{\scriptsize
+\begin{tabular}{@{}llr@{}}
 \toprule
-Panel & Sensitivity \\
+Marker & Molecule & Cut-off \\
 \midrule
-Best single (HE4)  & 63.8\,\% \\
-Four fused         & \textbf{90.8\,\%} \\
-\midrule
-ROMA, FDA-cleared [6] & 2 markers \\
-This chip          & 4 channels \\
+CA-125 & MUC16 mucin epitope [8] & 35\,U/mL \\
+HE4    & WFDC2 glycoprotein [6]  & 70\,pmol/L \\
+CA19-9 & sialyl-Lewis$^{\mathrm{a}}$ antigen & 37\,U/mL \\
+CEA    & CEACAM5 glycoprotein    & 5\,ng/mL \\
 \bottomrule
 \end{tabular}}
 \end{columns}
-\sowhat{Clinical data (458 patients), not simulation. The decision is a learned combination, so the unit of integration is four concurrent channels plus the processor fusing them.}
-\end{frame}
-
-% Sources: Chen 2018 [5] sensitivities and the four-marker panel; Moore 2009 [6]
-% for HE4/ROMA; Charkhchi 2020 [8] for CA-125.  Cut-offs are the clinical
-% decision points used on the dose-response slide.
-\begin{frame}{The four markers}
-\centering
-{\footnotesize
-\resizebox{\linewidth}{!}{%
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{5.2cm}>{\raggedright\arraybackslash}p{4.8cm}rr@{}}
-\toprule
-Marker & What it is & Where it fails alone & Cut-off & Sens.\ [5] \\
-\midrule
-\textbf{CA-125} & epitope on MUC16, a 3--5\,MDa membrane mucin shed by ovarian epithelium [8] & raised in only half to two thirds of stage~I; confounded by endometriosis, fibroids, ascites [8] & 35\,U/mL & 62.8\,\% \\
-\addlinespace
-\textbf{HE4} & human epididymis protein 4 (WFDC2), $\sim$25\,kDa secreted glycoprotein; CA-125's partner in ROMA [6] & silent in mucinous tumours & 70\,pmol/L & 63.8\,\% \\
-\addlinespace
-\textbf{CA19-9} & sialyl-Lewis$^{\mathrm{a}}$ carbohydrate antigen carried on mucins; the pancreatic and GI marker & non-specific alone; picks up the mucinous subtype the first two miss & 37\,U/mL & 35.7\,\% \\
-\addlinespace
-\textbf{CEA} & carcinoembryonic antigen (CEACAM5), $\sim$180\,kDa glycoprotein; the colorectal marker & non-specific alone; mucinous and GI-type tumours & 5\,ng/mL & 38.8\,\% \\
-\midrule
-\multicolumn{4}{@{}l}{\textbf{All four, fused} [5]} & \textbf{90.8\,\%} \\
-\bottomrule
-\end{tabular}}}
-\sowhat{Two epithelial markers plus two mucinous/GI markers: the fusion works because each covers a subtype the others miss.}
+\sowhat{Each marker covers a subtype the others miss. The decision is a learned combination, so the chip is four channels plus the processor that fuses them.}
 \end{frame}
 
 % Source: TRM fig_electrode_dpv (analog/), schematic-level channel.
@@ -469,6 +444,25 @@ LSB at 319 & \multicolumn{2}{r}{0.824\,nA} \\
 \trmfit[12cm]{\linewidth}{6.0cm}{\MaestroRoot tab_biasgen_temp_stats.tex}
 \end{columns}
 {\centering\bsim\par}
+\end{frame}
+
+% Sources: TRM ss:eis (note_eis_intro, note_eis_excitation, note_eis_firmware).
+% Deck-local diagram fig_eis_method.tex; equations transcribed from the TRM.
+\begin{frame}{How impedance is measured: no impedance hardware}
+\centering
+\resizebox{\linewidth}{!}{\input{fig_eis_method.tex}}
+\vspace{0.25cm}
+
+{\scriptsize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{@{}lll@{}}
+\toprule
+Demodulate & $\hat{X} = \dfrac{2}{MN}\sum_{n} c_n\,\mathrm{e}^{-\mathrm{j}2\pi n/N}$ & one MAC per channel; the converter LSB and the square's $4/\pi$ cancel \\[8pt]
+Impedance  & $\hat{Z} = \hat{V}_{\mathrm{P}}/\hat{I}_{\mathrm{WE}} = -R_f\,\hat{V}_{\mathrm{P}}/\hat{V}_{\mathrm{OUT}}$ & against a known $Z_{\mathrm{cal}}$ it is a ratio of two readings, and $R_f$ drops out \\[4pt]
+Extract    & $Y = 1/(\hat{Z}-R_u) = 1/R_{\mathrm{ct}} + \mathrm{j}\omega C_{\mathrm{dl}}$ & $R_u$ from the top of the band; $R_{\mathrm{ct}}$ and $C_{\mathrm{dl}}$ from one mid-band point \\
+\bottomrule
+\end{tabular}}}
+\sowhat{The mode adds a clock divider and an accumulate to the channel, nothing else.}
 \end{frame}
 
 % Source: TRM fig_eis_error (analog/).
