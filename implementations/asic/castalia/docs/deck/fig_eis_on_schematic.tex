@@ -1,9 +1,8 @@
 %% HAND-DRAWN for this deck.  The TRM's potentiostat schematic (sch_tb_pixel,
 %% input unmodified through \trmfit) with the impedance-spectroscopy signal
 %% path annotated on top of it: excitation at the potential source, potential
-%% read at RE, current through Rf read at V_OUT, one converter, firmware
-%% demodulation.  Callouts are placed as fractions of the schematic's box, so
-%% a redrawn schematic moves them with it (re-check after any redraw).
+%% read at RE, current through Rf read at V_OUT.  Only the two waveform
+%% sketches sit on the figure; the mechanism is stated under it on the slide.
 %% Mechanism per TRM ss:eis (note_eis_intro, note_eis_firmware).
 
 \begin{tikzpicture}[
@@ -14,7 +13,7 @@
   wv/.style={line width=1.0pt},
   lab/.style={font=\scriptsize, text=black!70}]
 
-  \node[inner sep=0] (S) {\trmfit[20cm]{11.4cm}{4.7cm}{\MaestroRoot sch_tb_pixel.tex}};
+  \node[inner sep=0] (S) {\trmfit[20cm]{11.4cm}{3.3cm}{\MaestroRoot sch_tb_pixel.tex}};
   % \schat{fx}{fy}{name}: a coordinate at fractions of the schematic box
   \newcommand{\schat}[3]{%
     \path ($(S.south west)!#1!(S.south east)$) coordinate (tmpx);
@@ -27,33 +26,18 @@
   \schat{0.84}{0.92}{Prf}      % Rf
   \schat{0.905}{0.58}{Pout}    % V_OUT node
 
-  % ---- excitation: square inset above-left, leader to the step source -----
-  \begin{scope}[shift={($(S.north west)+(0.2,0.55)$)}]
+  % ---- excitation sketch above the potential source, response above V_OUT.
+  % No leaders and no callouts: the mechanism is stated under the figure.
+  \begin{scope}[shift={($(S.north west)+(0.2,0.35)$)}]
     \draw[black!40, line width=0.3pt] (0,0) -- (2.4,0);
     \draw[wv, mtxA] (0,-0.22) -- (0.3,-0.22) -- (0.3,0.22) -- (0.9,0.22) -- (0.9,-0.22)
                     -- (1.5,-0.22) -- (1.5,0.22) -- (2.1,0.22) -- (2.1,-0.22) -- (2.4,-0.22);
-    \node[lab, anchor=west, align=left] at (2.55,0) {$v_{\mathrm{step}}$: two DAC codes,\\$\pm$4 or $\pm$10\,mV about $v_{\mathrm{ref}}$};
-    \coordinate (Wsq) at (1.2,-0.3);
+    \node[lab, anchor=west] at (2.5,0) {$v_{\mathrm{step}}$};
   \end{scope}
-  \draw[lead] (Wsq) -- (Pstep);
-
-  % ---- response: lagging wave above-right, leader to V_OUT -----------------
-  \begin{scope}[shift={($(S.north east)+(-4.9,0.55)$)}]
+  \begin{scope}[shift={($(S.north east)+(-3.3,0.35)$)}]
     \draw[black!40, line width=0.3pt] (0,0) -- (2.4,0);
     \draw[wv, mtxB] plot[smooth, samples=90, domain=0:2.4]
       (\x, {0.22*(1 - 2*exp(-mod(\x+0.18,0.6)*7))*(mod(floor((\x+0.18)/0.6),2)*2-1)});
-    \node[lab, anchor=west, align=left] at (2.55,0) {$v_{\mathrm{out}}$ lags:\\$Z$ in amplitude, phase};
-    \coordinate (Wlag) at (2.35,-0.3);
+    \node[lab, anchor=west] at (2.5,0) {$v_{\mathrm{out}}$};
   \end{scope}
-  \draw[lead] (Wlag) -- (Pout);
-
-  % ---- callouts on the loop --------------------------------------------------
-  \schat{0.36}{0.905}{Prewire}
-  \node[call, anchor=south] at ($(Prewire)+(0,0.1)$) {$v_{\mathrm{P}}$ read at RE};
-  \node[call, anchor=south] at ($(Pwe)+(-0.3,0.14)$) {$i_{\mathrm{WE}} = -v_{\mathrm{out}}/R_f$};
-  \schat{0.13}{0.02}{Peq}
-  \node[call, anchor=south west] at (Peq)
-       {one SAR, $v_{\mathrm{P}}$ and $v_{\mathrm{out}}$ interleaved\\
-        firmware I/Q MAC over $M$ periods\\
-        $\hat Z = -R_f\,\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}}$, or a ratio to $Z_{\mathrm{cal}}$};
 \end{tikzpicture}
