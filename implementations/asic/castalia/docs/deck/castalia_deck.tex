@@ -488,6 +488,75 @@ Quiescent current       & 197--250\,\textmu A per channel & amplifiers $+$ local
 \end{frame}
 
 % =====================================================================
+\section{Against Myshkin and the field}
+
+% Source: Table I of the ISCAS'26 Myshkin paper [9] (Chen [10], Ghoreishizadeh
+% [11], Lin [12] columns verbatim), plus a Castalia column from this deck's
+% analog and digital slides.  Castalia power is digital post-route (SS, 25 MHz)
+% plus four simulated channels at 454 uA on 2.5 V (anatop_quad bench).
+\begin{frame}{Against the field: the ISCAS'26 table, plus Castalia}
+\centering
+{\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+Parameter & \textbf{Myshkin} [9] & \textbf{Castalia} & Chen '19 [10] & Ghoreishizadeh '17 [11] & Lin '23 [12] \\
+\midrule
+Modality             & CA/CV          & CA/CV/DPV/EIS          & CA/CV     & CA/CV     & CV/EIS \\
+Channels             & 1              & \textbf{4, simultaneous} & --      & --        & -- \\
+Current direction    & source only    & \textbf{bipolar}       & $\pm$     & $\pm$     & $\pm$ \\
+Sensitivity (pA)     & 56.5$^{*}$     & 341$^{\dagger}$        & 41        & 0.47      & 1.7 \\
+$I_{\max}$ (\textmu A) & $+20$        & $\pm40.7$              & $\pm5$    & $\pm20$   & $-48/{+}16$ \\
+Power (mW)           & 3.0$^{\ddagger}$ & 15.3$^{\S}$          & 0.016     & 9.3       & 1.0 \\
+Process (nm)         & 65             & 65                     & 180       & 350       & 180 \\
+Die (mm$^2$)         & 1.5            & 9.0                    & --        & --        & -- \\
+On-chip DSP          & VestaRV, 1 hart & \textbf{VestaRV, 5 harts} & No     & No        & No \\
+On-chip ML           & NPU, 1 mode    & \textbf{NPU, 4 modes}  & No        & No        & No \\
+\bottomrule
+\end{tabular}}}
+\vspace{0.15cm}
+
+{\scriptsize
+$^{*}$AFE; ADC quantisation limits Myshkin to 153\,pA. \quad
+$^{\dagger}$Input-referred rms, 0.1--100\,Hz, maximum gain, ideal $R_f$, no electrode; LSB 0.82\,nA. \quad
+$^{\ddagger}$Measured: 2.8\,mW digital at 24\,MHz $+$ 258\,\textmu W AFE. \quad
+$^{\S}$Pre-silicon: 10.72\,mW digital post-route at SS, 125\,\textdegree C, 25\,MHz $+$ $4\times1.14$\,mW AFE, schematic. \quad
+-- not tabulated in [9].\par}
+\sowhat{Still the only entries with a processor and an ML engine on the die; Castalia adds concurrency, both current polarities and EIS.}
+\end{frame}
+
+% Sources: Myshkin TRM (April 2026, 135 pp.) and Castalia TRM (Sept. 2026,
+% 405 pp.) feature lists and chapters; interrupt counts from each TRM's
+% interrupt chapter (83 used of 96; 124, vectors 0-123).
+\begin{frame}{Myshkin to Castalia: what the digital side gained}
+\centering
+{\scriptsize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{@{}lll@{}}
+\toprule
+ & \textbf{Myshkin} (Nov.\ 2025) & \textbf{Castalia} \\
+\midrule
+Harts                & 1                                  & \textbf{5}: orchestrator $+$ 4 hardened channel tiles \\
+ISA                  & \texttt{rv32imc}                   & \texttt{rv32imac} $+$ Zba, Zbb, Zbs, Zbc; \texttt{misa} \\
+Shared memory        & single master, no arbiter          & 80\,KiB window, round-robin arbiter, coherent atomics \\
+Synchronisation      & --                                 & 16 hardware mutexes, CLINT, LR/SC and AMOs \\
+Interrupts           & 83 vectors, one hart               & 124 vectors, claim/complete, any vector to any hart \\
+Traps                & legacy mechanism                   & standard M-mode CSRs, \texttt{mtrapctl}, recoverable illegal instruction \\
+Debug                & none                               & JTAG DTM $+$ RISC-V Debug Module, halt groups \\
+Power management     & memory-block off, CPU sleep        & $+$ 4 MTCMOS tile domains, PWRCTRL sequencer, PGOOD boot gate \\
+Field power          & --                                 & NFC ISO 14443A tag engine, harvested boot \\
+NPU                  & 1 mode (MLP)                       & 4 modes: MLP, conv-1D, XNOR-popcount, GEMM; 16\,KiB staging \\
+Peripherals added    & --                                 & QSPI, I3C, DMA, TRNG, PWM, RTC, 1-Wire, I2C target, event fabric \\
+Performance          & not characterised                  & measured CPI 1.260 over nine benchmarks \\
+AFE and converter    & 1 site, source only; dual-slope $+$ SAR & 4 sites, bipolar; one SAR and one DAC per site; EIS in firmware \\
+Die / package        & $1.5\times1.0$\,mm, QFN-44         & $3.0\times3.0$\,mm, LQFP-100 \\
+Generation           & hand-maintained                    & one JSON configuration: RTL, headers, linker, pad ring, TRM \\
+\bottomrule
+\end{tabular}}}
+\sowhat{Same core, same process, same 24\,MHz rating. Everything above the core is new.}
+\end{frame}
+
+% =====================================================================
 \section{From currents to a score}
 
 % Source: TRM Ch. 17 (NPU), ISCAS'27 draft for the fusion form.
@@ -527,25 +596,44 @@ Power     & own MTCMOS domain \\
 % =====================================================================
 \section*{References}
 
-\begin{frame}{References}
-\vspace{-0.3cm}
+\begin{frame}{References (1/2)}
+\vspace{-0.2cm}
 {\scriptsize
-\setlength{\leftmargini}{1.9em}
+\setlength{\leftmargini}{2.1em}
 \setbeamertemplate{itemize items}{}
 \begin{columns}[T]
 \column{0.49\textwidth}
-\begin{itemize}\setlength{\itemsep}{1pt}\setlength{\parskip}{0pt}
+\begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
   \item[{[1]}] NCI, \emph{SEER Cancer Stat Facts}, per-site pages, seer.cancer.gov/statfacts, accessed 20 Sep.\ 2026. Stage, survival: SEER 21, 2016--22; cases, deaths: 2026 est.
   \item[{[2]}] D.~C. Grossman \emph{et al.}, ``Screening for ovarian cancer: USPSTF recommendation statement,'' \emph{JAMA} 319:588, 2018.
   \item[{[3]}] USPSTF, \emph{A and B Recommendations}; \emph{Prostate Cancer: Screening}, 2018; \emph{Pancreatic Cancer: Screening}, 2019. uspreventiveservicestaskforce.org.
-  \item[{[4]}] U.~Menon \emph{et al.}, ``Ovarian cancer population screening and mortality after long-term follow-up in UKCTOCS,'' \emph{Lancet} 397:2182, 2021.
 \end{itemize}
 \column{0.49\textwidth}
-\begin{itemize}\setlength{\itemsep}{1pt}\setlength{\parskip}{0pt}
+\begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
+  \item[{[4]}] U.~Menon \emph{et al.}, ``Ovarian cancer population screening and mortality after long-term follow-up in UKCTOCS,'' \emph{Lancet} 397:2182, 2021.
   \item[{[5]}] F.~Chen \emph{et al.}, ``Clinical analysis of four serum tumor markers in 458 patients with ovarian tumors: combined use of HE4, CA125, CA19-9, and CEA,'' \emph{Cancer Manag.\ Res.} 10:1313, 2018.
   \item[{[6]}] R.~G. Moore \emph{et al.}, ``A novel multiple marker bioassay utilizing HE4 and CA125 for the prediction of ovarian cancer in patients with a pelvic mass,'' \emph{Gynecol.\ Oncol.} 112:40, 2009.
+\end{itemize}
+\end{columns}}
+\end{frame}
+
+\begin{frame}{References (2/2)}
+\vspace{-0.2cm}
+{\scriptsize
+\setlength{\leftmargini}{2.1em}
+\setbeamertemplate{itemize items}{}
+\begin{columns}[T]
+\column{0.49\textwidth}
+\begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
   \item[{[7]}] USPSTF, \emph{Grade Definitions} (current, after July 2012), uspreventiveservicestaskforce.org, accessed 20 Sep.\ 2026.
   \item[{[8]}] P.~Charkhchi \emph{et al.}, ``CA125 and ovarian cancer: a comprehensive review,'' \emph{Cancers} 12:3730, 2020.
+  \item[{[9]}] M.~A. Seminario, S.~McRobert, A.~Uerling, P.~Aberson, S.~Balk{\i}r, J.~A. Schmitz and E.~J. Markvicka, ``An electrochemical sensing SoC for autonomous wound monitoring,'' \emph{IEEE ISCAS}, 2026.
+\end{itemize}
+\column{0.49\textwidth}
+\begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
+  \item[{[10]}] Y.-C. Chen, S.-Y. Lu and Y.-T. Liao, ``A microwatt dual-mode electrochemical sensing current readout with current-reducer ramp waveform generation,'' \emph{IEEE TBioCAS} 13(6):1163, 2019.
+  \item[{[11]}] S.~S. Ghoreishizadeh \emph{et al.}, ``A differential electrochemical readout ASIC with heterogeneous integration of bio-nano sensors for amperometric sensing,'' \emph{IEEE TBioCAS} 11(5):1148, 2017.
+  \item[{[12]}] Y.-J. Lin \emph{et al.}, ``A multimodality electrochemical and impedance spectroscopy system-on-a-chip with temperature sensing and impedance-boosting techniques,'' \emph{IEEE TBioCAS} 17(4):857, 2023.
 \end{itemize}
 \end{columns}}
 \end{frame}
