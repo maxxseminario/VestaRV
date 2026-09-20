@@ -1,0 +1,38 @@
+%% HAND-DRAWN for this deck.  Digital power against the number of channel
+%% tiles gated, stacked dynamic / leakage.  Post-route, MCU_castalia_penta,
+%% SS 0.9 V 125 C, 25 MHz, statistical activity 0.2 (same reports as the
+%% "Digital, as closed" slide):
+%%   chip:  internal 3.78 + switching 2.33 = 6.11 mW dynamic, 4.61 mW leakage
+%%   tile:  internal 0.684 + switching 0.554 = 1.238 mW dynamic, 0.522 mW leakage
+%%   always-on band = chip - 4 x tile: 1.158 mW dynamic, 2.522 mW leakage
+%% Cold gating removes a tile's dynamic AND leakage power (no retention rail).
+\begin{tikzpicture}
+  \begin{axis}[
+    width=8.2cm, height=6.0cm,
+    ybar stacked, bar width=0.85cm,
+    ymin=0, ymax=13.8,
+    ylabel={Digital power [mW]},
+    xlabel={Channel tiles active},
+    symbolic x coords={4,3,2,1,0},
+    xtick=data,
+    label style={font=\small}, tick label style={font=\small},
+    ymajorgrids=true, major grid style={line width=0.2pt, draw=black!14},
+    axis line style={line width=0.4pt, draw=black!45},
+    tick style={line width=0.4pt, draw=black!45},
+    legend style={font=\scriptsize, draw=none, fill=white, at={(0.03,0.97)}, anchor=north west},
+    legend cell align=left,
+    enlarge x limits=0.15,
+  ]
+    \addplot[fill=mtxA!80, draw=mtxA!60!black] coordinates
+      {(4,6.110) (3,4.872) (2,3.634) (1,2.396) (0,1.158)};
+    \addplot[fill=mtxB!75, draw=mtxB!60!black] coordinates
+      {(4,4.610) (3,4.088) (2,3.566) (1,3.044) (0,2.522)};
+    \legend{dynamic, leakage}
+    \node[font=\scriptsize\bfseries, anchor=south] at (axis cs:4,10.72) {10.72};
+    \node[font=\scriptsize\bfseries, anchor=south] at (axis cs:3,8.96)  {8.96};
+    \node[font=\scriptsize\bfseries, anchor=south] at (axis cs:2,7.20)  {7.20};
+    \node[font=\scriptsize\bfseries, anchor=south] at (axis cs:1,5.44)  {5.44};
+    \node[font=\scriptsize\bfseries, anchor=south] at (axis cs:0,3.68)  {3.68};
+    \node[font=\scriptsize, black!60, anchor=north east, align=right] at (rel axis cs:0.98,0.97) {$-1.76$\,mW per tile gated,\\ leakage included};
+  \end{axis}
+\end{tikzpicture}

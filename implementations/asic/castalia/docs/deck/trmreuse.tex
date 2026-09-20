@@ -70,6 +70,62 @@
 	\bitbox{16}{#4}%
 }
 
+% --- the TRM figure theme (v* styles) --------------------------------
+% Verbatim from platform/common/latex/packages-commands.template.tex: the
+% generated diagrams (PowerDomainDiagram, ...) draw with these.
+\definecolor{vestaRed}{rgb}{0.75,0,0}
+\definecolor{vestaRedText}{rgb}{0.70,0,0}
+\definecolor{vestaInk}{rgb}{0,0,0}
+\tikzset{
+	% Boxes. Three weights of fill, one stroke, one corner radius. The block
+	% diagrams draw with vbox: a white box with the thin grey outline, the
+	% RP2040 datasheet look; the filled weights stay defined for the figures
+	% that tell two kinds of node apart by weight.
+	vbox/.style={line width=0.6pt, rounded corners=2pt, draw=black!70, fill=white},
+	vblock/.style={thick, rounded corners=2pt, draw=vestaInk, fill=black!8},
+	vblocklt/.style={thick, rounded corners=2pt, draw=vestaInk, fill=black!3},
+	vblockw/.style={thick, rounded corners=2pt, draw=vestaInk, fill=white},
+	vblockem/.style={line width=1.1pt, rounded corners=2pt, draw=vestaInk, fill=black!12},
+	% The bus bar, and the package boundary.
+	vbar/.style={thick, draw=vestaInk, fill=black!15},
+	vbound/.style={draw=vestaRed, line width=1.2pt},
+	% A grouping region: a thin dashed outline that leaves the paper white, never a
+	% full-bleed grey band.
+	vregion/.style={draw=black!35, line width=0.5pt, dashed, rounded corners=3pt},
+	% Text: sans throughout, in two sizes only. vname (\small) names a block, vlab
+	% (\footnotesize) carries everything secondary, and nothing is set below
+	% \footnotesize, so the smallest label is 8 pt at natural size. The older names
+	% stay defined, at the same floor, for the emitters that still use them.
+	vname/.style={font=\sffamily\small, align=center, inner sep=1pt},
+	vlab/.style={font=\sffamily\footnotesize, align=center, inner sep=1pt},
+	vhd/.style={font=\sffamily\footnotesize, align=center, inner sep=1pt, anchor=north},
+	vbc/.style={font=\sffamily\footnotesize, align=center, inner sep=1pt},
+	vsm/.style={font=\sffamily\footnotesize, align=center, inner sep=1pt},
+	vnote/.style={font=\sffamily\footnotesize\itshape, text=black!55, align=left, inner sep=1.5pt},
+	vgroup/.style={font=\sffamily\small\itshape, text=black!55, align=left, fill=white, inner sep=1.5pt},
+	vredlab/.style={font=\sffamily\small\bfseries, text=vestaRedText, align=left},
+	% Lines: one arrow head for the whole manual, Stealth, on every style that carries
+	% a head, and a junction dot where a wire really joins another.
+	vwire/.style={semithick, draw=vestaInk},
+	vflow/.style={->, >={Stealth[length=2mm]}, semithick, draw=vestaInk},
+	vbus/.style={<->, >={Stealth[length=2mm]}, thick, draw=vestaInk},
+	vaccent/.style={->, >={Stealth[length=2mm]}, semithick, draw=vestaRed},
+	vghost/.style={dashed, draw=black!45, semithick},
+	vdot/.style={circle, fill=vestaInk, inner sep=0pt, minimum size=3pt},
+	% A mux: a trapezium standing on its narrow side, inputs on the wide (left) edge,
+	% the select code beside each input.
+	vmux/.style={trapezium, trapezium angle=70, shape border rotate=270, line width=0.6pt, draw=black!70, fill=white, inner sep=1pt},
+}
+
+% --- schematics: heavier strokes for projection ------------------------
+% The TRM's circuitikz schematics are drawn for print at 0.4-0.6 pt.  On a
+% slide they vanish, so every path inside a \trmfit'd fragment is drawn one
+% step heavier; explicit "thick" rails stay relatively heavier still.
+\newcommand{\trmslidestrokes}{%
+  \tikzset{every path/.append style={line width=0.9pt}}%
+  \ctikzset{bipoles/thickness=1.3}%
+}
+
 % --- the maestro2tex categorical palette -----------------------------
 % Slots 1-5 of the validated reference palette, in documented order; the
 % block masters declare these with \providecolor, individual fig_*.tex do not.
@@ -180,7 +236,7 @@
     % pin \wd\trmbox to \trmnat and the fit below would then scale a 33 cm
     % TikZ diagram as though it were 15 cm wide, and it would run off the slide.
     \sbox{\trmbox}{\hsize=\trmnat \linewidth=\trmnat \columnwidth=\trmnat
-                   \input{#4}}%
+                   \trmslidestrokes\input{#4}}%
     % natural TOTAL height (ht+dp: a tabular is centred on the baseline, so dp
     % is half of it), then the height the box would have if scaled to width #2
     \dimen0=\ht\trmbox \advance\dimen0 by \dp\trmbox

@@ -197,18 +197,14 @@ Digital power      & 10.72\,mW post-route, SS, 25\,MHz \\
 \sowhat{Four channel tiles own four AFE sites; every master reaches ROM, RAM, NPU and peripherals only through the arbiter.}
 \end{frame}
 
-% Sources: assets/web renders (2026-07 signoff GDS); tapeout_review/PLAN.md
-% for die and core box; TRM Ch. 3 for the package.
+% Layout images pending a Virtuoso export (ducks). tapeout_review/PLAN.md for
+% die and core box; TRM Ch. 3 for the package.
 \begin{frame}{Physical implementation}
 \begin{columns}[T]
 \column{0.34\textwidth}
-\centering
-\includegraphics[width=\linewidth]{layout_castalia_chip_top.png}\\[2pt]
-{\tiny chip top, $3.0\times3.0$\,mm}
+\duckph{3.2cm}{chip top, $3.0\times3.0$\,mm (Virtuoso export)}
 \column{0.24\textwidth}
-\centering
-\includegraphics[width=\linewidth]{layout_hart_tile.png}\\[2pt]
-{\tiny one hardened channel tile}
+\duckph{2.1cm}{one channel tile (Virtuoso export)}
 \column{0.40\textwidth}
 \vspace{0.3cm}
 {\footnotesize
@@ -290,6 +286,21 @@ Leakage share & 43\,\% \\
 \bflow
 \end{columns}
 \sowhat{SS 0.9\,V 125\,\textdegree C, statistical activity 0.2. Gating one tile removes 1.76\,mW; the always-on band pays nothing.}
+\end{frame}
+
+% Sources: TRM PowerDomainDiagram (generated, Ch. 18 PWRCTRL); post-route power
+% reports for the chart (numbers in fig_power_gating.tex).
+\begin{frame}{Power gating: one switched rail per channel tile}
+\begin{columns}[T]
+\column{0.56\textwidth}
+\trmfit[14cm]{\linewidth}{6.0cm}{\TRMinc PowerDomainDiagram.tex}
+\column{0.42\textwidth}
+\vspace{0.1cm}
+\resizebox{\linewidth}{!}{\input{fig_power_gating.tex}}
+\vspace{0.05cm}
+{\centering\bflow\par}
+\end{columns}
+\sowhat{Cold gating: the header cuts the rail, so a parked tile draws neither dynamic nor leakage power. Each tile gated removes 1.76\,mW; the always-on band keeps 3.68\,mW.}
 \end{frame}
 
 % =====================================================================
@@ -385,23 +396,15 @@ LSB at 319 & \multicolumn{2}{r}{0.824\,nA} \\
 \sowhat{Strictly monotonic at every corner, including the four thermometer seams. Maximum gain is noise-limited, not quantisation-limited.}
 \end{frame}
 
-% Sources: TRM sch_tiarprog_switch, tab_tiarprog_lin (corners), tab_tiarprog_mc.
-\begin{frame}{Feedback resistor: switch structure, corners, mismatch}
-\begin{columns}[T]
-\column{0.44\textwidth}
-\trmfit[10cm]{\linewidth}{6.2cm}{\MaestroRoot sch_tiarprog_switch.tex}
-\column{0.54\textwidth}
-\trmfit[12cm]{\linewidth}{3.0cm}{\MaestroRoot tab_tiarprog_lin.tex}
+% Sources: TRM tab_tiarprog_lin (corners), tab_tiarprog_mc.
+\begin{frame}{Feedback resistor across corners and under mismatch}
+\centering
+\trmfit[14cm]{\linewidth}{3.0cm}{\MaestroRoot tab_tiarprog_lin.tex}
 \vspace{0.15cm}
 
-\trmfit[12cm]{\linewidth}{2.8cm}{\MaestroRoot tab_tiarprog_mc.tex}
-\end{columns}
+\trmfit[14cm]{\linewidth}{2.8cm}{\MaestroRoot tab_tiarprog_mc.tex}
+\vspace{0.05cm}
 {\centering\bsim\quad\bmc\par}
-\end{frame}
-
-% Source: TRM sch_adc_sar (analog/).
-\begin{frame}{SAR ADC: charge-redistribution architecture}
-\centering\trmfit[20cm]{\linewidth}{6.4cm}{\MaestroRoot sch_adc_sar.tex}
 \end{frame}
 
 % Source: TRM fig_adc_transfer (analog/), extracted anatop_pixel_adc.
@@ -419,11 +422,6 @@ LSB at 319 & \multicolumn{2}{r}{0.824\,nA} \\
 {\centering\bext\par}
 \end{frame}
 
-% Source: TRM sch_dacr2r12_ladder (analog/).
-\begin{frame}{Reference DAC: 12-bit voltage-mode R--2R ladder}
-\centering\trmfit[20cm]{\linewidth}{6.4cm}{\MaestroRoot sch_dacr2r12_ladder.tex}
-\end{frame}
-
 % Sources: TRM tab_dacr2r12_ideal (corners) and tab_dacr2r12_mc_ideal (MC).
 \begin{frame}{Reference DAC across corners and under mismatch}
 \centering
@@ -435,14 +433,10 @@ LSB at 319 & \multicolumn{2}{r}{0.824\,nA} \\
 {\centering\bsim\quad\bmc\par}
 \end{frame}
 
-% Sources: TRM sch_biasgen_core, tab_biasgen_temp_stats.
-\begin{frame}{Local bias generator}
-\begin{columns}[T]
-\column{0.50\textwidth}
-\trmfit[12cm]{\linewidth}{6.2cm}{\MaestroRoot sch_biasgen_core.tex}
-\column{0.48\textwidth}
-\trmfit[12cm]{\linewidth}{6.0cm}{\MaestroRoot tab_biasgen_temp_stats.tex}
-\end{columns}
+% Source: TRM tab_biasgen_temp_stats.
+\begin{frame}{Local bias generator over temperature}
+\centering\trmfit[14cm]{\linewidth}{5.6cm}{\MaestroRoot tab_biasgen_temp_stats.tex}
+\vspace{0.05cm}
 {\centering\bsim\par}
 \end{frame}
 

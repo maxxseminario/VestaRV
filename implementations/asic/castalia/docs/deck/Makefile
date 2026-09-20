@@ -19,7 +19,7 @@ TRMINC   = ../../../../../platform/common/latex/TRM/include
 
 all: publish
 
-$(NAME).pdf: $(NAME).tex preamble.tex trmreuse.tex fig_marker_fusion.tex
+$(NAME).pdf: $(NAME).tex preamble.tex trmreuse.tex fig_*.tex
 	@test -f $(TRMINC)/defines.tex || { echo "$(TRMINC)/defines.tex missing: run 'make generate' in platform/common"; false; }
 	$(PDFLATEX) -interaction=nonstopmode $(NAME).tex > $(LOG) 2>&1 || (tail -40 $(LOG); false)
 	$(PDFLATEX) -interaction=nonstopmode $(NAME).tex > $(LOG) 2>&1 || (tail -40 $(LOG); false)
