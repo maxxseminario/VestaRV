@@ -1,0 +1,198 @@
+% =====================================================================
+% trmreuse.tex -- machinery for re-using Castalia TRM LaTeX fragments
+% inside this Beamer deck, unmodified and un-copied.
+% Originally written for docs/publications/castalia_lab_talk; this copy
+% differs only in the path block below (relative, repo-anchored).
+%
+% The TRM's figure fragments (pgfplots plots, circuitikz schematics,
+% generated TikZ block diagrams and booktabs tables) are \input directly
+% from the TRM source tree, so a regenerated TRM updates this deck.  Two
+% things have to be arranged for that to work:
+%
+%   1. path + macro context -- the fragments assume the TRM's cwd and a
+%      handful of the TRM's own \newcommands.  Both are supplied below.
+%   2. float suppression + captions -- a TRM caption is 3-5 sentences of
+%      body text and belongs on a page, not a slide.  \trmfig strips the
+%      float wrapper, the caption and the label, and scales what is left.
+% =====================================================================
+
+% --- where the shared sources live --------------------------------------
+% This deck sits in implementations/asic/castalia/docs/deck/, next to the
+% published TRM.pdf, and every path below is RELATIVE to that directory, so
+% the deck moves with the repository.
+%
+%   \AnalogSrc  implementations/asic/castalia/analog/   the hand-written analog
+%               chapter and the maestro2tex fig_/tab_/sch_ fragments -- the
+%               tracked source that LatexUserGuide.CopyAnalogChapter copies
+%               into the TRM build.  Read from the source, not the copy.
+%   \TRMinc     platform/common/latex/TRM/include/      the GENERATED system
+%               diagrams and defines.tex.  Gitignored; run `make generate`
+%               (or `make chip`) in platform/common first.
+%   \Assets     assets/web/                             the layout renders.
+%   \ISCASroot  the ISCAS'27 paper (outside the repo) -- the concept figure
+%               only, guarded with \IfFileExists so the deck builds without it.
+\newcommand{\VestaRoot}{../../../../../}
+\newcommand{\AnalogSrc}{../../analog/}
+\newcommand{\TRMroot}{\VestaRoot platform/common/latex/TRM/}
+\newcommand{\TRMinc}{\TRMroot include/}
+\newcommand{\Assets}{\VestaRoot assets/web/}
+\providecommand{\MaestroRoot}{\AnalogSrc}
+\newcommand{\ISCASroot}{/home/mseminario2/work/ieee/ISCAS27/latek/}
+\makeatletter\edef\input@path{{\TRMroot}{\TRMinc}{\AnalogSrc}{\ISCASroot}}\makeatother
+\graphicspath{{\Assets}{\TRMroot figures/}{\ISCASroot Figures/}}
+\pgfplotsset{table/search path={\ISCASroot}}
+
+% --- the TRM macros the fragments use --------------------------------
+% Verbatim from platform/common/latex/packages-commands.tex (all of them
+% are plain \texttt wrappers) plus the generated defines.
+\providecommand{\pin}[1]{\texttt{#1}}
+\providecommand{\peripheral}[1]{\texttt{#1}}
+\providecommand{\register}[1]{\texttt{#1}}
+\providecommand{\bitfield}[1]{\texttt{#1}}
+\providecommand{\asminline}[1]{\texttt{#1}}
+\providecommand{\cinline}[1]{\texttt{#1}}
+\providecommand{\forthinline}[1]{\texttt{#1}}
+\providecommand{\bashinline}[1]{\texttt{#1}}
+\input{\TRMinc defines.tex}
+
+% \memsection -- structural, not a stub: AddressSpaceDiagram needs the real
+% one.  Verbatim from platform/common/latex/packages-commands.tex line 93.
+\providecommand{\memsection}[4]{%
+	\bytefieldsetup{bitheight=#3\baselineskip}%
+	\bitbox[]{10}{%
+		\texttt{#1}
+		\\
+		\vspace{#3\baselineskip}
+		\vspace{-2\baselineskip}
+		\vspace{-#3pt}
+		\texttt{#2}
+	}%
+	\bitbox{16}{#4}%
+}
+
+% --- the maestro2tex categorical palette -----------------------------
+% Slots 1-5 of the validated reference palette, in documented order; the
+% block masters declare these with \providecolor, individual fig_*.tex do not.
+\definecolor{mtxA}{HTML}{2A78D6}
+\definecolor{mtxB}{HTML}{EB6834}
+\definecolor{mtxC}{HTML}{1BAF7A}
+\definecolor{mtxD}{HTML}{EDA100}
+\definecolor{mtxE}{HTML}{E87BA4}
+
+% --- \trmfig[scale]{fragment.tex} ------------------------------------
+% Inputs a TRM fragment with its float, caption and label removed and the
+% result scaled.  Everything is done inside a group so the redefinitions
+% never escape onto the rest of the slide.
+\newsavebox{\trmbox}
+\newcommand{\trmfig}[2][0.62]{%
+  \begingroup
+    \renewenvironment{figure}[1][]{\ignorespaces}{}%
+    \renewenvironment{table}[1][]{\ignorespaces}{}%
+    \renewcommand{\caption}[2][]{}%
+    \renewcommand{\label}[1]{}%
+    \renewcommand{\FloatBarrier}{}%
+    \sbox{\trmbox}{\begin{minipage}{\linewidth}\centering\input{#2}\end{minipage}}%
+    \scalebox{#1}{\usebox{\trmbox}}%
+  \endgroup}
+
+% \trmtab -- same, for a booktabs table fragment (no scaling by default).
+\newcommand{\trmtab}[2][1.0]{\trmfig[#1]{#2}}
+
+% \trmfigw[width fraction]{fragment.tex} -- same, but fitted to a fraction
+% of \linewidth instead of scaled by a factor.  Use this for the wide
+% generated block diagrams, whose natural width is 20-34 cm.
+\newcommand{\trmfigw}[2][1.0]{%
+  \begingroup
+    \renewenvironment{figure}[1][]{\ignorespaces}{}%
+    \renewenvironment{table}[1][]{\ignorespaces}{}%
+    \renewcommand{\caption}[2][]{}%
+    \renewcommand{\label}[1]{}%
+    \renewcommand{\FloatBarrier}{}%
+    \sbox{\trmbox}{\input{#2}}%
+    \resizebox{#1\linewidth}{!}{\usebox{\trmbox}}%
+  \endgroup}
+
+% \trmfigh{height}{fragment.tex} -- fitted to a stated height.  The usable
+% body height of a 16:9 Berkeley frame is about 6.6 cm.
+\newcommand{\trmfigh}[2]{%
+  \begingroup
+    \renewenvironment{figure}[1][]{\ignorespaces}{}%
+    \renewenvironment{table}[1][]{\ignorespaces}{}%
+    \renewcommand{\caption}[2][]{}%
+    \renewcommand{\label}[1]{}%
+    \renewcommand{\FloatBarrier}{}%
+    \sbox{\trmbox}{\input{#2}}%
+    \resizebox{!}{#1}{\usebox{\trmbox}}%
+  \endgroup}
+
+% =====================================================================
+% \duckph{width}{what the missing artwork is}
+% Placeholder for artwork that does not exist yet -- the top-level GDS
+% plot, die photographs, bonding diagrams.  A tikzducks duck in a dashed
+% frame: impossible to mistake for a real figure on a projector, and
+% impossible to leave in by accident.
+% =====================================================================
+\newcommand{\duckph}[3][graduate, book, bookcolour=red!60!black]{%
+  \begin{center}
+  \setlength{\fboxsep}{6pt}%
+  \tikz[baseline]{\node[draw=red!70!black, very thick, dashed, rounded corners=3pt,
+        inner sep=8pt, align=center, text width=#2]{%
+     {\bfseries\color{red!70!black} ARTWORK PENDING}\\[4pt]
+     \begin{tikzpicture}[scale=0.95]
+       \duck[#1]
+     \end{tikzpicture}\\[4pt]
+     {\small #3}};}
+  \end{center}}
+
+% =====================================================================
+% \trmfit[natural width]{max width}{max height}{fragment.tex}
+%
+% Fits a fragment inside a BOX, scaling uniformly by whichever limit binds
+% first, so it can be dropped into a column without overflowing either way.
+% This is the one to reach for by default.
+%
+% WHY THE OPTIONAL FIRST ARGUMENT MATTERS.  Every generated pgfplots
+% fragment declares "width=0.82\linewidth, height=6.2cm" -- a RELATIVE
+% width against an ABSOLUTE height.  Input inside a half-slide beamer
+% column, \linewidth is about 5.9 cm, so the axis comes out 4.8 cm wide by
+% 6.2 cm tall: portrait, and every trace squashed in x.  Scaling that box
+% afterwards cannot undo it -- the aspect is already wrong.
+%
+% So \trmfit sets \hsize/\linewidth/\columnwidth to a wide value BEFORE the
+% \input, which is what the fragment's 0.82\linewidth then resolves
+% against.  The plot is laid out landscape and only then scaled down to
+% fit.  15 cm gives roughly 12.3 x 6.2 cm, a 2:1 axis.  Pass a smaller
+% value for a fragment that should come out squarer, larger for a wider one.
+% Circuitikz fragments (which use \resizebox{\linewidth}{!}) are unaffected:
+% they are laid out at the natural width and scaled back uniformly.
+% =====================================================================
+\newlength{\trmnat}
+\newcommand{\trmfit}[4][15cm]{%
+  \begingroup
+    \renewenvironment{figure}[1][]{\ignorespaces}{}%
+    \renewenvironment{table}[1][]{\ignorespaces}{}%
+    \renewcommand{\caption}[2][]{}%
+    \renewcommand{\label}[1]{}%
+    \renewcommand{\FloatBarrier}{}%
+    \setlength{\trmnat}{#1}%
+    % \linewidth is set as a VALUE for the fragment to resolve against, but
+    % the box is NOT wrapped in a minipage of that width -- a minipage would
+    % pin \wd\trmbox to \trmnat and the fit below would then scale a 33 cm
+    % TikZ diagram as though it were 15 cm wide, and it would run off the slide.
+    \sbox{\trmbox}{\hsize=\trmnat \linewidth=\trmnat \columnwidth=\trmnat
+                   \input{#4}}%
+    % natural height, then the height the box would have if scaled to width #2
+    \dimen0=\ht\trmbox \advance\dimen0 by \dp\trmbox
+    \divide\dimen0 by 64                      % keep the product inside 2^31 sp
+    \count0=\wd\trmbox  \divide\count0 by 65536
+    \count2=\dimexpr#2\relax \divide\count2 by 65536
+    \ifnum\count0<1 \count0=1 \fi
+    \multiply\dimen0 by \count2
+    \divide\dimen0 by \count0
+    \multiply\dimen0 by 64
+    \ifdim\dimen0>\dimexpr#3\relax
+      \resizebox{!}{#3}{\usebox{\trmbox}}%     height binds
+    \else
+      \resizebox{#2}{!}{\usebox{\trmbox}}%     width binds
+    \fi
+  \endgroup}

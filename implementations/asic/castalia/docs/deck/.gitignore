@@ -1,0 +1,11 @@
+build.log
+*.aux
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.vrb
+*.fls
+*.fdb_latexmk
+castalia_deck.pdf

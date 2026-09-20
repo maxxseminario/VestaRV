@@ -1,0 +1,392 @@
+% =====================================================================
+% Castalia -- short overview deck.  Figures, schematics and spec tables;
+% as few words as the slides can carry.
+%
+% Template: the ECEN 222 lecture deck (Berkeley theme, beaver colours,
+% 16:9), see preamble.tex.
+%
+% Every plot, schematic and generated diagram is \input DIRECTLY from the
+% shared TRM sources (implementations/asic/castalia/analog/ and the
+% generated platform/common/latex/TRM/include/), so a regenerated TRM
+% updates this deck.  The machinery is in trmreuse.tex; the only deck-local
+% artwork is fig_marker_fusion.tex (clinical data the TRM carries as prose).
+%
+% Numbers on the spec slides are copied from the TRM build of 2026-09-15
+% (Build 0155aecd) and the tapeout_review campaign record; each slide's
+% source is named in a comment above it.
+%
+% Build:  make        (two pdflatex passes; copies the PDF next to TRM.pdf)
+% =====================================================================
+\documentclass[10pt, aspectratio=169]{beamer}
+
+\input{preamble.tex}
+\input{trmreuse.tex}
+
+\title[Castalia]{Castalia}
+\subtitle{A four-channel electrochemical sensing SoC with a five-hart RISC-V back end}
+\author{Maxx Seminario}
+\institute{University of Nebraska--Lincoln}
+\date{\today}
+
+\begin{document}
+
+\begin{frame}
+  \titlepage
+\end{frame}
+
+% =====================================================================
+\section{Target application}
+
+% Source: ISCAS'27 draft, Fig. 1 candidate B (outside the repo; guarded).
+\begin{frame}{One serum aliquot, four sites, one score}
+\IfFileExists{\ISCASroot Figures/concept_cand_B.tex}{%
+  \centering\resizebox{!}{5.6cm}{\input{\ISCASroot Figures/concept_cand_B.tex}}%
+}{%
+  \duckph{9cm}{ISCAS'27 concept figure (\texttt{concept\_cand\_B.tex}) not found on this machine}%
+}
+\sowhat{Symptomatic-patient triage on a disposable four-site cartridge; four markers read at the same instant, fused on chip.}
+\end{frame}
+
+% Source: Chen et al. 2018 (458 patients), as carried in the ISCAS'27 introduction.
+\begin{frame}{No single ovarian marker is a usable test}
+\begin{columns}[T]
+\column{0.64\textwidth}
+\vspace{0.1cm}
+\resizebox{\linewidth}{!}{\input{fig_marker_fusion.tex}}
+\column{0.34\textwidth}
+\vspace{0.6cm}
+{\footnotesize
+\begin{tabular}{@{}lr@{}}
+\toprule
+Panel & Sensitivity \\
+\midrule
+Best single (HE4)  & 63.8\,\% \\
+Four fused         & \textbf{90.8\,\%} \\
+\midrule
+ROMA, FDA-cleared  & 2 markers \\
+This chip          & 4 channels \\
+\bottomrule
+\end{tabular}}
+\end{columns}
+\sowhat{Clinical data, not simulation. The decision is a learned combination, so the unit of integration is four concurrent channels plus the processor that fuses them.}
+\end{frame}
+
+% Source: TRM fig_electrode_dpv (analog/), schematic-level channel.
+\begin{frame}{Four markers resolved in one differential-pulse sweep}
+\centering\trmfit{\linewidth}{5.6cm}{\MaestroRoot fig_electrode_dpv.tex}
+\vspace{0.05cm}
+{\centering\bsim\par}
+\sowhat{Peak position identifies the reporter, peak height carries concentration. Apexes within 2\,mV and 1\,\% of the assay targets; blank below 1\,pA.}
+\end{frame}
+
+% Source: TRM fig_electrode_dose (analog/).
+\begin{frame}{Every clinical cut-off lands inside the channel window}
+\centering\trmfit{\linewidth}{5.6cm}{\MaestroRoot fig_electrode_dose.tex}
+\vspace{0.05cm}
+{\centering\bsim\par}
+\sowhat{CA-125 35\,U/mL, HE4 70\,pmol/L, CA19-9 37\,U/mL, CEA 5\,ng/mL: all four on the steep part of the curve at one $R_f$ setting.}
+\end{frame}
+
+% =====================================================================
+\section{The chip}
+
+% Sources: TRM 2.1 Features and Fig. 2.1 (2026-09-15); tapeout_review/PLAN.md
+% for die, package, pads and power.  Analog rows: TRM Ch. 33.
+\begin{frame}{Castalia at a glance}
+\vspace{-0.1cm}
+\begin{columns}[T]
+\column{0.49\textwidth}
+{\scriptsize
+\begin{tabular}{@{}ll@{}}
+\multicolumn{2}{@{}l}{\textbf{\normalsize Digital}}\\[2pt]
+\toprule
+Harts            & 5 (1 orchestrator, 4 channel tiles) \\
+ISA              & \texttt{rv32imac\_zba\_zbb\_zbs\_zbc} \\
+Clock            & 24\,MHz rated, closed at 25\,MHz \\
+Measured CPI     & 1.260 aggregate, nine benchmarks \\
+Private TCM      & 8\,KiB per hart, 1-cycle \\
+Shared RAM       & 80\,KiB behind a round-robin arbiter \\
+Synchronisation  & 16 hardware mutexes, LR/SC, AMOs \\
+Interrupts       & claim/complete, any vector to any hart \\
+Accelerator      & NPU: MLP, conv-1D, XNOR, GEMM \\
+Power domains    & 4 MTCMOS, one per channel tile \\
+Debug            & JTAG, RISC-V Debug Module \\
+Field boot       & NFC ISO 14443A harvested boot \\
+\bottomrule
+\end{tabular}}
+\column{0.49\textwidth}
+{\scriptsize
+\begin{tabular}{@{}ll@{}}
+\multicolumn{2}{@{}l}{\textbf{\normalsize Analog and physical}}\\[2pt]
+\toprule
+Measurement sites  & 4 identical, simultaneous \\
+Topology           & bipolar grounded-WE potentiostat \\
+Electrode pads     & 12 (CE/RE/WE $\times$ 4) \\
+Converter          & 10-bit SAR per channel, extracted \\
+Reference DAC      & 12-bit R--2R per channel \\
+Feedback resistor  & 18\,k$\Omega + 6$\,k$\Omega\cdot N$, 320 codes \\
+Full scale         & $\pm$40.7\,\textmu A to $\pm$0.41\,\textmu A \\
+EIS                & firmware mode of the same channels \\
+Analog supply      & 2.5\,V, $v_\mathrm{cm} = 1.25$\,V \\
+\midrule
+Process            & 65\,nm CMOS, 1P8M, HVT cells \\
+Die / package      & $3.0\times3.0$\,mm / LQFP-100 \\
+Digital power      & 10.72\,mW post-route, SS, 25\,MHz \\
+\bottomrule
+\end{tabular}}
+\end{columns}
+\sowhat{Digital numbers from the hardened flow; analog numbers schematic-level, except the SAR, which is extracted.}
+\end{frame}
+
+% Source: the ISCAS'27 paper's block diagram, drawn for a reader (outside
+% the repo; guarded).  Fallback: the TRM's generated ChipSystemDiagram, which
+% regenerates with the chip configuration but is too dense for a slide.
+% The paper PNG predates the September configuration (it shows a 16 KiB boot
+% ROM, SPI x2, I2C x2 against the TRM's 8 KiB, x3, x4); the topology is the same.
+\begin{frame}{Block diagram}
+\IfFileExists{\ISCASroot Figures/castalia_block_diagram.png}{%
+  \centering\includegraphics[width=\linewidth]{castalia_block_diagram.png}%
+}{%
+  \centering\trmfit[20cm]{\linewidth}{6.0cm}{\TRMinc ChipSystemDiagram.tex}%
+}
+\sowhat{Four channel tiles own four AFE sites; every master reaches ROM, RAM, NPU and peripherals only through the arbiter.}
+\end{frame}
+
+% Sources: assets/web renders (2026-07 signoff GDS); tapeout_review/PLAN.md
+% for die and core box; TRM Ch. 3 for the package.
+\begin{frame}{Physical implementation}
+\begin{columns}[T]
+\column{0.34\textwidth}
+\centering
+\includegraphics[width=\linewidth]{layout_castalia_chip_top.png}\\[2pt]
+{\tiny chip top, $3.0\times3.0$\,mm}
+\column{0.24\textwidth}
+\centering
+\includegraphics[width=\linewidth]{layout_hart_tile.png}\\[2pt]
+{\tiny one hardened channel tile}
+\column{0.40\textwidth}
+\vspace{0.3cm}
+{\footnotesize
+\begin{tabular}{@{}ll@{}}
+\toprule
+Process    & 65\,nm, 1P8M, HVT \\
+Core box   & $2690\times2690$\,\textmu m \\
+Tile       & $660\times880$\,\textmu m \\
+Tile logic & $\approx$98\,k NAND2-eq. \\
+Tile SRAM  & 8\,KiB \\
+Package    & LQFP-100, $14\times14$\,mm \\
+\bottomrule
+\end{tabular}}
+\vspace{0.3cm}
+
+\bflow
+\end{columns}
+\sowhat{One tile hardened once, instantiated four times; the notch in each tile is the analog channel's keep-out.}
+\end{frame}
+
+% Sources: post-route power report (SS 0.9 V 125 C, 25 MHz, activity 0.2);
+% TRM Table 10.3 for CPI.
+\begin{frame}{Digital, as closed}
+\begin{columns}[T]
+\column{0.30\textwidth}
+\begin{block}{Whole chip, post-route}
+\footnotesize
+\begin{tabular}{@{}lr@{}}
+\toprule
+Internal   & 3.78\,mW \\
+Switching  & 2.33\,mW \\
+Leakage    & 4.61\,mW \\
+\midrule
+\textbf{Total} & \textbf{10.72\,mW} \\
+\bottomrule
+\end{tabular}
+\end{block}
+\begin{block}{One channel tile}
+\footnotesize
+\begin{tabular}{@{}lr@{}}
+\toprule
+Total      & 1.761\,mW \\
+Gated      & 0 \\
+\bottomrule
+\end{tabular}
+\end{block}
+\column{0.36\textwidth}
+\begin{block}{Measured CPI, timed kernels}
+\scriptsize
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Benchmark & Instr. & CPI \\
+\midrule
+spmv      & 802\,447 & 1.143 \\
+multiply  &  20\,892 & 1.163 \\
+vvadd     &   2\,408 & 1.374 \\
+median    &   4\,015 & 1.398 \\
+qsort     & 123\,205 & 1.398 \\
+rsort     & 146\,548 & 1.412 \\
+dhrystone & 200\,523 & 1.504 \\
+towers    &   3\,747 & 1.682 \\
+memcpy    &  11\,017 & 1.726 \\
+\midrule
+\textbf{Aggregate} & \textbf{1\,314\,802} & \textbf{1.260} \\
+\bottomrule
+\end{tabular}
+\end{block}
+\column{0.30\textwidth}
+\begin{block}{Timing at 25\,MHz}
+\footnotesize
+\begin{tabular}{@{}lr@{}}
+\toprule
+reg2reg WNS & $+$99\,ps \\
+Leakage share & 43\,\% \\
+\bottomrule
+\end{tabular}
+\end{block}
+\vspace{0.2cm}
+\bflow
+\end{columns}
+\sowhat{SS 0.9\,V 125\,\textdegree C, statistical activity 0.2. Gating one tile removes 1.76\,mW; the always-on band pays nothing.}
+\end{frame}
+
+% =====================================================================
+\section{Analog front end}
+
+% Source: TRM sch_tb_pixel (analog/).
+\begin{frame}{Grounded-WE two-amplifier potentiostat}
+\centering\trmfit[20cm]{\linewidth}{6.3cm}{\MaestroRoot sch_tb_pixel.tex}
+\sowhat{A1 drives CE with RE in feedback; A2 holds WE at $v_\mathrm{cm}$ through $R_f$. $v_\mathrm{out} = v_\mathrm{cm} - I_\mathrm{we} R_f$, both polarities.}
+\end{frame}
+
+% Source: TRM fig_px_xover_ierr (analog/).
+\begin{frame}{Bipolar accuracy through zero}
+\centering\trmfit{\linewidth}{5.6cm}{\MaestroRoot fig_px_xover_ierr.tex}
+\vspace{0.05cm}
+{\centering\bsim\par}
+\sowhat{No kink at the crossing: class-AB output, no dead zone. This is the measurement rev-1's PMOS mirror could not make.}
+\end{frame}
+
+% Source: TRM fig_pixtop_cv (analog/), assembled channel with its own DAC and SAR.
+\begin{frame}{Cyclic voltammetry through the assembled channel}
+\centering\trmfit{\linewidth}{5.6cm}{\MaestroRoot fig_pixtop_cv.tex}
+\vspace{0.05cm}
+{\centering\bsim\par}
+\sowhat{Staircase potential from the on-chip DAC, current digitised by the on-chip SAR, unclipped over the sweep.}
+\end{frame}
+
+% Source: TRM fig_tiarprog_r_vs_code (analog/).
+\begin{frame}{Programmable feedback resistor: one string, 320 codes}
+\begin{columns}[T]
+\column{0.64\textwidth}
+\trmfit[13cm]{\linewidth}{5.6cm}{\MaestroRoot fig_tiarprog_r_vs_code.tex}
+\column{0.34\textwidth}
+\vspace{0.3cm}
+\[ R_f = 18\,\mathrm{k}\Omega + 6\,\mathrm{k}\Omega\cdot N \]
+{\footnotesize
+\begin{tabular}{@{}lrr@{}}
+\toprule
+$N$ & $R_f$ & Full scale \\
+\midrule
+0   & 19.6\,k$\Omega$  & $\pm$40.7\,\textmu A \\
+63  & 397\,k$\Omega$   & $\pm$2.02\,\textmu A \\
+319 & 1.93\,M$\Omega$  & $\pm$0.41\,\textmu A \\
+\midrule
+LSB at 319 & \multicolumn{2}{r}{0.824\,nA} \\
+\bottomrule
+\end{tabular}}
+\end{columns}
+\sowhat{Strictly monotonic at every corner, including the four thermometer seams. Maximum gain is noise-limited, not quantisation-limited.}
+\end{frame}
+
+% Source: TRM fig_adc_transfer (analog/), extracted anatop_pixel_adc.
+\begin{frame}{10-bit SAR ADC, extracted netlist}
+\centering\trmfit{\linewidth}{5.4cm}{\MaestroRoot fig_adc_transfer.tex}
+\vspace{0.05cm}
+{\centering\bext\par}
+\sowhat{23 clocks per conversion, 870\,kSa/s, 50\,pJ. The capacitor array exists only in layout, so this is the one block characterised extracted.}
+\end{frame}
+
+% Source: TRM fig_eis_error (analog/).
+\begin{frame}{Impedance spectroscopy on the same channel}
+\centering\trmfit[17cm]{\linewidth}{5.0cm}{\MaestroRoot fig_eis_error.tex}
+\vspace{0.1cm}
+
+{\footnotesize\centering
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{@{}cccc@{}}
+\toprule
+Excitation & Demodulation & Accuracy & $|Z|$ range \\
+\midrule
+2-code DAC square & firmware, channel hart & $\pm$1\,\%, $\pm$0.6\textdegree{} to 5.05\,kHz; $\pm$5\,\% to 26.5\,kHz & 246\,$\Omega$ -- 12.1\,M$\Omega$ \\
+\bottomrule
+\end{tabular}}\par}
+\vspace{0.05cm}
+{\centering\bsim\par}
+\sowhat{No EIS engine. Impedance is a ratio of two readings through one converter; the DAC drops out of the accuracy budget.}
+\end{frame}
+
+% Source: TRM Ch. 33 measurement tables (analog/note_meas_*.tex).
+\begin{frame}{One AFE channel, as simulated}
+\vspace{-0.05cm}
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{@{}lll@{}}
+\toprule
+Parameter & Value & Condition \\
+\midrule
+CE compliance           & 13.2\,mV -- 2.480\,V          & 2.5\,V rail, corners \\
+Cell current delivered  & $\pm$52.5\,\textmu A          & 12\,k$\Omega$ cell \\
+TIA compliance          & $\pm$0.80\,V about $v_\mathrm{cm}$ & \\
+Feedback resistor       & 19.6\,k$\Omega$ -- 1.93\,M$\Omega$, 320 codes & monotonic at every corner \\
+Full-scale current      & $\pm$40.7\,\textmu A ($N{=}0$) to $\pm$0.41\,\textmu A ($N{=}319$) & SAR window $\cap$ TIA compliance \\
+Current quantum         & 0.824\,nA at maximum gain     & below the 2\,nA noise budget \\
+Bipolar accuracy        & 0.25--0.38 LSB worst          & 560\,k$\Omega$, 1\,M$\Omega$ electrode, corners \\
+Control-loop PM         & 79--80\textdegree             & five corners, into a cell \\
+TIA-loop PM             & 89--93\textdegree             & 12-cell electrode grid \\
+Input current noise     & 341\,pA standalone, 3.6--21\,nA into an electrode & 0.1--100\,Hz, 560\,k$\Omega$ \\
+Zero-current offset     & $\sigma(v_\mathrm{re}) = 5.72$\,mV, gain-independent & 200 MC samples, calibratable \\
+Quiescent current       & 197--250\,\textmu A per channel & amplifiers $+$ local bias \\
+\bottomrule
+\end{tabular}}
+\vspace{0.15cm}
+
+{\centering\bsim\quad\bmc\par}
+\sowhat{Pre-layout, electrode held nominal: no row includes electrode-to-electrode spread.}
+\end{frame}
+
+% =====================================================================
+\section{From currents to a score}
+
+% Source: TRM Ch. 17 (NPU), ISCAS'27 draft for the fusion form.
+\begin{frame}{The fusion runs on the NPU}
+\begin{columns}[T]
+\column{0.50\textwidth}
+\vspace{0.4cm}
+\[ s = \sigma\Big(\sum_{k=1}^{4} w_k\,\hat{c}_k + b\Big) \]
+\vspace{0.1cm}
+
+{\footnotesize
+\begin{tabular}{@{}ll@{}}
+\toprule
+Input  & peak current, peak potential, baseline $\times$ 4 \\
+Mode   & 0, dense layer, one sigmoid \\
+Output & one risk score \\
+Weights & trained off-chip, staged by firmware \\
+\bottomrule
+\end{tabular}}
+\column{0.46\textwidth}
+\vspace{0.2cm}
+{\footnotesize
+\begin{tabular}{@{}ll@{}}
+\toprule
+\multicolumn{2}{@{}l}{\textbf{Per site}}\\
+\midrule
+Hart      & 1, ownership enforced in hardware \\
+Potential & own 12-bit DAC \\
+Converter & own 10-bit SAR \\
+Power     & own MTCMOS domain \\
+\bottomrule
+\end{tabular}}
+\end{columns}
+\sowhat{The logistic form of the cleared two-marker algorithm, extended to four inputs and moved from the central laboratory onto the electrode.}
+\end{frame}
+
+\end{document}

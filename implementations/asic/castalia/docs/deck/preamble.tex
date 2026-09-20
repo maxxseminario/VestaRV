@@ -1,0 +1,141 @@
+% =====================================================================
+% preamble.tex -- lifted from the ECEN 222 lecture template
+% (work/courses/instructor/ECEN222/latek/lectures/lecture08_opamps) via
+% docs/publications/castalia_lab_talk, so this deck matches the course slides.  Berkeley theme, beaver colours,
+% 16:9, custom two-box footline.  Additions for this deck are marked.
+% =====================================================================
+\usefonttheme{professionalfonts}
+
+\mode<presentation>
+{
+  \usetheme{Berkeley}
+  \usecolortheme{beaver}
+  \usefonttheme{default}
+  \setbeamertemplate{navigation symbols}{}
+  \setbeamertemplate{caption}[numbered]
+}
+
+\setbeamertemplate{footline}{%
+  \leavevmode%
+  \hbox{%
+    \begin{beamercolorbox}[wd=.85\paperwidth,ht=2.5ex,dp=1ex,left]{author in head/foot}%
+      \usebeamerfont{author in head/foot}Maxx Seminario, Castalia overview%
+    \end{beamercolorbox}%
+    \begin{beamercolorbox}[wd=.15\paperwidth,ht=2.5ex,dp=1ex,right]{date in head/foot}%
+      \hspace*{0.5em}\insertframenumber{} / \inserttotalframenumber\hspace*{0.5em}%
+    \end{beamercolorbox}%
+  }%
+  \vskip0pt%
+}
+
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric}
+\usepackage{pgfplots}
+\usepackage{array}
+\usepackage{makecell}
+\usepackage{verbatim}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{bm}
+\usepackage{circuitikz}
+\usepackage{caption}
+\captionsetup{compatibility=false}
+\usepackage[absolute,overlay]{textpos}
+\usetikzlibrary{calc}
+\usetikzlibrary{pgfplots.fillbetween, backgrounds}
+\usetikzlibrary{positioning}
+\usetikzlibrary{pgfplots.groupplots}
+\usetikzlibrary{plotmarks}
+\usepgfplotslibrary{groupplots}
+\pgfplotsset{compat=newest}
+
+% --- added for this deck ---------------------------------------------
+\usepackage{booktabs}                 % the TRM's tables are booktabs
+\usepackage{siunitx}                  % ... and its numbers are siunitx
+\usepackage{placeins}                 % \FloatBarrier, used by TRM masters
+\usepackage{bytefield}                % AddressSpaceDiagram
+\usepackage{tikz-timing}              % the arbiter / mutex / IRQ waveform diagrams
+\usepackage{tikzducks}                % placeholders for artwork not yet drawn
+\usetikzlibrary{arrows.meta, fit, patterns, decorations.pathreplacing,
+                decorations.markings, shapes.misc, matrix, chains}
+\usepgfplotslibrary{statistics}
+\usepackage{multirow}
+\usepackage{colortbl}
+\sisetup{detect-weight=true, detect-family=true}
+
+% --- sidebar: dark, for readability -----------------------------------
+% Berkeley's sidebar is a light tint by default and the section names in it
+% wash out on a projector.  Dark ground with white type instead; the hue is
+% the theme's own BeaverRed so it still reads as the ECEN 222 deck.
+\definecolor{SidebarDark}{RGB}{72,18,18}
+\setbeamercolor{sidebar}{bg=SidebarDark}
+\setbeamercolor{palette sidebar primary}{fg=white}
+\setbeamercolor{palette sidebar secondary}{fg=white!78}
+\setbeamercolor{palette sidebar tertiary}{fg=white!78}
+\setbeamercolor{palette sidebar quaternary}{fg=white}
+\setbeamercolor{title in sidebar}{fg=white}
+\setbeamercolor{author in sidebar}{fg=white!80}
+\setbeamercolor{section in sidebar}{fg=white}
+\setbeamercolor{section in sidebar shaded}{fg=white!55}
+\setbeamercolor{subsection in sidebar}{fg=white!88}
+\setbeamercolor{subsection in sidebar shaded}{fg=white!50}
+\setbeamerfont{section in sidebar}{size=\tiny}
+\setbeamerfont{section in sidebar shaded}{size=\tiny}
+
+\usepackage{hyperref}
+\definecolor{BeaverRed}{RGB}{179,38,38}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=BeaverRed,
+    filecolor=magenta,
+    urlcolor=cyan,
+    % PDF metadata: this is the name the viewer's title bar and the file
+    % properties show, and it is NOT taken from \title once set here.
+    pdftitle={Castalia: a four-channel electrochemical sensing SoC},
+    pdfauthor={Maxx A. Seminario},
+    pdfsubject={Short overview deck, University of Nebraska-Lincoln},
+    pdfkeywords={Castalia, VestaRV, RISC-V, potentiostat, electrochemical
+                 sensing, ovarian cancer panel, 65 nm CMOS},
+}
+
+% Colored icons in itemize labels (ECEN 222 template, 01/06/2026)
+\usepackage{wasysym}
+\newcommand{\neutralface}{%
+  \tikz[baseline=-0.6ex]{
+    \draw (0,0) circle (0.9ex);
+    \fill (-0.35ex,0.25ex) circle (0.12ex);
+    \fill ( 0.35ex,0.25ex) circle (0.12ex);
+    \draw (-0.35ex,-0.25ex) -- (0.35ex,-0.25ex);
+  }%
+}
+\newcommand{\baditem}{\textcolor{red!70!black}{\frownie}}
+\newcommand{\gooditem}{\textcolor{green!60!black}{\smiley}}
+\newcommand{\mehitem}{\textcolor{orange!80!black}{\neutralface}}
+
+% --- deck-local conveniences ------------------------------------------
+% Slides in this deck carry very little text, so the default itemize
+% spacing is loosened and the body font is set once here.
+\setbeamertemplate{itemize items}[circle]
+\setbeamerfont{itemize/enumerate body}{size=\small}
+\setbeamerfont{itemize/enumerate subbody}{size=\footnotesize}
+\setlength{\leftmargini}{1.2em}
+
+% A "so what" strip: one line under a figure, in the accent colour.
+\newcommand{\sowhat}[1]{\vfill{\scriptsize\color{BeaverRed}\textbf{#1}}\vspace{-0.1cm}}
+
+% "New since the Myshkin tapeout" badge.  A lot of this deck is answering
+% that question, so the answer is marked on the slide rather than said.
+\newcommand{\newin}{{\scriptsize\color{BeaverRed}\textbf{[new since Myshkin]}}}
+
+% Silicon / schematic provenance badges.  Every analog number in this deck
+% is simulated; every digital number is from the hardened flow.  Saying so
+% once per slide is cheaper than saying it once per number.
+\newcommand{\badge}[2]{\textcolor{#1}{\footnotesize\ensuremath{\blacksquare}}\,{\scriptsize #2}}
+\newcommand{\bsim}{\badge{orange!85!black}{schematic sim, pre-layout}}
+\newcommand{\bext}{\badge{blue!70!black}{extracted netlist}}
+\newcommand{\bflow}{\badge{green!45!black}{hardened flow, post-route}}
+\newcommand{\bmc}{\badge{red!70!black}{Monte Carlo, 200 samples}}

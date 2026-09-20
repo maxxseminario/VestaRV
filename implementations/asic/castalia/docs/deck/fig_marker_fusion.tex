@@ -1,0 +1,42 @@
+%% HAND-DRAWN for this deck, from the ISCAS'27 introduction.
+%%
+%% Chen et al. 2018, four markers measured individually on the same 458
+%% patients, then fused.  Individually none of them is a usable test; the
+%% combination is.  This is the slide that answers "why four channels":
+%% the clinically useful decision is a learned combination of markers, so
+%% the natural unit of integration is four concurrent channels plus the
+%% processor that combines them, not one better potentiostat.
+
+\begin{tikzpicture}
+  \begin{axis}[
+    width=9.6cm, height=4.8cm,
+    ybar, bar width=0.92cm,
+    ymin=0, ymax=105,
+    ylabel={Sensitivity [\%]},
+    symbolic x coords={HE4, CA-125, CEA, CA19-9, fused},
+    xtick=data,
+    xticklabel style={font=\small},
+    ylabel style={font=\small},
+    yticklabel style={font=\small},
+    ytick={0,25,50,75,100},
+    grid=major, ymajorgrids=true, xmajorgrids=false,
+    major grid style={line width=0.2pt, draw=black!14},
+    axis line style={line width=0.4pt, draw=black!45},
+    tick style={line width=0.4pt, draw=black!45},
+    enlarge x limits=0.13,
+    nodes near coords, nodes near coords style={font=\small\bfseries},
+    every node near coord/.append style={/pgf/number format/fixed,
+                                         /pgf/number format/precision=1},
+  ]
+    \addplot[draw=black!45, fill=black!22] coordinates
+      {(HE4,63.8) (CA-125,62.8) (CEA,38.8) (CA19-9,35.7)};
+    \addplot[draw=mtxA!60!black, fill=mtxA!85] coordinates {(fused,90.8)};
+    % annotations in axis-relative coordinates, so they follow the axis box
+    \draw[black!45, densely dashed, line width=0.6pt]
+      (rel axis cs:0.805,0) -- (rel axis cs:0.805,1);
+    \node[font=\scriptsize, black!55, anchor=north, align=center]
+      at (rel axis cs:0.40,0.99) {measured individually,\\ same 458 patients};
+    \node[font=\small\bfseries, mtxA!55!black, anchor=north, align=center]
+      at (rel axis cs:0.905,0.72) {all four,\\ fused};
+  \end{axis}
+\end{tikzpicture}
