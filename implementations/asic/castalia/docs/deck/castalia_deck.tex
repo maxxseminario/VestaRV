@@ -205,35 +205,27 @@ Parameters & $E^{0\prime}$, $n$, $\alpha$, $k^0$, $D$, $A$, $C_O^{*}$, $C_R^{*}$
 % loading was fitted to reproduce through the simulated channel.
 \begin{frame}{Emulating the four markers}
 \centering
-{\scriptsize
-\resizebox{\linewidth}{!}{%
+{\footnotesize
 \begin{tabular}{@{}llrrrl@{}}
 \toprule
-Marker & Assumed reporter & $E^{0\prime}$ (V vs RE) & Target apex (nA) & Fitted $C_R^{*}$ (\textmu M) & Cut-off \\
+Marker & Reporter & $E^{0\prime}$ (V) & Peak (nA) & $C_R^{*}$ (\textmu M) & Cut-off \\
 \midrule
-CA-125 & methylene blue      & $-0.15$ & 856  & 279 & 35\,U/mL [5,\,8] \\
-HE4    & ferrocene           & $+0.10$ & 1311 & 394 & 70\,pmol/L, premenopausal [6] \\
-CA19-9 & TMB / HRP [20]      & $+0.25$ & 1659 & 458 & 37\,U/mL$^{\dagger}$ \\
-CEA    & anthraquinone       & $+0.40$ & 939  & 303 & 5\,ng/mL [5,\,14] \\
-\midrule
-\multicolumn{6}{@{}l}{Shared: $k^0 = 0.1$\,cm/s, $\alpha = 0.5$, $n = 1$, $D = 5\times10^{-6}$\,cm$^2$/s, $A = 0.01$\,cm$^2$, 37\,\textdegree C; $R_u = R_{\mathrm{ce}} = 1$\,k$\Omega$, $C_{\mathrm{dl}} = 200$\,nF, $R_f = 560$\,k$\Omega$} \\
-\bottomrule
-\end{tabular}}}
-\vspace{0.2cm}
-
-{\scriptsize
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{6.6cm}>{\raggedright\arraybackslash}p{3.9cm}@{}}
-\toprule
-Value & Literature & Used here \\
-\midrule
-$E^{0\prime}$   & reporters for multiplexed sensors (MB, ferrocene, AQ, Nile blue) signal inside $-0.6$ to $+0.4$\,V vs Ag/AgCl [22]; MB $E^{0\prime} = -0.24$\,V [23]; TMB/HRP read cathodically [20] & four representative potentials inside that window, 150--250\,mV apart \\
-Peak current    & 50\,nA to 5\,\textmu A on screen-printed electrodes [14,\,15,\,21] & targets inside that range and the $\pm$2\,\textmu A full scale; $C_R^{*}$ fitted to reach them \\
-$k^0$           & no value published on carbon for these markers & reversible default, 0.1\,cm/s \\
-Cut-offs        & CA-125 [5,\,8], HE4 [6], CEA [5,\,14]; $^{\dagger}$Chen [5] used 27\,U/mL and HE4 140\,pmol/L & as tabulated \\
-DPV programme   & 4--5\,mV treads, 25--50\,mV pulses [13,\,16] & 4\,mV, 50\,mV \\
+CA-125 & methylene blue & $-0.15$ & 856  & 279 & 35\,U/mL [5,\,8] \\
+HE4    & ferrocene      & $+0.10$ & 1311 & 394 & 70\,pmol/L [6] \\
+CA19-9 & TMB / HRP [20] & $+0.25$ & 1659 & 458 & 37\,U/mL [5] \\
+CEA    & anthraquinone  & $+0.40$ & 939  & 303 & 5\,ng/mL [5,\,14] \\
 \bottomrule
 \end{tabular}}
-\sowhat{Representative, not marker-measured: the DPV and dose slides demonstrate the channel, not an assay. CA19-9 inherited the values first set for AFP.}
+\vspace{0.35cm}
+
+{\scriptsize
+\begin{tabular}{@{}ll@{}}
+$E^{0\prime}$ & representative; inside the $-0.6$ to $+0.4$\,V reporter window [22,\,23], 150--250\,mV apart \\
+Peak          & inside 50\,nA to 5\,\textmu A on screen-printed electrodes [14,\,15,\,21]; $C_R^{*}$ fitted to reach it \\
+$k^0$         & 0.1\,cm/s, reversible; nothing published on carbon for these markers \\
+Shared        & $\alpha = 0.5$, $n = 1$, $D = 5\times10^{-6}$\,cm$^2$/s, $A = 0.01$\,cm$^2$, 37\,\textdegree C, $R_f = 560$\,k$\Omega$ \\
+\end{tabular}}
+\sowhat{Representative, not marker-measured: these slides demonstrate the channel, not an assay.}
 \end{frame}
 
 % Sources: TRM note_electrode_dpv for the programme; the schematic is the
