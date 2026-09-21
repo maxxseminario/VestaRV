@@ -1,0 +1,33 @@
+%% HAND-DRAWN for this deck.  Random error of |Z| against the number of
+%% excitation periods averaged, M, at 1 kHz on an 11 kOhm load.  Source: the
+%% process-gain run of simruns/eisdemo_20260825 as summarised in the TRM's
+%% note_eis_excitation header: demodulator over 1..16384 periods, 870
+%% samples/period; sigma/|Z| = 1.2023 % at M = 1 falling to 0.0093 % at
+%% M = 16384 on the N = 0 tap (front-end noise 272.9 nA/sample), 0.2615 % at
+%% M = 1 on the N = 63 tap (60.84 nA/sample); every 4x in M is 6.02 dB to the
+%% last digit, so the two curves are sigma_1/sqrt(M).  The +1.94 % (N = 0) and
+%% -0.56 % (N = 63) quantisation biases are constant with M and are removed by
+%% the Z_cal ratio, so they are not drawn.
+\begin{tikzpicture}
+  \begin{axis}[
+    width=7.4cm, height=5.4cm,
+    xmode=log, ymode=log,
+    xmin=1, xmax=30000, ymin=0.005, ymax=3,
+    xlabel={periods averaged, $M$}, ylabel={$\sigma_{|Z|}/|Z|$ [\%]},
+    xtick={1,10,100,1000,10000},
+    grid=both, major grid style={line width=0.2pt, draw=black!14},
+    minor grid style={line width=0.2pt, draw=black!7},
+    axis line style={line width=0.4pt, draw=black!45},
+    tick style={line width=0.4pt, draw=black!45},
+    label style={font=\small}, tick label style={font=\small},
+    legend style={font=\scriptsize, draw=none, fill=white, at={(0.97,0.97)}, anchor=north east},
+    legend cell align=left,
+  ]
+    \addplot[mtxA, line width=1.0pt, domain=1:16384, samples=40] {1.2023/sqrt(x)};
+    \addlegendentry{$N=0$ tap, $R_f = 19.6$\,k$\Omega$}
+    \addplot[mtxB, line width=1.0pt, domain=1:16384, samples=40] {0.2615/sqrt(x)};
+    \addlegendentry{$N=63$ tap, $R_f = 397$\,k$\Omega$}
+    \node[font=\scriptsize, black!60, anchor=south west, align=left] at (axis cs:1.4,0.0065)
+      {$1/\sqrt{M}$: 6\,dB per $4\times$\\ $M{=}16384$ at 1\,kHz is 16\,s};
+  \end{axis}
+\end{tikzpicture}

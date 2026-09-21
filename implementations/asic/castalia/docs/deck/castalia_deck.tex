@@ -359,6 +359,38 @@ Range & 246\,$\Omega$ to 12.1\,M$\Omega$. Limits: TIA compliance below, one LSB 
 \sowhat{The excitation amplitude never enters: $Z$ is the ratio of two records through one converter, so DAC gain and droop cancel.}
 \end{frame}
 
+% Sources: TRM note_eis_coverage (dc error scales with the noise gain
+% 1 + R_f/|Z|: 0.12 / 0.33 / 0.66 / 1.32 % at ratios 7.3 / 20 / 40 / 80),
+% eisdeep_20260826 ac_dense dc values per load, note_eis_excitation process gain.
+\begin{frame}{What sets the EIS floor, and what averaging buys}
+\begin{columns}[T]
+\column{0.50\textwidth}
+\vspace{0.2cm}
+{\footnotesize \textbf{Systematic floor: A2's finite gain, scaled by the noise gain}\par}
+\vspace{0.1cm}
+{\footnotesize $\varepsilon_{\mathrm{dc}} \approx \dfrac{1 + R_f/|Z|}{A_{\mathrm{OL}}}$\par}
+\vspace{0.2cm}
+{\scriptsize
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Load & $|Z|_{\mathrm{dc}}$ & $R_f$ & $R_f/|Z|$ & Error \\
+\midrule
+resistor & 11\,k$\Omega$  & 19.6\,k$\Omega$ & 1.8 & 0.029\,\% \\
+fouled   & 11\,k$\Omega$  & 19.6\,k$\Omega$ & 1.8 & 0.030\,\% \\
+typical  & 101\,k$\Omega$ & 140\,k$\Omega$  & 1.4 & 0.003\,\% \\
+fresh    & 1\,M$\Omega$   & 397\,k$\Omega$  & 0.4 & 0.0007\,\% \\
+\bottomrule
+\end{tabular}}
+\vspace{0.2cm}
+
+{\scriptsize A property of the gain code chosen, not of the electrode; fixed and repeatable, so the $Z_{\mathrm{cal}}$ ratio removes it.\par}
+\column{0.48\textwidth}
+{\footnotesize \textbf{Random error: front-end noise, averaged}\par}
+\resizebox{\linewidth}{!}{\input{fig_eis_noise_vs_m.tex}}
+\end{columns}
+\sowhat{Bias is set by the gain code and cancels in the ratio; precision is bought with measurement time, $\sigma \propto 1/\sqrt{M}$.}
+\end{frame}
+
 % =====================================================================
 \section{Analog blocks}
 
