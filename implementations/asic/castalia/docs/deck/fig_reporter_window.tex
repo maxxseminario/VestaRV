@@ -1,57 +1,59 @@
-%% HAND-DRAWN for this deck.  Two axes: (top) the potential window in which the
-%% redox reporters of multiplexed electrochemical sensors are read, and where
-%% our four E0' sit; (bottom) the peak-current envelope reported for
-%% immunoassays on screen-printed electrodes, the chip's window at Rf = 560 k,
-%% and our four target peaks.
-%% Sources: window edges, thiol-on-gold monolayer instability below -0.6 V and
-%% above +0.4 V vs Ag/AgCl, Kang et al. 2016 [22]; methylene blue E0' = -0.24 V,
-%% Clark et al. 2023 [23]; 50 nA - 5 uA peak envelope on screen-printed
-%% electrodes, Wilson & Nie 2006 [14], Kovarova 2023 [15], Bilgi Kamac 2023 [21]
-%% (a survey range across those assays, not one paper's number); chip window
-%% 0.82 nA LSB to 2.06 uA full scale at the 560 k tap (TRM); our peaks and E0'
-%% from the marker slide.
-\begin{tikzpicture}[font=\small]
-  % ------------------------------------------------ potential axis (x: 6 cm/V)
-  \begin{scope}[x=6.0cm, y=1cm]
-    \fill[mtxC!18] (-0.6,0.05) rectangle (0.4,1.35);
-    \draw[mtxC!60!black, line width=0.6pt] (-0.6,0.05) -- (-0.6,1.35);
-    \draw[mtxC!60!black, line width=0.6pt] (0.4,0.05) -- (0.4,1.35);
-    \draw[black!60, line width=0.5pt] (-0.8,0) -- (0.6,0);
-    \foreach \v in {-0.8,-0.6,-0.4,-0.2,0,0.2,0.4,0.6}{
+%% HAND-DRAWN for this deck.  Two axes, three layers each:
+%%   blue bar   what the CHANNEL covers   potential: +-0.80 V about v_cm (TIA
+%%              compliance, TRM); current: 0.82 nA LSB at N=319 to +-40.7 uA
+%%              full scale at N=0 (pgfmath: 40700 > TeX max dimension, so log10(40.7)+3), with the single 560 k tap (0.82 nA - 2.06 uA)
+%%              marked inside it (TRM tiarprog / pixel sections)
+%%   green band what ASSAYS OF THIS CLASS produce   potential: thiol-on-gold
+%%              reporter window -0.6..+0.4 V vs Ag/AgCl, Kang 2016 [22], with
+%%              methylene blue at -0.24 V, Clark 2023 [23]; current: 50 nA - 5 uA
+%%              DPV peaks on screen-printed electrodes, [14,15,21]
+%%   red dots   where WE PLACED the four reporters for the simulation
+%%              (marker slide: E0' and target apex)
+\begin{tikzpicture}[font=\small,
+  chan/.style={mtxA!75!black, line width=2.4pt},
+  assay/.style={fill=mtxC!22},
+  dot/.style={fill=mtxB!85!black}]
+  % ------------------------------------------------ potential axis (x: 5 cm/V)
+  \begin{scope}[x=5.0cm, y=1cm]
+    \draw[black!60, line width=0.5pt] (-1.0,0) -- (1.0,0);
+    \foreach \v in {-1.0,-0.8,-0.6,-0.4,-0.2,0,0.2,0.4,0.6,0.8,1.0}{
       \draw[black!60, line width=0.4pt] (\v,0) -- (\v,-0.08);
       \node[font=\scriptsize, black!70, anchor=north] at (\v,-0.1) {$\v$};}
-    \node[font=\scriptsize, black!70, anchor=west] at (0.62,0) {V vs Ag/AgCl};
-    \node[font=\scriptsize, mtxC!50!black, anchor=south west] at (-0.58,1.37) {reporter window [22]};
-    \node[font=\scriptsize, black!70, anchor=east, align=right] at (-0.63,0.7) {monolayer desorbs,\\O$_2$ reduces};
-    \node[font=\scriptsize, black!70, anchor=west, align=left] at (0.47,0.35) {gold--thiolate\\oxidises};
-    % methylene blue, literature
-    \draw[mtxA!70!black, line width=1.2pt] (-0.24,0.05) -- (-0.24,1.05);
-    \node[font=\scriptsize, mtxA!60!black, anchor=south] at (-0.24,1.07) {MB [23]};
-    % our four
+    \node[font=\scriptsize, black!70, anchor=west] at (1.03,0) {V vs RE};
+    % channel
+    \draw[chan] (-0.8,1.95) -- (0.8,1.95);
+    \node[font=\scriptsize, mtxA!60!black, anchor=south] at (0,2.02) {channel covers: $\pm0.8$\,V about $v_{\mathrm{cm}}$};
+    % assays
+    \fill[assay] (-0.6,0.08) rectangle (0.4,1.25);
+    \node[font=\scriptsize, mtxC!45!black, anchor=south] at (-0.1,1.27) {assays of this class produce [22]};
+    \node[font=\scriptsize, black!60, anchor=east, align=right] at (-0.63,0.55) {monolayer\\desorbs};
+    \node[font=\scriptsize, black!60, anchor=west, align=left] at (0.43,0.55) {thiolate\\oxidises};
+    \draw[mtxC!60!black, line width=1.0pt] (-0.24,0.08) -- (-0.24,1.15);
+    \node[font=\scriptsize, mtxC!45!black, anchor=east] at (-0.27,1.0) {MB [23]};
+    % ours
     \foreach \v/\l in {-0.15/{CA-125}, 0.10/{HE4}, 0.25/{CA19-9}, 0.40/{CEA}}{
-      \fill[mtxB!80!black] (\v,0.35) circle [radius=2.2pt];
-      \node[font=\scriptsize, mtxB!60!black, anchor=south] at (\v,0.5) {\l};}
+      \fill[dot] (\v,0.62) circle [radius=2.2pt];
+      \node[font=\scriptsize, mtxB!60!black, anchor=south] at (\v,0.74) {\l};}
+    \node[font=\scriptsize, mtxB!60!black, anchor=north] at (0.12,0.5) {we placed the four reporters};
   \end{scope}
-  % ------------------------------------------------ current axis (log, 2 cm/decade)
-  \begin{scope}[shift={(-4.2cm,-3.1cm)}, x=2.0cm, y=1cm]
-    % x = log10(i / 1 nA): 0 = 1 nA ... 4 = 10 uA
-    \fill[mtxC!18] ({log10(50)},0.05) rectangle ({log10(5000)},1.35);
-    \draw[mtxC!60!black, line width=0.6pt] ({log10(50)},0.05) -- ({log10(50)},1.35);
-    \draw[mtxC!60!black, line width=0.6pt] ({log10(5000)},0.05) -- ({log10(5000)},1.35);
-    \draw[black!60, line width=0.5pt] (-0.3,0) -- (4.2,0);
-    \foreach \d/\l in {0/{1\,nA},1/{10\,nA},2/{100\,nA},3/{1\,\textmu A},4/{10\,\textmu A}}{
+  % ------------------------------------------------ current axis (log, 1.5 cm/decade)
+  \begin{scope}[shift={(-5.0cm,-3.9cm)}, x=1.5cm, y=1cm]
+    % x = log10(i / 1 nA): -1 = 0.1 nA ... 5 = 100 uA
+    \draw[black!60, line width=0.5pt] (-1.2,0) -- (5.2,0);
+    \foreach \d/\l in {-1/{0.1\,nA},0/{1\,nA},1/{10\,nA},2/{100\,nA},3/{1\,\textmu A},4/{10\,\textmu A},5/{100\,\textmu A}}{
       \draw[black!60, line width=0.4pt] (\d,0) -- (\d,-0.08);
       \node[font=\scriptsize, black!70, anchor=north] at (\d,-0.1) {\l};}
-    \node[font=\scriptsize, black!70, anchor=west] at (4.3,0) {peak current};
-    \node[font=\scriptsize, mtxC!50!black, anchor=south] at ({0.5*(log10(50)+log10(5000))},1.37) {screen-printed-electrode assays, 50\,nA to 5\,\textmu A [14,\,15,\,21]};
-    % chip window at the 560 k tap
-    \draw[mtxA!70!black, line width=1.2pt] ({log10(0.82)},0.9) -- ({log10(2060)},0.9);
-    \draw[mtxA!70!black, line width=1.2pt] ({log10(0.82)},0.8) -- ({log10(0.82)},1.0);
-    \draw[mtxA!70!black, line width=1.2pt] ({log10(2060)},0.8) -- ({log10(2060)},1.0);
-    \node[font=\scriptsize, mtxA!60!black, anchor=south] at ({0.5*(log10(0.82)+log10(2060))},0.95) {channel at $R_f = 560$\,k$\Omega$: 0.82\,nA LSB to 2.06\,\textmu A};
-    % our four peaks
-    \foreach \i/\l in {856/{CA-125}, 1311/{HE4}, 1659/{CA19-9}, 939/{CEA}}{
-      \fill[mtxB!80!black] ({log10(\i)},0.35) circle [radius=2.2pt];}
-    \node[font=\scriptsize, mtxB!60!black, anchor=east] at ({log10(856)-0.06},0.35) {our four peaks};
+    \node[font=\scriptsize, black!70, anchor=west] at (5.3,0) {peak current};
+    % channel: all taps, and the single 560 k tap inside it
+    \draw[chan] ({log10(0.82)},1.95) -- ({(log10(40.7)+3)},1.95);
+    \node[font=\scriptsize, mtxA!60!black, anchor=south] at ({0.5*(log10(0.82)+(log10(40.7)+3))},2.02) {channel covers, all $R_f$ taps: 0.82\,nA to 40.7\,\textmu A};
+    \draw[mtxA!75!black, line width=1.0pt] ({log10(0.82)},1.55) -- ({log10(2060)},1.55);
+    \node[font=\scriptsize, mtxA!60!black, anchor=south west] at ({log10(0.82)},1.6) {one tap, $560$\,k$\Omega$};
+    % assays
+    \fill[assay] ({log10(50)},0.08) rectangle ({log10(5000)},1.05);
+    \node[font=\scriptsize, mtxC!45!black, anchor=south] at ({0.5*(log10(50)+log10(5000))},1.07) {assays produce, screen-printed electrodes [14,\,15,\,21]};
+    % ours
+    \foreach \i in {856,1311,1659,939}{ \fill[dot] ({log10(\i)},0.35) circle [radius=2.2pt]; }
+    \node[font=\scriptsize, mtxB!60!black, anchor=east] at ({log10(856)-0.08},0.35) {we placed};
   \end{scope}
 \end{tikzpicture}
