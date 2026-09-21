@@ -533,7 +533,7 @@ Resolution (pA rms)  & 341$^{a}$                & 56.5        & 41        & 0.47
 ADC step (pA)        & 820$^{b}$                & 153         & n/a       & n/a             & n/a \\
 Converter            & 10-bit SAR per channel   & 12-bit dual-slope & TDC & ADC             & -- \\
 EIS                  & firmware, $\pm$1\,\% to 5\,kHz & --    & --        & --              & yes \\
-Power (mW)           & 5.9$^{c}$                & 3.0         & 0.016     & 9.3             & 1.0 \\
+Power (mW)           & 8.9$^{c}$                & 3.0         & 0.016     & 9.3             & 1.0 \\
 Process (nm)         & \best{65}                & 65          & 180       & 350             & 180 \\
 On-chip processor    & \best{5 RISC-V harts}    & 1 RISC-V hart & none    & none            & none \\
 On-chip ML           & \best{NPU, 4 modes}      & NPU, 1 mode & none      & none            & none \\
@@ -544,7 +544,7 @@ On-chip ML           & \best{NPU, 4 modes}      & NPU, 1 mode & none      & none
 {\scriptsize\raggedright
 $^{a}$Input-referred noise, 0.1--100\,Hz, ideal $R_f$, no electrode.\\
 $^{b}$One converter code at the maximum-gain tap; 81\,nA at the lowest.\\
-$^{c}$Low-power mode: hart 0 awake, tiles gated, pads quiet, AFE off. One channel measuring adds 1.74\,mW (tile) $+$ 1.32\,mW (AFE).\par}
+$^{c}$One channel measuring: orchestrator $+$ one tile (7.6\,mW digital) $+$ one analog channel (1.3\,mW); the other tiles and channels gated, pads quiet.\par}
 \end{frame}
 
 % Source: TRM note_pixtop_power (pixel-top bench, nominal corner, 37 C):
@@ -690,24 +690,24 @@ memcpy    &  11\,017 & 1.726 \\
 % macro mcu0/npuram0 0.66 mW) and hart_tile_postRoute_full.power (1.742 mW,
 % 0.521 leakage).  Always-on leakage = 4.67 - 4 x 0.521.  Memory-block power
 % switches: TRM SYSTEM BLOCKPWR / PWRCTRL.
-\begin{frame}{Digital low-power modes}
+\begin{frame}{Low-power modes}
 \centering
 {\footnotesize
-\begin{tabular}{@{}lr>{\raggedright\arraybackslash}p{5.6cm}@{}}
+\begin{tabular}{@{}lrrr>{\raggedright\arraybackslash}p{4.6cm}@{}}
 \toprule
-Mode & Digital & What is off \\
+Mode & Digital & Analog & Total & What is off \\
 \midrule
-Everything on, pads toggling      & 23.4\,mW & nothing; pads at the statistical activity \\
-Everything on, pads quiet         & 12.8\,mW & pad switching; pad leakage is 0.03\,mW \\
-One channel measuring             & 7.6\,mW  & three tiles gated \\
-Orchestrator only                 & 5.9\,mW  & all four tiles gated \\
-Orchestrator asleep               & 2.6\,mW  & its clock; always-on leakage remains \\
-Deep sleep                        & $<2.6$\,mW & shared RAM banks and NPU RAM powered off; NPU RAM alone leaks 0.66\,mW \\
+Everything on, pads toggling      & 23.4\,mW & 5.3\,mW & 28.7\,mW & nothing; pads at the statistical activity \\
+Everything on, pads quiet         & 12.8\,mW & 5.3\,mW & 18.1\,mW & pad switching; pad leakage is 0.03\,mW \\
+\textbf{One channel measuring}    & \textbf{7.6\,mW} & \textbf{1.3\,mW} & \textbf{8.9\,mW} & three tiles gated, with their channels \\
+Orchestrator only                 & 5.9\,mW  & 0       & 5.9\,mW  & all four tiles and channels gated \\
+Orchestrator asleep               & 2.6\,mW  & 0       & 2.6\,mW  & its clock; always-on leakage remains \\
+Deep sleep                        & $<2.6$\,mW & 0     & $<2.6$\,mW & shared RAM banks and NPU RAM powered off; NPU RAM alone leaks 0.66\,mW \\
 \bottomrule
 \end{tabular}}
 \vspace{0.25cm}
 
-{\scriptsize SS 0.9\,V 125\,\textdegree C, 25\,MHz, statistical activity 0.2, d13d cut. Pad-ring and memory-off figures are bounds to be optimised.\par}
+{\scriptsize Digital: SS 0.9\,V 125\,\textdegree C, 25\,MHz, statistical activity 0.2, d13d cut. Analog: 1.32\,mW per channel at the nominal corner. Pad-ring and memory-off figures are bounds to be optimised.\par}
 \end{frame}
 
 % =====================================================================
