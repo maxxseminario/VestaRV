@@ -19,9 +19,10 @@ same sources the TRM builds from, so a regenerated TRM updates the deck:
 | `~/work/ieee/ISCAS27/latek/` (outside the repo, guarded) | the concept figure and the reader-drawn block diagram; the deck falls back to a placeholder / the generated diagram if absent |
 
 The analog top-level and physical-implementation images are placeholders
-(`\duckph`) until the Virtuoso exports exist. The concept figure's "5x RISC-V" label was changed in the
-paper's own `concept_cand_B.tex` (backup `.bak.20260920_rv32` beside it), so
-every document that inputs it agrees.
+(`\duckph`) until the Virtuoso exports exist. The concept figure is the paper's `concept_cand_G.tex`: `concept_cand_B.tex`
+(relabelled "5x RISC-V", die redrawn as four AFE+hart rows into one control
+plane; backups `.bak.20260920_*` beside it) with the anatomy removed, so the
+sample path starts at the bloodstream.
 
 Deck-local: `fig_cancer_compare.tex` (SEER stage/survival across eight cancers
 with USPSTF screening grades; data and sources in its header),

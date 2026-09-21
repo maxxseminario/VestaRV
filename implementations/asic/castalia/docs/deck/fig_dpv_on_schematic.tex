@@ -14,8 +14,8 @@
 
   % ---- excitation: staircase with a pulse on every tread, above the source
   \begin{scope}[shift={($(S.north west)+(0.2,0.35)$)}]
-    \draw[black!40, line width=0.3pt, -{Latex[length=1.2mm]}] (0,-0.3) -- (2.75,-0.3) node[lab, anchor=west, inner sep=1pt] {$t$};
-    \draw[black!40, line width=0.3pt, -{Latex[length=1.2mm]}] (0,-0.3) -- (0,0.42) node[lab, anchor=south, inner sep=1pt] {$v_{\mathrm{step}}$};
+    \draw[black!40, line width=0.3pt]  (0,-0.3) -- (2.75,-0.3) node[lab, anchor=west, inner sep=1pt] {$t$};
+    \draw[black!40, line width=0.3pt]  (0,-0.3) -- (0,0.42) node[lab, anchor=south, inner sep=1pt] {$v_{\mathrm{step}}$};
     \draw[wv, mtxA]
       (0.0,-0.30) -- (0.3,-0.30) -- (0.3,-0.05) -- (0.45,-0.05) -- (0.45,-0.22)
       -- (0.75,-0.22) -- (0.75, 0.03) -- (0.9, 0.03) -- (0.9,-0.14)
@@ -32,8 +32,8 @@
   % ---- response in time: a charging spike on every edge, decaying to the
   %      faradaic level; the two samples sit where the charging has died away
   \begin{scope}[shift={($(S.north east)+(-3.3,0.35)$)}]
-    \draw[black!40, line width=0.3pt, -{Latex[length=1.2mm]}] (0,-0.3) -- (2.75,-0.3) node[lab, anchor=west, inner sep=1pt] {$t$};
-    \draw[black!40, line width=0.3pt, -{Latex[length=1.2mm]}] (0,-0.3) -- (0,0.42) node[lab, anchor=south, inner sep=1pt] {$v_{\mathrm{out}}$};
+    \draw[black!40, line width=0.3pt]  (0,-0.3) -- (2.75,-0.3) node[lab, anchor=west, inner sep=1pt] {$t$};
+    \draw[black!40, line width=0.3pt]  (0,-0.3) -- (0,0.42) node[lab, anchor=south, inner sep=1pt] {$v_{\mathrm{out}}$};
     % one tread = 0.45 wide: pulse on for 0.15, off for 0.30; baseline drifts up
     \foreach \k/\b in {0/-0.26, 1/-0.20, 2/-0.13, 3/-0.05, 4/0.04}{
       \draw[wv, mtxB] plot[samples=30, domain=0:0.15]
@@ -51,14 +51,12 @@
 
   % ---- post-processing, to the right of the die: the voltammogram
   \begin{scope}[shift={($(S.east)+(1.1,-0.1)$)}]
-    \draw[black!40, line width=0.3pt, -{Latex[length=1.2mm]}] (0,-0.3) -- (2.75,-0.3) node[lab, anchor=west, inner sep=1pt] {$E$};
-    \draw[black!40, line width=0.3pt, -{Latex[length=1.2mm]}] (0,-0.3) -- (0,0.42) node[lab, anchor=south, inner sep=1pt] {$\Delta I$};
+    \draw[black!40, line width=0.3pt]  (0,-0.3) -- (2.75,-0.3) node[lab, anchor=west, inner sep=1pt] {$E$};
+    \draw[black!40, line width=0.3pt]  (0,-0.3) -- (0,0.42) node[lab, anchor=south, inner sep=1pt] {$\Delta I$};
     \foreach \c/\px/\h in {mtxA/0.45/0.55, mtxB/1.05/0.42, mtxC/1.6/0.30, mtxD/2.15/0.22}{
       \draw[wv, \c] plot[smooth, samples=40, domain=\px-0.32:\px+0.32]
         (\x, {-0.3 + \h*exp(-((\x-\px)/0.11)^2)});
     }
     \node[lab, anchor=north, align=center] at (1.35,-0.45) {firmware, per tread:\\$\Delta I = I(S_2)-I(S_1)$ against $E$\\one peak per marker};
   \end{scope}
-  \draw[draw=black!55, line width=0.6pt, -{Latex[length=1.8mm]}]
-       ($(S.east)+(0.15,0)$) -- ($(S.east)+(0.95,0)$);
 \end{tikzpicture}
