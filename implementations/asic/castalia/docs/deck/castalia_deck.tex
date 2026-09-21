@@ -171,6 +171,73 @@ CEA    & CEACAM5 glycoprotein    & 5\,ng/mL \\
 \section{Operating modes}
 
 
+% Sources: TRM ss:analog-electrode-bc (note_electrode_intro, tab_electrode_params,
+% tab_electrode_peaks, sch_models_cell); the Verilog-A source is
+% ic/castalia/electrode_bc/veriloga/veriloga.va (GRID line for the slab count).
+\begin{frame}{The electrode model, in Verilog-A}
+\begin{columns}[T]
+\column{0.30\textwidth}
+\vspace{0.2cm}
+\trmfit[8cm]{\linewidth}{3.2cm}{\MaestroRoot sch_models_cell.tex}
+\vspace{0.15cm}
+
+{\scriptsize $R_u$, $R_{\mathrm{ce}}$, $C_{\mathrm{dl}}$ lumped; the faradaic branch $Z_f$ is the Verilog-A element below.\par}
+\column{0.68\textwidth}
+{\footnotesize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{@{}ll@{}}
+Kinetics  & $i_f = nFAk^0\big[C_R(0,t)\,e^{(1-\alpha)nf\eta} - C_O(0,t)\,e^{-\alpha nf\eta}\big]$, \; $\eta = E - E^{0\prime}$ \\[3pt]
+Transport & $\partial C/\partial t = D\,\partial^2 C/\partial x^2$, finite-volume, 28 expanding slabs per species \\[3pt]
+Boundaries & flux $= \pm i_f/nFA$ at the surface; $C(\delta,t) = C^{*}$ at the Nernst layer, $\delta = 1.79$\,mm \\[3pt]
+Parameters & $E^{0\prime}$, $n$, $\alpha$, $k^0$, $D$, $A$, $C_O^{*}$, $C_R^{*}$, $T$ \\
+\end{tabular}}}
+\vspace{0.25cm}
+
+\trmfit[14cm]{\linewidth}{2.3cm}{\MaestroRoot tab_electrode_peaks.tex}
+\end{columns}
+\sowhat{Validated against Randles--\v{S}ev\v{c}\'ik and Nicholson [13]: peak current within $+0.1$ to $+1.9$\,\% over 25--400\,mV/s, $\Delta E_p$ 59--65\,mV. A linear cell cannot make a peak; this one does.}
+\end{frame}
+
+% Sources: ISCAS'27 notes/figure_notes.md and graphics-data/gen_figdata.py,
+% sim_figdata.py (E0', targets, 4PL); simruns/dpv_panel/sweep.json (fitted
+% C_R*); TRM note_electrode_dpv, note_electrode_afe (k0 gap).  Target apex =
+% analytic baseline b(E_p) + i_p of gen_figdata, which is what the reporter
+% loading was fitted to reproduce through the simulated channel.
+\begin{frame}{Emulating the four markers}
+\centering
+{\scriptsize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{@{}llrrrl@{}}
+\toprule
+Marker & Assumed reporter & $E^{0\prime}$ (V vs RE) & Target apex (nA) & Fitted $C_R^{*}$ (\textmu M) & Cut-off \\
+\midrule
+CA-125 & methylene blue & $-0.15$ & 856  & 279 & 35\,U/mL \\
+HE4    & ferrocene      & $+0.10$ & 1311 & 394 & 70\,pmol/L \\
+CA19-9 & TMB / HRP      & $+0.25$ & 1659 & 458 & 37\,U/mL \\
+CEA    & anthraquinone  & $+0.40$ & 939  & 303 & 5\,ng/mL \\
+\midrule
+\multicolumn{6}{@{}l}{Shared: $k^0 = 0.1$\,cm/s, $\alpha = 0.5$, $n = 1$, $D = 5\times10^{-6}$\,cm$^2$/s, $A = 0.01$\,cm$^2$, 37\,\textdegree C; $R_u = R_{\mathrm{ce}} = 1$\,k$\Omega$, $C_{\mathrm{dl}} = 200$\,nF, $R_f = 560$\,k$\Omega$} \\
+\bottomrule
+\end{tabular}}}
+\vspace{0.2cm}
+
+{\scriptsize
+\resizebox{\linewidth}{!}{%
+\begin{tabular}{@{}lll@{}}
+\toprule
+Value & How it was set & Nature \\
+\midrule
+$E^{0\prime}$        & representative reporter potentials, spaced 150--250\,mV so four peaks resolve in one sweep & assumed \\
+Target apex          & inside the published screen-printed-electrode envelope, 50\,nA--5\,\textmu A [14,\,15], and the $\pm$2\,\textmu A full scale & assumed \\
+$C_R^{*}$            & fitted so the simulated peak through the real channel meets the target & fit \\
+$k^0$                & no published rate constant on carbon for these markers; reversible default & default \\
+Cut-offs             & clinical decision thresholds [5,\,6,\,8] & measured \\
+DPV programme        & standard-practice tread and pulse ranges [13,\,16] & literature \\
+\bottomrule
+\end{tabular}}}
+\sowhat{Representative, not marker-measured: the DPV and dose slides demonstrate the channel, not an assay. CA19-9 inherited the values first set for AFP.}
+\end{frame}
+
 % Sources: TRM note_electrode_dpv for the programme; the schematic is the
 % TRM's sch_tb_pixel, annotated in fig_dpv_on_schematic.tex (deck-local).
 \begin{frame}{Exercising the cell: differential-pulse voltammetry}
@@ -554,7 +621,7 @@ Power     & own MTCMOS domain \\
 \section*{References}
 
 
-\begin{frame}{References (1/2)}
+\begin{frame}{References (1/3)}
 \vspace{-0.2cm}
 {\scriptsize
 \setlength{\leftmargini}{2.1em}
@@ -575,7 +642,7 @@ Power     & own MTCMOS domain \\
 \end{columns}}
 \end{frame}
 
-\begin{frame}{References (2/2)}
+\begin{frame}{References (2/3)}
 \vspace{-0.2cm}
 {\scriptsize
 \setlength{\leftmargini}{2.1em}
@@ -592,6 +659,25 @@ Power     & own MTCMOS domain \\
   \item[{[10]}] Y.-C. Chen, S.-Y. Lu and Y.-T. Liao, ``A microwatt dual-mode electrochemical sensing current readout with current-reducer ramp waveform generation,'' \emph{IEEE TBioCAS} 13(6):1163, 2019.
   \item[{[11]}] S.~S. Ghoreishizadeh \emph{et al.}, ``A differential electrochemical readout ASIC with heterogeneous integration of bio-nano sensors for amperometric sensing,'' \emph{IEEE TBioCAS} 11(5):1148, 2017.
   \item[{[12]}] Y.-J. Lin \emph{et al.}, ``A multimodality electrochemical and impedance spectroscopy system-on-a-chip with temperature sensing and impedance-boosting techniques,'' \emph{IEEE TBioCAS} 17(4):857, 2023.
+\end{itemize}
+\end{columns}}
+\end{frame}
+
+\begin{frame}{References (3/3)}
+\vspace{-0.2cm}
+{\scriptsize
+\setlength{\leftmargini}{2.1em}
+\setbeamertemplate{itemize items}{}
+\begin{columns}[T]
+\column{0.49\textwidth}
+\begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
+  \item[{[13]}] A.~J. Bard, L.~R. Faulkner and H.~S. White, \emph{Electrochemical Methods: Fundamentals and Applications}, 3rd ed., Wiley, 2022.
+  \item[{[14]}] M.~S. Wilson and W.~Nie, ``Multiplex measurement of seven tumor markers using an electrochemical protein chip,'' \emph{Anal.\ Chem.}, 2006.
+\end{itemize}
+\column{0.49\textwidth}
+\begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
+  \item[{[15]}] A.~Kov\'a\v{r}ov\'a \emph{et al.}, ``Biosensor with electrochemically active nanocomposites for signal amplification and simultaneous detection of three ovarian cancer biomarkers,'' \emph{Electrochim.\ Acta}, 2023.
+  \item[{[16]}] V.~Mir\v{c}eski \emph{et al.}, ``Square-wave voltammetry: a review on the recent progress,'' \emph{Electroanalysis}, 2013.
 \end{itemize}
 \end{columns}}
 \end{frame}
