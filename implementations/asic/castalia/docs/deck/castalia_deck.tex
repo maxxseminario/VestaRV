@@ -178,22 +178,32 @@ CEA    & CEACAM5 glycoprotein    & 5\,ng/mL \\
 \begin{columns}[T]
 \column{0.30\textwidth}
 \vspace{0.2cm}
-\trmfit[8cm]{\linewidth}{3.2cm}{\MaestroRoot sch_models_cell.tex}
-\vspace{0.15cm}
+\trmfit[8cm]{\linewidth}{3.0cm}{\MaestroRoot sch_models_cell.tex}
+\vspace{0.1cm}
 
-{\scriptsize $R_u$, $R_{\mathrm{ce}}$, $C_{\mathrm{dl}}$ lumped; the faradaic branch $Z_f$ is the Verilog-A element below.\par}
-\column{0.68\textwidth}
+{\scriptsize $R_u$, $R_{\mathrm{ce}}$, $C_{\mathrm{dl}}$ lumped; the faradaic branch $Z_f$ is the Verilog-A element.\par}
+\vspace{0.2cm}
+
+{\scriptsize
+\begin{tabular}{@{}ll@{}}
+$i_f$          & faradaic current \\
+$\eta$         & overpotential, $E - E^{0\prime}$ \\
+$f$            & $F/RT$ \\
+$C_{O,R}(0,t)$ & surface conc.\ of O, R \\
+$C^{*}$        & bulk conc. \\
+$\delta$       & Nernst layer \\
+\end{tabular}}
+\column{0.66\textwidth}
 {\footnotesize
 \resizebox{\linewidth}{!}{%
 \begin{tabular}{@{}ll@{}}
-Kinetics  & $i_f = nFAk^0\big[C_R(0,t)\,e^{(1-\alpha)nf\eta} - C_O(0,t)\,e^{-\alpha nf\eta}\big]$, \; $\eta = E - E^{0\prime}$ \\[3pt]
+Kinetics  & $i_f = nFAk^0\big[C_R(0,t)\,e^{(1-\alpha)nf\eta} - C_O(0,t)\,e^{-\alpha nf\eta}\big]$ \\[3pt]
 Transport & $\partial C/\partial t = D\,\partial^2 C/\partial x^2$, finite-volume, 28 expanding slabs per species \\[3pt]
-Boundaries & flux $= \pm i_f/nFA$ at the surface; $C(\delta,t) = C^{*}$ at the Nernst layer, $\delta = 1.79$\,mm \\[3pt]
-Parameters & $E^{0\prime}$, $n$, $\alpha$, $k^0$, $D$, $A$, $C_O^{*}$, $C_R^{*}$, $T$ \\
+Boundaries & flux $= \pm i_f/nFA$ at the surface; $C(\delta,t) = C^{*}$ at the Nernst layer \\
 \end{tabular}}}
-\vspace{0.25cm}
+\vspace{0.2cm}
 
-\trmfit[14cm]{\linewidth}{2.3cm}{\MaestroRoot tab_electrode_peaks.tex}
+\trmfit[14cm]{\linewidth}{3.4cm}{\MaestroRoot tab_electrode_params.tex}
 \end{columns}
 \sowhat{Equations: Bard--Faulkner [13]. Discretisation: Britz--Strutwolf, Feldberg [17,\,18]. Precedent for Verilog-A electrode co-simulation: Jog \emph{et al.} [19].}
 \end{frame}
@@ -219,13 +229,13 @@ CEA    & anthraquinone  & $+0.40$ & 939  & 303 & 5\,ng/mL [5,\,14] \\
 \vspace{0.35cm}
 
 {\scriptsize
-\begin{tabular}{@{}ll@{}}
-$E^{0\prime}$ & representative; inside the $-0.6$ to $+0.4$\,V reporter window [22,\,23], 150--250\,mV apart \\
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{9.8cm}@{}}
+$E^{0\prime}$ & reporter formal potential, i.e.\ peak position; chosen in the $-0.6$ to $+0.4$\,V window [22,\,23], 150--250\,mV apart, not measured per reporter \\
 Peak          & inside 50\,nA to 5\,\textmu A on screen-printed electrodes [14,\,15,\,21]; $C_R^{*}$ fitted to reach it \\
 $k^0$         & 0.1\,cm/s, reversible; nothing published on carbon for these markers \\
 Shared        & $\alpha = 0.5$, $n = 1$, $D = 5\times10^{-6}$\,cm$^2$/s, $A = 0.01$\,cm$^2$, 37\,\textdegree C, $R_f = 560$\,k$\Omega$ \\
 \end{tabular}}
-\sowhat{Representative, not marker-measured: these slides demonstrate the channel, not an assay.}
+\sowhat{Representative values, not marker-measured: these slides demonstrate the channel, not an assay.}
 \end{frame}
 
 % Sources: TRM note_electrode_dpv for the programme; the schematic is the
@@ -324,7 +334,7 @@ Excitation & Demodulation & Accuracy & $|Z|$ range \\
 % Source: TRM fig_tiarprog_r_vs_code (analog/).
 \begin{frame}{Programmable feedback resistor: one string, 320 codes}
 \begin{columns}[T]
-\column{0.64\textwidth}
+\column{0.68\textwidth}
 \trmfit[13cm]{\linewidth}{5.6cm}{\MaestroRoot fig_tiarprog_r_vs_code.tex}
 \column{0.34\textwidth}
 \vspace{0.3cm}
@@ -700,6 +710,13 @@ Power     & own MTCMOS domain \\
 
 % Source: USPSTF grade definitions (current, post July 2012) [7]; per-site
 % grades from [2,3].  Verbatim definitions, condensed.
+\begin{frame}{Backup: electrode model validation}
+\centering\trmfit[14cm]{\linewidth}{4.0cm}{\MaestroRoot tab_electrode_peaks.tex}
+\vspace{0.2cm}
+
+{\footnotesize Peak current against Randles--\v{S}ev\v{c}\'ik and $\Delta E_p$ against Nicholson [13], reversible couple, $C_{\mathrm{dl}} = 0$ column isolates the faradaic model.}
+\end{frame}
+
 \begin{frame}{Backup: USPSTF screening grades}
 \centering
 {\footnotesize
