@@ -1,0 +1,57 @@
+%% HAND-DRAWN for this deck.  Two axes: (top) the potential window in which the
+%% redox reporters of multiplexed electrochemical sensors are read, and where
+%% our four E0' sit; (bottom) the peak-current envelope reported for
+%% immunoassays on screen-printed electrodes, the chip's window at Rf = 560 k,
+%% and our four target peaks.
+%% Sources: window edges, thiol-on-gold monolayer instability below -0.6 V and
+%% above +0.4 V vs Ag/AgCl, Kang et al. 2016 [22]; methylene blue E0' = -0.24 V,
+%% Clark et al. 2023 [23]; 50 nA - 5 uA peak envelope on screen-printed
+%% electrodes, Wilson & Nie 2006 [14], Kovarova 2023 [15], Bilgi Kamac 2023 [21]
+%% (a survey range across those assays, not one paper's number); chip window
+%% 0.82 nA LSB to 2.06 uA full scale at the 560 k tap (TRM); our peaks and E0'
+%% from the marker slide.
+\begin{tikzpicture}[font=\small]
+  % ------------------------------------------------ potential axis (x: 6 cm/V)
+  \begin{scope}[x=6.0cm, y=1cm]
+    \fill[mtxC!18] (-0.6,0.05) rectangle (0.4,1.35);
+    \draw[mtxC!60!black, line width=0.6pt] (-0.6,0.05) -- (-0.6,1.35);
+    \draw[mtxC!60!black, line width=0.6pt] (0.4,0.05) -- (0.4,1.35);
+    \draw[black!60, line width=0.5pt] (-0.8,0) -- (0.6,0);
+    \foreach \v in {-0.8,-0.6,-0.4,-0.2,0,0.2,0.4,0.6}{
+      \draw[black!60, line width=0.4pt] (\v,0) -- (\v,-0.08);
+      \node[font=\scriptsize, black!70, anchor=north] at (\v,-0.1) {$\v$};}
+    \node[font=\scriptsize, black!70, anchor=west] at (0.62,0) {V vs Ag/AgCl};
+    \node[font=\scriptsize, mtxC!50!black, anchor=south west] at (-0.58,1.37) {reporter window [22]};
+    \node[font=\scriptsize, black!70, anchor=east, align=right] at (-0.63,0.7) {monolayer desorbs,\\O$_2$ reduces};
+    \node[font=\scriptsize, black!70, anchor=west, align=left] at (0.47,0.35) {gold--thiolate\\oxidises};
+    % methylene blue, literature
+    \draw[mtxA!70!black, line width=1.2pt] (-0.24,0.05) -- (-0.24,1.05);
+    \node[font=\scriptsize, mtxA!60!black, anchor=south] at (-0.24,1.07) {MB [23]};
+    % our four
+    \foreach \v/\l in {-0.15/{CA-125}, 0.10/{HE4}, 0.25/{CA19-9}, 0.40/{CEA}}{
+      \fill[mtxB!80!black] (\v,0.35) circle [radius=2.2pt];
+      \node[font=\scriptsize, mtxB!60!black, anchor=south] at (\v,0.5) {\l};}
+  \end{scope}
+  % ------------------------------------------------ current axis (log, 2 cm/decade)
+  \begin{scope}[shift={(-4.2cm,-3.1cm)}, x=2.0cm, y=1cm]
+    % x = log10(i / 1 nA): 0 = 1 nA ... 4 = 10 uA
+    \fill[mtxC!18] ({log10(50)},0.05) rectangle ({log10(5000)},1.35);
+    \draw[mtxC!60!black, line width=0.6pt] ({log10(50)},0.05) -- ({log10(50)},1.35);
+    \draw[mtxC!60!black, line width=0.6pt] ({log10(5000)},0.05) -- ({log10(5000)},1.35);
+    \draw[black!60, line width=0.5pt] (-0.3,0) -- (4.2,0);
+    \foreach \d/\l in {0/{1\,nA},1/{10\,nA},2/{100\,nA},3/{1\,\textmu A},4/{10\,\textmu A}}{
+      \draw[black!60, line width=0.4pt] (\d,0) -- (\d,-0.08);
+      \node[font=\scriptsize, black!70, anchor=north] at (\d,-0.1) {\l};}
+    \node[font=\scriptsize, black!70, anchor=west] at (4.3,0) {peak current};
+    \node[font=\scriptsize, mtxC!50!black, anchor=south] at ({0.5*(log10(50)+log10(5000))},1.37) {screen-printed-electrode assays, 50\,nA to 5\,\textmu A [14,\,15,\,21]};
+    % chip window at the 560 k tap
+    \draw[mtxA!70!black, line width=1.2pt] ({log10(0.82)},0.9) -- ({log10(2060)},0.9);
+    \draw[mtxA!70!black, line width=1.2pt] ({log10(0.82)},0.8) -- ({log10(0.82)},1.0);
+    \draw[mtxA!70!black, line width=1.2pt] ({log10(2060)},0.8) -- ({log10(2060)},1.0);
+    \node[font=\scriptsize, mtxA!60!black, anchor=south] at ({0.5*(log10(0.82)+log10(2060))},0.95) {channel at $R_f = 560$\,k$\Omega$: 0.82\,nA LSB to 2.06\,\textmu A};
+    % our four peaks
+    \foreach \i/\l in {856/{CA-125}, 1311/{HE4}, 1659/{CA19-9}, 939/{CEA}}{
+      \fill[mtxB!80!black] ({log10(\i)},0.35) circle [radius=2.2pt];}
+    \node[font=\scriptsize, mtxB!60!black, anchor=east] at ({log10(856)-0.06},0.35) {our four peaks};
+  \end{scope}
+\end{tikzpicture}
