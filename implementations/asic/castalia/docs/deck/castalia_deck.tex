@@ -384,9 +384,9 @@ Range & 246\,$\Omega$ to 12.1\,M$\Omega$. Limits: TIA compliance below, one LSB 
 \begin{columns}[T]
 \column{0.50\textwidth}
 \vspace{0.2cm}
-{\footnotesize \textbf{Systematic floor: A2's finite gain, scaled by the noise gain}\par}
+{\footnotesize \textbf{Systematic floor: finite loop gain, growing with $R_f/|Z|$}\par}
 \vspace{0.1cm}
-{\footnotesize $\varepsilon_{\mathrm{dc}} \approx \dfrac{1 + R_f/|Z|}{A_{\mathrm{OL}}}$\par}
+{\footnotesize measured on resistive loads, $R_f/R$ from 7 to 80: $\varepsilon_{\mathrm{dc}} = 0.0165\,\% \times R_f/R$\par}
 \vspace{0.2cm}
 {\scriptsize
 \begin{tabular}{@{}lrrrr@{}}
@@ -401,7 +401,7 @@ fresh    & 1\,M$\Omega$   & 397\,k$\Omega$  & 0.4 & 0.0007\,\% \\
 \end{tabular}}
 \vspace{0.2cm}
 
-{\scriptsize Set by the gain code, not the electrode; repeatable, so the $Z_{\mathrm{cal}}$ ratio removes it (next slide). What is left is the random term on the right.\par}
+{\scriptsize The resistive law is an upper bound: the resistor and fouled rows sit on it, typical and fresh well below. Set by the gain code, repeatable, removed by the $Z_{\mathrm{cal}}$ ratio (next slide). What is left is the random term on the right.\par}
 \column{0.48\textwidth}
 {\footnotesize \textbf{Random error: front-end noise, averaged}\par}
 \resizebox{\linewidth}{!}{\input{fig_eis_noise_vs_m.tex}}
