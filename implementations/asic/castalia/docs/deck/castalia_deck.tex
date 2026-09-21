@@ -320,9 +320,35 @@ Ratio   & against $Z_{\mathrm{cal}}$: $R_f$ drops out \\
 \end{tabular}}
 \end{frame}
 
+% Sources: the three electrode states of afe_rev2_eis_lite.html and the TRM
+% models section; gain codes and run set from the fig_eis_error header
+% (eisdeep_20260826/ac_dense: 30 AC runs, 5 loads x 6 codes, 143 frequencies).
+\begin{frame}{The four loads behind the EIS plots}
+\centering
+{\footnotesize
+\begin{tabular}{@{}llll>{\raggedright\arraybackslash}p{5.6cm}@{}}
+\toprule
+Load & $R_{\mathrm{ct}}$ & $C_{\mathrm{dl}}$ & Gain code & Stands for \\
+\midrule
+11\,k$\Omega$ resistor & -- & -- & $N=0$ & the instrument alone: no reactive cell, so the trace is the channel's own error \\
+fouled  & 10\,k$\Omega$ & 10\,\textmu F & $N=0$  & a degraded electrode: adsorbed protein and biofilm open leakage paths and enlarge the interface \\
+typical & 100\,k$\Omega$ & 1\,\textmu F & $N=20$ & an electrode in use \\
+fresh   & 1\,M$\Omega$ & 100\,nF & $N=63$ & a new, clean surface \\
+\bottomrule
+\end{tabular}}
+\vspace{0.3cm}
+
+{\footnotesize
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{10cm}@{}}
+Cell    & $R_u = 1$\,k$\Omega$ in series with $R_{\mathrm{ct}} \parallel C_{\mathrm{dl}}$; gain code chosen so $R_f$ ranges $|Z|$ \\
+Fouling & $R_{\mathrm{ct}}$ falls and $C_{\mathrm{dl}}$ rises through an electrode's life; tracking that drift is what EIS is for here \\
+Data    & small-signal AC on the full channel, 143 frequencies per load, measured $Z$ against the analytic Randles $Z$ \\
+\end{tabular}}
+\end{frame}
+
 % Source: TRM fig_eis_error (analog/).
 \begin{frame}{Impedance spectroscopy on the same channel}
-\centering\trmfit[17cm]{\linewidth}{5.0cm}{\MaestroRoot fig_eis_error.tex}
+\centering\trmfit[17cm]{\linewidth}{4.8cm}{fig_eis_error_deck.tex}
 \vspace{0.1cm}
 
 {\footnotesize\centering

@@ -1,6 +1,6 @@
 # Castalia short overview deck
 
-36 slides, figure-led, ECEN 222 lecture template (Berkeley theme, beaver colours,
+37 slides, figure-led, ECEN 222 lecture template (Berkeley theme, beaver colours,
 16:9). Built PDF is copied one level up, next to the published `TRM.pdf`.
 
     make          # two pdflatex passes, then copies ../castalia_deck.pdf
@@ -30,6 +30,8 @@ with USPSTF screening grades; data and sources in its header),
 prose), `fig_eis_on_schematic.tex` and `fig_dpv_on_schematic.tex` (the TRM's
 potentiostat schematic with the EIS excitation/response, respectively the DPV
 programme and resolved peaks, sketched above it), `fig_eis_method.tex` (an unused block-chain version of the same), `fig_iq_demod.tex` (I/Q demodulation of one record, sketch),
+`fig_eis_error_deck.tex` (the TRM's fig_eis_error with short legend entries,
+reading the same data files),
 `fig_reporter_window.tex` (the reporter potential window and the
 screen-printed-electrode peak-current envelope with our four panel values on
 them; sources in its header), `fig_power_gating.tex` (digital power against tiles gated,

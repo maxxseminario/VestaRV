@@ -1,0 +1,55 @@
+%% DECK-LOCAL copy of the TRM's fig_eis_error.tex: same data files
+%% (\MaestroRoot data/eis_err_*.dat, eis_dph_*.dat), same axes; legend
+%% entries shortened to the load name and shown on the left panel only, the
+%% gain code per load being stated on the preceding slide.  Regenerate from
+%% the TRM fragment if its data or axes change.
+{\pgfplotsset{compat=1.18}%
+  \pgfplotsset{
+    eisax/.style={
+      width=0.42\linewidth, height=5.6cm,
+      grid=both,
+      major grid style={line width=0.2pt, draw=black!14},
+      minor grid style={line width=0.2pt, draw=black!7},
+      axis line style={line width=0.4pt, draw=black!45},
+      tick style={line width=0.4pt, draw=black!45},
+      tick align=outside,
+      label style={font=\small}, tick label style={font=\small},
+      legend style={font=\scriptsize, draw=none, fill=white,
+                    fill opacity=0.85, text opacity=1, row sep=1pt,
+                    legend columns=1},
+      every axis plot/.append style={line join=round, line width=0.9pt,
+                                     mark size=1.0pt, mark repeat=4},
+      xlabel={Frequency~[\si{\hertz}]},
+      xmin=1e-2, xmax=1e5, xtick={1e-2,1e-1,1e0,1e1,1e2,1e3,1e4,1e5},
+    }}%
+  \begin{tikzpicture}
+    \begin{axis}[eisax, xmode=log, ymode=log,
+      ylabel={Magnitude error~[\si{\percent}]},
+      ymin=1e-3, ymax=100,
+      legend style={at={(0.03,0.97)}, anchor=north west},
+    ]
+      \addplot[mtxA, mark=*] table {\MaestroRoot data/eis_err_pureR.dat};
+      \addlegendentry{11\,k$\Omega$ R}
+      \addplot[mtxB, mark=square*] table {\MaestroRoot data/eis_err_fouled.dat};
+      \addlegendentry{fouled}
+      \addplot[mtxC, mark=triangle*] table {\MaestroRoot data/eis_err_typical.dat};
+      \addlegendentry{typical}
+      \addplot[mtxD, mark=diamond*] table {\MaestroRoot data/eis_err_fresh.dat};
+      \addlegendentry{fresh}
+      \addplot[black!55, line width=0.7pt, densely dotted, no marks,
+        domain=1e-2:1e5, samples=2] {1};
+    \end{axis}
+  \end{tikzpicture}\hfill
+  \begin{tikzpicture}
+    \begin{axis}[eisax, xmode=log, ymode=log,
+      ylabel={Phase error~[\si{\degree}]},
+      ymin=1e-3, ymax=100,
+          ]
+      \addplot[mtxA, mark=*] table {\MaestroRoot data/eis_dph_pureR.dat};
+      \addplot[mtxB, mark=square*] table {\MaestroRoot data/eis_dph_fouled.dat};
+      \addplot[mtxC, mark=triangle*] table {\MaestroRoot data/eis_dph_typical.dat};
+      \addplot[mtxD, mark=diamond*] table {\MaestroRoot data/eis_dph_fresh.dat};
+      \addplot[black!55, line width=0.7pt, densely dotted, no marks,
+        domain=1e-2:1e5, samples=2] {0.573};
+    \end{axis}
+  \end{tikzpicture}}
