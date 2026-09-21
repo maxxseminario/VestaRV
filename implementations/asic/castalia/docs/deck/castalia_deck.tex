@@ -679,15 +679,10 @@ memcpy    &  11\,017 & 1.726 \\
 % Sources: TRM PowerDomainDiagram (generated, Ch. 18 PWRCTRL); post-route power
 % reports for the chart (numbers in fig_power_gating.tex).
 \begin{frame}{Power gating: one switched rail per channel tile}
-\begin{columns}[T]
-\column{0.56\textwidth}
-\trmfit[14cm]{\linewidth}{6.0cm}{\TRMinc PowerDomainDiagram.tex}
-\column{0.42\textwidth}
-\vspace{0.1cm}
-\resizebox{\linewidth}{!}{\input{fig_power_gating.tex}}
+\centering
+\resizebox{0.62\linewidth}{!}{\input{fig_power_gating.tex}}
 \vspace{0.05cm}
 {\centering\bflow\par}
-\end{columns}
 \sowhat{Cold gating: the header cuts the rail, so a parked tile draws neither dynamic nor leakage power. Each tile gated removes 1.76\,mW; the always-on band keeps 3.68\,mW.}
 \end{frame}
 
