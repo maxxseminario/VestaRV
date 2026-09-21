@@ -192,16 +192,16 @@ Package    & LQFP-100, $14\times14$\,mm \\
 \begin{frame}{Exercising the cell: differential-pulse voltammetry}
 \centering
 \resizebox{\linewidth}{!}{\input{fig_dpv_on_schematic.tex}}
+\vspace{0.1cm}
 
-{\scriptsize
-\resizebox{\linewidth}{!}{%
+{\footnotesize
 \begin{tabular}{@{}ll@{}}
-Excite   & the reference DAC steps $v_{\mathrm{ref}}$ up a 4\,mV staircase and adds a 50\,mV pulse on every tread; A1 imposes it on the cell at RE \\
-Sense    & the faradaic current at WE flows through $R_f$; A2 holds WE at $v_{\mathrm{cm}}$, so $v_{\mathrm{out}} = v_{\mathrm{cm}} - i_{\mathrm{WE}} R_f$ \\
-Sample   & the SAR reads $v_{\mathrm{out}}$ 5\,ms before each edge, after the charging spike has decayed: $S_1$ before the pulse, $S_2$ at its end \\
-Resolve  & firmware plots $\Delta I = I(S_2)-I(S_1)$ against the tread potential $E$; peak position identifies the marker, peak height its concentration \\
-\end{tabular}}}
-\sowhat{Same loop, same $R_f$, same converter as a DC measurement; only the DAC programme changes.}
+Excite   & DAC: 4\,mV staircase $+$ 50\,mV pulse per tread $\to$ A1 $\to$ RE \\
+Sense    & $v_{\mathrm{out}} = v_{\mathrm{cm}} - i_{\mathrm{WE}} R_f$ \\
+Sample   & SAR at $S_1$ (before pulse), $S_2$ (end of pulse), 5\,ms after each edge \\
+Resolve  & firmware: $\Delta I = I(S_2) - I(S_1)$ vs $E$; position $\to$ marker, height $\to$ concentration \\
+\end{tabular}}
+\sowhat{Same loop, same $R_f$, same converter as DC; only the DAC programme changes.}
 \end{frame}
 
 % Source: TRM fig_electrode_dpv (analog/), schematic-level channel.
@@ -232,17 +232,16 @@ Resolve  & firmware plots $\Delta I = I(S_2)-I(S_1)$ against the tread potential
 % TRM's sch_tb_pixel, annotated in fig_eis_on_schematic.tex (deck-local).
 \begin{frame}{How impedance is measured: the same loop, no extra hardware}
 \centering
-\resizebox{\linewidth}{!}{\input{fig_eis_on_schematic.tex}}
+\resizebox{0.9\linewidth}{!}{\input{fig_eis_on_schematic.tex}}
 
-{\scriptsize
-\resizebox{\linewidth}{!}{%
+{\footnotesize
 \begin{tabular}{@{}ll@{}}
-Excite   & $v_{\mathrm{step}}$ toggles between two DAC codes, $\pm$4 or $\pm$10\,mV about the DC setpoint $v_{\mathrm{ref}}$ \\
-Sense    & $v_{\mathrm{P}}$ at RE; $i_{\mathrm{WE}} = -v_{\mathrm{out}}/R_f$ through the same $R_f$ a DC measurement uses \\
-Digitise & one SAR, the two records interleaved; firmware I/Q multiply-accumulate over $M$ periods \\
-Solve    & $\hat Z = -R_f\,\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}}$, or a ratio to a known $Z_{\mathrm{cal}}$, where $R_f$, the LSB and the square's $4/\pi$ cancel \\
-\end{tabular}}}
-\sowhat{The mode adds a clock divider and an accumulate to the channel, nothing else.}
+Excite   & DAC: two codes, $\pm$4 or $\pm$10\,mV square about $v_{\mathrm{ref}}$ \\
+Sense    & $v_{\mathrm{P}}$ at RE; $i_{\mathrm{WE}} = -v_{\mathrm{out}}/R_f$ \\
+Digitise & one SAR, both records interleaved; firmware I/Q MAC over $M$ periods \\
+Solve    & $\hat Z = -R_f\,\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}}$, or ratio to $Z_{\mathrm{cal}}$ ($R_f$, LSB, $4/\pi$ cancel) \\
+\end{tabular}}
+\sowhat{Adds a clock divider and an accumulate to the channel, nothing else.}
 \end{frame}
 
 % Source: TRM fig_eis_error (analog/).
