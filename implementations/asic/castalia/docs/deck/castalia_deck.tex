@@ -380,33 +380,28 @@ Range & 246\,$\Omega$ to 12.1\,M$\Omega$. Limits: TIA compliance below, one LSB 
 % Sources: TRM note_eis_coverage (dc error scales with the noise gain
 % 1 + R_f/|Z|: 0.12 / 0.33 / 0.66 / 1.32 % at ratios 7.3 / 20 / 40 / 80),
 % eisdeep_20260826 ac_dense dc values per load, note_eis_excitation process gain.
-\begin{frame}{What sets the EIS floor, and what averaging buys}
+\begin{frame}{What sets the EIS error, and what averaging buys}
 \begin{columns}[T]
-\column{0.50\textwidth}
-\vspace{0.2cm}
-{\footnotesize \textbf{Systematic floor: finite loop gain, growing with $R_f/|Z|$}\par}
+\column{0.52\textwidth}
+\vspace{0.3cm}
+{\footnotesize
+\[ \varepsilon_{|Z|} \;\approx\; \underbrace{\frac{R_f/|Z|}{A_{\mathrm{eff}}}}_{\text{systematic}} \;+\; \underbrace{\frac{i_n\,|Z|}{V_1}\sqrt{\frac{2}{N M}}}_{\text{random}} \]}
 \vspace{0.1cm}
-{\footnotesize measured on resistive loads, $R_f/R$ from 7 to 80: $\varepsilon_{\mathrm{dc}} = 0.0165\,\% \times R_f/R$\par}
-\vspace{0.2cm}
 {\scriptsize
-\begin{tabular}{@{}lrrrr@{}}
-\toprule
-Load & $|Z|_{\mathrm{dc}}$ & $R_f$ & $R_f/|Z|$ & Error \\
-\midrule
-resistor & 11\,k$\Omega$  & 19.6\,k$\Omega$ & 1.8 & 0.029\,\% \\
-fouled   & 11\,k$\Omega$  & 19.6\,k$\Omega$ & 1.8 & 0.030\,\% \\
-typical  & 101\,k$\Omega$ & 140\,k$\Omega$  & 1.4 & 0.003\,\% \\
-fresh    & 1\,M$\Omega$   & 397\,k$\Omega$  & 0.4 & 0.0007\,\% \\
-\bottomrule
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{4.6cm}@{}}
+$R_f/|Z|$      & feedback resistor over the load: the gain code chosen \\
+$A_{\mathrm{eff}}$ & effective loop gain, $\approx 6000$ measured (0.66\,\% at $R_f/R = 40$); $A_{\mathrm{OL}} \approx 14\,000$ \\
+$i_n$          & front-end current noise per sample: 273\,nA at $N{=}0$, 61\,nA at $N{=}63$ \\
+$V_1$          & excitation fundamental, $\tfrac{4}{\pi}\tfrac{A}{2}$ \\
+$N$, $M$       & samples per period, periods averaged \\
 \end{tabular}}
 \vspace{0.2cm}
 
-{\scriptsize The resistive law is an upper bound: the resistor and fouled rows sit on it, typical and fresh well below. Set by the gain code, repeatable, removed by the $Z_{\mathrm{cal}}$ ratio (next slide). What is left is the random term on the right.\par}
-\column{0.48\textwidth}
-{\footnotesize \textbf{Random error: front-end noise, averaged}\par}
+{\scriptsize The systematic term is fixed for a gain code and load, and the $Z_{\mathrm{cal}}$ ratio removes it (next slide). The random term is what remains, and it falls as $1/\sqrt{M}$.\par}
+\column{0.46\textwidth}
+{\footnotesize \textbf{Random term against periods averaged}, 11\,k$\Omega$ load, 1\,kHz\par}
 \resizebox{\linewidth}{!}{\input{fig_eis_noise_vs_m.tex}}
 \end{columns}
-\sowhat{Bias is set by the gain code and cancels in the ratio; precision is bought with measurement time, $\sigma \propto 1/\sqrt{M}$.}
 \end{frame}
 
 % Sources: TRM note_eis_firmware (ratio to Z_cal), note_eis_coverage (all taps
