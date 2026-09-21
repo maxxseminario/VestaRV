@@ -144,28 +144,14 @@ CEA    & CEACAM5 glycoprotein    & 5\,ng/mL \\
 % die and core box; TRM Ch. 3 for the package.
 \begin{frame}{Physical implementation}
 \begin{columns}[T]
-\column{0.34\textwidth}
-\duckph{3.2cm}{chip top, $3.0\times3.0$\,mm (Virtuoso export)}
-\column{0.24\textwidth}
-\duckph{2.1cm}{one channel tile (Virtuoso export)}
-\column{0.40\textwidth}
-\vspace{0.3cm}
-{\footnotesize
-\begin{tabular}{@{}ll@{}}
-\toprule
-Process    & 65\,nm, 1P8M, HVT \\
-Core box   & $2690\times2690$\,\textmu m \\
-Tile       & $660\times880$\,\textmu m \\
-Tile logic & $\approx$98\,k NAND2-eq. \\
-Tile SRAM  & 8\,KiB \\
-Package    & LQFP-100, $14\times14$\,mm \\
-\bottomrule
-\end{tabular}}
-\vspace{0.3cm}
-
-\bflow
+\column{0.50\textwidth}
+\duckph{4.4cm}{chip top, $3.0\times3.0$\,mm (Virtuoso export)}
+\column{0.46\textwidth}
+\duckph{3.2cm}{one channel tile (Virtuoso export)}
 \end{columns}
-\sowhat{One tile hardened once, instantiated four times; the notch in each tile is the analog channel's keep-out.}
+\vspace{0.1cm}
+{\centering\bflow\par}
+\sowhat{65\,nm, 1P8M, LQFP-100. One tile hardened once, instantiated four times; the notch in each tile is the analog channel's keep-out.}
 \end{frame}
 
 % =====================================================================
@@ -197,9 +183,9 @@ Package    & LQFP-100, $14\times14$\,mm \\
 
 {\footnotesize
 \begin{tabular}{@{}ll@{}}
-Excite   & DAC: 4\,mV staircase $+$ 50\,mV pulse per tread, applied at RE by A1 \\
+Excite   & DAC: staircase with a pulse on every tread, applied at RE by A1 \\
 Sense    & $v_{\mathrm{out}} = v_{\mathrm{cm}} - i_{\mathrm{WE}} R_f$ \\
-Sample   & SAR at $S_1$ (before pulse), $S_2$ (end of pulse), 5\,ms after each edge \\
+Sample   & SAR at $S_1$ (before the pulse) and $S_2$ (end of the pulse), once charging has decayed \\
 Resolve  & firmware: $\Delta I = I(S_2) - I(S_1)$ vs $E$; peak position: marker, peak height: concentration \\
 \end{tabular}}
 \sowhat{Same loop, same $R_f$, same converter as DC; only the DAC programme changes.}
@@ -237,7 +223,7 @@ Resolve  & firmware: $\Delta I = I(S_2) - I(S_1)$ vs $E$; peak position: marker,
 
 {\footnotesize
 \begin{tabular}{@{}ll@{}}
-Excite   & DAC: two codes, $\pm$4 or $\pm$10\,mV square about $v_{\mathrm{ref}}$ \\
+Excite   & DAC: a small two-code square about the DC setpoint $v_{\mathrm{ref}}$ \\
 Sense    & $v_{\mathrm{P}}$ at RE; $i_{\mathrm{WE}} = -v_{\mathrm{out}}/R_f$ \\
 Digitise & one SAR, both records interleaved; firmware I/Q MAC over $M$ periods \\
 Solve    & $\hat Z = -R_f\,\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}}$, or ratio to $Z_{\mathrm{cal}}$ ($R_f$, LSB, $4/\pi$ cancel) \\
@@ -330,7 +316,7 @@ LSB at 319 & \multicolumn{2}{r}{0.824\,nA} \\
 $\sigma$: 200 samples, process $+$ mismatch, nominal corner. Corner runs hold the passive models at typical, so resistor and ladder spreads are lower bounds.
 $^{a}$The TRM carries $R_f$ corners as a figure (the $R_f$ slide), not a table.
 $^{b}$Extracted netlist; the extraction carries no mismatch statistics, so no $\sigma$.
-Amplifier and DAC schematic sim$^{*}$; SAR extracted.\par}
+Amplifier and DAC: schematic sim$^{*}$; SAR: extracted.\par}
 \end{frame}
 
 % Source: TRM Ch. 33 measurement tables (analog/note_meas_*.tex).
