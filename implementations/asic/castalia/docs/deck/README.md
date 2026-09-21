@@ -1,6 +1,6 @@
 # Castalia short overview deck
 
-45 slides, figure-led, ECEN 222 lecture template (Berkeley theme, beaver colours,
+44 slides, figure-led, ECEN 222 lecture template (Berkeley theme, beaver colours,
 16:9). Built PDF is copied one level up, next to the published `TRM.pdf`.
 
     make          # two pdflatex passes, then copies ../castalia_deck.pdf
@@ -33,7 +33,8 @@ programme and resolved peaks, sketched above it), `fig_eis_method.tex` (an unuse
 `fig_stay_in.tex` (time in the sample for cartridge / wearable / implant,
 anchored to CGM wear labels and published in-vivo sensors),
 `fig_eis_error_deck.tex` (the TRM's fig_eis_error with short legend entries,
-reading the same data files), `sch_pixel_deck.tex` (the TRM's sch_tb_pixel
+reading the same data files), `fig_adc_transfer_deck.tex` (the TRM's ADC transfer plot without the ideal
+line), `sch_pixel_deck.tex` (the TRM's sch_tb_pixel
 without the bench's current probes, injected source and net names; used on
 every schematic slide), `fig_randles_deck.tex` (the three-electrode
 Randles network), `fig_eis_noise_vs_m.tex` (sigma of |Z| against periods

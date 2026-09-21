@@ -269,7 +269,6 @@ Resolve  & firmware: $\Delta I = I(S_2) - I(S_1)$ vs $E$; peak position: marker,
 \begin{frame}{Four markers resolved in one differential-pulse sweep}
 \centering\trmfit{\linewidth}{5.6cm}{\MaestroRoot fig_electrode_dpv.tex}
 \vspace{0.05cm}
-{\centering\bsim\par}
 \sowhat{Peak position identifies the reporter, peak height carries concentration. Apexes within 2\,mV and 1\,\% of the assay targets; blank below 1\,pA.}
 \end{frame}
 
@@ -277,7 +276,6 @@ Resolve  & firmware: $\Delta I = I(S_2) - I(S_1)$ vs $E$; peak position: marker,
 \begin{frame}{Every clinical cut-off lands inside the channel window}
 \centering\trmfit{\linewidth}{5.6cm}{\MaestroRoot fig_electrode_dose.tex}
 \vspace{0.05cm}
-{\centering\bsim\par}
 \sowhat{CA-125 35\,U/mL, HE4 70\,pmol/L, CA19-9 37\,U/mL, CEA 5\,ng/mL: all four on the steep part of the curve at one $R_f$ setting.}
 \end{frame}
 
@@ -285,7 +283,6 @@ Resolve  & firmware: $\Delta I = I(S_2) - I(S_1)$ vs $E$; peak position: marker,
 \begin{frame}{Cyclic voltammetry through the assembled channel}
 \centering\trmfit{\linewidth}{5.6cm}{\MaestroRoot fig_pixtop_cv.tex}
 \vspace{0.05cm}
-{\centering\bsim\par}
 \sowhat{Staircase potential from the on-chip DAC, current digitised by the on-chip SAR, unclipped over the sweep.}
 \end{frame}
 
@@ -373,7 +370,6 @@ Accuracy & $\pm$1\,\%, $\pm$0.6\textdegree{} to 5\,kHz; $\pm$5\,\% to 27\,kHz. L
 Range & 246\,$\Omega$ to 12.1\,M$\Omega$. Limits: TIA compliance below, one LSB of output above; 320 $R_f$ codes in between \\
 \end{tabular}\par}
 \vspace{0.05cm}
-{\centering\bsim\par}
 \sowhat{The excitation amplitude never enters: $Z$ is the ratio of two records through one converter, so DAC gain and droop cancel.}
 \end{frame}
 
@@ -451,19 +447,17 @@ Good for    & trends: fouling is a change in one electrode's $Z$ & absolute ohms
 \begin{frame}{Bipolar accuracy through zero}
 \centering\trmfit{\linewidth}{5.6cm}{\MaestroRoot fig_px_xover_ierr.tex}
 \vspace{0.05cm}
-{\centering\bsim\par}
-\sowhat{No kink at the crossing: class-AB output, no dead zone. This is the measurement rev-1's PMOS mirror could not make.}
 \end{frame}
 
 % Source: TRM fig_tiarprog_r_vs_code (analog/).
 \begin{frame}{Programmable feedback resistor: one string, 320 codes}
 \begin{columns}[T]
-\column{0.68\textwidth}
-\trmfit[13cm]{\linewidth}{5.6cm}{\MaestroRoot fig_tiarprog_r_vs_code.tex}
-\column{0.34\textwidth}
-\vspace{0.3cm}
+\column{0.62\textwidth}
+\trmfit[13cm]{\linewidth}{5.8cm}{\MaestroRoot fig_tiarprog_r_vs_code.tex}
+\column{0.38\textwidth}
+\vspace{0.2cm}
 \[ R_f = 18\,\mathrm{k}\Omega + 6\,\mathrm{k}\Omega\cdot N \]
-{\footnotesize
+{\scriptsize
 \begin{tabular}{@{}lrr@{}}
 \toprule
 $N$ & $R_f$ & Full scale \\
@@ -475,23 +469,24 @@ $N$ & $R_f$ & Full scale \\
 LSB at 319 & \multicolumn{2}{r}{0.824\,nA} \\
 \bottomrule
 \end{tabular}}
+\vspace{0.3cm}
+
+{\scriptsize
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Mismatch $\sigma$ & & $\sigma$/typ \\
+\midrule
+$R(N{=}0)$        & 71\,$\Omega$  & 0.36\,\% \\
+$R(N{=}319)$      & 0.7\,k$\Omega$ & 0.04\,\% \\
+Seam $63{\to}64$  & 504\,$\Omega$ & 6.8\,\% \\
+\bottomrule
+\end{tabular}}
 \end{columns}
-\sowhat{Strictly monotonic at every corner, including the four thermometer seams. Maximum gain is noise-limited, not quantisation-limited.}
-\end{frame}
-
-
-% Deck-local tab_block_rf.tex (split from tab_blocks_combined.tex; sources in its header).
-\begin{frame}{Feedback resistor under mismatch}
-\centering
-\resizebox{0.7\linewidth}{!}{\input{tab_block_rf.tex}}
-\vspace{0.2cm}
-
-
 \end{frame}
 
 % Source: TRM fig_adc_transfer (analog/), extracted anatop_pixel_adc.
 \begin{frame}{10-bit SAR ADC, extracted netlist}
-\centering\trmfit{\linewidth}{5.4cm}{\MaestroRoot fig_adc_transfer.tex}
+\centering\trmfit{\linewidth}{5.4cm}{fig_adc_transfer_deck.tex}
 \vspace{0.05cm}
 {\centering\bext\par}
 \sowhat{23 clocks per conversion, 870\,kSa/s, 50\,pJ. The capacitor array exists only in layout, so this is the one block characterised extracted.}
@@ -542,7 +537,7 @@ Quiescent current       & 197--250\,\textmu A per channel & amplifiers $+$ local
 \end{tabular}}
 \vspace{0.15cm}
 
-{\centering\bsim\quad\bmc\par}
+{\centering\bmc\par}
 \sowhat{Pre-layout, electrode held nominal: no row includes electrode-to-electrode spread.}
 \end{frame}
 
@@ -687,7 +682,6 @@ Leakage share & 43\,\% \\
 \begin{columns}[T]
 \column{0.54\textwidth}
 \trmfit[13cm]{\linewidth}{5.4cm}{\MaestroRoot fig_electrode_panel.tex}
-{\centering\bsim\par}
 \column{0.42\textwidth}
 \vspace{0.1cm}
 {\footnotesize
