@@ -544,7 +544,37 @@ On-chip ML           & \best{NPU, 4 modes}      & NPU, 1 mode & none      & none
 {\scriptsize\raggedright
 $^{a}$Input-referred noise, 0.1--100\,Hz, ideal $R_f$, no electrode.\\
 $^{b}$One converter code at the maximum-gain tap; 81\,nA at the lowest.\\
-$^{c}$Low-power mode.\par}
+$^{c}$Low-power mode: hart 0 awake, tiles gated, AFE off. One channel measuring adds 1.76\,mW (tile) $+$ 1.32\,mW (AFE).\par}
+\end{frame}
+
+% Source: TRM note_pixtop_power (pixel-top bench, nominal corner, 37 C):
+% rail 1.323 mW; block rollup 1.135 mW; corner rail span 432-914 uA, pinned
+% passives.  Deck-local fig_analog_power_pie.tex.
+\begin{frame}{Analog power: one channel}
+\begin{columns}[T]
+\column{0.58\textwidth}
+\vspace{0.3cm}
+\resizebox{\linewidth}{!}{\input{fig_analog_power_pie.tex}}
+\column{0.40\textwidth}
+\vspace{0.3cm}
+{\footnotesize
+\begin{tabular}{@{}lr@{}}
+\toprule
+One channel, nominal & \\
+\midrule
+2.5\,V analog rail   & 528.7\,\textmu A \\
+1.0\,V converter core & 1.0\,\textmu A \\
+\textbf{Channel}     & \textbf{1.32\,mW} \\
+Four channels        & 5.3\,mW \\
+\midrule
+Rail over corners    & 432--914\,\textmu A \\
+\bottomrule
+\end{tabular}}
+\vspace{0.3cm}
+
+{\scriptsize The rail figure is the measured one; the block rollup (1.14\,mW) does not follow the inherited supply ports. Corner span is a lower bound: the poly reference resistor is pinned at typical.\par}
+\end{columns}
+\sowhat{Four class-AB amplifiers per channel are 86\,\% of it. A parked channel is gated with its tile and draws nothing.}
 \end{frame}
 
 % =====================================================================

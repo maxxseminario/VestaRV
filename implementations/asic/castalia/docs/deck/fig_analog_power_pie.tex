@@ -1,0 +1,28 @@
+%% HAND-DRAWN for this deck.  Where one analog channel's power goes, nominal
+%% corner, from the TRM's pixel-top power note (note_pixtop_power):
+%%   A1, A2 and the two multiplexer buffers   4 x 243.8 uW =  975.2 uW  85.9 %
+%%   local bias generator                                     59.3 uW   5.2 %
+%%   the two R-2R ladders (reference, v_cm)                   88.8 uW   7.8 %
+%%   SAR converter                                            12.3 uW   1.1 %
+%%                                                  rollup  1135.6 uW
+%% The rollup does not follow the inherited supply ports; the rail
+%% measurement, 1.323 mW (528.7 uA at 2.5 V + 1.04 uA at 1.0 V), is the
+%% authoritative channel figure and is quoted on the slide.
+\begin{tikzpicture}[font=\scriptsize]
+  \def\R{1.7}
+  % wedges clockwise from 12 o'clock: 309.2, 18.8, 28.1, 3.9 degrees
+  \fill[mtxA!75] (0,0) -- (90:\R) arc [start angle=90, end angle=-219.2, radius=\R] -- cycle;
+  \fill[mtxC!70] (0,0) -- (-219.2:\R) arc [start angle=-219.2, end angle=-238.0, radius=\R] -- cycle;
+  \fill[mtxD!75] (0,0) -- (-238.0:\R) arc [start angle=-238.0, end angle=-266.1, radius=\R] -- cycle;
+  \fill[mtxB!75] (0,0) -- (-266.1:\R) arc [start angle=-266.1, end angle=-270, radius=\R] -- cycle;
+  \draw[white, line width=1.2pt] (0,0) -- (90:\R) (0,0) -- (-219.2:\R) (0,0) -- (-238.0:\R) (0,0) -- (-266.1:\R);
+  \draw[black!30, line width=0.4pt] (0,0) circle [radius=\R];
+  \node[align=center, text=white, font=\small] at (-64.6:{0.5*\R}) {four amplifiers\\976\,\textmu W, 86\,\%};
+  % legend
+  \begin{scope}[shift={(2.4,0.9)}]
+    \fill[mtxA!75] (0,0) rectangle (0.3,0.3); \node[anchor=west] at (0.4,0.15) {A1, A2 and two mux buffers, $4\times244$\,\textmu W};
+    \fill[mtxD!75] (0,-0.5) rectangle (0.3,-0.2); \node[anchor=west] at (0.4,-0.35) {two R--2R ladders, 89\,\textmu W, 8\,\%};
+    \fill[mtxC!70] (0,-1.0) rectangle (0.3,-0.7); \node[anchor=west] at (0.4,-0.85) {local bias generator, 59\,\textmu W, 5\,\%};
+    \fill[mtxB!75] (0,-1.5) rectangle (0.3,-1.2); \node[anchor=west] at (0.4,-1.35) {SAR converter, 12\,\textmu W, 1\,\%};
+  \end{scope}
+\end{tikzpicture}
