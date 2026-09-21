@@ -195,7 +195,7 @@ Parameters & $E^{0\prime}$, $n$, $\alpha$, $k^0$, $D$, $A$, $C_O^{*}$, $C_R^{*}$
 
 \trmfit[14cm]{\linewidth}{2.3cm}{\MaestroRoot tab_electrode_peaks.tex}
 \end{columns}
-\sowhat{Own implementation: kinetics, transport and boundaries from Bard--Faulkner [13], box discretisation and expanding grid from Britz--Strutwolf and Feldberg [17,\,18]; closest precedent for a Verilog-A electrode co-simulated with the readout is Jog \emph{et al.} [19]. Validated against Randles--\v{S}ev\v{c}\'ik: $+0.1$ to $+1.9$\,\% over 25--400\,mV/s.}
+\sowhat{Equations: Bard--Faulkner [13]. Discretisation: Britz--Strutwolf, Feldberg [17,\,18]. Precedent for Verilog-A electrode co-simulation: Jog \emph{et al.} [19].}
 \end{frame}
 
 % Sources: ISCAS'27 notes/figure_notes.md and graphics-data/gen_figdata.py,
@@ -222,20 +222,18 @@ CEA    & anthraquinone       & $+0.40$ & 939  & 303 & 5\,ng/mL [5,\,14] \\
 \vspace{0.2cm}
 
 {\scriptsize
-\resizebox{\linewidth}{!}{%
-\begin{tabular}{@{}lll@{}}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{6.6cm}>{\raggedright\arraybackslash}p{3.9cm}@{}}
 \toprule
-Value & How it was set & Nature \\
+Value & Literature & Used here \\
 \midrule
-$E^{0\prime}$        & representative reporter potentials, spaced 150--250\,mV so four peaks resolve in one sweep; no per-marker source & assumed \\
-Target apex          & inside the published screen-printed-electrode envelope, 50\,nA--5\,\textmu A [14,\,15,\,21], and the $\pm$2\,\textmu A full scale & assumed \\
-$C_R^{*}$            & fitted so the simulated peak through the real channel meets the target & fit \\
-$k^0$                & no published rate constant on carbon for these markers; reversible default & default \\
-Cut-offs             & clinical decision thresholds; $^{\dagger}$common general cut-off, Chen [5] used 27\,U/mL and HE4 140\,pmol/L & clinical \\
-DPV programme        & standard-practice tread and pulse ranges [13,\,16] & literature \\
+$E^{0\prime}$   & reporters for multiplexed sensors (MB, ferrocene, AQ, Nile blue) signal inside $-0.6$ to $+0.4$\,V vs Ag/AgCl [22]; MB $E^{0\prime} = -0.24$\,V [23]; TMB/HRP read cathodically [20] & four representative potentials inside that window, 150--250\,mV apart \\
+Peak current    & 50\,nA to 5\,\textmu A on screen-printed electrodes [14,\,15,\,21] & targets inside that range and the $\pm$2\,\textmu A full scale; $C_R^{*}$ fitted to reach them \\
+$k^0$           & no value published on carbon for these markers & reversible default, 0.1\,cm/s \\
+Cut-offs        & CA-125 [5,\,8], HE4 [6], CEA [5,\,14]; $^{\dagger}$Chen [5] used 27\,U/mL and HE4 140\,pmol/L & as tabulated \\
+DPV programme   & 4--5\,mV treads, 25--50\,mV pulses [13,\,16] & 4\,mV, 50\,mV \\
 \bottomrule
-\end{tabular}}}
-\sowhat{Representative, not marker-measured: the DPV and dose slides demonstrate the channel, not an assay. CA19-9 inherited the values first set for AFP. Working record: ISCAS'27 \texttt{notes/lit\_notes.md}, \texttt{figure\_notes.md}.}
+\end{tabular}}
+\sowhat{Representative, not marker-measured: the DPV and dose slides demonstrate the channel, not an assay. CA19-9 inherited the values first set for AFP.}
 \end{frame}
 
 % Sources: TRM note_electrode_dpv for the programme; the schematic is the
@@ -679,6 +677,7 @@ Power     & own MTCMOS domain \\
 \begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
   \item[{[16]}] V.~Mir\v{c}eski \emph{et al.}, ``Square-wave voltammetry: a review on the recent progress,'' \emph{Electroanalysis}, 2013.
   \item[{[17]}] D.~Britz and J.~Strutwolf, \emph{Digital Simulation in Electrochemistry}, 4th ed., Springer, 2016 (Ch.\ 3 box method, Ch.\ 7 expanding grid).
+  \item[{[18]}] S.~W. Feldberg, ``Digital simulation: a general method for solving electrochemical diffusion-kinetic problems,'' \emph{Electroanal.\ Chem.} 3:199, 1969; J.~E.~B. Randles, \emph{Discuss.\ Faraday Soc.} 1:11, 1947.
 \end{itemize}
 \end{columns}}
 \end{frame}
@@ -691,13 +690,14 @@ Power     & own MTCMOS domain \\
 \begin{columns}[T]
 \column{0.49\textwidth}
 \begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
-  \item[{[18]}] S.~W. Feldberg, ``Digital simulation: a general method for solving electrochemical diffusion-kinetic problems,'' \emph{Electroanal.\ Chem.} 3:199, 1969; J.~E.~B. Randles, \emph{Discuss.\ Faraday Soc.} 1:11, 1947.
   \item[{[19]}] Jog \emph{et al.}, Verilog-A three-electrode model with kinetics and mass transport for co-simulation with interface circuits, \emph{IEEE SENSORS}, 2024, doi:10.1109/SENSORS60989.2024\allowbreak.10784491; S.~Madec \emph{et al.}, \emph{IEEE TCAS-I} 66(6):2188, 2019.
+  \item[{[20]}] P.~Fanjul-Bolado, M.~B. Gonz\'alez-Garc\'ia and A.~Costa-Garc\'ia, ``Amperometric detection in TMB/HRP-based assays,'' \emph{Anal.\ Bioanal.\ Chem.} 382:297, 2005.
+  \item[{[21]}] M.~Bilgi Kama\c{c} \emph{et al.}, ``Point-of-care testing: a disposable label-free electrochemical CA125 and HE4 immunosensors for early detection of ovarian cancer,'' \emph{Biomed.\ Microdevices} 25:18, 2023.
 \end{itemize}
 \column{0.49\textwidth}
 \begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
-  \item[{[20]}] P.~Fanjul-Bolado, M.~B. Gonz\'alez-Garc\'ia and A.~Costa-Garc\'ia, ``Amperometric detection in TMB/HRP-based assays,'' \emph{Anal.\ Bioanal.\ Chem.} 382:297, 2005.
-  \item[{[21]}] M.~Bilgi Kama\c{c} \emph{et al.}, ``Point-of-care testing: a disposable label-free electrochemical CA125 and HE4 immunosensors for early detection of ovarian cancer,'' \emph{Biomed.\ Microdevices} 25:18, 2023.
+  \item[{[22]}] D.~Kang, F.~Ricci, R.~J. White and K.~W. Plaxco, ``Survey of redox-active moieties for application in multiplexed electrochemical biosensors,'' \emph{Anal.\ Chem.} 88(21):10452, 2016.
+  \item[{[23]}] V.~Clark, M.~Aller Pellitero and N.~Arroyo-Curr\'as, ``Explaining the decay of nucleic acid-based sensors under continuous voltammetric interrogation,'' \emph{Anal.\ Chem.} 95(11):4974, 2023.
 \end{itemize}
 \end{columns}}
 \end{frame}
