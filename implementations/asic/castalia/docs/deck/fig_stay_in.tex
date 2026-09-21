@@ -1,33 +1,41 @@
-%% HAND-DRAWN for this deck.  How long an electrode stays in contact with
-%% the sample, on a log time axis, for the three deployment rungs, with real
-%% devices as the anchors:
-%%   cartridge   minutes: a single-shot sandwich immunoassay read once
-%%   wearable    Dexcom G7 10 / 15-day and FreeStyle Libre 3 14-day CGM sensors
-%%               (enzymatic electrochemical, interstitial fluid) [27]; wound
-%%               patch with a multiplexed electrochemical array, preclinical
-%%               in vivo (Sani et al. 2023) [28]; week-long in vivo E-AB drug
-%%               measurement (Son et al. 2026) [29]
-%%   implant     Eversense 365, subcutaneous CGM cleared for 365 days [27]
-%% Electrode drift and fouling grow with time in the sample [24-26]; that is
-%% what EIS is on the channel to watch.  (log10 positions precomputed: pgfmath
-%% overflows above 16383, so log10(15*1440) cannot be evaluated inline.)
-\begin{tikzpicture}[x=1.7cm, y=1cm, font=\scriptsize]
-  % x = log10(minutes): 0 = 1 min ... 5.72 = 1 year
-  \draw[black!60, line width=0.5pt] (-0.3,0) -- (6.0,0);
+%% HAND-DRAWN for this deck.  Time an electrode spends in the sample, per
+%% deployment class, as range bars on a log time axis.  Box = the labelled /
+%% typical range, whisker = a reported extreme:
+%%   cartridge   5-30 min incubation and read of a single-shot sandwich
+%%               immunoassay (typical assay protocols); whisker to 1 h
+%%   wearable    box 10-15 days: Dexcom G7 10-day and 15-day, FreeStyle Libre 3
+%%               14-day continuous glucose monitors, enzymatic electrochemical
+%%               sensors in interstitial fluid [27]; whisker down to one week:
+%%               week-long in-vivo electrochemical aptamer-based (E-AB) drug
+%%               sensing, Son et al. 2026 [29]; Gao's multiplexed electrochemical
+%%               wound patch, preclinical in vivo, Sani et al. 2023 [28]
+%%   implant     box 180-365 days: Eversense E3 (180 d) and Eversense 365
+%%               (365 d, FDA 17 Sep 2024), subcutaneous CGM [27]
+%% Positions are log10(minutes), precomputed (pgfmath overflows above 16383).
+\begin{tikzpicture}[x=1.75cm, y=1cm, font=\scriptsize,
+  box/.style={draw=#1!60!black, fill=#1!35, line width=0.6pt},
+  whisk/.style={draw=#1!60!black, line width=0.9pt}]
+  % axis
+  \draw[black!60, line width=0.5pt] (-0.2,0) -- (6.0,0);
   \foreach \v/\l in {0/{1 min},1.78/{1 h},3.16/{1 day},4.0/{1 week},4.64/{1 month},5.72/{1 year}}{
     \draw[black!60, line width=0.4pt] (\v,0) -- (\v,-0.08);
+    \draw[black!12, line width=0.3pt] (\v,0.1) -- (\v,3.4);
     \node[black!70, anchor=north] at (\v,-0.1) {\l};}
-  \node[black!70, anchor=north] at (2.85,-0.45) {time in the sample};
+  \node[black!70, anchor=north] at (2.9,-0.42) {time the electrode spends in the sample};
+  % rows
+  \node[anchor=east, font=\small] at (-0.35,2.9) {cartridge};
+  \node[anchor=east, font=\small] at (-0.35,1.9) {wearable};
+  \node[anchor=east, font=\small] at (-0.35,0.9) {implant};
   % cartridge
-  \draw[mtxC!70!black, line width=3.5pt] (0,0.55) -- (1.5,0.55);
-  \node[mtxC!50!black, anchor=south, align=center] at (0.75,0.7) {cartridge\\single-shot immunoassay};
-  % wearable: one week to 15 days
-  \draw[mtxA!75!black, line width=3.5pt] (4.003,0.55) -- (4.334,0.55);
-  \node[mtxA!60!black, anchor=south, align=center] at (4.169,0.7) {wearable\\CGM 10--15 days [27]\\wound patch [28], E-AB [29]};
-  % implant: six months to a year
-  \draw[mtxB!75!black, line width=3.5pt] (5.414,0.55) -- (5.72,0.55);
-  \node[mtxB!60!black, anchor=south west, align=left] at (5.414,0.7) {implant\\Eversense 365 [27]};
-  % drift
-  \draw[black!45, line width=0.6pt, densely dashed, -{Latex[length=1.6mm]}] (1.6,2.3) -- (5.9,2.3);
-  \node[black!60, anchor=south] at (3.75,2.35) {drift and fouling grow with time in the sample [24--26]};
+  \draw[whisk=mtxC] (1.477,2.9) -- (1.778,2.9);  \draw[whisk=mtxC] (1.778,2.75) -- (1.778,3.05);
+  \fill[box=mtxC] (0.699,2.7) rectangle (1.477,3.1);
+  \node[mtxC!45!black, anchor=west] at (1.898,2.9) {single-shot sandwich immunoassay, incubate and read once};
+  % wearable
+  \draw[whisk=mtxA] (4.003,1.9) -- (4.158,1.9);  \draw[whisk=mtxA] (4.003,1.75) -- (4.003,2.05);
+  \fill[box=mtxA] (4.158,1.7) rectangle (4.334,2.1);
+  \node[mtxA!55!black, anchor=east, align=right] at (3.883,1.9)
+    {continuous glucose monitors, 10--15 days [27]\\wound patch [28]; aptamer sensor, one week in vivo [29]};
+  % implant
+  \fill[box=mtxB] (5.414,0.7) rectangle (5.721,1.1);
+  \node[mtxB!55!black, anchor=east, align=right] at (5.294,0.9) {Eversense implanted glucose monitor, 180--365 days [27]};
 \end{tikzpicture}
