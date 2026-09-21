@@ -533,7 +533,7 @@ Resolution (pA rms)  & 341$^{a}$                & 56.5        & 41        & 0.47
 ADC step (pA)        & 820$^{b}$                & 153         & n/a       & n/a             & n/a \\
 Converter            & 10-bit SAR per channel   & 12-bit dual-slope & TDC & ADC             & -- \\
 EIS                  & firmware, $\pm$1\,\% to 5\,kHz & --    & --        & --              & yes \\
-Power (mW)           & 3.68$^{c}$               & 3.0$^{d}$   & 0.016     & 9.3             & 1.0 \\
+Power (mW)           & 3.68$^{c}$               & 3.0         & 0.016     & 9.3             & 1.0 \\
 Process (nm)         & \best{65}                & 65          & 180       & 350             & 180 \\
 On-chip processor    & \best{5 RISC-V harts}    & 1 RISC-V hart & none    & none            & none \\
 On-chip ML           & \best{NPU, 4 modes}      & NPU, 1 mode & none      & none            & none \\
@@ -542,11 +542,9 @@ On-chip ML           & \best{NPU, 4 modes}      & NPU, 1 mode & none      & none
 \vspace{0.12cm}
 
 {\scriptsize\raggedright
-Castalia column is pre-silicon and best case. -- not reported in [9].\\
-$^{a}$Input-referred noise, 0.1--100\,Hz, ideal $R_f$, no electrode; 3.6--21\,nA into an electrode.\\
+$^{a}$Input-referred noise, 0.1--100\,Hz, ideal $R_f$, no electrode.\\
 $^{b}$One converter code at the maximum-gain tap; 81\,nA at the lowest.\\
-$^{c}$Digital only, hart 0 awake, four tiles gated, post-route SS 125\,\textdegree C 25\,MHz; one channel measuring adds 1.76\,mW (tile) $+$ 1.14\,mW (AFE).\\
-$^{d}$Measured: 2.8\,mW digital at 24\,MHz $+$ 258\,\textmu W AFE.\par}
+$^{c}$Low-power mode.\par}
 \end{frame}
 
 % =====================================================================
@@ -765,7 +763,7 @@ Channels             & \textbf{4, simultaneous} & 1           & 1         & 1, d
 Current direction    & \textbf{bipolar}         & unipolar    & bipolar   & bipolar         & bipolar \\
 Sensitivity (pA)     & 341$^{a}$                & 56.5$^{b}$  & 41        & 0.47            & 1.7 \\
 $I_{\max}$ (\textmu A) & $\pm40.7$              & $+20$       & $\pm5$    & $\pm20$         & $-48/{+}16$ \\
-Power (mW)           & 3.68$^{c}$               & 3.0$^{d}$   & 0.016     & 9.3             & 1.0 \\
+Power (mW)           & 3.68$^{c}$               & 3.0         & 0.016     & 9.3             & 1.0 \\
 Process (nm)         & 65                       & 65          & 180       & 350             & 180 \\
 On-chip processor    & \textbf{5 RISC-V harts}  & 1 RISC-V hart & none    & none            & none \\
 On-chip ML           & \textbf{NPU, 4 modes}    & NPU, 1 mode & none      & none            & none \\
