@@ -54,10 +54,11 @@ print-weight schematics vanish on a projector) and one fix: the height-bound bra
 `\resizebox*`, since a tabular sits centred on the baseline and the unstarred
 form scaled its half-height instead of its total height, enlarging tall tables).
 
-Open items: the digital power slides quote the August cpr6 cut (10.72 mW core);
-the September d13d report gives 12.8 mW core plus 10.5 mW of pad-ring power
-at the statistical activity, and neither the core update nor the pad-ring
-question has been carried into the deck yet.
+Open items: the "Digital, as closed" and "at a glance" slides quote the
+September d13d power report (12.8 mW core plus 10.5 mW pad ring at the
+statistical activity, to be optimised); the power-gating chart, its 1.76 mW
+per-tile figure and the comparison table's 3.68 mW low-power number still
+come from the August cpr6 cut and need re-deriving from d13d.
 
 Clinical claims carry bracketed citations resolved on the closing References
 slide. Spec-table numbers are transcribed from the TRM build of 2026-09-15 and the

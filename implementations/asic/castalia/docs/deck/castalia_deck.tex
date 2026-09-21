@@ -564,7 +564,6 @@ Power & \\
 \midrule
 One channel   & 1.32\,mW \\
 Four channels & 5.3\,mW \\
-Corners       & 1.1--2.3\,mW \\
 \bottomrule
 \end{tabular}}
 \end{columns}
@@ -615,27 +614,30 @@ Analog supply      & 2.5\,V, $v_\mathrm{cm} = 1.25$\,V \\
 \midrule
 Process            & 65\,nm CMOS, 1P8M, HVT cells \\
 Die / package      & $3.0\times3.0$\,mm / LQFP-100 \\
-Digital power      & 10.72\,mW post-route, SS, 25\,MHz \\
+Digital power      & 12.8\,mW core post-route, SS, 25\,MHz \\
 \bottomrule
 \end{tabular}}
 \end{columns}
 \sowhat{Digital numbers from the hardened flow; analog numbers schematic-level, except the SAR, which is extracted.}
 \end{frame}
 
-% Sources: post-route power report (SS 0.9 V 125 C, 25 MHz, activity 0.2);
+% Sources: innovus/common/MCU_castalia_penta/rpt/MCU_castalia_penta.d13d_postRoute_full.power
+% (SS 0.9 V 125 C, 25 MHz, activity 0.2; core groups vs the IO group);
 % TRM Table 10.3 for CPI.
 \begin{frame}{Digital, as closed}
 \begin{columns}[T]
-\column{0.30\textwidth}
-\begin{block}{Whole chip, post-route}
+\column{0.36\textwidth}
+\begin{block}{Digital, post-route}
 \footnotesize
 \begin{tabular}{@{}lr@{}}
 \toprule
-Internal   & 3.78\,mW \\
-Switching  & 2.33\,mW \\
-Leakage    & 4.61\,mW \\
+Internal   & 8.69\,mW \\
+Switching  & 9.99\,mW \\
+Leakage    & 4.70\,mW \\
 \midrule
-\textbf{Total} & \textbf{10.72\,mW} \\
+Core logic & 12.8\,mW \\
+Pad ring$^{*}$ & 10.5\,mW \\
+\textbf{Total} & \textbf{23.4\,mW} \\
 \bottomrule
 \end{tabular}
 \end{block}
@@ -648,7 +650,7 @@ Gated      & 0 \\
 \bottomrule
 \end{tabular}
 \end{block}
-\column{0.36\textwidth}
+\column{0.44\textwidth}
 \begin{block}{Measured CPI, timed kernels}
 \scriptsize
 \begin{tabular}{@{}lrr@{}}
@@ -669,20 +671,9 @@ memcpy    &  11\,017 & 1.726 \\
 \bottomrule
 \end{tabular}
 \end{block}
-\column{0.30\textwidth}
-\begin{block}{Timing at 25\,MHz}
-\footnotesize
-\begin{tabular}{@{}lr@{}}
-\toprule
-reg2reg WNS & $+$99\,ps \\
-Leakage share & 43\,\% \\
-\bottomrule
-\end{tabular}
-\end{block}
-\vspace{0.2cm}
-\bflow
 \end{columns}
-\sowhat{SS 0.9\,V 125\,\textdegree C, statistical activity 0.2. Gating one tile removes 1.76\,mW; the always-on band pays nothing.}
+\vspace{0.1cm}
+{\centering\footnotesize SS 0.9\,V 125\,\textdegree C, 25\,MHz, statistical activity 0.2; d13d cut. $^{*}$Pads at the statistical activity, to be optimised. \bflow\par}
 \end{frame}
 
 % Sources: TRM PowerDomainDiagram (generated, Ch. 18 PWRCTRL); post-route power
