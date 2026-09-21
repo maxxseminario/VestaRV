@@ -383,12 +383,36 @@ fresh    & 1\,M$\Omega$   & 397\,k$\Omega$  & 0.4 & 0.0007\,\% \\
 \end{tabular}}
 \vspace{0.2cm}
 
-{\scriptsize Set by the gain code, not the electrode; repeatable, so it calibrates out. Measure an on-chip $Z_{\mathrm{cal}}$ at the same code and frequency and take the ratio: $R_f$, its pole, the DAC, the LSB and this floor all cancel, to the extent $Z_{\mathrm{cal}}$ is ranged like the electrode. What is left is the random term on the right.\par}
+{\scriptsize Set by the gain code, not the electrode; repeatable, so the $Z_{\mathrm{cal}}$ ratio removes it (next slide). What is left is the random term on the right.\par}
 \column{0.48\textwidth}
 {\footnotesize \textbf{Random error: front-end noise, averaged}\par}
 \resizebox{\linewidth}{!}{\input{fig_eis_noise_vs_m.tex}}
 \end{columns}
 \sowhat{Bias is set by the gain code and cancels in the ratio; precision is bought with measurement time, $\sigma \propto 1/\sqrt{M}$.}
+\end{frame}
+
+% Sources: TRM note_eis_firmware (ratio to Z_cal), note_eis_coverage (all taps
+% the same poly, one dc calibration recovers the absolute edges), note_calibration
+% (per-chip constants in flash), tab_tiarprog (poly corner spread).
+\begin{frame}{Calibrating impedance: what cancels, and what a 20\,\% poly costs}
+\centering
+{\footnotesize
+$\hat Z = Z_{\mathrm{cal}}\,\dfrac{(\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}})}{(\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}})_{\mathrm{cal}}}$ \quad same gain code, same frequency, same converter\par}
+\vspace{0.3cm}
+
+{\footnotesize
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{4.6cm}>{\raggedright\arraybackslash}p{4.6cm}@{}}
+\toprule
+ & On-chip $Z_{\mathrm{cal}}$ (per decade, muxed in) & Off-chip standard (at test) \\
+\midrule
+Cancels     & $R_f$, its pole, the DAC, the LSB, A2's gain floor & the same \\
+Value known & to the poly's chip-to-chip spread, $\sim$20\,\% & to the standard, $<0.1$\,\% \\
+When        & any time, in the field, before every point & once per chip, stored in flash \\
+Tracks      & temperature and ageing, since $Z_{\mathrm{cal}}$ and $R_f$ are the same poly & the channel on the day it was tested \\
+Good for    & trends: fouling is a change in one electrode's $Z$, untouched by a fixed scale & absolute ohms \\
+\bottomrule
+\end{tabular}}
+\sowhat{The poly need not be accurate, only stable. One off-chip number per chip pins the absolute scale; the on-chip ratio carries it through temperature and time.}
 \end{frame}
 
 % =====================================================================
