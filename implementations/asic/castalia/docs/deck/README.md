@@ -1,6 +1,6 @@
 # Castalia short overview deck
 
-44 slides, figure-led, ECEN 222 lecture template (Berkeley theme, beaver colours,
+45 slides, figure-led, ECEN 222 lecture template (Berkeley theme, beaver colours,
 16:9). Built PDF is copied one level up, next to the published `TRM.pdf`.
 
     make          # two pdflatex passes, then copies ../castalia_deck.pdf
@@ -54,11 +54,10 @@ print-weight schematics vanish on a projector) and one fix: the height-bound bra
 `\resizebox*`, since a tabular sits centred on the baseline and the unstarred
 form scaled its half-height instead of its total height, enlarging tall tables).
 
-Open items: the "Digital, as closed" and "at a glance" slides quote the
-September d13d power report (12.8 mW core plus 10.5 mW pad ring at the
-statistical activity, to be optimised); the power-gating chart, its 1.76 mW
-per-tile figure and the comparison table's 3.68 mW low-power number still
-come from the August cpr6 cut and need re-deriving from d13d.
+Open items: all digital power figures are now the September d13d cut
+(12.8 mW core, 1.742 mW per tile, 10.5 mW pad ring at the statistical
+activity). The pad-ring figure and the memory-off deep-sleep bound on the
+low-power-modes slide are placeholders to be optimised.
 
 Clinical claims carry bracketed citations resolved on the closing References
 slide. Spec-table numbers are transcribed from the TRM build of 2026-09-15 and the
