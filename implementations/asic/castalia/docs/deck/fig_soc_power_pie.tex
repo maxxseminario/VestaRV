@@ -1,0 +1,25 @@
+%% HAND-DRAWN for this deck.  Analog against digital power for two operating
+%% modes, from the SoC power-modes table: digital core 12.8 mW (d13d
+%% post-route, SS, activity 0.2, pads quiet), 1.742 mW per tile; analog
+%% 1.32 mW per channel (TRM pixel-top rail measurement).
+%%   everything on:          digital 12.8, analog 5.3  -> 18.1 mW
+%%   one channel measuring:  digital  7.6, analog 1.3  ->  8.9 mW
+\newcommand{\powerpie}[5]{% #1 digital mW, #2 analog mW, #3 title, #4 radius, #5 total label
+  \begin{scope}
+    \pgfmathsetmacro{\tot}{#1+#2}
+    \pgfmathsetmacro{\adeg}{360*#2/\tot}
+    \pgfmathsetmacro{\pd}{100*#1/\tot}
+    \pgfmathsetmacro{\pa}{100*#2/\tot}
+    \fill[mtxA!75] (0,0) -- (90:#4) arc [start angle=90, end angle={90-360+\adeg}, radius=#4] -- cycle;
+    \fill[mtxB!75] (0,0) -- ({90-360+\adeg}:#4) arc [start angle={90-360+\adeg}, end angle=90-360, radius=#4] -- cycle;
+    \draw[white, line width=1.2pt] (0,0) -- (90:#4) (0,0) -- ({90-360+\adeg}:#4);
+    \draw[black!30, line width=0.4pt] (0,0) circle [radius=#4];
+    \node[text=white, font=\small, align=center] at ({90-(360-\adeg)/2}:{0.5*#4}) {digital\\#1\,mW, \pgfmathprintnumber[precision=0]{\pd}\,\%};
+    \node[text=white, font=\small, align=center] at ({90-360+\adeg/2}:{0.55*#4}) {analog\\#2\,mW, \pgfmathprintnumber[precision=0]{\pa}\,\%};
+    \node[font=\small, anchor=south] at (0,{#4+0.15}) {#3};
+    \node[font=\scriptsize, black!70, anchor=north] at (0,{-#4-0.15}) {#5};
+  \end{scope}}
+\begin{tikzpicture}
+  \begin{scope}[shift={(0,0)}]   \powerpie{12.8}{5.3}{Everything on}{1.9}{18.1\,mW total} \end{scope}
+  \begin{scope}[shift={(5.2,0)}] \powerpie{7.6}{1.3}{One channel measuring}{1.9}{8.9\,mW total} \end{scope}
+\end{tikzpicture}

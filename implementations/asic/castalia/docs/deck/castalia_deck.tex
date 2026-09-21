@@ -99,7 +99,7 @@ Breast     &  6\,\% & 13 & B \\
 
 % Sources: Chen 2018 [5] (458 patients, markers measured individually, then
 % fused); Charkhchi 2020 [8] for CA-125; Moore 2009 [6] for HE4/ROMA.
-\begin{frame}{Four-Marker Test [5]}
+\begin{frame}{Four-Marker Test}
 \begin{columns}[T]
 \column{0.55\textwidth}
 \vspace{0.1cm}
@@ -118,7 +118,8 @@ CEA    & CEACAM5 glycoprotein    & 5\,ng/mL \\
 \bottomrule
 \end{tabular}}
 \end{columns}
-\sowhat{Each marker covers a subtype the others miss. The decision is a learned combination, so the chip is four channels plus the processor that fuses them.}
+\vspace{0.2cm}
+{\scriptsize\centering Sensitivities from 458 patients, each marker measured alone and then the four combined [5].\par}
 \end{frame}
 
 % =====================================================================
@@ -283,13 +284,6 @@ Resolve  & firmware: $\Delta I = I(S_2) - I(S_1)$ vs $E$; peak position: marker,
 \centering\trmfit{\linewidth}{5.6cm}{\MaestroRoot fig_pixtop_cv.tex}
 \vspace{0.05cm}
 \sowhat{Staircase potential from the on-chip DAC, current digitised by the on-chip SAR, unclipped over the sweep.}
-\end{frame}
-
-% Source: TRM fig_electrode_panel (uric acid, ascorbate, H2O2, pyocyanin as
-% electrode corners of the CV test through the channel).
-\begin{frame}{Cyclic Voltammetry, Small-Molecule Panel}
-\centering\trmfit{\linewidth}{5.8cm}{\MaestroRoot fig_electrode_panel.tex}
-\sowhat{Uric acid, ascorbate, H$_2$O$_2$ and pyocyanin through the same channel: a reagentless wound panel, one sweep each.}
 \end{frame}
 
 % Sources: ISCAS'27 lit survey: single-shot sandwich assays vs reagentless
@@ -722,6 +716,16 @@ Deep sleep                        & $<2.6$\,mW & 0     & $<2.6$\,mW & shared RAM
 \vspace{0.25cm}
 
 {\scriptsize Digital: SS 0.9\,V 125\,\textdegree C, 25\,MHz, statistical activity 0.2.\par}
+\end{frame}
+
+% Deck-local fig_soc_power_pie.tex; numbers from the SoC power-modes slide.
+\begin{frame}{SoC Power Distribution}
+\centering
+\vspace{0.2cm}
+\resizebox{0.78\linewidth}{!}{\input{fig_soc_power_pie.tex}}
+\vspace{0.3cm}
+
+{\scriptsize Digital: core, pads quiet, SS 0.9\,V 125\,\textdegree C, 25\,MHz, statistical activity 0.2. Analog: 1.32\,mW per active channel, nominal.\par}
 \end{frame}
 
 % =====================================================================

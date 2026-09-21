@@ -9,3 +9,4 @@ build.log
 *.fls
 *.fdb_latexmk
 castalia_deck.pdf
+README.md
