@@ -383,7 +383,7 @@ fresh    & 1\,M$\Omega$   & 397\,k$\Omega$  & 0.4 & 0.0007\,\% \\
 \end{tabular}}
 \vspace{0.2cm}
 
-{\scriptsize A property of the gain code chosen, not of the electrode; fixed and repeatable, so the $Z_{\mathrm{cal}}$ ratio removes it.\par}
+{\scriptsize Set by the gain code, not the electrode; repeatable, so it calibrates out. Measure an on-chip $Z_{\mathrm{cal}}$ at the same code and frequency and take the ratio: $R_f$, its pole, the DAC, the LSB and this floor all cancel, to the extent $Z_{\mathrm{cal}}$ is ranged like the electrode. What is left is the random term on the right.\par}
 \column{0.48\textwidth}
 {\footnotesize \textbf{Random error: front-end noise, averaged}\par}
 \resizebox{\linewidth}{!}{\input{fig_eis_noise_vs_m.tex}}
