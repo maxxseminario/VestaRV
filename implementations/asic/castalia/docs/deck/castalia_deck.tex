@@ -567,11 +567,12 @@ Four channels & 5.3\,mW \\
 \end{columns}
 \end{frame}
 
-% Reminder of the block diagram before the digital section; same figure as
-% the early slide.
+% Reminder of the block diagram before the digital section, with the blocks
+% new since Myshkin highlighted (deck-local fig_blockdiag_new.tex over the
+% paper's PNG; falls back to the generated diagram without highlights).
 \begin{frame}{SoC Block Diagram}
 \IfFileExists{\ISCASroot Figures/castalia_block_diagram.png}{%
-  \centering\includegraphics[width=\linewidth]{castalia_block_diagram.png}%
+  \centering\resizebox{\linewidth}{!}{\input{fig_blockdiag_new.tex}}%
 }{%
   \centering\trmfit[20cm]{\linewidth}{6.0cm}{\TRMinc ChipSystemDiagram.tex}%
 }
@@ -621,7 +622,7 @@ EIS                & firmware mode of the same channels \\
 Analog supply      & 2.5\,V, $v_\mathrm{cm} = 1.25$\,V \\
 \midrule
 Process            & 65\,nm CMOS, 1P8M, HVT cells \\
-Die / package      & $3.0\times3.0$\,mm / LQFP-100 \\
+Die                & $2.35\times2.0$\,mm, MPW \\
 Digital power      & 12.8\,mW core post-route, SS, 25\,MHz \\
 \bottomrule
 \end{tabular}}
@@ -748,6 +749,31 @@ Weights & trained off-chip, staged by firmware \\
 Output  & one risk score \\
 \bottomrule
 \end{tabular}}
+\end{frame}
+
+% =====================================================================
+\section{Tapeout}
+
+% MPW rule per tapeout_review DECISIONS O10 (2026-09-16): die Y exactly 2 mm,
+% X free, price per area; 2 mm die, topology B.  Screenshot of the MUSE
+% schedule, the selected run and the quote are to be filled in by hand.
+\begin{frame}{Tapeout}
+\begin{columns}[T]
+\column{0.52\textwidth}
+\duckph{4.6cm}{MUSE tapeout schedule, selected run}
+\column{0.46\textwidth}
+\vspace{0.4cm}
+{\footnotesize
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{3.0cm}@{}}
+\toprule
+Foundry, process & TSMC 65\,nm GP \\
+MPW run          & \textcolor{red!70!black}{to be selected} \\
+Die              & $2.35\times2.0$\,mm; Y fixed at 2\,mm, priced per area \\
+Package          & \textcolor{red!70!black}{to be selected} \\
+Price, incl.\ packaging & \textcolor{red!70!black}{quote pending} \\
+\bottomrule
+\end{tabular}}
+\end{columns}
 \end{frame}
 
 % =====================================================================

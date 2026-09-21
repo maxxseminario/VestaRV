@@ -1,0 +1,33 @@
+%% HAND-DRAWN for this deck.  The paper's block diagram PNG with translucent
+%% green over the blocks that are new since Myshkin: harts 1-4, AFE sites 1-3
+%% and their cells, the shared-bus arbiter, the inter-hart block (CLINT,
+%% MUTEX, IRQROUTER), NFC, PWRCTRL, and the debug transport/module with its
+%% probe.  Rectangles are fractions of the image (x from the left, y from the
+%% top), read off the 2060 x 850 PNG; re-check after any redraw of the PNG.
+\begin{tikzpicture}
+  \node[inner sep=0] (B) {\includegraphics[width=\linewidth]{castalia_block_diagram.png}};
+  \newcommand{\newblk}[4]{% x0 y0 x1 y1 as fractions
+    \path ($(B.north west)!#1!(B.north east)$) coordinate (a);
+    \path ($(B.north west)!#2!(B.south west)$) coordinate (b);
+    \path ($(B.north west)!#3!(B.north east)$) coordinate (c);
+    \path ($(B.north west)!#4!(B.south west)$) coordinate (d);
+    \fill[green!60!black, opacity=0.22, rounded corners=2pt] (a |- b) rectangle (c |- d);}
+  \newblk{0.212}{0.290}{0.350}{0.415}  % hart 1
+  \newblk{0.367}{0.290}{0.505}{0.415}  % hart 2
+  \newblk{0.522}{0.290}{0.660}{0.415}  % hart 3
+  \newblk{0.678}{0.290}{0.816}{0.415}  % hart 4
+  \newblk{0.836}{0.290}{0.952}{0.415}  % dtm0 & dm0
+  \newblk{0.844}{0.035}{0.945}{0.140}  % debug probe
+  \newblk{0.367}{0.190}{0.505}{0.248}  % AFE1 site
+  \newblk{0.522}{0.190}{0.660}{0.248}  % AFE2 site
+  \newblk{0.678}{0.190}{0.816}{0.248}  % AFE3 site
+  \newblk{0.383}{0.035}{0.490}{0.140}  % cell 1
+  \newblk{0.538}{0.035}{0.645}{0.140}  % cell 2
+  \newblk{0.693}{0.035}{0.800}{0.140}  % cell 3
+  \newblk{0.030}{0.440}{0.962}{0.518}  % arbiter
+  \newblk{0.552}{0.598}{0.625}{0.705}  % inter-hart
+  \newblk{0.638}{0.598}{0.690}{0.705}  % NFC
+  \newblk{0.890}{0.598}{0.960}{0.705}  % PWRCTRL
+  \node[anchor=north east, font=\scriptsize, fill=white, inner sep=2pt] at ($(B.south east)+(-0.1,-0.05)$)
+    {\tikz\fill[green!60!black, opacity=0.35] (0,0) rectangle (0.3,0.22); new since Myshkin};
+\end{tikzpicture}
