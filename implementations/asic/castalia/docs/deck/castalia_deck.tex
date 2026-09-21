@@ -310,48 +310,13 @@ Solve    & $\hat Z = -R_f\,\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}}$, or ratio 
 \begin{frame}{Magnitude and phase from codes: I/Q demodulation}
 \centering
 \resizebox{0.9\linewidth}{!}{\input{fig_iq_demod.tex}}
-\vspace{0.15cm}
+\vspace{0.3cm}
 
-{\scriptsize
+{\footnotesize
 \begin{tabular}{@{}ll@{}}
-1. Records  & two, interleaved on the one SAR: $v_{\mathrm{P}}$ (the DAC command, slot 2; RE tracks it through A1) and $v_{\mathrm{out}}$ \\
-2. Phasor   & per record, $\hat X = I - \mathrm{j}Q$; the sine reference selects one frequency, so harmonics, DC and noise average out \\
-3. Skew     & $v_{\mathrm{out}}$ is sampled half a conversion late: rotate $\hat V_{\mathrm{OUT}}$ by $180^{\circ} f/f_s$ \\
-4. Divide   & $|Z| = R_f\,|\hat V_{\mathrm{P}}|/|\hat V_{\mathrm{OUT}}|$, \; $\angle Z = \varphi_{\mathrm{P}} - \varphi_{\mathrm{OUT}} + 180^{\circ}$; LSB and $4/\pi$ cancel \\
-5. Ratio    & same on $Z_{\mathrm{cal}}$ at the same $f$ and gain code: $R_f$, its pole and the DAC droop cancel \\
-\end{tabular}}
-\end{frame}
-
-% Sources: TRM note_eis_firmware (eqs eis-demod, eis-z-rf, eis-z-ratio,
-% eis-extract), note_eis_excitation (square fundamental 4/pi, process gain
-% 6.02 dB per 4x periods, 1.20 % at one period to 0.0093 % at 16384 at N = 0),
-% note_eis_accuracy (interleave rotation 180 f/f_s).  Standard I/Q derivation.
-\begin{frame}{The demodulation, in full (1/2): from codes to a phasor}
-\vspace{-0.1cm}
-{\footnotesize
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{10.2cm}@{}}
-Excite & $v_{\mathrm{ref}}(t) = V_{\mathrm{CM}} + \tfrac{A}{2}\,\mathrm{sq}(2\pi f t)$, two DAC codes; fundamental $\tfrac{4}{\pi}\tfrac{A}{2}\cos 2\pi f t$, odd harmonics at $3f, 5f, \dots$ \\[5pt]
-Sample & $f_s = N f$, $N$ conversions per period, $M$ whole periods: $c_n = \big\lfloor v(nT_s)/\mathrm{LSB} \big\rceil$, $n = 0 \dots MN-1$, one such record per channel \\[5pt]
-Model & $c_n = C_0 + A_1 \cos\!\big(\tfrac{2\pi n}{N} + \varphi\big) + \sum_{k\ge 2} A_k \cos\!\big(\tfrac{2\pi k n}{N} + \varphi_k\big) + w_n$ \\[5pt]
-Correlate & $I = \dfrac{2}{MN}\sum_{n=0}^{MN-1} c_n \cos\dfrac{2\pi n}{N}$, \qquad $Q = \dfrac{2}{MN}\sum_{n=0}^{MN-1} c_n \sin\dfrac{2\pi n}{N}$ \\[10pt]
-Orthogonality & over whole periods $\sum \cos^2 = \tfrac{MN}{2}$, $\sum \cos\cdot\sin = 0$, $\sum \cos\tfrac{2\pi n}{N}\cos\tfrac{2\pi k n}{N} = 0$ for $k \ne 1$, $\sum \cos = 0$ \\[5pt]
-Result & $I = A_1 \cos\varphi$, \; $Q = -A_1 \sin\varphi$, \; $\hat X = I - \mathrm{j}Q = A_1 \mathrm{e}^{\mathrm{j}\varphi}$; DC and every harmonic vanish \\[3pt]
- & $|\hat X| = \sqrt{I^2+Q^2}$, \quad $\varphi = \operatorname{atan2}(-Q,\, I)$ \\[5pt]
-Noise & white $w_n$, variance $\sigma_w^2$: $\sigma_{|X|}^2 = 2\sigma_w^2/MN$, i.e.\ $6.02$\,dB per $4\times$ periods; $\sigma_{|Z|}/|Z|$ from 1.20\,\% at $M{=}1$ to 0.009\,\% at $M{=}16384$ (N=0 tap) \\
-\end{tabular}}
-\end{frame}
-
-\begin{frame}{The demodulation, in full (2/2): from two phasors to $R_{\mathrm{ct}}$ and $C_{\mathrm{dl}}$}
-\vspace{-0.1cm}
-{\footnotesize
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{10.2cm}@{}}
-Records & $\hat V_{\mathrm{P}}$ from the potential channel (the DAC command; RE tracks it through A1), $\hat V_{\mathrm{OUT}}$ from the TIA output, interleaved on one SAR \\[5pt]
-Skew & $v_{\mathrm{out}}$ samples sit at $(n+\tfrac12)T_s$, a lag of $\pi f/f_s$: $\hat V_{\mathrm{OUT}} \leftarrow \hat V_{\mathrm{OUT}}\,\mathrm{e}^{+\mathrm{j}\pi f/f_s}$ \\[5pt]
-Impedance & $\hat Z = \dfrac{\hat V_{\mathrm{P}}}{\hat I_{\mathrm{WE}}} = -R_f\,\dfrac{\hat V_{\mathrm{P}}}{\hat V_{\mathrm{OUT}}}$, \quad $|Z| = R_f\dfrac{|\hat V_{\mathrm{P}}|}{|\hat V_{\mathrm{OUT}}|}$, \quad $\angle Z = \varphi_{\mathrm{P}} - \varphi_{\mathrm{OUT}} + \pi$ \\[10pt]
- & the LSB and the square's $\tfrac{4}{\pi}\tfrac{A}{2}$ are in both records and cancel in the ratio \\[5pt]
-Calibrate & $\hat Z = Z_{\mathrm{cal}}\,\dfrac{\hat V_{\mathrm{P}}\,\hat V^{\mathrm{cal}}_{\mathrm{OUT}}}{\hat V_{\mathrm{OUT}}\,\hat V^{\mathrm{cal}}_{\mathrm{P}}}$ at the same $f$ and gain code: $R_f$, its pole and the DAC carry droop cancel \\[10pt]
-Extract & $R_u = \Re \hat Z$ at the top of the band; \; $Y = \dfrac{1}{\hat Z - R_u} = \dfrac{1}{R_{\mathrm{ct}}} + \mathrm{j}\omega C_{\mathrm{dl}}$; \; $R_{\mathrm{ct}} = 1/\Re Y$, \; $C_{\mathrm{dl}} = \Im Y/\omega$ \\[5pt]
-Cost & $2MN$ multiply-accumulates per frequency point, on the channel hart or the NPU \\
+Records & $v_{\mathrm{P}}$ (DAC command) and $v_{\mathrm{out}}$, interleaved on one SAR \\
+Divide  & $\hat Z = -R_f\,\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}}$: magnitudes divide, phases subtract \\
+Ratio   & against $Z_{\mathrm{cal}}$ at the same $f$ and gain code: $R_f$ drops out \\
 \end{tabular}}
 \end{frame}
 
