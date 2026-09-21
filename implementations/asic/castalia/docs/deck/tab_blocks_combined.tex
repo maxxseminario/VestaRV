@@ -1,0 +1,48 @@
+%% HAND-ASSEMBLED for this deck from the TRM's generated tables (analog/):
+%%   amplifier   tab_ampab_openloop, tab_ampab_offset (corners);
+%%               tab_ampab_mc_openloop, tab_ampab_mc_offset (sigma)
+%%   Rf string   tab_tiarprog_lin (typ only: the TRM tabulates Rf corners as a
+%%               figure, fig_tiarprog_r_vs_code, not a table); tab_tiarprog_mc
+%%   SAR ADC     tab_adc_corners (extracted; spread = max - min, computed here);
+%%               no mismatch sigma: note_adc_mc, the extracted netlist carries
+%%               no mismatch statistics
+%%   R-2R DAC    tab_dacr2r12_ideal (corners); tab_dacr2r12_mc_scale and
+%%               tab_dacr2r12_mc_ideal (sigma)
+%% Corner columns are copied verbatim; sigma is the MC column of the matching
+%% row (200 samples, process + mismatch, nominal corner).  Regenerate by hand
+%% when the TRM tables change.
+\begin{tabular}{@{}llrrrrrrr@{}}
+\toprule
+Parameter & Unit & tt & ff & fs & sf & ss & Spread & $\sigma$ (MC) \\
+\midrule
+\multicolumn{9}{@{}l}{\textbf{Class-AB amplifier} (A1 and A2)} \\
+Open-loop gain           & dB    & 82.77 & 79.88 & 83.14 & 83.37 & 84.94 & 5.06  & 1.06 \\
+Phase margin             & deg   & 73.52 & 74.70 & 74.04 & 72.86 & 73.34 & 1.84  & 1.42 \\
+Dominant pole            & kHz   & 1.592 & 2.286 & 1.538 & 1.494 & 1.225 & 1.061 & 0.276 \\
+Gain-bandwidth product   & MHz   & 22.78 & 23.19 & 22.89 & 22.94 & 22.59 & 0.60  & 3.57 \\
+Input offset voltage     & mV    & 0.622 & 0.649 & 0.624 & 0.569 & 0.456 & 0.193 & 5.201 \\
+\addlinespace
+\multicolumn{9}{@{}l}{\textbf{Programmable feedback resistor}$^{a}$} \\
+$R$ at $N{=}0$           & k$\Omega$ & 19.64  & -- & -- & -- & -- & -- & 0.071 \\
+$R$ at $N{=}319$         & M$\Omega$ & 1.931  & -- & -- & -- & -- & -- & 0.0007 \\
+Seam step $63{\to}64$    & k$\Omega$ & 7.42   & -- & -- & -- & -- & -- & 0.504 \\
+\addlinespace
+\multicolumn{9}{@{}l}{\textbf{10-bit SAR ADC}, extracted$^{b}$} \\
+Fitted slope             & codes/V & 628.59 & 628.59 & 628.40 & 628.73 & 628.13 & 0.60 & -- \\
+Effective LSB            & mV    & 1.5909 & 1.5909 & 1.5914 & 1.5905 & 1.5920 & 0.0015 & -- \\
+Input at code 0          & V     & 0.4408 & 0.4408 & 0.4407 & 0.4408 & 0.4399 & 0.0009 & -- \\
+Usable span              & V     & 1.6274 & 1.6274 & 1.6280 & 1.6271 & 1.6286 & 0.0015 & -- \\
+Worst residual           & LSB   & 0.495 & 0.495 & 0.490 & 0.477 & 0.484 & 0.018 & -- \\
+RMS residual             & LSB   & 0.294 & 0.294 & 0.277 & 0.288 & 0.302 & 0.025 & -- \\
+Analog supply current    & \textmu A & 6.36 & 4.79 & 5.45 & 8.44 & 15.43 & 10.64 & -- \\
+Energy per conversion    & pJ    & 20.8  & 19.3  & 18.1  & 27.3  & 49.5  & 31.4  & -- \\
+\addlinespace
+\multicolumn{9}{@{}l}{\textbf{12-bit R--2R reference DAC}, ideal rail} \\
+Full-scale output        & V     & 2.499388 & 2.499388 & 2.499388 & 2.499388 & 2.499388 & 0 & 0.000001 \\
+LSB size                 & \textmu V & 610.351 & 610.351 & 610.351 & 610.351 & 610.351 & 0 & 0.0003 \\
+INL, most positive       & LSB   & 0.113 & 0.101 & 0.100 & 0.127 & 0.130 & 0.030 & 0.610 \\
+INL, most negative       & LSB   & $-0.376$ & $-0.338$ & $-0.390$ & $-0.362$ & $-0.414$ & 0.076 & 0.620 \\
+DNL, most positive       & LSB   & 0.002 & 0.001 & 0.002 & 0.002 & 0.002 & 0.000 & 1.128 \\
+DNL, most negative       & LSB   & $-0.423$ & $-0.374$ & $-0.424$ & $-0.424$ & $-0.479$ & 0.105 & 1.415 \\
+\bottomrule
+\end{tabular}

@@ -273,27 +273,7 @@ Excitation & Demodulation & Accuracy & $|Z|$ range \\
 \centering\trmfit[20cm]{\linewidth}{6.4cm}{\MaestroRoot sch_TiaAmpAB_topology.tex}
 \end{frame}
 
-% Sources: TRM tab_ampab_openloop and tab_ampab_offset (corners; one cell serves as A1 and A2).
-\begin{frame}{The amplifier across corners}
-\centering
-\trmfit[16cm]{\linewidth}{3.4cm}{\MaestroRoot tab_ampab_openloop.tex}
-\vspace{0.15cm}
 
-\trmfit[16cm]{\linewidth}{2.6cm}{\MaestroRoot tab_ampab_offset.tex}
-\vspace{0.05cm}
-{\centering\bsim\par}
-\end{frame}
-
-% Sources: TRM tab_ampab_mc_openloop and tab_ampab_mc_offset (process + mismatch).
-\begin{frame}{The amplifier under mismatch}
-\centering
-\trmfit[18cm]{\linewidth}{3.4cm}{\MaestroRoot tab_ampab_mc_openloop.tex}
-\vspace{0.15cm}
-
-\trmfit[18cm]{\linewidth}{2.6cm}{\MaestroRoot tab_ampab_mc_offset.tex}
-\vspace{0.05cm}
-{\centering\bmc\par}
-\end{frame}
 
 % Source: TRM fig_px_xover_ierr (analog/).
 \begin{frame}{Bipolar accuracy through zero}
@@ -327,16 +307,6 @@ LSB at 319 & \multicolumn{2}{r}{0.824\,nA} \\
 \sowhat{Strictly monotonic at every corner, including the four thermometer seams. Maximum gain is noise-limited, not quantisation-limited.}
 \end{frame}
 
-% Sources: TRM tab_tiarprog_lin (corners), tab_tiarprog_mc.
-\begin{frame}{Feedback resistor across corners and under mismatch}
-\centering
-\trmfit[14cm]{\linewidth}{3.0cm}{\MaestroRoot tab_tiarprog_lin.tex}
-\vspace{0.15cm}
-
-\trmfit[14cm]{\linewidth}{2.8cm}{\MaestroRoot tab_tiarprog_mc.tex}
-\vspace{0.05cm}
-{\centering\bsim\quad\bmc\par}
-\end{frame}
 
 % Source: TRM fig_adc_transfer (analog/), extracted anatop_pixel_adc.
 \begin{frame}{10-bit SAR ADC, extracted netlist}
@@ -346,22 +316,21 @@ LSB at 319 & \multicolumn{2}{r}{0.824\,nA} \\
 \sowhat{23 clocks per conversion, 870\,kSa/s, 50\,pJ. The capacitor array exists only in layout, so this is the one block characterised extracted.}
 \end{frame}
 
-% Source: TRM tab_adc_corners (extracted converter, five corners).
-\begin{frame}{SAR ADC across corners}
-\centering\trmfit[16cm]{\linewidth}{6.2cm}{\MaestroRoot tab_adc_corners.tex}
-\vspace{0.05cm}
-{\centering\bext\par}
-\end{frame}
 
-% Sources: TRM tab_dacr2r12_ideal (corners) and tab_dacr2r12_mc_ideal (MC).
-\begin{frame}{Reference DAC across corners and under mismatch}
+
+% Deck-local tab_blocks_combined.tex: the TRM's corner tables verbatim, with
+% the matching Monte Carlo sigma appended (sources in the file header).
+\begin{frame}{Block results: corners, with mismatch $\sigma$}
+\vspace{-0.1cm}
 \centering
-\trmfit[16cm]{\linewidth}{3.0cm}{\MaestroRoot tab_dacr2r12_ideal.tex}
-\vspace{0.15cm}
-
-\trmfit[18cm]{\linewidth}{3.0cm}{\MaestroRoot tab_dacr2r12_mc_ideal.tex}
+\resizebox*{!}{5.9cm}{\input{tab_blocks_combined.tex}}
 \vspace{0.05cm}
-{\centering\bsim\quad\bmc\par}
+
+{\scriptsize\raggedright
+$\sigma$: 200 samples, process $+$ mismatch, nominal corner. Corner runs hold the passive models at typical, so resistor and ladder spreads are lower bounds.
+$^{a}$The TRM carries $R_f$ corners as a figure (the $R_f$ slide), not a table.
+$^{b}$Extracted netlist; the extraction carries no mismatch statistics, so no $\sigma$.
+Amplifier and DAC schematic sim$^{*}$; SAR extracted.\par}
 \end{frame}
 
 % Source: TRM Ch. 33 measurement tables (analog/note_meas_*.tex).
