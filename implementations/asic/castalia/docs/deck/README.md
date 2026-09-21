@@ -1,6 +1,6 @@
 # Castalia short overview deck
 
-42 slides, figure-led, ECEN 222 lecture template (Berkeley theme, beaver colours,
+45 slides, figure-led, ECEN 222 lecture template (Berkeley theme, beaver colours,
 16:9). Built PDF is copied one level up, next to the published `TRM.pdf`.
 
     make          # two pdflatex passes, then copies ../castalia_deck.pdf
@@ -41,9 +41,10 @@ averaged, from the TRM's process-gain numbers),
 `fig_reporter_window.tex` (the reporter potential window and the
 screen-printed-electrode peak-current envelope with our four panel values on
 them; sources in its header), `fig_power_gating.tex` (digital power against tiles gated,
-from the post-route reports), `tab_blocks_combined.tex` (the TRM's corner
-tables for the amplifier, R_f, SAR and DAC with the matching Monte Carlo sigma
-appended; sources in its header, regenerate by hand when the TRM tables change), `preamble.tex` (the lecture template) and `trmreuse.tex` (the float- and
+from the post-route reports), `tab_blocks_combined.tex` and its per-block splits
+`tab_block_{amp,rf,sar,dac}.tex` (the TRM's corner tables with the matching
+Monte Carlo sigma appended; sources in the combined file's header, regenerate by
+hand when the TRM tables change), `preamble.tex` (the lecture template) and `trmreuse.tex` (the float- and
 caption-stripping machinery, documented in the file; same as the lab talk's but
 with repo-relative paths, the TRM's `v*` TikZ styles for the generated diagrams,
 `\trmslidestrokes` (heavier circuitikz strokes inside every `\trmfit`, since the

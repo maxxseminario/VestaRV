@@ -407,25 +407,24 @@ $N$, $M$       & samples per period, periods averaged \\
 % Sources: TRM note_eis_firmware (ratio to Z_cal), note_eis_coverage (all taps
 % the same poly, one dc calibration recovers the absolute edges), note_calibration
 % (per-chip constants in flash), tab_tiarprog (poly corner spread).
-\begin{frame}{Calibrating impedance: what cancels, and what a 20\,\% poly costs}
+\begin{frame}{Calibrating impedance}
 \centering
 {\footnotesize
-$\hat Z = Z_{\mathrm{cal}}\,\dfrac{(\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}})}{(\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}})_{\mathrm{cal}}}$ \quad same gain code, same frequency, same converter\par}
-\vspace{0.3cm}
+$\hat Z = Z_{\mathrm{cal}}\,\dfrac{(\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}})}{(\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}})_{\mathrm{cal}}}$ \quad same gain code, same frequency\par}
+\vspace{0.4cm}
 
 {\footnotesize
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{4.6cm}>{\raggedright\arraybackslash}p{4.6cm}@{}}
+\begin{tabular}{@{}lll@{}}
 \toprule
- & On-chip $Z_{\mathrm{cal}}$ (per decade, muxed in) & Off-chip standard (at test) \\
+ & On-chip poly, per decade & Off-chip standard, at test \\
 \midrule
-Cancels     & $R_f$, its pole, the DAC, the LSB, A2's gain floor & the same \\
-Value known & to the poly's chip-to-chip spread, $\sim$20\,\% & to the standard, $<0.1$\,\% \\
-When        & any time, in the field, before every point & once per chip, stored in flash \\
-Tracks      & temperature and ageing, since $Z_{\mathrm{cal}}$ and $R_f$ are the same poly & the channel on the day it was tested \\
-Good for    & trends: fouling is a change in one electrode's $Z$, untouched by a fixed scale & absolute ohms \\
+Cancels     & $R_f$, its pole, DAC, LSB, loop-gain floor & the same \\
+Known to    & $\sim$20\,\% chip to chip & $<0.1$\,\% \\
+Run         & any time, in the field & once, stored in flash \\
+Good for    & trends: fouling is a change in one electrode's $Z$ & absolute ohms \\
 \bottomrule
 \end{tabular}}
-\sowhat{The poly need not be accurate, only stable. One off-chip number per chip pins the absolute scale; the on-chip ratio carries it through temperature and time.}
+\sowhat{The poly need not be accurate, only stable. One stored number pins the scale; the on-chip ratio carries it through temperature and time.}
 \end{frame}
 
 % =====================================================================
@@ -438,6 +437,16 @@ Good for    & trends: fouling is a change in one electrode's $Z$, untouched by a
 \end{frame}
 
 
+
+% Deck-local tab_block_amp.tex (split from tab_blocks_combined.tex; sources in its header).
+\begin{frame}{The amplifier across corners, with mismatch $\sigma$}
+\centering
+\resizebox*{!}{2.6cm}{\input{tab_block_amp.tex}}
+\vspace{0.2cm}
+
+{\scriptsize $\sigma$: 200 samples, process $+$ mismatch, nominal corner. Corner runs hold the passive models at typical, so resistor and ladder spreads are lower bounds.\par}
+{\centering \bsim\par}
+\end{frame}
 
 % Source: TRM fig_px_xover_ierr (analog/).
 \begin{frame}{Bipolar accuracy through zero}
@@ -472,6 +481,16 @@ LSB at 319 & \multicolumn{2}{r}{0.824\,nA} \\
 \end{frame}
 
 
+% Deck-local tab_block_rf.tex (split from tab_blocks_combined.tex; sources in its header).
+\begin{frame}{Feedback resistor under mismatch}
+\centering
+\resizebox*{!}{1.9cm}{\input{tab_block_rf.tex}}
+\vspace{0.2cm}
+
+{\scriptsize $\sigma$: 200 samples, process $+$ mismatch, nominal corner. Corners are the figure on the previous slide: monotonic at every corner.\par}
+{\centering \bsim\quad\bmc\par}
+\end{frame}
+
 % Source: TRM fig_adc_transfer (analog/), extracted anatop_pixel_adc.
 \begin{frame}{10-bit SAR ADC, extracted netlist}
 \centering\trmfit{\linewidth}{5.4cm}{\MaestroRoot fig_adc_transfer.tex}
@@ -482,19 +501,24 @@ LSB at 319 & \multicolumn{2}{r}{0.824\,nA} \\
 
 
 
-% Deck-local tab_blocks_combined.tex: the TRM's corner tables verbatim, with
-% the matching Monte Carlo sigma appended (sources in the file header).
-\begin{frame}{Block results: corners, with mismatch $\sigma$}
-\vspace{-0.1cm}
+% Deck-local tab_block_sar.tex (split from tab_blocks_combined.tex; sources in its header).
+\begin{frame}{SAR ADC across corners}
 \centering
-\resizebox*{!}{5.9cm}{\input{tab_blocks_combined.tex}}
-\vspace{0.05cm}
+\resizebox*{!}{3.6cm}{\input{tab_block_sar.tex}}
+\vspace{0.2cm}
 
-{\scriptsize\raggedright
-$\sigma$: 200 samples, process $+$ mismatch, nominal corner. Corner runs hold the passive models at typical, so resistor and ladder spreads are lower bounds.
-$^{a}$The TRM carries $R_f$ corners as a figure (the $R_f$ slide), not a table.
-$^{b}$Extracted netlist; the extraction carries no mismatch statistics, so no $\sigma$.
-Amplifier and DAC: schematic sim$^{*}$; SAR: extracted.\par}
+{\scriptsize Spread is max $-$ min over the five corners. No mismatch $\sigma$: the extracted netlist carries no mismatch statistics.\par}
+{\centering \bext\par}
+\end{frame}
+
+% Deck-local tab_block_dac.tex (split from tab_blocks_combined.tex; sources in its header).
+\begin{frame}{Reference DAC across corners, with mismatch $\sigma$}
+\centering
+\resizebox*{!}{2.8cm}{\input{tab_block_dac.tex}}
+\vspace{0.2cm}
+
+{\scriptsize $\sigma$: 200 samples, process $+$ mismatch, nominal corner. Corner runs hold the passive models at typical, so resistor and ladder spreads are lower bounds.\par}
+{\centering \bsim\quad\bmc\par}
 \end{frame}
 
 % Source: TRM Ch. 33 measurement tables (analog/note_meas_*.tex).
