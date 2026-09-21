@@ -529,8 +529,8 @@ Modality             & \best{CA/CV/DPV/EIS}     & CA/CV       & CA/CV     & CA/C
 Channels             & \best{4, simultaneous}   & 1           & 1         & 1               & 1 \\
 Current direction    & bipolar                  & unipolar    & bipolar   & bipolar         & bipolar \\
 $I_{\max}$ (\textmu A) & $\pm40.7$              & $+20$       & $\pm5$    & $\pm20$         & $-48/{+}16$ \\
-Resolution (pA)      & 820 LSB$^{a}$            & 153 LSB     & 41        & 0.47            & 1.7 \\
-Noise floor (pA rms) & 341$^{b}$                & 56.5        & --        & --              & -- \\
+Resolution (pA rms)  & 341$^{a}$                & 56.5        & 41        & 0.47            & 1.7 \\
+ADC step (pA)        & 820$^{b}$                & 153         & n/a       & n/a             & n/a \\
 Potential window     & $\pm0.8$\,V about $v_{\mathrm{cm}}$ & 0--2\,V & -- & --            & -- \\
 Converter            & 10-bit SAR per channel   & 12-bit dual-slope & TDC & ADC             & -- \\
 EIS                  & firmware, $\pm$1\,\% to 5\,kHz & --    & --        & --              & yes \\
@@ -544,8 +544,8 @@ On-chip ML           & \best{NPU, 4 modes}      & NPU, 1 mode & none      & none
 
 {\scriptsize\raggedright
 Castalia column is pre-silicon and best case; \best{green} marks the entries no listed work matches.
-$^{a}$LSB at the maximum-gain tap; 81\,nA at the lowest.
-$^{b}$Input-referred, 0.1--100\,Hz, ideal $R_f$, no electrode; 3.6--21\,nA into an electrode.
+$^{a}$Input-referred noise, 0.1--100\,Hz, ideal $R_f$, no electrode; 3.6--21\,nA into an electrode.
+$^{b}$One converter code at the maximum-gain tap; 81\,nA at the lowest.
 $^{c}$Digital only, hart 0 awake, four tiles gated, post-route SS 125\,\textdegree C 25\,MHz; one channel measuring adds 1.76\,mW (tile) $+$ 1.14\,mW (AFE).
 $^{d}$Measured: 2.8\,mW digital at 24\,MHz $+$ 258\,\textmu W AFE. -- not reported in [9].\par}
 \end{frame}
