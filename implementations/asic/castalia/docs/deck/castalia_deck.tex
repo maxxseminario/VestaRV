@@ -175,10 +175,10 @@ CEA    & CEACAM5 glycoprotein    & 5\,ng/mL \\
 % tab_electrode_peaks, sch_models_cell); the Verilog-A source is
 % ic/castalia/electrode_bc/veriloga/veriloga.va (GRID line for the slab count).
 \begin{frame}{The electrode model, in Verilog-A}
-\begin{columns}[T]
-\column{0.30\textwidth}
+\begin{columns}[T,onlytextwidth]
+\column{0.31\textwidth}
 \vspace{0.2cm}
-\trmfit[8cm]{\linewidth}{3.0cm}{\MaestroRoot sch_models_cell.tex}
+\trmfit[8cm]{0.9\linewidth}{3.0cm}{\MaestroRoot sch_models_cell.tex}
 \vspace{0.1cm}
 
 {\scriptsize $R_u$, $R_{\mathrm{ce}}$, $C_{\mathrm{dl}}$ lumped; the faradaic branch $Z_f$ is the Verilog-A element.\par}
@@ -193,7 +193,7 @@ $C_{O,R}(0,t)$ & surface conc.\ of O, R \\
 $C^{*}$        & bulk conc. \\
 $\delta$       & Nernst layer \\
 \end{tabular}}
-\column{0.66\textwidth}
+\column{0.67\textwidth}
 {\footnotesize
 \resizebox{\linewidth}{!}{%
 \begin{tabular}{@{}ll@{}}
@@ -203,7 +203,7 @@ Boundaries & flux $= \pm i_f/nFA$ at the surface; $C(\delta,t) = C^{*}$ at the N
 \end{tabular}}}
 \vspace{0.2cm}
 
-\trmfit[14cm]{\linewidth}{3.4cm}{\MaestroRoot tab_electrode_params.tex}
+\trmfit[14cm]{0.96\linewidth}{3.4cm}{\MaestroRoot tab_electrode_params.tex}
 \end{columns}
 \sowhat{Equations: Bard--Faulkner [13]. Discretisation: Britz--Strutwolf, Feldberg [17,\,18]. Precedent for Verilog-A electrode co-simulation: Jog \emph{et al.} [19].}
 \end{frame}
