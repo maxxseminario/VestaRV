@@ -451,12 +451,14 @@ Good for    & trends: fouling is a change in one electrode's $Z$ & absolute ohms
 
 % Source: TRM fig_tiarprog_r_vs_code (analog/).
 \begin{frame}{Programmable feedback resistor: one string, 320 codes}
-\vspace{-0.1cm}
+\vspace{-0.15cm}
 {\scriptsize
-$R_f = 18\,\mathrm{k}\Omega + 6\,\mathrm{k}\Omega\cdot N$ sets the current range: full scale $= 0.80\,\mathrm{V}/R_f$ (TIA compliance), LSB $= 1.59\,\mathrm{mV}/R_f$ (SAR).
-\textbf{Max $\pm$40.7\,\textmu A, min full scale $\pm$0.41\,\textmu A, resolution 0.82\,nA.}
-Noise floor $i_n^2 = e_n^2\,(1 + R_f/|Z_{\mathrm{el}}|)^2/R_f^2 + 4kT/R_f$, 0.1--100\,Hz: 341\,pA with no electrode, 3.6--21\,nA into the electrode grid at 560\,k$\Omega$.\par}
-\vspace{0.1cm}
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item $R_f = 18\,\mathrm{k}\Omega + 6\,\mathrm{k}\Omega\cdot N$; full scale $= 0.80\,\mathrm{V}/R_f$, LSB $= 1.59\,\mathrm{mV}/R_f$
+  \item \textbf{Max $\pm$40.7\,\textmu A, min full scale $\pm$0.41\,\textmu A, resolution 0.82\,nA}
+  \item Noise floor $i_n^2 = e_n^2\,(1 + R_f/|Z_{\mathrm{el}}|)^2/R_f^2 + 4kT/R_f$: 341\,pA alone, 3.6--21\,nA into an electrode (0.1--100\,Hz, 560\,k$\Omega$)
+\end{itemize}}
+\vspace{0.05cm}
 \begin{columns}[T]
 \column{0.62\textwidth}
 \trmfit[13cm]{\linewidth}{4.5cm}{\MaestroRoot fig_tiarprog_r_vs_code.tex}
@@ -523,8 +525,8 @@ Seam $63{\to}64$  & 504\,$\Omega$ & 6.8\,\% \\
 \toprule
  & \textbf{Castalia} (this work) & Myshkin [9] & Chen '19 [10] & Ghoreishizadeh '17 [11] & Lin '23 [12] \\
 \midrule
-Modality             & CA/CV/DPV/EIS            & CA/CV       & CA/CV     & CA/CV           & CV/EIS \\
-Channels             & 4, simultaneous          & 1           & 1         & 1, differential & 1 \\
+Modality             & \best{CA/CV/DPV/EIS}     & CA/CV       & CA/CV     & CA/CV           & CV/EIS \\
+Channels             & \best{4, simultaneous}   & 1           & 1         & 1               & 1 \\
 Current direction    & bipolar                  & unipolar    & bipolar   & bipolar         & bipolar \\
 $I_{\max}$ (\textmu A) & $\pm40.7$              & $+20$       & $\pm5$    & $\pm20$         & $-48/{+}16$ \\
 Resolution (pA)      & 820 LSB$^{a}$            & 153 LSB     & 41        & 0.47            & 1.7 \\
@@ -533,15 +535,15 @@ Potential window     & $\pm0.8$\,V about $v_{\mathrm{cm}}$ & 0--2\,V & -- & --  
 Converter            & 10-bit SAR per channel   & 12-bit dual-slope & TDC & ADC             & -- \\
 EIS                  & firmware, $\pm$1\,\% to 5\,kHz & --    & --        & --              & yes \\
 Power (mW)           & 3.68$^{c}$               & 3.0$^{d}$   & 0.016     & 9.3             & 1.0 \\
-Process (nm)         & 65                       & 65          & 180       & 350             & 180 \\
-On-chip processor    & 5 RISC-V harts           & 1 RISC-V hart & none    & none            & none \\
-On-chip ML           & NPU, 4 modes             & NPU, 1 mode & none      & none            & none \\
+Process (nm)         & \best{65}                & 65          & 180       & 350             & 180 \\
+On-chip processor    & \best{5 RISC-V harts}    & 1 RISC-V hart & none    & none            & none \\
+On-chip ML           & \best{NPU, 4 modes}      & NPU, 1 mode & none      & none            & none \\
 \bottomrule
 \end{tabular}}}
 \vspace{0.12cm}
 
 {\scriptsize\raggedright
-Castalia column is pre-silicon and best case.
+Castalia column is pre-silicon and best case; \best{green} marks the entries no listed work matches.
 $^{a}$LSB at the maximum-gain tap; 81\,nA at the lowest.
 $^{b}$Input-referred, 0.1--100\,Hz, ideal $R_f$, no electrode; 3.6--21\,nA into an electrode.
 $^{c}$Digital only, hart 0 awake, four tiles gated, post-route SS 125\,\textdegree C 25\,MHz; one channel measuring adds 1.76\,mW (tile) $+$ 1.14\,mW (AFE).
