@@ -298,9 +298,9 @@ Resolve  & firmware: $\Delta I = I(S_2) - I(S_1)$ vs $E$; peak position: marker,
 {\footnotesize
 \begin{tabular}{@{}ll@{}}
 Excite   & DAC: a small two-code square about the DC setpoint $v_{\mathrm{ref}}$ \\
-Sense    & $v_{\mathrm{P}}$, the commanded potential (RE tracks it through A1; RE tap pending); $i_{\mathrm{WE}} = -v_{\mathrm{out}}/R_f$ \\
-Digitise & one SAR, both records interleaved; firmware I/Q MAC over $M$ periods \\
-Solve    & $\hat Z = -R_f\,\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}}$, or ratio to $Z_{\mathrm{cal}}$ ($R_f$, LSB, $4/\pi$ cancel) \\
+Sense    & $v_{\mathrm{P}}$ across the cell; $i_{\mathrm{WE}} = -v_{\mathrm{out}}/R_f$ \\
+Digitise & the SAR records both; firmware I/Q demodulation \\
+Solve    & $\hat Z = -R_f\,\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}}$, or a ratio to $Z_{\mathrm{cal}}$ \\
 \end{tabular}}
 \end{frame}
 
@@ -314,9 +314,9 @@ Solve    & $\hat Z = -R_f\,\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}}$, or ratio 
 
 {\footnotesize
 \begin{tabular}{@{}ll@{}}
-Records & $v_{\mathrm{P}}$ (DAC command) and $v_{\mathrm{out}}$, interleaved on one SAR \\
-Divide  & $\hat Z = -R_f\,\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}}$: magnitudes divide, phases subtract \\
-Ratio   & against $Z_{\mathrm{cal}}$ at the same $f$ and gain code: $R_f$ drops out \\
+Records & $v_{\mathrm{P}}$ and $v_{\mathrm{out}}$ \\
+Divide  & $\hat Z = -R_f\,\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}}$ \\
+Ratio   & against $Z_{\mathrm{cal}}$: $R_f$ drops out \\
 \end{tabular}}
 \end{frame}
 
