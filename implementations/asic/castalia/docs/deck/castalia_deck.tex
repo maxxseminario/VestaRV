@@ -23,7 +23,6 @@
 \input{trmreuse.tex}
 
 \title[Castalia]{Castalia}
-\subtitle{A four-channel electrochemical sensing SoC with a five-hart RISC-V back end}
 \author{Maxx Seminario}
 \institute{University of Nebraska--Lincoln}
 \date{\today}
@@ -41,7 +40,7 @@
 % Sources: SEER Cancer Stat Facts per site [1]; USPSTF grades [2,3].
 % Data and citations are in the header of fig_cancer_compare.tex.
 % Two slides on the same figure: first the field, then the one we chose.
-\begin{frame}[t]{Where cancers are caught, and whether anyone looks}
+\begin{frame}[t]{Cancer Risk Overview}
 \begin{columns}[T]
 \column{0.56\textwidth}
 \vspace{0.05cm}
@@ -53,7 +52,7 @@
 \end{columns}
 \end{frame}
 
-\begin{frame}[t]{Why ovarian: late, lethal, and unscreened}
+\begin{frame}[t]{Why Ovarian: Late, Lethal, and Unscreened}
 \begin{columns}[T]
 \column{0.56\textwidth}
 \vspace{0.05cm}
@@ -89,7 +88,7 @@ Breast     &  6\,\% & 13 & B \\
 
 % Source: ISCAS'27 draft, Fig. 1 candidate G = candidate B without the anatomy
 % (outside the repo; guarded).
-\begin{frame}{One serum aliquot, four sites, one score}
+\begin{frame}{Concept Diagram}
 \IfFileExists{\ISCASroot Figures/concept_cand_G.tex}{%
   \centering\resizebox{\linewidth}{!}{\input{\ISCASroot Figures/concept_cand_G.tex}}%
 }{%
@@ -100,7 +99,7 @@ Breast     &  6\,\% & 13 & B \\
 
 % Sources: Chen 2018 [5] (458 patients, markers measured individually, then
 % fused); Charkhchi 2020 [8] for CA-125; Moore 2009 [6] for HE4/ROMA.
-\begin{frame}{No single marker is a test; four fused are [5]}
+\begin{frame}{Four-Marker Test [5]}
 \begin{columns}[T]
 \column{0.55\textwidth}
 \vspace{0.1cm}
@@ -131,7 +130,7 @@ CEA    & CEACAM5 glycoprotein    & 5\,ng/mL \\
 % regenerates with the chip configuration but is too dense for a slide.
 % The paper PNG predates the September configuration (it shows a 16 KiB boot
 % ROM, SPI x2, I2C x2 against the TRM's 8 KiB, x3, x4); the topology is the same.
-\begin{frame}{Block diagram}
+\begin{frame}{SoC Block Diagram}
 \IfFileExists{\ISCASroot Figures/castalia_block_diagram.png}{%
   \centering\includegraphics[width=\linewidth]{castalia_block_diagram.png}%
 }{%
@@ -142,7 +141,7 @@ CEA    & CEACAM5 glycoprotein    & 5\,ng/mL \\
 
 % Layout images pending a Virtuoso export (ducks). tapeout_review/PLAN.md for
 % die and core box; TRM Ch. 3 for the package.
-\begin{frame}{Physical implementation}
+\begin{frame}{Physical Implementation}
 \begin{columns}[T]
 \column{0.50\textwidth}
 \duckph{4.4cm}{}
@@ -156,14 +155,14 @@ CEA    & CEACAM5 glycoprotein    & 5\,ng/mL \\
 
 
 % Source: TRM sch_tb_pixel (analog/).
-\begin{frame}{Grounded-WE two-amplifier potentiostat}
+\begin{frame}{Potentiostat Schematic}
 \centering\trmfit[20cm]{\linewidth}{6.3cm}{sch_pixel_deck.tex}
 \sowhat{A1 drives CE with RE in feedback; A2 holds WE at $v_\mathrm{cm}$ through $R_f$. $v_\mathrm{out} = v_\mathrm{cm} - I_\mathrm{we} R_f$, both polarities.}
 \end{frame}
 
 % Placeholder: the analog top level (anatop_quad / per-tile channel) is to be
 % exported from Virtuoso by hand.  The duck is impossible to leave in by accident.
-\begin{frame}{Analog top level}
+\begin{frame}{Analog Top-Level Schematic}
 \duckph{11cm}{Virtuoso export of the analog top level: four channels, shared bias, test bus}
 \end{frame}
 
@@ -174,7 +173,7 @@ CEA    & CEACAM5 glycoprotein    & 5\,ng/mL \\
 % Sources: TRM ss:analog-electrode-bc (note_electrode_intro, tab_electrode_params,
 % tab_electrode_peaks, sch_models_cell); the Verilog-A source is
 % ic/castalia/electrode_bc/veriloga/veriloga.va (GRID line for the slab count).
-\begin{frame}{The electrode model, in Verilog-A}
+\begin{frame}{Electrode Model in Verilog-A}
 \begin{columns}[T,onlytextwidth]
 \column{0.30\textwidth}
 \vspace{0.2cm}
@@ -213,7 +212,7 @@ Boundaries & flux $= \pm i_f/nFA$ at the surface; $C(\delta,t) = C^{*}$ at the N
 % C_R*); TRM note_electrode_dpv, note_electrode_afe (k0 gap).  Target apex =
 % analytic baseline b(E_p) + i_p of gen_figdata, which is what the reporter
 % loading was fitted to reproduce through the simulated channel.
-\begin{frame}{Emulating the four markers}
+\begin{frame}{Emulating the Four Markers}
 \centering
 {\footnotesize
 \begin{tabular}{@{}llrrrl@{}}
@@ -240,7 +239,7 @@ Shared        & $\alpha = 0.5$, $n = 1$, $D = 5\times10^{-6}$\,cm$^2$/s, $A = 0.
 
 % Sources: Kang et al. 2016 [22] for the window and its causes; Clark et al.
 % 2023 [23] for methylene blue's E0'.  Deck-local figure fig_reporter_window.tex.
-\begin{frame}{Channel range, assay range, and where the panel was placed}
+\begin{frame}{Potentiostat Range}
 \centering
 \resizebox{0.8\linewidth}{!}{\input{fig_reporter_window.tex}}
 \vspace{0.05cm}
@@ -251,7 +250,7 @@ Potentials: spaced 150--250\,mV for one-sweep resolution inside the reporter win
 
 % Sources: TRM note_electrode_dpv for the programme; the schematic is the
 % TRM's sch_tb_pixel, annotated in fig_dpv_on_schematic.tex (deck-local).
-\begin{frame}{Exercising the cell: differential-pulse voltammetry}
+\begin{frame}{Differential-Pulse Voltammetry}
 \centering
 \resizebox{\linewidth}{!}{\input{fig_dpv_on_schematic.tex}}
 \vspace{0.1cm}
@@ -266,24 +265,31 @@ Resolve  & firmware: $\Delta I = I(S_2) - I(S_1)$ vs $E$; peak position: marker,
 \end{frame}
 
 % Source: TRM fig_electrode_dpv (analog/), schematic-level channel.
-\begin{frame}{Four markers resolved in one differential-pulse sweep}
+\begin{frame}{DPV Simulation Results}
 \centering\trmfit{\linewidth}{5.6cm}{\MaestroRoot fig_electrode_dpv.tex}
 \vspace{0.05cm}
 \sowhat{Peak position identifies the reporter, peak height carries concentration. Apexes within 2\,mV and 1\,\% of the assay targets; blank below 1\,pA.}
 \end{frame}
 
 % Source: TRM fig_electrode_dose (analog/).
-\begin{frame}{Every clinical cut-off lands inside the channel window}
+\begin{frame}{Dose-Response Simulation Results}
 \centering\trmfit{\linewidth}{5.6cm}{\MaestroRoot fig_electrode_dose.tex}
 \vspace{0.05cm}
 \sowhat{CA-125 35\,U/mL, HE4 70\,pmol/L, CA19-9 37\,U/mL, CEA 5\,ng/mL: all four on the steep part of the curve at one $R_f$ setting.}
 \end{frame}
 
 % Source: TRM fig_pixtop_cv (analog/), assembled channel with its own DAC and SAR.
-\begin{frame}{Cyclic voltammetry through the assembled channel}
+\begin{frame}{Cyclic Voltammetry, Spectre Simulation}
 \centering\trmfit{\linewidth}{5.6cm}{\MaestroRoot fig_pixtop_cv.tex}
 \vspace{0.05cm}
 \sowhat{Staircase potential from the on-chip DAC, current digitised by the on-chip SAR, unclipped over the sweep.}
+\end{frame}
+
+% Source: TRM fig_electrode_panel (uric acid, ascorbate, H2O2, pyocyanin as
+% electrode corners of the CV test through the channel).
+\begin{frame}{Cyclic Voltammetry, Small-Molecule Panel}
+\centering\trmfit{\linewidth}{5.8cm}{\MaestroRoot fig_electrode_panel.tex}
+\sowhat{Uric acid, ascorbate, H$_2$O$_2$ and pyocyanin through the same channel: a reagentless wound panel, one sweep each.}
 \end{frame}
 
 % Sources: ISCAS'27 lit survey: single-shot sandwich assays vs reagentless
@@ -291,7 +297,7 @@ Resolve  & firmware: $\Delta I = I(S_2) - I(S_1)$ vs $E$; peak position: marker,
 % 2 % with dual-reporter correction Li 2016 [25]; antifouling coatings
 % Sabate del Rio 2019 [26]; no centrifuge in vivo.  EIS role per TRM ss:eis
 % (fouling arc 0.02-160 Hz, |Z| 10 k - 1 M).
-\begin{frame}{Why impedance: for electrodes that stay in}
+\begin{frame}{Electrochemical Impedance Spectroscopy Motivation}
 \centering
 \resizebox{0.95\linewidth}{!}{\input{fig_stay_in.tex}}
 \vspace{0.4cm}
@@ -306,7 +312,7 @@ Firmware  & re-ranges, recalibrates, or retires the site \\
 
 % Sources: TRM ss:eis (note_eis_intro, note_eis_firmware); the schematic is the
 % TRM's sch_tb_pixel, annotated in fig_eis_on_schematic.tex (deck-local).
-\begin{frame}{How impedance is measured: the same loop, no extra hardware}
+\begin{frame}{Exercising EIS}
 \centering
 \resizebox{0.9\linewidth}{!}{\input{fig_eis_on_schematic.tex}}
 
@@ -322,7 +328,7 @@ Solve    & $\hat Z = -R_f\,\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}}$, or a rati
 % Sources: TRM note_eis_firmware (demodulation, ratio, extraction), note_eis_accuracy
 % (interleave skew rotation 180 f/f_s), the potential-channel statement in
 % note_eis_firmware (commanded potential, no RE tap).  Deck-local fig_iq_demod.tex.
-\begin{frame}{Magnitude and phase from codes: I/Q demodulation}
+\begin{frame}{EIS I/Q Demodulation}
 \centering
 \resizebox{0.9\linewidth}{!}{\input{fig_iq_demod.tex}}
 \vspace{0.3cm}
@@ -338,7 +344,7 @@ Ratio   & against $Z_{\mathrm{cal}}$: $R_f$ drops out \\
 % Sources: the three electrode states of afe_rev2_eis_lite.html and the TRM
 % models section; gain codes and run set from the fig_eis_error header
 % (eisdeep_20260826/ac_dense: 30 AC runs, 5 loads x 6 codes, 143 frequencies).
-\begin{frame}{The four loads behind the EIS plots}
+\begin{frame}{EIS Test Loads}
 \centering
 \resizebox{0.72\linewidth}{!}{\input{fig_randles_deck.tex}}
 \vspace{0.1cm}
@@ -360,7 +366,7 @@ fresh   & 1\,M$\Omega$ & 100\,nF & $N=63$ & a new, clean surface \\
 \end{frame}
 
 % Source: TRM fig_eis_error (analog/).
-\begin{frame}{Impedance spectroscopy on the same channel}
+\begin{frame}{EIS Simulation Results}
 \centering\trmfit[17cm]{\linewidth}{4.4cm}{fig_eis_error_deck.tex}
 \vspace{0.05cm}
 
@@ -376,7 +382,7 @@ Range & 246\,$\Omega$ to 12.1\,M$\Omega$. Limits: TIA compliance below, one LSB 
 % Sources: TRM note_eis_coverage (dc error scales with the noise gain
 % 1 + R_f/|Z|: 0.12 / 0.33 / 0.66 / 1.32 % at ratios 7.3 / 20 / 40 / 80),
 % eisdeep_20260826 ac_dense dc values per load, note_eis_excitation process gain.
-\begin{frame}{What sets the EIS error, and what averaging buys}
+\begin{frame}{EIS Errors}
 \begin{columns}[T]
 \column{0.52\textwidth}
 \vspace{0.3cm}
@@ -403,7 +409,7 @@ $N$, $M$       & samples per period, periods averaged \\
 % Sources: TRM note_eis_firmware (ratio to Z_cal), note_eis_coverage (all taps
 % the same poly, one dc calibration recovers the absolute edges), note_calibration
 % (per-chip constants in flash), tab_tiarprog (poly corner spread).
-\begin{frame}{Calibrating impedance}
+\begin{frame}{EIS Calibration}
 \centering
 {\footnotesize
 $\hat Z = Z_{\mathrm{cal}}\,\dfrac{(\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}})}{(\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}})_{\mathrm{cal}}}$ \quad same gain code, same frequency\par}
@@ -428,14 +434,14 @@ Good for    & trends: fouling is a change in one electrode's $Z$ & absolute ohms
 
 
 % Source: TRM sch_TiaAmpAB_topology (analog/), the one amplifier used as A1 and A2.
-\begin{frame}{The class-AB amplifier: one cell, both roles}
+\begin{frame}{General-Purpose Class-AB Amplifier}
 \centering\trmfit[20cm]{\linewidth}{6.4cm}{\MaestroRoot sch_TiaAmpAB_topology.tex}
 \end{frame}
 
 
 
 % Deck-local tab_block_amp.tex (split from tab_blocks_combined.tex; sources in its header).
-\begin{frame}{The amplifier across corners, with mismatch $\sigma$}
+\begin{frame}{Class-AB Amplifier Results}
 \centering
 \resizebox{0.9\linewidth}{!}{\input{tab_block_amp.tex}}
 \vspace{0.2cm}
@@ -444,13 +450,13 @@ Good for    & trends: fouling is a change in one electrode's $Z$ & absolute ohms
 \end{frame}
 
 % Source: TRM fig_px_xover_ierr (analog/).
-\begin{frame}{Bipolar accuracy through zero}
+\begin{frame}{Bipolar Potentiostat Results}
 \centering\trmfit{\linewidth}{5.6cm}{\MaestroRoot fig_px_xover_ierr.tex}
 \vspace{0.05cm}
 \end{frame}
 
 % Source: TRM fig_tiarprog_r_vs_code (analog/).
-\begin{frame}{Programmable feedback resistor: one string, 320 codes}
+\begin{frame}{Programmable Feedback Resistor Results}
 \vspace{-0.15cm}
 {\scriptsize
 \begin{itemize}\setlength{\itemsep}{0pt}
@@ -489,7 +495,7 @@ Seam $63{\to}64$  & 504\,$\Omega$ & 6.8\,\% \\
 \end{frame}
 
 % Source: TRM fig_adc_transfer (analog/), extracted anatop_pixel_adc.
-\begin{frame}{10-bit SAR ADC, extracted netlist}
+\begin{frame}{10-Bit SAR Transfer Function}
 \centering\trmfit{\linewidth}{5.4cm}{fig_adc_transfer_deck.tex}
 \vspace{0.05cm}
 {\centering\bext\par}
@@ -499,7 +505,7 @@ Seam $63{\to}64$  & 504\,$\Omega$ & 6.8\,\% \\
 
 
 % Deck-local tab_block_sar.tex (split from tab_blocks_combined.tex; sources in its header).
-\begin{frame}{SAR ADC across corners}
+\begin{frame}{SAR ADC Results}
 \centering
 \resizebox{0.85\linewidth}{!}{\input{tab_block_sar.tex}}
 \vspace{0.2cm}
@@ -508,7 +514,7 @@ Seam $63{\to}64$  & 504\,$\Omega$ & 6.8\,\% \\
 \end{frame}
 
 % Deck-local tab_block_dac.tex (split from tab_blocks_combined.tex; sources in its header).
-\begin{frame}{Reference DAC across corners, with mismatch $\sigma$}
+\begin{frame}{DAC Results}
 \centering
 \resizebox{0.9\linewidth}{!}{\input{tab_block_dac.tex}}
 \vspace{0.2cm}
@@ -517,7 +523,7 @@ Seam $63{\to}64$  & 504\,$\Omega$ & 6.8\,\% \\
 \end{frame}
 
 % Source: TRM Ch. 33 measurement tables (analog/note_meas_*.tex).
-\begin{frame}{The front end, against the field}
+\begin{frame}{Comparison Against the State of the Art}
 \centering
 {\footnotesize
 \resizebox{\linewidth}{!}{%
@@ -549,7 +555,7 @@ $^{c}$One channel measuring: orchestrator $+$ one tile (7.6\,mW digital) $+$ one
 % Source: TRM note_pixtop_power (pixel-top bench, nominal corner, 37 C):
 % rail 1.323 mW; block rollup 1.135 mW; corner rail span 432-914 uA, pinned
 % passives.  Deck-local fig_analog_power_pie.tex.
-\begin{frame}{Analog power: one channel}
+\begin{frame}{Analog Power Distribution}
 \begin{columns}[T]
 \column{0.66\textwidth}
 \vspace{0.3cm}
@@ -570,7 +576,7 @@ Four channels & 5.3\,mW \\
 
 % Reminder of the block diagram before the digital section; same figure as
 % the early slide.
-\begin{frame}{Block diagram, again}
+\begin{frame}{SoC Block Diagram}
 \IfFileExists{\ISCASroot Figures/castalia_block_diagram.png}{%
   \centering\includegraphics[width=\linewidth]{castalia_block_diagram.png}%
 }{%
@@ -584,7 +590,7 @@ Four channels & 5.3\,mW \\
 
 % Sources: TRM 2.1 Features and Fig. 2.1 (2026-09-15); tapeout_review/PLAN.md
 % for die, package, pads and power.  Analog rows: TRM Ch. 33.
-\begin{frame}{Castalia at a glance}
+\begin{frame}{SoC Specifications}
 \vspace{-0.1cm}
 \begin{columns}[T]
 \column{0.49\textwidth}
@@ -633,7 +639,7 @@ Digital power      & 12.8\,mW core post-route, SS, 25\,MHz \\
 % Sources: innovus/common/MCU_castalia_penta/rpt/MCU_castalia_penta.d13d_postRoute_full.power
 % (SS 0.9 V 125 C, 25 MHz, activity 0.2; core groups vs the IO group);
 % TRM Table 10.3 for CPI.
-\begin{frame}{Digital, as closed}
+\begin{frame}{Digital Results}
 \begin{columns}[T]
 \column{0.36\textwidth}
 \begin{block}{Digital, post-route}
@@ -687,7 +693,7 @@ memcpy    &  11\,017 & 1.726 \\
 
 % Sources: TRM PowerDomainDiagram (generated, Ch. 18 PWRCTRL); post-route power
 % reports for the chart (numbers in fig_power_gating.tex).
-\begin{frame}{Power gating: one switched rail per channel tile}
+\begin{frame}{Digital Power Gating}
 \centering
 \resizebox{0.62\linewidth}{!}{\input{fig_power_gating.tex}}
 \vspace{0.05cm}
@@ -699,7 +705,7 @@ memcpy    &  11\,017 & 1.726 \\
 % macro mcu0/npuram0 0.66 mW) and hart_tile_postRoute_full.power (1.742 mW,
 % 0.521 leakage).  Always-on leakage = 4.67 - 4 x 0.521.  Memory-block power
 % switches: TRM SYSTEM BLOCKPWR / PWRCTRL.
-\begin{frame}{Low-power modes}
+\begin{frame}{SoC Power Modes}
 \centering
 {\footnotesize
 \begin{tabular}{@{}lrrr>{\raggedright\arraybackslash}p{4.6cm}@{}}
@@ -720,43 +726,11 @@ Deep sleep                        & $<2.6$\,mW & 0     & $<2.6$\,mW & shared RAM
 \end{frame}
 
 % =====================================================================
-\section{Vision}
-
-% Sources: TRM fig_electrode_panel (uric acid, ascorbate, H2O2, pyocyanin CV
-% corners through the channel); lit survey: CA-125 is an epitope on a 3-5 MDa
-% mucin, no ISF access, serum only; NFC harvested boot and MTCMOS from the
-% digital slides.
-\begin{frame}{Vision: the same channel, without the cartridge}
-\begin{columns}[T]
-\column{0.54\textwidth}
-\trmfit[13cm]{\linewidth}{5.4cm}{\MaestroRoot fig_electrode_panel.tex}
-\column{0.42\textwidth}
-\vspace{0.1cm}
-{\footnotesize
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{3.1cm}@{}}
-\toprule
-Already on the die & \\
-\midrule
-4 sites        & concurrent, each its own DAC, SAR, hart \\
-EIS            & electrode state without a second instrument \\
-NFC            & harvested boot, battery-free readout \\
-MTCMOS         & a parked site costs nothing \\
-NPU            & the decision stays on the patient \\
-\bottomrule
-\end{tabular}}
-\vspace{0.2cm}
-
-{\scriptsize Left: a small-molecule wound panel, uric acid, ascorbate, H$_2$O$_2$ and pyocyanin, through the same channel.\par}
-\end{columns}
-\sowhat{The ovarian panel stays a serum test: CA-125 is an epitope on a 3--5\,MDa mucin and does not reach interstitial fluid. The wearable is a different, reagentless panel on the same silicon; the implant is the same plus a fouling problem that EIS can watch but not solve.}
-\end{frame}
-
-% =====================================================================
 \section{From currents to a score}
 
 
 % Source: TRM Ch. 17 (NPU), ISCAS'27 draft for the fusion form.
-\begin{frame}{The fusion runs on the NPU}
+\begin{frame}{Low-Power Inference, Cancer Risk}
 \centering
 \vspace{0.3cm}
 \[ s = \sigma\Big(\sum_{k=1}^{4} w_k\,\hat{c}_k + b\Big) \]
@@ -860,14 +834,14 @@ Output  & one risk score \\
 
 % Source: USPSTF grade definitions (current, post July 2012) [7]; per-site
 % grades from [2,3].  Verbatim definitions, condensed.
-\begin{frame}{Backup: electrode model validation}
+\begin{frame}{Backup: Electrode Model Validation}
 \centering\trmfit[14cm]{\linewidth}{4.0cm}{\MaestroRoot tab_electrode_peaks.tex}
 \vspace{0.2cm}
 
 {\footnotesize Peak current against Randles--\v{S}ev\v{c}\'ik and $\Delta E_p$ against Nicholson [13], reversible couple, $C_{\mathrm{dl}} = 0$ column isolates the faradaic model.}
 \end{frame}
 
-\begin{frame}{Backup: USPSTF screening grades}
+\begin{frame}{Backup: USPSTF Screening Grades}
 \centering
 {\footnotesize
 \begin{tabular}{@{}c>{\raggedright\arraybackslash}p{2.8cm}>{\raggedright\arraybackslash}p{4.7cm}>{\raggedright\arraybackslash}p{3.8cm}@{}}
