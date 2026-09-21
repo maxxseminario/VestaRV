@@ -1,28 +1,33 @@
 %% HAND-DRAWN for this deck.  Where one analog channel's power goes, nominal
-%% corner, from the TRM's pixel-top power note (note_pixtop_power):
-%%   A1, A2 and the two multiplexer buffers   4 x 243.8 uW =  975.2 uW  85.9 %
-%%   local bias generator                                     59.3 uW   5.2 %
-%%   the two R-2R ladders (reference, v_cm)                   88.8 uW   7.8 %
-%%   SAR converter                                            12.3 uW   1.1 %
-%%                                                  rollup  1135.6 uW
-%% The rollup does not follow the inherited supply ports; the rail
-%% measurement, 1.323 mW (528.7 uA at 2.5 V + 1.04 uA at 1.0 V), is the
-%% authoritative channel figure and is quoted on the slide.
+%% corner, block rollup from the TRM's pixel-top power note
+%% (note_pixtop_power): four amplifier instances of the same class-AB cell at
+%% 243.8 uW each -- A1 (control), A2 (transimpedance), and the two input
+%% multiplexer buffers, one feeding the converter and one the debug port --
+%% the two R-2R ladders 88.8 uW, the local bias generator 59.3 uW, the SAR
+%% 12.3 uW; rollup 1135.6 uW.  The rail measurement (1.323 mW) is the
+%% authoritative channel figure.  IO pad power is not covered here (open).
 \begin{tikzpicture}[font=\scriptsize]
-  \def\R{1.7}
-  % wedges clockwise from 12 o'clock: 309.2, 18.8, 28.1, 3.9 degrees
-  \fill[mtxA!75] (0,0) -- (90:\R) arc [start angle=90, end angle=-219.2, radius=\R] -- cycle;
-  \fill[mtxC!70] (0,0) -- (-219.2:\R) arc [start angle=-219.2, end angle=-238.0, radius=\R] -- cycle;
-  \fill[mtxD!75] (0,0) -- (-238.0:\R) arc [start angle=-238.0, end angle=-266.1, radius=\R] -- cycle;
-  \fill[mtxB!75] (0,0) -- (-266.1:\R) arc [start angle=-266.1, end angle=-270, radius=\R] -- cycle;
-  \draw[white, line width=1.2pt] (0,0) -- (90:\R) (0,0) -- (-219.2:\R) (0,0) -- (-238.0:\R) (0,0) -- (-266.1:\R);
+  \def\R{1.8}
+  \fill[mtxA!80] (0,0) -- (90.00:\R) arc [start angle=90.00, end angle=12.71, radius=\R] -- cycle;
+  \fill[mtxA!45] (0,0) -- (12.71:\R) arc [start angle=12.71, end angle=-64.58, radius=\R] -- cycle;
+  \fill[mtxC!75] (0,0) -- (-64.58:\R) arc [start angle=-64.58, end angle=-141.86, radius=\R] -- cycle;
+  \fill[mtxC!40] (0,0) -- (-141.86:\R) arc [start angle=-141.86, end angle=-219.15, radius=\R] -- cycle;
+  \fill[mtxD!75] (0,0) -- (-219.15:\R) arc [start angle=-219.15, end angle=-247.30, radius=\R] -- cycle;
+  \fill[mtxE!70] (0,0) -- (-247.30:\R) arc [start angle=-247.30, end angle=-266.10, radius=\R] -- cycle;
+  \fill[mtxB!75] (0,0) -- (-266.10:\R) arc [start angle=-266.10, end angle=-270.00, radius=\R] -- cycle;
+  \draw[white, line width=1.2pt] (0,0) -- (90.00:\R) (0,0) -- (12.71:\R) (0,0) -- (-64.58:\R) (0,0) -- (-141.86:\R) (0,0) -- (-219.15:\R) (0,0) -- (-247.30:\R) (0,0) -- (-266.10:\R);
   \draw[black!30, line width=0.4pt] (0,0) circle [radius=\R];
-  \node[align=center, text=white, font=\small] at (-64.6:{0.5*\R}) {four amplifiers\\976\,\textmu W, 86\,\%};
-  % legend
-  \begin{scope}[shift={(2.4,0.9)}]
-    \fill[mtxA!75] (0,0) rectangle (0.3,0.3); \node[anchor=west] at (0.4,0.15) {A1, A2 and two mux buffers, $4\times244$\,\textmu W};
-    \fill[mtxD!75] (0,-0.5) rectangle (0.3,-0.2); \node[anchor=west] at (0.4,-0.35) {two R--2R ladders, 89\,\textmu W, 8\,\%};
-    \fill[mtxC!70] (0,-1.0) rectangle (0.3,-0.7); \node[anchor=west] at (0.4,-0.85) {local bias generator, 59\,\textmu W, 5\,\%};
-    \fill[mtxB!75] (0,-1.5) rectangle (0.3,-1.2); \node[anchor=west] at (0.4,-1.35) {SAR converter, 12\,\textmu W, 1\,\%};
+  \node[text=white, font=\small] at (51.36:{0.62*\R}) {21\,\%};
+  \node[text=white, font=\small] at (-25.93:{0.62*\R}) {21\,\%};
+  \node[text=white, font=\small] at (-103.22:{0.62*\R}) {21\,\%};
+  \node[text=white, font=\small] at (-180.51:{0.62*\R}) {21\,\%};
+  \begin{scope}[shift={(2.5,1.4)}]
+    \fill[mtxA!80] (0,-0.30) rectangle (0.3,0.00); \node[anchor=west] at (0.4,-0.15) {A1, control amplifier, 244\,\textmu W, 21\,\%};
+    \fill[mtxA!45] (0,-0.78) rectangle (0.3,-0.48); \node[anchor=west] at (0.4,-0.63) {A2, transimpedance amplifier, 244\,\textmu W, 21\,\%};
+    \fill[mtxC!75] (0,-1.26) rectangle (0.3,-0.96); \node[anchor=west] at (0.4,-1.11) {ADC input buffer, 244\,\textmu W, 21\,\%};
+    \fill[mtxC!40] (0,-1.74) rectangle (0.3,-1.44); \node[anchor=west] at (0.4,-1.59) {debug buffer, 244\,\textmu W, 21\,\%};
+    \fill[mtxD!75] (0,-2.22) rectangle (0.3,-1.92); \node[anchor=west] at (0.4,-2.07) {two R--2R ladders, 89\,\textmu W, 8\,\%};
+    \fill[mtxE!70] (0,-2.70) rectangle (0.3,-2.40); \node[anchor=west] at (0.4,-2.55) {local bias generator, 59\,\textmu W, 5\,\%};
+    \fill[mtxB!75] (0,-3.18) rectangle (0.3,-2.88); \node[anchor=west] at (0.4,-3.03) {SAR converter, 12\,\textmu W, 1\,\%};
   \end{scope}
 \end{tikzpicture}

@@ -552,29 +552,22 @@ $^{c}$Low-power mode: hart 0 awake, tiles gated, AFE off. One channel measuring 
 % passives.  Deck-local fig_analog_power_pie.tex.
 \begin{frame}{Analog power: one channel}
 \begin{columns}[T]
-\column{0.58\textwidth}
+\column{0.66\textwidth}
 \vspace{0.3cm}
 \resizebox{\linewidth}{!}{\input{fig_analog_power_pie.tex}}
-\column{0.40\textwidth}
-\vspace{0.3cm}
+\column{0.30\textwidth}
+\vspace{0.5cm}
 {\footnotesize
 \begin{tabular}{@{}lr@{}}
 \toprule
-One channel, nominal & \\
+Power & \\
 \midrule
-2.5\,V analog rail   & 528.7\,\textmu A \\
-1.0\,V converter core & 1.0\,\textmu A \\
-\textbf{Channel}     & \textbf{1.32\,mW} \\
-Four channels        & 5.3\,mW \\
-\midrule
-Rail over corners    & 432--914\,\textmu A \\
+One channel   & 1.32\,mW \\
+Four channels & 5.3\,mW \\
+Corners       & 1.1--2.3\,mW \\
 \bottomrule
 \end{tabular}}
-\vspace{0.3cm}
-
-{\scriptsize The rail figure is the measured one; the block rollup (1.14\,mW) does not follow the inherited supply ports. Corner span is a lower bound: the poly reference resistor is pinned at typical.\par}
 \end{columns}
-\sowhat{Four class-AB amplifiers per channel are 86\,\% of it. A parked channel is gated with its tile and draws nothing.}
 \end{frame}
 
 % =====================================================================
@@ -737,77 +730,6 @@ NPU            & the decision stays on the patient \\
 {\scriptsize Left: a small-molecule wound panel, uric acid, ascorbate, H$_2$O$_2$ and pyocyanin, through the same channel.\par}
 \end{columns}
 \sowhat{The ovarian panel stays a serum test: CA-125 is an epitope on a 3--5\,MDa mucin and does not reach interstitial fluid. The wearable is a different, reagentless panel on the same silicon; the implant is the same plus a fouling problem that EIS can watch but not solve.}
-\end{frame}
-
-% =====================================================================
-\section{Vision}
-
-% Sources: TRM fig_electrode_panel (uric acid, ascorbate, H2O2, pyocyanin CV
-% corners through the channel); lit survey: CA-125 is an epitope on a 3-5 MDa
-% mucin, no ISF access, serum only; NFC harvested boot and MTCMOS from the
-% digital slides.
-\begin{frame}{Vision: the same channel, without the cartridge}
-\begin{columns}[T]
-\column{0.54\textwidth}
-\trmfit[13cm]{\linewidth}{5.4cm}{\MaestroRoot fig_electrode_panel.tex}
-\column{0.42\textwidth}
-\vspace{0.1cm}
-{\footnotesize
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{3.1cm}@{}}
-\toprule
-Already on the die & \\
-\midrule
-4 sites        & concurrent, each its own DAC, SAR, hart \\
-EIS            & electrode state without a second instrument \\
-NFC            & harvested boot, battery-free readout \\
-MTCMOS         & a parked site costs nothing \\
-NPU            & the decision stays on the patient \\
-\bottomrule
-\end{tabular}}
-\vspace{0.2cm}
-
-{\scriptsize Left: a small-molecule wound panel, uric acid, ascorbate, H$_2$O$_2$ and pyocyanin, through the same channel.\par}
-\end{columns}
-\sowhat{The ovarian panel stays a serum test: CA-125 is an epitope on a 3--5\,MDa mucin and does not reach interstitial fluid. The wearable is a different, reagentless panel on the same silicon; the implant is the same plus a fouling problem that EIS can watch but not solve.}
-\end{frame}
-
-% =====================================================================
-\section{Against Myshkin and the field}
-
-
-% Source: Table I of the ISCAS'26 Myshkin paper [9] (Myshkin, Chen [10],
-% Ghoreishizadeh [11], Lin [12] numbers verbatim; channel counts and polarity
-% for [10]-[12] read from their abstracts).  Castalia entries are best case and
-% pre-silicon: sensitivity is the AFE alone, power is hart 0 with every tile
-% gated (the 0-tiles bar of the power-gating slide).
-\begin{frame}{Against the field: the ISCAS'26 table, plus Castalia}
-\centering
-{\footnotesize
-\resizebox{\linewidth}{!}{%
-\begin{tabular}{@{}lccccc@{}}
-\toprule
-Parameter & \textbf{Castalia} (this work) & Myshkin [9] & Chen '19 [10] & Ghoreishizadeh '17 [11] & Lin '23 [12] \\
-\midrule
-Modality             & \textbf{CA/CV/DPV/EIS}   & CA/CV       & CA/CV     & CA/CV           & CV/EIS \\
-Channels             & \textbf{4, simultaneous} & 1           & 1         & 1, differential & 1 \\
-Current direction    & \textbf{bipolar}         & unipolar    & bipolar   & bipolar         & bipolar \\
-Sensitivity (pA)     & 341$^{a}$                & 56.5$^{b}$  & 41        & 0.47            & 1.7 \\
-$I_{\max}$ (\textmu A) & $\pm40.7$              & $+20$       & $\pm5$    & $\pm20$         & $-48/{+}16$ \\
-Power (mW)           & 3.68$^{c}$               & 3.0         & 0.016     & 9.3             & 1.0 \\
-Process (nm)         & 65                       & 65          & 180       & 350             & 180 \\
-On-chip processor    & \textbf{5 RISC-V harts}  & 1 RISC-V hart & none    & none            & none \\
-On-chip ML           & \textbf{NPU, 4 modes}    & NPU, 1 mode & none      & none            & none \\
-\bottomrule
-\end{tabular}}}
-\vspace{0.12cm}
-
-{\scriptsize\raggedright
-Castalia column is best case and pre-silicon.
-$^{a}$AFE only: input-referred rms, 0.1--100\,Hz, maximum gain, ideal $R_f$, no electrode; the converter LSB is 0.82\,nA.
-$^{b}$AFE only; ADC quantisation limits the system to 153\,pA.
-$^{c}$Digital only: hart 0 awake, all four channel tiles gated, post-route SS 125\,\textdegree C 25\,MHz; one channel measuring adds 1.76\,mW (tile) $+$ 1.14\,mW (AFE).
-$^{d}$Measured: 2.8\,mW digital at 24\,MHz $+$ 258\,\textmu W AFE.\par}
-\sowhat{Still the only entries with a processor and an ML engine on the die; Castalia adds concurrency, both current polarities and EIS.}
 \end{frame}
 
 % =====================================================================

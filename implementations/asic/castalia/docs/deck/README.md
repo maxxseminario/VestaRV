@@ -1,6 +1,6 @@
 # Castalia short overview deck
 
-46 slides, figure-led, ECEN 222 lecture template (Berkeley theme, beaver colours,
+44 slides, figure-led, ECEN 222 lecture template (Berkeley theme, beaver colours,
 16:9). Built PDF is copied one level up, next to the published `TRM.pdf`.
 
     make          # two pdflatex passes, then copies ../castalia_deck.pdf
@@ -53,6 +53,11 @@ with repo-relative paths, the TRM's `v*` TikZ styles for the generated diagrams,
 print-weight schematics vanish on a projector) and one fix: the height-bound branch of `\trmfit` uses
 `\resizebox*`, since a tabular sits centred on the baseline and the unstarred
 form scaled its half-height instead of its total height, enlarging tall tables).
+
+Open items: the digital power slides quote the August cpr6 cut (10.72 mW core);
+the September d13d report gives 12.8 mW core plus 10.5 mW of pad-ring power
+at the statistical activity, and neither the core update nor the pad-ring
+question has been carried into the deck yet.
 
 Clinical claims carry bracketed citations resolved on the closing References
 slide. Spec-table numbers are transcribed from the TRM build of 2026-09-15 and the
