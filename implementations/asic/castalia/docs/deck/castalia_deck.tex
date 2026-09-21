@@ -325,6 +325,9 @@ Ratio   & against $Z_{\mathrm{cal}}$: $R_f$ drops out \\
 % (eisdeep_20260826/ac_dense: 30 AC runs, 5 loads x 6 codes, 143 frequencies).
 \begin{frame}{The four loads behind the EIS plots}
 \centering
+\resizebox{0.5\linewidth}{!}{\input{fig_randles_deck.tex}}
+\vspace{0.1cm}
+
 {\footnotesize
 \begin{tabular}{@{}llll>{\raggedright\arraybackslash}p{5.6cm}@{}}
 \toprule
@@ -336,14 +339,9 @@ typical & 100\,k$\Omega$ & 1\,\textmu F & $N=20$ & an electrode in use \\
 fresh   & 1\,M$\Omega$ & 100\,nF & $N=63$ & a new, clean surface \\
 \bottomrule
 \end{tabular}}
-\vspace{0.3cm}
+\vspace{0.2cm}
 
-{\footnotesize
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{10cm}@{}}
-Cell    & $R_u = 1$\,k$\Omega$ in series with $R_{\mathrm{ct}} \parallel C_{\mathrm{dl}}$; gain code chosen so $R_f$ ranges $|Z|$ \\
-Fouling & $R_{\mathrm{ct}}$ falls and $C_{\mathrm{dl}}$ rises through an electrode's life; tracking that drift is what EIS is for here \\
-Data    & small-signal AC on the full channel, 143 frequencies per load, measured $Z$ against the analytic Randles $Z$ \\
-\end{tabular}}
+{\footnotesize $R_u = R_{\mathrm{ce}} = 1$\,k$\Omega$ throughout. Fouling: $R_{\mathrm{ct}}$ falls and $C_{\mathrm{dl}}$ rises through an electrode's life; tracking that drift is what EIS is for here.\par}
 \end{frame}
 
 % Source: TRM fig_eis_error (analog/).

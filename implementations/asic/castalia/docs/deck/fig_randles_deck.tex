@@ -1,0 +1,15 @@
+%% HAND-DRAWN for this deck.  The three-electrode cell as the TRM's models
+%% section defines it (tab_analog-models): CE - R_ce - solution node - R_u -
+%% working-electrode interface R_ct || C_dl - WE, with RE sensing the solution
+%% node.  Values for the fresh / typical / fouled states are on the slide.
+\begin{circuitikz}[font=\small, every node/.append style={font=\small},
+    scale=0.9, transform shape]
+  \draw (0,0) node[left] {CE} to[R, l=$R_{\mathrm{ce}}$] (2.2,0)
+        to[R, l=$R_u$] (4.4,0) -- (4.8,0);
+  \draw (4.8,0) -- (4.8,0.8) to[R, l=$R_{\mathrm{ct}}$] (7.0,0.8) -- (7.0,0);
+  \draw (4.8,0) -- (4.8,-0.8) to[C, l_=$C_{\mathrm{dl}}$] (7.0,-0.8) -- (7.0,0);
+  \draw (7.0,0) -- (7.6,0) node[right] {WE};
+  \draw (2.2,0) -- (2.2,1.3) node[above] {RE};
+  \fill (2.2,0) circle (1.4pt); \fill (4.8,0) circle (1.4pt); \fill (7.0,0) circle (1.4pt);
+  \node[font=\scriptsize, black!60, anchor=west] at (8.4,0) {$Z = R_u + \dfrac{R_{\mathrm{ct}}}{1 + \mathrm{j}\omega R_{\mathrm{ct}} C_{\mathrm{dl}}}$};
+\end{circuitikz}
