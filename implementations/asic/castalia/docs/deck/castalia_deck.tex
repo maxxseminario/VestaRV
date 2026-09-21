@@ -458,17 +458,18 @@ Good for    & trends: fouling is a change in one electrode's $Z$ & absolute ohms
 \vspace{0.2cm}
 \[ R_f = 18\,\mathrm{k}\Omega + 6\,\mathrm{k}\Omega\cdot N \]
 {\scriptsize
-\begin{tabular}{@{}lrr@{}}
+\begin{tabular}{@{}lrrr@{}}
 \toprule
-$N$ & $R_f$ & Full scale \\
+$N$ & $R_f$ & Full scale & LSB \\
 \midrule
-0   & 19.6\,k$\Omega$  & $\pm$40.7\,\textmu A \\
-63  & 397\,k$\Omega$   & $\pm$2.02\,\textmu A \\
-319 & 1.93\,M$\Omega$  & $\pm$0.41\,\textmu A \\
-\midrule
-LSB at 319 & \multicolumn{2}{r}{0.824\,nA} \\
+0   & 19.6\,k$\Omega$  & $\pm$40.7\,\textmu A & 81\,nA \\
+63  & 397\,k$\Omega$   & $\pm$2.02\,\textmu A & 4.0\,nA \\
+319 & 1.93\,M$\Omega$  & $\pm$0.41\,\textmu A & 0.82\,nA \\
 \bottomrule
 \end{tabular}}
+\vspace{0.15cm}
+
+{\scriptsize $R_f$ sets the current range: full scale $= 0.80\,\mathrm{V}/R_f$ (TIA compliance), LSB $= 1.59\,\mathrm{mV}/R_f$ (SAR). \textbf{Max $\pm$40.7\,\textmu A, min full scale $\pm$0.41\,\textmu A, resolution 0.82\,nA}; noise floor 341\,pA rms.\par}
 \vspace{0.3cm}
 
 {\scriptsize
