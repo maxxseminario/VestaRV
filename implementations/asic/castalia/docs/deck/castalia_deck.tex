@@ -451,12 +451,16 @@ Good for    & trends: fouling is a change in one electrode's $Z$ & absolute ohms
 
 % Source: TRM fig_tiarprog_r_vs_code (analog/).
 \begin{frame}{Programmable feedback resistor: one string, 320 codes}
+\vspace{-0.1cm}
+{\scriptsize
+$R_f = 18\,\mathrm{k}\Omega + 6\,\mathrm{k}\Omega\cdot N$ sets the current range: full scale $= 0.80\,\mathrm{V}/R_f$ (TIA compliance), LSB $= 1.59\,\mathrm{mV}/R_f$ (SAR).
+\textbf{Max $\pm$40.7\,\textmu A, min full scale $\pm$0.41\,\textmu A, resolution 0.82\,nA.}
+Noise floor $i_n^2 = e_n^2\,(1 + R_f/|Z_{\mathrm{el}}|)^2/R_f^2 + 4kT/R_f$, 0.1--100\,Hz: 341\,pA with no electrode, 3.6--21\,nA into the electrode grid at 560\,k$\Omega$.\par}
+\vspace{0.1cm}
 \begin{columns}[T]
 \column{0.62\textwidth}
-\trmfit[13cm]{\linewidth}{5.8cm}{\MaestroRoot fig_tiarprog_r_vs_code.tex}
+\trmfit[13cm]{\linewidth}{4.5cm}{\MaestroRoot fig_tiarprog_r_vs_code.tex}
 \column{0.38\textwidth}
-\vspace{0.2cm}
-\[ R_f = 18\,\mathrm{k}\Omega + 6\,\mathrm{k}\Omega\cdot N \]
 {\scriptsize
 \begin{tabular}{@{}lrrr@{}}
 \toprule
@@ -467,9 +471,6 @@ $N$ & $R_f$ & Full scale & LSB \\
 319 & 1.93\,M$\Omega$  & $\pm$0.41\,\textmu A & 0.82\,nA \\
 \bottomrule
 \end{tabular}}
-\vspace{0.15cm}
-
-{\scriptsize $R_f$ sets the current range: full scale $= 0.80\,\mathrm{V}/R_f$ (TIA compliance), LSB $= 1.59\,\mathrm{mV}/R_f$ (SAR). \textbf{Max $\pm$40.7\,\textmu A, min full scale $\pm$0.41\,\textmu A, resolution 0.82\,nA}; noise floor 341\,pA rms.\par}
 \vspace{0.3cm}
 
 {\scriptsize
@@ -514,32 +515,37 @@ Seam $63{\to}64$  & 504\,$\Omega$ & 6.8\,\% \\
 \end{frame}
 
 % Source: TRM Ch. 33 measurement tables (analog/note_meas_*.tex).
-\begin{frame}{One AFE channel, as simulated}
-\vspace{-0.05cm}
+\begin{frame}{The front end, against the field}
 \centering
+{\footnotesize
 \resizebox{\linewidth}{!}{%
-\begin{tabular}{@{}lll@{}}
+\begin{tabular}{@{}lccccc@{}}
 \toprule
-Parameter & Value & Condition \\
+ & \textbf{Castalia} (this work) & Myshkin [9] & Chen '19 [10] & Ghoreishizadeh '17 [11] & Lin '23 [12] \\
 \midrule
-CE compliance           & 13.2\,mV -- 2.480\,V          & 2.5\,V rail, corners \\
-Cell current delivered  & $\pm$52.5\,\textmu A          & 12\,k$\Omega$ cell \\
-TIA compliance          & $\pm$0.80\,V about $v_\mathrm{cm}$ & \\
-Feedback resistor       & 19.6\,k$\Omega$ -- 1.93\,M$\Omega$, 320 codes & monotonic at every corner \\
-Full-scale current      & $\pm$40.7\,\textmu A ($N{=}0$) to $\pm$0.41\,\textmu A ($N{=}319$) & SAR window $\cap$ TIA compliance \\
-Current quantum         & 0.824\,nA at maximum gain     & below the 2\,nA noise budget \\
-Bipolar accuracy        & 0.25--0.38 LSB worst          & 560\,k$\Omega$, 1\,M$\Omega$ electrode, corners \\
-Control-loop PM         & 79--80\textdegree             & five corners, into a cell \\
-TIA-loop PM             & 89--93\textdegree             & 12-cell electrode grid \\
-Input current noise     & 341\,pA standalone, 3.6--21\,nA into an electrode & 0.1--100\,Hz, 560\,k$\Omega$ \\
-Zero-current offset     & $\sigma(v_\mathrm{re}) = 5.72$\,mV, gain-independent & 200 MC samples, calibratable \\
-Quiescent current       & 197--250\,\textmu A per channel & amplifiers $+$ local bias \\
+Modality             & CA/CV/DPV/EIS            & CA/CV       & CA/CV     & CA/CV           & CV/EIS \\
+Channels             & 4, simultaneous          & 1           & 1         & 1, differential & 1 \\
+Current direction    & bipolar                  & unipolar    & bipolar   & bipolar         & bipolar \\
+$I_{\max}$ (\textmu A) & $\pm40.7$              & $+20$       & $\pm5$    & $\pm20$         & $-48/{+}16$ \\
+Resolution (pA)      & 820 LSB$^{a}$            & 153 LSB     & 41        & 0.47            & 1.7 \\
+Noise floor (pA rms) & 341$^{b}$                & 56.5        & --        & --              & -- \\
+Potential window     & $\pm0.8$\,V about $v_{\mathrm{cm}}$ & 0--2\,V & -- & --            & -- \\
+Converter            & 10-bit SAR per channel   & 12-bit dual-slope & TDC & ADC             & -- \\
+EIS                  & firmware, $\pm$1\,\% to 5\,kHz & --    & --        & --              & yes \\
+Power (mW)           & 3.68$^{c}$               & 3.0$^{d}$   & 0.016     & 9.3             & 1.0 \\
+Process (nm)         & 65                       & 65          & 180       & 350             & 180 \\
+On-chip processor    & 5 RISC-V harts           & 1 RISC-V hart & none    & none            & none \\
+On-chip ML           & NPU, 4 modes             & NPU, 1 mode & none      & none            & none \\
 \bottomrule
-\end{tabular}}
-\vspace{0.15cm}
+\end{tabular}}}
+\vspace{0.12cm}
 
-{\centering\bmc\par}
-\sowhat{Pre-layout, electrode held nominal: no row includes electrode-to-electrode spread.}
+{\scriptsize\raggedright
+Castalia column is pre-silicon and best case.
+$^{a}$LSB at the maximum-gain tap; 81\,nA at the lowest.
+$^{b}$Input-referred, 0.1--100\,Hz, ideal $R_f$, no electrode; 3.6--21\,nA into an electrode.
+$^{c}$Digital only, hart 0 awake, four tiles gated, post-route SS 125\,\textdegree C 25\,MHz; one channel measuring adds 1.76\,mW (tile) $+$ 1.14\,mW (AFE).
+$^{d}$Measured: 2.8\,mW digital at 24\,MHz $+$ 258\,\textmu W AFE. -- not reported in [9].\par}
 \end{frame}
 
 % =====================================================================
@@ -670,6 +676,38 @@ Leakage share & 43\,\% \\
 {\centering\bflow\par}
 \end{columns}
 \sowhat{Cold gating: the header cuts the rail, so a parked tile draws neither dynamic nor leakage power. Each tile gated removes 1.76\,mW; the always-on band keeps 3.68\,mW.}
+\end{frame}
+
+% =====================================================================
+\section{Vision}
+
+% Sources: TRM fig_electrode_panel (uric acid, ascorbate, H2O2, pyocyanin CV
+% corners through the channel); lit survey: CA-125 is an epitope on a 3-5 MDa
+% mucin, no ISF access, serum only; NFC harvested boot and MTCMOS from the
+% digital slides.
+\begin{frame}{Vision: the same channel, without the cartridge}
+\begin{columns}[T]
+\column{0.54\textwidth}
+\trmfit[13cm]{\linewidth}{5.4cm}{\MaestroRoot fig_electrode_panel.tex}
+\column{0.42\textwidth}
+\vspace{0.1cm}
+{\footnotesize
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{3.1cm}@{}}
+\toprule
+Already on the die & \\
+\midrule
+4 sites        & concurrent, each its own DAC, SAR, hart \\
+EIS            & electrode state without a second instrument \\
+NFC            & harvested boot, battery-free readout \\
+MTCMOS         & a parked site costs nothing \\
+NPU            & the decision stays on the patient \\
+\bottomrule
+\end{tabular}}
+\vspace{0.2cm}
+
+{\scriptsize Left: a small-molecule wound panel, uric acid, ascorbate, H$_2$O$_2$ and pyocyanin, through the same channel.\par}
+\end{columns}
+\sowhat{The ovarian panel stays a serum test: CA-125 is an epitope on a 3--5\,MDa mucin and does not reach interstitial fluid. The wearable is a different, reagentless panel on the same silicon; the implant is the same plus a fouling problem that EIS can watch but not solve.}
 \end{frame}
 
 % =====================================================================
