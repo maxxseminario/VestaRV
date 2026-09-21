@@ -30,6 +30,8 @@ with USPSTF screening grades; data and sources in its header),
 prose), `fig_eis_on_schematic.tex` and `fig_dpv_on_schematic.tex` (the TRM's
 potentiostat schematic with the EIS excitation/response, respectively the DPV
 programme and resolved peaks, sketched above it), `fig_eis_method.tex` (an unused block-chain version of the same), `fig_iq_demod.tex` (I/Q demodulation of one record, sketch),
+`fig_stay_in.tex` (time in the sample for cartridge / wearable / implant,
+anchored to CGM wear labels and published in-vivo sensors),
 `fig_eis_error_deck.tex` (the TRM's fig_eis_error with short legend entries,
 reading the same data files), `fig_randles_deck.tex` (the three-electrode
 Randles network), `fig_eis_noise_vs_m.tex` (sigma of |Z| against periods

@@ -296,25 +296,15 @@ Resolve  & firmware: $\Delta I = I(S_2) - I(S_1)$ vs $E$; peak position: marker,
 % (fouling arc 0.02-160 Hz, |Z| 10 k - 1 M).
 \begin{frame}{Why impedance: for electrodes that stay in}
 \centering
-{\footnotesize
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{4.0cm}@{}}
-\toprule
- & Cartridge (today) & Wearable & Implant \\
-\midrule
-Sample     & serum, minutes                    & wound exudate, ISF, sweat; days & whole blood or ISF; weeks \\
-Chemistry  & single-shot sandwich immunoassay  & reagentless receptors: aptamer (E-AB) or direct small-molecule redox & the same, under a foreign-body response \\
-Electrode  & used once                         & drifts: monolayer desorption and fouling, 50\,\% baseline over hours [24,\,25] & fouls faster; antifouling coatings buy time [26] \\
-What helps & --                                & differential readout; knowing the electrode's state & the same, plus knowing when it is gone \\
-\bottomrule
-\end{tabular}}
-\vspace{0.25cm}
+\resizebox{0.95\linewidth}{!}{\input{fig_stay_in.tex}}
+\vspace{0.4cm}
 
 {\footnotesize
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{10.2cm}@{}}
-EIS gives  & the fouling arc, $R_{\mathrm{ct}} \parallel C_{\mathrm{dl}}$ at 0.02--160\,Hz, per site, from the same channel: an electrode's state, trended over its life \\
-Firmware does & compares to the electrode's own baseline, triggers re-ranging and recalibration, retires a dead site \\
-It cannot  & fix the chemistry: drift is systematic, and averaging removes noise, not bias [25] \\
+\begin{tabular}{@{}ll@{}}
+EIS gives & each site's $R_{\mathrm{ct}} \parallel C_{\mathrm{dl}}$ arc, trended over the electrode's life, from the same channel \\
+Firmware  & re-ranges, recalibrates, or retires the site \\
 \end{tabular}}
+\sowhat{Drift is systematic: averaging removes noise, not bias [25]. Knowing the electrode's state is what makes days and weeks possible.}
 \end{frame}
 
 % Sources: TRM ss:eis (note_eis_intro, note_eis_firmware); the schematic is the
@@ -858,11 +848,13 @@ Power     & own MTCMOS domain \\
 \begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
   \item[{[19]}] Jog \emph{et al.}, Verilog-A three-electrode model with kinetics and mass transport for co-simulation with interface circuits, \emph{IEEE SENSORS}, 2024, doi:10.1109/SENSORS60989.2024\allowbreak.10784491; S.~Madec \emph{et al.}, \emph{IEEE TCAS-I} 66(6):2188, 2019.
   \item[{[20]}] P.~Fanjul-Bolado, M.~B. Gonz\'alez-Garc\'ia and A.~Costa-Garc\'ia, ``Amperometric detection in TMB/HRP-based assays,'' \emph{Anal.\ Bioanal.\ Chem.} 382:297, 2005.
+  \item[{[21]}] M.~Bilgi Kama\c{c} \emph{et al.}, ``Point-of-care testing: a disposable label-free electrochemical CA125 and HE4 immunosensors for early detection of ovarian cancer,'' \emph{Biomed.\ Microdevices} 25:18, 2023.
 \end{itemize}
 \column{0.49\textwidth}
 \begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
-  \item[{[21]}] M.~Bilgi Kama\c{c} \emph{et al.}, ``Point-of-care testing: a disposable label-free electrochemical CA125 and HE4 immunosensors for early detection of ovarian cancer,'' \emph{Biomed.\ Microdevices} 25:18, 2023.
   \item[{[22]}] D.~Kang, F.~Ricci, R.~J. White and K.~W. Plaxco, ``Survey of redox-active moieties for application in multiplexed electrochemical biosensors,'' \emph{Anal.\ Chem.} 88(21):10452, 2016.
+  \item[{[23]}] V.~Clark, M.~Aller Pellitero and N.~Arroyo-Curr\'as, ``Explaining the decay of nucleic acid-based sensors under continuous voltammetric interrogation,'' \emph{Anal.\ Chem.} 95(11):4974, 2023.
+  \item[{[24]}] K.~K. Leung \emph{et al.}, ``Elucidating the mechanisms underlying the signal drift of electrochemical aptamer-based sensors in whole blood,'' \emph{ACS Sens.} 6:3340, 2021.
 \end{itemize}
 \end{columns}}
 \end{frame}
@@ -875,13 +867,14 @@ Power     & own MTCMOS domain \\
 \begin{columns}[T]
 \column{0.49\textwidth}
 \begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
-  \item[{[23]}] V.~Clark, M.~Aller Pellitero and N.~Arroyo-Curr\'as, ``Explaining the decay of nucleic acid-based sensors under continuous voltammetric interrogation,'' \emph{Anal.\ Chem.} 95(11):4974, 2023.
-  \item[{[24]}] K.~K. Leung \emph{et al.}, ``Elucidating the mechanisms underlying the signal drift of electrochemical aptamer-based sensors in whole blood,'' \emph{ACS Sens.} 6:3340, 2021.
+  \item[{[25]}] H.~Li \emph{et al.}, ``Dual-reporter drift correction to enhance the performance of electrochemical aptamer-based sensors in whole blood,'' \emph{J.\ Am.\ Chem.\ Soc.} 138:15809, 2016.
+  \item[{[26]}] J.~Sabat\`e del R\'io \emph{et al.}, ``An antifouling coating that enables affinity-based electrochemical biosensing in complex biological fluids,'' \emph{Nat.\ Nanotechnol.} 14:1143, 2019.
+  \item[{[27]}] Manufacturer labelling and FDA clearances: Dexcom G7 (10-day; 15-day, adults), Abbott FreeStyle Libre 3 (14 days), Senseonics Eversense 365 (implanted, 365 days; FDA clearance 17 Sep.\ 2024).
 \end{itemize}
 \column{0.49\textwidth}
 \begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
-  \item[{[25]}] H.~Li \emph{et al.}, ``Dual-reporter drift correction to enhance the performance of electrochemical aptamer-based sensors in whole blood,'' \emph{J.\ Am.\ Chem.\ Soc.} 138:15809, 2016.
-  \item[{[26]}] J.~Sabat\`e del R\'io \emph{et al.}, ``An antifouling coating that enables affinity-based electrochemical biosensing in complex biological fluids,'' \emph{Nat.\ Nanotechnol.} 14:1143, 2019.
+  \item[{[28]}] E.~Shirzaei Sani \emph{et al.}, ``A stretchable wireless wearable bioelectronic system for multiplexed monitoring and combination treatment of infected chronic wounds,'' \emph{Sci.\ Adv.} 9(12):eadf7388, 2023.
+  \item[{[29]}] Son \emph{et al.}, ``Continuous, week-long, seconds-resolved in vivo drug measurements performed with a xenonucleic acid-employing electrochemical, aptamer-based sensor,'' \emph{J.\ Am.\ Chem.\ Soc.} 148(9):10016, 2026.
 \end{itemize}
 \end{columns}}
 \end{frame}
