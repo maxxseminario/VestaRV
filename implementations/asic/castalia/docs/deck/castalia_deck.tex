@@ -441,11 +441,10 @@ Good for    & trends: fouling is a change in one electrode's $Z$ & absolute ohms
 % Deck-local tab_block_amp.tex (split from tab_blocks_combined.tex; sources in its header).
 \begin{frame}{The amplifier across corners, with mismatch $\sigma$}
 \centering
-\resizebox*{!}{2.6cm}{\input{tab_block_amp.tex}}
+\resizebox{0.9\linewidth}{!}{\input{tab_block_amp.tex}}
 \vspace{0.2cm}
 
-{\scriptsize $\sigma$: 200 samples, process $+$ mismatch, nominal corner. Corner runs hold the passive models at typical, so resistor and ladder spreads are lower bounds.\par}
-{\centering \bsim\par}
+
 \end{frame}
 
 % Source: TRM fig_px_xover_ierr (analog/).
@@ -484,11 +483,10 @@ LSB at 319 & \multicolumn{2}{r}{0.824\,nA} \\
 % Deck-local tab_block_rf.tex (split from tab_blocks_combined.tex; sources in its header).
 \begin{frame}{Feedback resistor under mismatch}
 \centering
-\resizebox*{!}{1.9cm}{\input{tab_block_rf.tex}}
+\resizebox{0.7\linewidth}{!}{\input{tab_block_rf.tex}}
 \vspace{0.2cm}
 
-{\scriptsize $\sigma$: 200 samples, process $+$ mismatch, nominal corner. Corners are the figure on the previous slide: monotonic at every corner.\par}
-{\centering \bsim\quad\bmc\par}
+
 \end{frame}
 
 % Source: TRM fig_adc_transfer (analog/), extracted anatop_pixel_adc.
@@ -504,21 +502,19 @@ LSB at 319 & \multicolumn{2}{r}{0.824\,nA} \\
 % Deck-local tab_block_sar.tex (split from tab_blocks_combined.tex; sources in its header).
 \begin{frame}{SAR ADC across corners}
 \centering
-\resizebox*{!}{3.6cm}{\input{tab_block_sar.tex}}
+\resizebox{0.85\linewidth}{!}{\input{tab_block_sar.tex}}
 \vspace{0.2cm}
 
-{\scriptsize Spread is max $-$ min over the five corners. No mismatch $\sigma$: the extracted netlist carries no mismatch statistics.\par}
-{\centering \bext\par}
+
 \end{frame}
 
 % Deck-local tab_block_dac.tex (split from tab_blocks_combined.tex; sources in its header).
 \begin{frame}{Reference DAC across corners, with mismatch $\sigma$}
 \centering
-\resizebox*{!}{2.8cm}{\input{tab_block_dac.tex}}
+\resizebox{0.9\linewidth}{!}{\input{tab_block_dac.tex}}
 \vspace{0.2cm}
 
-{\scriptsize $\sigma$: 200 samples, process $+$ mismatch, nominal corner. Corner runs hold the passive models at typical, so resistor and ladder spreads are lower bounds.\par}
-{\centering \bsim\quad\bmc\par}
+
 \end{frame}
 
 % Source: TRM Ch. 33 measurement tables (analog/note_meas_*.tex).
