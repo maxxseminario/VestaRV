@@ -21,7 +21,6 @@
   % ---- multiply-accumulate
   \node[draw=black!50, rounded corners=2pt, inner sep=4pt, align=center] (mac) at (5.3,-0.75)
     {$I = \dfrac{2}{MN}\sum c_n \cos\dfrac{2\pi n}{N}$\\[4pt] $Q = \dfrac{2}{MN}\sum c_n \sin\dfrac{2\pi n}{N}$};
-  \draw[black!50, line width=0.5pt] (3.3,-0.75) -- (mac.west);
   % ---- phasor
   \begin{scope}[shift={(8.6,-0.75)}]
     \draw[black!40, line width=0.3pt] (-0.2,0) -- (1.7,0) node[anchor=west, black!70] {$I$};
@@ -32,5 +31,4 @@
     \node[mtxB!60!black, anchor=south west] at (1.2,1.0) {$|\hat X| = \sqrt{I^2+Q^2}$};
     \node[mtxB!60!black, anchor=north west] at (0.7,-0.05) {$\varphi = \operatorname{atan2}(Q,I)$};
   \end{scope}
-  \draw[black!50, line width=0.5pt] (mac.east) -- (8.3,-0.75);
 \end{tikzpicture}

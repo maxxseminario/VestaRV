@@ -40,8 +40,4 @@
       (\x, {0.22*(1 - 2*exp(-mod(\x+0.18,0.6)*7))*(mod(floor((\x+0.18)/0.6),2)*2-1)});
     \node[lab, anchor=west] at (2.5,0) {$v_{\mathrm{out}}$};
   \end{scope}
-  % v_P: the cell potential, tagged on the RE wire
-  \schat{0.36}{0.905}{Prewire}
-  \fill[mtxA!70!black] (Prewire) circle [radius=1.6pt];
-  \node[lab, mtxA!60!black, anchor=south] at ($(Prewire)+(0,0.08)$) {$v_{\mathrm{P}}$};
 \end{tikzpicture}
