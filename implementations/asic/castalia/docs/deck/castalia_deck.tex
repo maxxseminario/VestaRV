@@ -145,13 +145,10 @@ CEA    & CEACAM5 glycoprotein    & 5\,ng/mL \\
 \begin{frame}{Physical implementation}
 \begin{columns}[T]
 \column{0.50\textwidth}
-\duckph{4.4cm}{chip top, $3.0\times3.0$\,mm (Virtuoso export)}
+\duckph{4.4cm}{}
 \column{0.46\textwidth}
-\duckph{3.2cm}{one channel tile (Virtuoso export)}
+\duckph{3.2cm}{}
 \end{columns}
-\vspace{0.1cm}
-{\centering\bflow\par}
-\sowhat{65\,nm, 1P8M, LQFP-100. One tile hardened once, instantiated four times; the notch in each tile is the analog channel's keep-out.}
 \end{frame}
 
 % =====================================================================
@@ -188,7 +185,6 @@ Sense    & $v_{\mathrm{out}} = v_{\mathrm{cm}} - i_{\mathrm{WE}} R_f$ \\
 Sample   & SAR at $S_1$ (before the pulse) and $S_2$ (end of the pulse), once charging has decayed \\
 Resolve  & firmware: $\Delta I = I(S_2) - I(S_1)$ vs $E$; peak position: marker, peak height: concentration \\
 \end{tabular}}
-\sowhat{Same loop, same $R_f$, same converter as DC; only the DAC programme changes.}
 \end{frame}
 
 % Source: TRM fig_electrode_dpv (analog/), schematic-level channel.
@@ -228,7 +224,6 @@ Sense    & $v_{\mathrm{P}}$ at RE; $i_{\mathrm{WE}} = -v_{\mathrm{out}}/R_f$ \\
 Digitise & one SAR, both records interleaved; firmware I/Q MAC over $M$ periods \\
 Solve    & $\hat Z = -R_f\,\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}}$, or ratio to $Z_{\mathrm{cal}}$ ($R_f$, LSB, $4/\pi$ cancel) \\
 \end{tabular}}
-\sowhat{Adds a clock divider and an accumulate to the channel, nothing else.}
 \end{frame}
 
 % Source: TRM fig_eis_error (analog/).
