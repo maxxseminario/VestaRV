@@ -298,9 +298,27 @@ Resolve  & firmware: $\Delta I = I(S_2) - I(S_1)$ vs $E$; peak position: marker,
 {\footnotesize
 \begin{tabular}{@{}ll@{}}
 Excite   & DAC: a small two-code square about the DC setpoint $v_{\mathrm{ref}}$ \\
-Sense    & $v_{\mathrm{P}}$ at RE; $i_{\mathrm{WE}} = -v_{\mathrm{out}}/R_f$ \\
+Sense    & $v_{\mathrm{P}}$, the commanded potential (RE tracks it through A1; RE tap pending); $i_{\mathrm{WE}} = -v_{\mathrm{out}}/R_f$ \\
 Digitise & one SAR, both records interleaved; firmware I/Q MAC over $M$ periods \\
 Solve    & $\hat Z = -R_f\,\hat V_{\mathrm{P}}/\hat V_{\mathrm{OUT}}$, or ratio to $Z_{\mathrm{cal}}$ ($R_f$, LSB, $4/\pi$ cancel) \\
+\end{tabular}}
+\end{frame}
+
+% Sources: TRM note_eis_firmware (demodulation, ratio, extraction), note_eis_accuracy
+% (interleave skew rotation 180 f/f_s), the potential-channel statement in
+% note_eis_firmware (commanded potential, no RE tap).  Deck-local fig_iq_demod.tex.
+\begin{frame}{Magnitude and phase from codes: I/Q demodulation}
+\centering
+\resizebox{0.9\linewidth}{!}{\input{fig_iq_demod.tex}}
+\vspace{0.15cm}
+
+{\scriptsize
+\begin{tabular}{@{}ll@{}}
+1. Records  & two, interleaved on the one SAR: $v_{\mathrm{P}}$ (the DAC command, slot 2; RE tracks it through A1) and $v_{\mathrm{out}}$ \\
+2. Phasor   & per record, $\hat X = I - \mathrm{j}Q$; the sine reference selects one frequency, so harmonics, DC and noise average out \\
+3. Skew     & $v_{\mathrm{out}}$ is sampled half a conversion late: rotate $\hat V_{\mathrm{OUT}}$ by $180^{\circ} f/f_s$ \\
+4. Divide   & $|Z| = R_f\,|\hat V_{\mathrm{P}}|/|\hat V_{\mathrm{OUT}}|$, \; $\angle Z = \varphi_{\mathrm{P}} - \varphi_{\mathrm{OUT}} + 180^{\circ}$; LSB and $4/\pi$ cancel \\
+5. Ratio    & same on $Z_{\mathrm{cal}}$ at the same $f$ and gain code: $R_f$, its pole and the DAC droop cancel \\
 \end{tabular}}
 \end{frame}
 

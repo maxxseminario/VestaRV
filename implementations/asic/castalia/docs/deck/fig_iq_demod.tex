@@ -1,0 +1,36 @@
+%% HAND-DRAWN for this deck.  I/Q demodulation of one sampled record:
+%% the codes are multiplied by a sine and a cosine reference at the
+%% excitation frequency and summed over whole periods; the two sums are the
+%% in-phase and quadrature parts of the fundamental phasor, whose length is
+%% the magnitude and whose angle is the phase.  Sketch, not data.
+\begin{tikzpicture}[font=\scriptsize, x=1cm, y=1cm]
+  % ---- sampled record
+  \begin{scope}
+    \draw[black!40, line width=0.3pt] (0,0) -- (3.2,0);
+    \draw[mtxB!70!black, line width=0.9pt, samples=80, domain=0:3.2] plot (\x, {0.45*sin(deg(2*pi*\x/1.6) - 40)});
+    \foreach \x in {0.1,0.3,...,3.1}{ \fill[black!75] (\x, {0.45*sin(deg(2*pi*\x/1.6) - 40)}) circle [radius=1.1pt]; }
+    \node[anchor=south, black!70] at (1.6,0.6) {record $c_n$, $N$ per period, $M$ periods};
+  \end{scope}
+  % ---- references
+  \begin{scope}[shift={(0,-1.55)}]
+    \draw[black!40, line width=0.3pt] (0,0) -- (3.2,0);
+    \draw[mtxA!80!black, line width=0.8pt, samples=80, domain=0:3.2] plot (\x, {0.35*cos(deg(2*pi*\x/1.6))});
+    \draw[mtxC!70!black, line width=0.8pt, dashed, samples=80, domain=0:3.2] plot (\x, {0.35*sin(deg(2*pi*\x/1.6))});
+    \node[anchor=south, black!70] at (1.6,0.45) {\textcolor{mtxA!80!black}{$\cos(2\pi n/N)$}, \textcolor{mtxC!70!black}{$\sin(2\pi n/N)$}};
+  \end{scope}
+  % ---- multiply-accumulate
+  \node[draw=black!50, rounded corners=2pt, inner sep=4pt, align=center] (mac) at (5.3,-0.75)
+    {$I = \dfrac{2}{MN}\sum c_n \cos\dfrac{2\pi n}{N}$\\[4pt] $Q = \dfrac{2}{MN}\sum c_n \sin\dfrac{2\pi n}{N}$};
+  \draw[black!50, line width=0.5pt] (3.3,-0.75) -- (mac.west);
+  % ---- phasor
+  \begin{scope}[shift={(8.6,-0.75)}]
+    \draw[black!40, line width=0.3pt] (-0.2,0) -- (1.7,0) node[anchor=west, black!70] {$I$};
+    \draw[black!40, line width=0.3pt] (0,-0.2) -- (0,1.5) node[anchor=south, black!70] {$Q$};
+    \draw[mtxB!70!black, line width=1.0pt, -{Latex[length=1.6mm]}] (0,0) -- (1.25,0.95);
+    \draw[black!50, line width=0.4pt] (0.45,0) arc [start angle=0, end angle=37, radius=0.45];
+    \node[black!70, anchor=west] at (0.5,0.17) {$\varphi$};
+    \node[mtxB!60!black, anchor=south west] at (1.2,1.0) {$|\hat X| = \sqrt{I^2+Q^2}$};
+    \node[mtxB!60!black, anchor=north west] at (0.7,-0.05) {$\varphi = \operatorname{atan2}(Q,I)$};
+  \end{scope}
+  \draw[black!50, line width=0.5pt] (mac.east) -- (8.3,-0.75);
+\end{tikzpicture}
