@@ -532,7 +532,6 @@ $I_{\max}$ (\textmu A) & $\pm40.7$              & $+20$       & $\pm5$    & $\pm
 Resolution (pA rms)  & 341$^{a}$                & 56.5        & 41        & 0.47            & 1.7 \\
 ADC step (pA)        & 820$^{b}$                & 153         & n/a       & n/a             & n/a \\
 Converter            & 10-bit SAR per channel   & 12-bit dual-slope & TDC & ADC             & -- \\
-EIS                  & firmware, $\pm$1\,\% to 5\,kHz & --    & --        & --              & yes \\
 Power (mW)           & 8.9$^{c}$                & 3.0         & 0.016     & 9.3             & 1.0 \\
 Process (nm)         & \best{65}                & 65          & 180       & 350             & 180 \\
 On-chip processor    & \best{5 RISC-V harts}    & 1 RISC-V hart & none    & none            & none \\
@@ -567,6 +566,16 @@ Four channels & 5.3\,mW \\
 \bottomrule
 \end{tabular}}
 \end{columns}
+\end{frame}
+
+% Reminder of the block diagram before the digital section; same figure as
+% the early slide.
+\begin{frame}{Block diagram, again}
+\IfFileExists{\ISCASroot Figures/castalia_block_diagram.png}{%
+  \centering\includegraphics[width=\linewidth]{castalia_block_diagram.png}%
+}{%
+  \centering\trmfit[20cm]{\linewidth}{6.0cm}{\TRMinc ChipSystemDiagram.tex}%
+}
 \end{frame}
 
 % =====================================================================
@@ -748,46 +757,31 @@ NPU            & the decision stays on the patient \\
 
 % Source: TRM Ch. 17 (NPU), ISCAS'27 draft for the fusion form.
 \begin{frame}{The fusion runs on the NPU}
-\begin{columns}[T]
-\column{0.50\textwidth}
-\vspace{0.4cm}
+\centering
+\vspace{0.3cm}
 \[ s = \sigma\Big(\sum_{k=1}^{4} w_k\,\hat{c}_k + b\Big) \]
-\vspace{0.1cm}
+\vspace{0.4cm}
 
 {\footnotesize
 \begin{tabular}{@{}ll@{}}
 \toprule
-Input  & peak current, peak potential, baseline $\times$ 4 \\
-Mode   & 0, dense layer, one sigmoid \\
-Output & one risk score \\
+Input   & peak current, peak potential and baseline from each of the four sites \\
+Mode    & dense layer, one sigmoid; the logistic form of ROMA [6], four inputs \\
 Weights & trained off-chip, staged by firmware \\
+Output  & one risk score \\
 \bottomrule
 \end{tabular}}
-\column{0.46\textwidth}
-\vspace{0.2cm}
-{\footnotesize
-\begin{tabular}{@{}ll@{}}
-\toprule
-\multicolumn{2}{@{}l}{\textbf{Per site}}\\
-\midrule
-Hart      & 1, ownership enforced in hardware \\
-Potential & own 12-bit DAC \\
-Converter & own 10-bit SAR \\
-Power     & own MTCMOS domain \\
-\bottomrule
-\end{tabular}}
-\end{columns}
-\sowhat{The logistic form of the cleared two-marker algorithm, extended to four inputs and moved from the central laboratory onto the electrode.}
 \end{frame}
 
 % =====================================================================
 \section*{References}
 
 
-\begin{frame}{References (1/5)}
+\begin{frame}{References (1/3)}
 \vspace{-0.2cm}
-{\scriptsize
-\setlength{\leftmargini}{2.1em}
+{\tiny
+\setbeamerfont{itemize/enumerate body}{size=\tiny}
+\setlength{\leftmargini}{2.0em}
 \setbeamertemplate{itemize items}{}
 \begin{columns}[T]
 \column{0.49\textwidth}
@@ -795,45 +789,31 @@ Power     & own MTCMOS domain \\
   \item[{[1]}] NCI, \emph{SEER Cancer Stat Facts}, per-site pages, seer.cancer.gov/statfacts, accessed 20 Sep.\ 2026. Stage, survival: SEER 21, 2016--22; cases, deaths: 2026 est.
   \item[{[2]}] D.~C. Grossman \emph{et al.}, ``Screening for ovarian cancer: USPSTF recommendation statement,'' \emph{JAMA} 319:588, 2018.
   \item[{[3]}] USPSTF, \emph{A and B Recommendations}; \emph{Prostate Cancer: Screening}, 2018; \emph{Pancreatic Cancer: Screening}, 2019. uspreventiveservicestaskforce.org.
-\end{itemize}
-\column{0.49\textwidth}
-\begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
   \item[{[4]}] U.~Menon \emph{et al.}, ``Ovarian cancer population screening and mortality after long-term follow-up in UKCTOCS,'' \emph{Lancet} 397:2182, 2021.
   \item[{[5]}] F.~Chen \emph{et al.}, ``Clinical analysis of four serum tumor markers in 458 patients with ovarian tumors: combined use of HE4, CA125, CA19-9, and CEA,'' \emph{Cancer Manag.\ Res.} 10:1313, 2018.
-  \item[{[6]}] R.~G. Moore \emph{et al.}, ``A novel multiple marker bioassay utilizing HE4 and CA125 for the prediction of ovarian cancer in patients with a pelvic mass,'' \emph{Gynecol.\ Oncol.} 112:40, 2009.
 \end{itemize}
-\end{columns}}
-\end{frame}
-
-\begin{frame}{References (2/5)}
-\vspace{-0.2cm}
-{\scriptsize
-\setlength{\leftmargini}{2.1em}
-\setbeamertemplate{itemize items}{}
-\begin{columns}[T]
 \column{0.49\textwidth}
 \begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
+  \item[{[6]}] R.~G. Moore \emph{et al.}, ``A novel multiple marker bioassay utilizing HE4 and CA125 for the prediction of ovarian cancer in patients with a pelvic mass,'' \emph{Gynecol.\ Oncol.} 112:40, 2009.
   \item[{[7]}] USPSTF, \emph{Grade Definitions} (current, after July 2012), uspreventiveservicestaskforce.org, accessed 20 Sep.\ 2026.
   \item[{[8]}] P.~Charkhchi \emph{et al.}, ``CA125 and ovarian cancer: a comprehensive review,'' \emph{Cancers} 12:3730, 2020.
   \item[{[9]}] M.~A. Seminario, S.~McRobert, A.~Uerling, P.~Aberson, S.~Balk{\i}r, J.~A. Schmitz and E.~J. Markvicka, ``An electrochemical sensing SoC for autonomous wound monitoring,'' \emph{IEEE ISCAS}, 2026.
-\end{itemize}
-\column{0.49\textwidth}
-\begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
   \item[{[10]}] Y.-C. Chen, S.-Y. Lu and Y.-T. Liao, ``A microwatt dual-mode electrochemical sensing current readout with current-reducer ramp waveform generation,'' \emph{IEEE TBioCAS} 13(6):1163, 2019.
-  \item[{[11]}] S.~S. Ghoreishizadeh \emph{et al.}, ``A differential electrochemical readout ASIC with heterogeneous integration of bio-nano sensors for amperometric sensing,'' \emph{IEEE TBioCAS} 11(5):1148, 2017.
-  \item[{[12]}] Y.-J. Lin \emph{et al.}, ``A multimodality electrochemical and impedance spectroscopy system-on-a-chip with temperature sensing and impedance-boosting techniques,'' \emph{IEEE TBioCAS} 17(4):857, 2023.
 \end{itemize}
 \end{columns}}
 \end{frame}
 
-\begin{frame}{References (3/5)}
+\begin{frame}{References (2/3)}
 \vspace{-0.2cm}
-{\scriptsize
-\setlength{\leftmargini}{2.1em}
+{\tiny
+\setbeamerfont{itemize/enumerate body}{size=\tiny}
+\setlength{\leftmargini}{2.0em}
 \setbeamertemplate{itemize items}{}
 \begin{columns}[T]
 \column{0.49\textwidth}
 \begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
+  \item[{[11]}] S.~S. Ghoreishizadeh \emph{et al.}, ``A differential electrochemical readout ASIC with heterogeneous integration of bio-nano sensors for amperometric sensing,'' \emph{IEEE TBioCAS} 11(5):1148, 2017.
+  \item[{[12]}] Y.-J. Lin \emph{et al.}, ``A multimodality electrochemical and impedance spectroscopy system-on-a-chip with temperature sensing and impedance-boosting techniques,'' \emph{IEEE TBioCAS} 17(4):857, 2023.
   \item[{[13]}] A.~J. Bard and L.~R. Faulkner, \emph{Electrochemical Methods: Fundamentals and Applications}, 2nd ed., Wiley, 2001 (Eqs.\ 3.3.11, 4.4.2, 4.4.29, Sec.\ 1.4.2, Eq.\ 6.2.19).
   \item[{[14]}] M.~S. Wilson and W.~Nie, ``Multiplex measurement of seven tumor markers using an electrochemical protein chip,'' \emph{Anal.\ Chem.}, 2006.
   \item[{[15]}] A.~Kov\'a\v{r}ov\'a \emph{et al.}, ``Biosensor with electrochemically active nanocomposites for signal amplification and simultaneous detection of three ovarian cancer biomarkers,'' \emph{Electrochim.\ Acta}, 2023.
@@ -843,45 +823,31 @@ Power     & own MTCMOS domain \\
   \item[{[16]}] V.~Mir\v{c}eski \emph{et al.}, ``Square-wave voltammetry: a review on the recent progress,'' \emph{Electroanalysis}, 2013.
   \item[{[17]}] D.~Britz and J.~Strutwolf, \emph{Digital Simulation in Electrochemistry}, 4th ed., Springer, 2016 (Ch.\ 3 box method, Ch.\ 7 expanding grid).
   \item[{[18]}] S.~W. Feldberg, ``Digital simulation: a general method for solving electrochemical diffusion-kinetic problems,'' \emph{Electroanal.\ Chem.} 3:199, 1969; J.~E.~B. Randles, \emph{Discuss.\ Faraday Soc.} 1:11, 1947.
+  \item[{[19]}] Jog \emph{et al.}, Verilog-A three-electrode model with kinetics and mass transport for co-simulation with interface circuits, \emph{IEEE SENSORS}, 2024, doi:10.1109/SENSORS60989.2024\allowbreak.10784491; S.~Madec \emph{et al.}, \emph{IEEE TCAS-I} 66(6):2188, 2019.
+  \item[{[20]}] P.~Fanjul-Bolado, M.~B. Gonz\'alez-Garc\'ia and A.~Costa-Garc\'ia, ``Amperometric detection in TMB/HRP-based assays,'' \emph{Anal.\ Bioanal.\ Chem.} 382:297, 2005.
 \end{itemize}
 \end{columns}}
 \end{frame}
 
-\begin{frame}{References (4/5)}
+\begin{frame}{References (3/3)}
 \vspace{-0.2cm}
-{\scriptsize
-\setlength{\leftmargini}{2.1em}
+{\tiny
+\setbeamerfont{itemize/enumerate body}{size=\tiny}
+\setlength{\leftmargini}{2.0em}
 \setbeamertemplate{itemize items}{}
 \begin{columns}[T]
 \column{0.49\textwidth}
 \begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
-  \item[{[19]}] Jog \emph{et al.}, Verilog-A three-electrode model with kinetics and mass transport for co-simulation with interface circuits, \emph{IEEE SENSORS}, 2024, doi:10.1109/SENSORS60989.2024\allowbreak.10784491; S.~Madec \emph{et al.}, \emph{IEEE TCAS-I} 66(6):2188, 2019.
-  \item[{[20]}] P.~Fanjul-Bolado, M.~B. Gonz\'alez-Garc\'ia and A.~Costa-Garc\'ia, ``Amperometric detection in TMB/HRP-based assays,'' \emph{Anal.\ Bioanal.\ Chem.} 382:297, 2005.
   \item[{[21]}] M.~Bilgi Kama\c{c} \emph{et al.}, ``Point-of-care testing: a disposable label-free electrochemical CA125 and HE4 immunosensors for early detection of ovarian cancer,'' \emph{Biomed.\ Microdevices} 25:18, 2023.
-\end{itemize}
-\column{0.49\textwidth}
-\begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
   \item[{[22]}] D.~Kang, F.~Ricci, R.~J. White and K.~W. Plaxco, ``Survey of redox-active moieties for application in multiplexed electrochemical biosensors,'' \emph{Anal.\ Chem.} 88(21):10452, 2016.
   \item[{[23]}] V.~Clark, M.~Aller Pellitero and N.~Arroyo-Curr\'as, ``Explaining the decay of nucleic acid-based sensors under continuous voltammetric interrogation,'' \emph{Anal.\ Chem.} 95(11):4974, 2023.
   \item[{[24]}] K.~K. Leung \emph{et al.}, ``Elucidating the mechanisms underlying the signal drift of electrochemical aptamer-based sensors in whole blood,'' \emph{ACS Sens.} 6:3340, 2021.
+  \item[{[25]}] H.~Li \emph{et al.}, ``Dual-reporter drift correction to enhance the performance of electrochemical aptamer-based sensors in whole blood,'' \emph{J.\ Am.\ Chem.\ Soc.} 138:15809, 2016.
 \end{itemize}
-\end{columns}}
-\end{frame}
-
-\begin{frame}{References (5/5)}
-\vspace{-0.2cm}
-{\scriptsize
-\setlength{\leftmargini}{2.1em}
-\setbeamertemplate{itemize items}{}
-\begin{columns}[T]
 \column{0.49\textwidth}
 \begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
-  \item[{[25]}] H.~Li \emph{et al.}, ``Dual-reporter drift correction to enhance the performance of electrochemical aptamer-based sensors in whole blood,'' \emph{J.\ Am.\ Chem.\ Soc.} 138:15809, 2016.
   \item[{[26]}] J.~Sabat\`e del R\'io \emph{et al.}, ``An antifouling coating that enables affinity-based electrochemical biosensing in complex biological fluids,'' \emph{Nat.\ Nanotechnol.} 14:1143, 2019.
   \item[{[27]}] Manufacturer labelling and FDA clearances: Dexcom G7 (10-day; 15-day, adults), Abbott FreeStyle Libre 3 (14 days), Senseonics Eversense 365 (implanted, 365 days; FDA clearance 17 Sep.\ 2024).
-\end{itemize}
-\column{0.49\textwidth}
-\begin{itemize}\setlength{\itemsep}{2pt}\setlength{\parskip}{0pt}
   \item[{[28]}] E.~Shirzaei Sani \emph{et al.}, ``A stretchable wireless wearable bioelectronic system for multiplexed monitoring and combination treatment of infected chronic wounds,'' \emph{Sci.\ Adv.} 9(12):eadf7388, 2023.
   \item[{[29]}] Son \emph{et al.}, ``Continuous, week-long, seconds-resolved in vivo drug measurements performed with a xenonucleic acid-employing electrochemical, aptamer-based sensor,'' \emph{J.\ Am.\ Chem.\ Soc.} 148(9):10016, 2026.
 \end{itemize}

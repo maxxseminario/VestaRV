@@ -1,6 +1,6 @@
 # Castalia short overview deck
 
-45 slides, figure-led, ECEN 222 lecture template (Berkeley theme, beaver colours,
+44 slides, figure-led, ECEN 222 lecture template (Berkeley theme, beaver colours,
 16:9). Built PDF is copied one level up, next to the published `TRM.pdf`.
 
     make          # two pdflatex passes, then copies ../castalia_deck.pdf
