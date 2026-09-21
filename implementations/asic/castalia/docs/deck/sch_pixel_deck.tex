@@ -1,0 +1,95 @@
+%% DECK-LOCAL copy of the TRM's sch_tb_pixel.tex (the system testbench),
+%% reduced to the channel itself: the two 0 V current probes IPRB1 / IPRB_F
+%% are plain wires, the injected accuracy-truth source I_far is removed (in
+%% DPV and EIS the current comes from the cell), and the bench net names are
+%% dropped.  Everything else, including the figure/resizebox wrapper the
+%% \trmfit macro strips, is the TRM's.  Regenerate from the TRM fragment if
+%% the topology changes.
+\providecommand{\MaestroRoot}{include/analog/}
+\input{\MaestroRoot sch_cell_symbol.tex}
+\begin{figure}[htbp]
+  \centering
+  \resizebox{\linewidth}{!}{%
+\ctikzset{bipoles/length=1.0cm, resistors/scale=0.85, capacitors/scale=0.85, sources/scale=0.85}
+\begin{circuitikz}[
+    every node/.append style={font=\small},
+    nlab/.style={font=\footnotesize, inner sep=1.5pt},
+    opt/.style={font=\footnotesize, text=black!55, align=center, inner sep=2pt},
+    railnode/.style={circle, fill=black, inner sep=1.05pt},
+    prb/.style={draw, circle, minimum size=9pt, inner sep=0pt},
+  ]
+  %% ---------------------------------------------------------------- amplifiers
+  %% circuitikz puts `-' on top and `+' on the bottom of an `op amp'; every branch
+  %% that meets a pin is placed at that pin's height with (x,0 |- pin), so no run
+  %% is ever diagonal.
+  \node[op amp] (A) at (0,0) {};
+  \node at (A.center) {\small A1};
+  \node[op amp] (B) at (13.4,0) {};
+  \node at (B.center) {\small A2};
+
+  %% ------------------------------------------------- three-electrode cell
+  %% Drawn first so that (cs-ce)/(cs-re)/(cs-we) exist for the wiring below.
+  \CellSymThree{6.0,0}{1.2}
+  \node[opt, anchor=north] at (6.0,-1.62) {three-electrode cell};
+
+  %% ------------------------------------------- potential program -> A1 non-inv
+  \coordinate (VIP) at (-2.9,0 |- A.+);
+  \draw (A.+) -- (VIP);
+  \draw (VIP) to[V, l_=$v_{\mathrm{step}}$] (-2.9,-1.75);
+  \draw (-2.9,-1.75) to[V, l_=$v_{\mathrm{ref}}$] (-2.9,-3.4) node[ground]{};
+
+  %% ------------------------------ reference-electrode feedback through IPRB1
+  \coordinate (VIN) at (-1.6,0 |- A.-);
+  \draw (A.-) -- (VIN);
+  \draw (VIN) -- (-1.6,2.6);
+  \draw (-1.6,2.6) -- (6.0,2.6) -- (cs-re);
+
+  %% ------------------------------- A1 class-AB compensation, C1/C2 back to CE
+  \draw (A.up) -- (A.up |- 0,1.5);
+  \draw (A.up |- 0,1.5) to[C, l=$C_c$] (2.0,1.5) -- (2.0,0);
+  \node[nlab, anchor=east, xshift=-2pt] at (A.up |- 0,1.08) {\texttt{C1}};
+  \draw (A.down) -- (A.down |- 0,-1.5);
+  \draw (A.down |- 0,-1.5) to[C, l_=$C_c$] (2.0,-1.5) -- (2.0,0);
+  \node[nlab, anchor=east, xshift=-2pt] at (A.down |- 0,-1.08) {\texttt{C2}};
+
+  %% ------------------------------------- A1 output -> CE, WE -> the WE node
+  \draw (A.out) -- (2.0,0);
+  \node[railnode] at (2.0,0){};
+  \draw (2.0,0) -- (cs-ce);
+  \draw (cs-we) -- (10.0,0);
+
+  %% --------------------------------------------- WE node, I_far, A2 inverting
+  \node[railnode] at (10.0,0){};
+  \node[nlab, anchor=north west, xshift=2pt, yshift=-2pt] at (10.0,0) {\texttt{WE}};
+  \draw (10.0,0) -- (10.0,2.4);
+  \draw (B.-) -- (10.0,0 |- B.-);
+  \node[railnode] at (10.0,0 |- B.-){};
+
+  %% ------------------------------------------------------ V_CM at A2 non-inv
+  \draw (B.+) -- (11.7,0 |- B.+);
+  \draw (11.7,0 |- B.+) to[V, l_=$V_{\mathrm{CM}}$] (11.7,-3.4) node[ground]{};
+
+  %% ---------------------------- A2 class-AB compensation, C1/C2 back to V_OUT
+  \draw (B.up) -- (B.up |- 0,1.5);
+  \draw (B.up |- 0,1.5) to[C, l=$C_c$] (15.0,1.5);
+  \node[nlab, anchor=east, xshift=-2pt] at (B.up |- 0,1.08) {\texttt{C1}};
+  \draw (B.down) -- (B.down |- 0,-1.5);
+  \draw (B.down |- 0,-1.5) to[C, l_=$C_c$] (15.0,-1.5) -- (15.0,0);
+  \node[nlab, anchor=east, xshift=-2pt] at (B.down |- 0,-1.08) {\texttt{C2}};
+
+  %% ----------------------------------- transimpedance feedback through IPRB_F
+  \draw (10.0,2.4) -- (12.2,2.4);
+  \node[railnode] at (12.2,2.4){};
+  \draw (12.2,2.4) to[R, l=$R_f$] (15.0,2.4);
+  \draw (15.0,2.4) -- (15.0,0);
+  \node[railnode] at (15.0,1.5){};
+
+  %% ------------------------------------------------------------ output node
+  \draw (B.out) -- (15.0,0);
+  \node[railnode] at (15.0,0){};
+  \node[nlab, anchor=north west, xshift=2pt, yshift=-2pt] at (15.0,0) {$v_{\mathrm{out}}$};
+  \draw (15.0,0) -- (16.2,0);
+  \draw (16.2,0) to[C, l=$C_{\mathrm{out}}$] (16.2,-3.4) node[ground]{};
+\end{circuitikz}
+  }
+  \end{figure}
