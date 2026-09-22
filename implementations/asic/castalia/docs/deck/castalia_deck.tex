@@ -625,59 +625,6 @@ Digital power      & 12.8\,mW core post-route, SS, 25\,MHz \\
 \end{columns}
 \end{frame}
 
-% Sources: TRM Ch. 11 Debug: DebugStackDiagram (generated), 11.5.2 Connecting a
-% debugger (OpenOCD 0.12.0 + riscv-none-elf-gdb 13.2 brought up end to end on
-% the RTL), 11.6 usage notes (TCK bounds, no system reset, program-buffer
-% memory access, software breakpoints only, experiment on harts 1-4).
-\begin{frame}{Debug Stack}
-\centering\trmfit[14cm]{\linewidth}{5.6cm}{\TRMinc DebugStackDiagram.tex}
-\vspace{0.2cm}
-
-{\footnotesize Five pins on the package; a JTAG TAP and DMI transport on the die; a RISC-V Debug Module that halts, resumes and runs abstract commands on any hart, reaching memory through that hart over the same arbiter.\par}
-\end{frame}
-
-\begin{frame}{Debug Sequence: Halt, Read a Register, Resume}
-\centering\trmfit[10cm]{\linewidth}{6.0cm}{\TRMinc DebugSwimlaneDiagram.tex}
-\vspace{0.1cm}
-
-{\footnotesize Twelve steps across four agents: the debugger over TCK, the transport, the Debug Module, and the hart executing the abstract command from the program buffer.\par}
-\end{frame}
-
-\begin{frame}{Debugging in the Lab}
-\begin{columns}[T]
-\column{0.48\textwidth}
-{\footnotesize \textbf{What is needed}\par}
-\vspace{0.1cm}
-{\scriptsize
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{3.6cm}@{}}
-\toprule
-Probe    & any FTDI-class or J-Link JTAG adapter with TCK, TMS, TDI, TDO, TRSTn; clocked at 3\,MHz or below \\
-Host     & OpenOCD 0.12.0, unmodified, with a target script naming the TAP and the DM \\
-Debugger & \texttt{riscv-none-elf-gdb} 13.2 over OpenOCD's GDB server \\
-Console  & UART0 to a terminal for the ROM monitor \\
-Image    & SPI flash programmer; images cannot be loaded over the debug port \\
-\bottomrule
-\end{tabular}}
-\column{0.50\textwidth}
-{\footnotesize \textbf{What it can do, verified on the RTL}\par}
-\vspace{0.1cm}
-{\scriptsize
-\begin{itemize}\setlength{\itemsep}{1pt}
-  \item attach, enumerate all five harts, halt and resume each individually
-  \item read and write registers and memory, one word at a time, through a halted hart
-  \item software breakpoints and single-step; no hardware watchpoints
-  \item halt-on-reset by arming \texttt{setresethaltreq} and power-cycling the tile through PWRCTRL
-\end{itemize}}
-\vspace{0.15cm}
-{\footnotesize \textbf{Rules}\par}
-{\scriptsize
-\begin{itemize}\setlength{\itemsep}{1pt}
-  \item experiment on harts 1--4: hart 0 has no power gate, and \texttt{resetn} also resets the Debug Module
-  \item \texttt{reset halt} resets nothing (no system reset); memory needs a healthy, halted hart
-\end{itemize}}
-\end{columns}
-\end{frame}
-
 % Sources: innovus/common/MCU_castalia_penta/rpt/MCU_castalia_penta.d13d_postRoute_full.power
 % (SS 0.9 V 125 C, 25 MHz, activity 0.2; core groups vs the IO group);
 % TRM Table 10.3 for CPI.
