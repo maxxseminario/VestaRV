@@ -753,15 +753,24 @@ Output  & one risk score \\
 % schedule, the selected run and the quote are to be filled in by hand.
 \begin{frame}{Tapeout}
 \begin{columns}[T]
-\column{0.52\textwidth}
-\duckph{4.6cm}{MUSE tapeout schedule, selected run}
-\column{0.46\textwidth}
-\vspace{0.4cm}
+\column{0.50\textwidth}
+\begin{tikzpicture}
+  \node[inner sep=0] (M) {\includegraphics[width=\linewidth]{muse_schedule.png}};
+  % the 65 nm MS RF GP run of 21 Oct 2026, row fractions read off the 1064 x 1019 image
+  \path ($(M.north west)!0.045!(M.north east)$) coordinate (x0);
+  \path ($(M.north west)!0.955!(M.north east)$) coordinate (x1);
+  \path ($(M.north west)!0.572!(M.south west)$) coordinate (y0);
+  \path ($(M.north west)!0.617!(M.south west)$) coordinate (y1);
+  \fill[green!60!black, opacity=0.22, rounded corners=1pt] (x0 |- y0) rectangle (x1 |- y1);
+\end{tikzpicture}
+\column{0.48\textwidth}
+\vspace{0.3cm}
 {\footnotesize
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{3.0cm}@{}}
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{3.2cm}@{}}
 \toprule
-Foundry, process & TSMC 65\,nm GP \\
-MPW run          & \textcolor{red!70!black}{to be selected} \\
+Foundry, process & TSMC 65\,nm GP, MUSE shared MPW \\
+Selected run     & 65 MS RF GP: trial 7 Oct, final 14 Oct, \textbf{tapeout 21 Oct 2026}, ship 17 Jan 2027 \\
+Next run         & 16 Dec 2026, ship 14 Mar 2027 \\
 Die              & $2.35\times2.0$\,mm; Y fixed at 2\,mm, priced per area \\
 Package          & \textcolor{red!70!black}{to be selected} \\
 Price, incl.\ packaging & \textcolor{red!70!black}{quote pending} \\
