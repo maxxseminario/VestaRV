@@ -1955,3 +1955,21 @@ bucketed by layer, location and object pair:
 **2280 x 2000 um with 249,668 top-level instances**, streamed by a script that
 refuses to run without `PENTA_VIEWING_STREAM=1`, writes a distinctly named file
 no signoff target reads, and labels itself NOT SIGNED OFF at both ends.
+
+### Y8 phase 3, 2026-09-22: the channel is proved; the bound is spent at WQ26c
+
+Attempt 4 (`chip_2mm_b`, 6 h 33 m) on the widened core cut the geometry class
+the channel was aimed at by 83 %: **Short 2040 -> 356, Wiring 29 -> 2, SameNet
+real 115 -> 86**, and **every one of the 1492 pad-band M7 signal-to-signal
+shorts is gone**, as are the 56 PG shorts. Both re-keyed gates pass on their
+own terms (WQ23 part 4 at 14443 taps added against a 60000 cap; WQ24 reporting
+0 candidates). It stopped at `FATAL (WQ26c): legalisation moved 3785 instances
+after inserting 19 repeaters` -- a gate that is right and must not be widened.
+The cause is the relocation, not the insertion: Y5's launch-end fallback
+ignores the 60 um search reach, moved one repeater **391.3 um** and 14 of 19
+into the band, so **3 ps of hold debt across five paths bought a 3785-instance
+compaction** (Y8-6). The residual 356 shorts are ~250 of the adjudicated
+pin-access class against a TILE, which waiver (c)'s connectivity test already
+expresses (Y8-7). Parked at the bound with the classification in
+`reports/Y8_chip_2mm.md`; signoff, promote and the SDF regression wait on a cut
+that clears WQ26c and WQ27.
