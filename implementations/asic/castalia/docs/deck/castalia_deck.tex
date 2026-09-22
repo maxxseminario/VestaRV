@@ -625,61 +625,50 @@ Digital power      & 12.8\,mW core post-route, SS, 25\,MHz \\
 \end{columns}
 \end{frame}
 
-% Generated TRM diagrams (platform/common/latex/TRM/include), chosen for the
-% features that are new since Myshkin: private-plus-shared address space,
-% multi-hart boot, the arbiter, hardware mutexes, any-to-any interrupt routing,
-% the RISC-V debug stack and the clock tree.
-\begin{frame}{Address Space}
-\begin{columns}[T]
-\column{0.50\textwidth}
-\trmfit[9cm]{\linewidth}{6.4cm}{\TRMinc AddressSpaceDiagram.tex}
-\column{0.46\textwidth}
-\vspace{0.6cm}
-{\footnotesize
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{3.4cm}@{}}
-\toprule
-Private, per hart & 8\,KiB TCM at 0x8000, one cycle, not arbitrated \\
-Shared window     & boot ROM, peripherals, CLINT, mutexes, IRQ router, 64\,KiB RAM, 16\,KiB NPU RAM \\
-Apertures         & hart 0 reads any tile's TCM at 0x20000 \\
-\bottomrule
-\end{tabular}}
-\end{columns}
-\end{frame}
-
-\begin{frame}{Boot Flow}
-\centering\trmfit[16cm]{\linewidth}{6.4cm}{\TRMinc BootFlowDiagram.tex}
-\end{frame}
-
-\begin{frame}{Shared-Window Arbiter}
-\centering\trmfit[14cm]{\linewidth}{5.6cm}{\TRMinc ArbiterHandshakeDiagram.tex}
-\vspace{0.2cm}
-
-{\footnotesize Round-robin over five masters; the grant is held for the whole transaction, three MCLK at the arbiter, and a waiting hart's clock is simply stalled.\par}
-\end{frame}
-
-\begin{frame}{Hardware Mutexes}
-\centering\trmfit[14cm]{\linewidth}{5.6cm}{\TRMinc MutexClaimDiagram.tex}
-\vspace{0.2cm}
-
-{\footnotesize Sixteen mutexes: \texttt{lw} claims, \texttt{sw 0} releases; the arbiter, not software, resolves the race.\par}
-\end{frame}
-
-\begin{frame}{Interrupt Routing}
-\centering\trmfit[14cm]{\linewidth}{5.6cm}{\TRMinc IrqFabricDiagram.tex}
-\vspace{0.2cm}
-
-{\footnotesize 124 vectors, 122 of them routed, per-hart enable rows, claim/complete delivery: any vector to any hart.\par}
-\end{frame}
-
+% Sources: TRM Ch. 11 Debug: DebugStackDiagram (generated), 11.5.2 Connecting a
+% debugger (OpenOCD 0.12.0 + riscv-none-elf-gdb 13.2 brought up end to end on
+% the RTL), 11.6 usage notes (TCK bounds, no system reset, program-buffer
+% memory access, software breakpoints only, experiment on harts 1-4).
 \begin{frame}{Debug Stack}
 \centering\trmfit[14cm]{\linewidth}{5.6cm}{\TRMinc DebugStackDiagram.tex}
 \vspace{0.2cm}
 
-{\footnotesize JTAG transport and a RISC-V Debug Module: halt, resume and abstract commands on any hart, through the same arbiter.\par}
+{\footnotesize Five pins on the package; a JTAG TAP and DMI transport on the die; a RISC-V Debug Module that halts, resumes and runs abstract commands on any hart, reaching memory through that hart over the same arbiter.\par}
 \end{frame}
 
-\begin{frame}{Clock System}
-\centering\trmfit[14cm]{\linewidth}{6.4cm}{\TRMinc ClockSystemDiagram.tex}
+\begin{frame}{Debugging in the Lab}
+\begin{columns}[T]
+\column{0.48\textwidth}
+{\footnotesize \textbf{What is needed}\par}
+\vspace{0.1cm}
+{\scriptsize
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{3.6cm}@{}}
+\toprule
+Probe    & any FTDI-class or J-Link JTAG adapter with TCK, TMS, TDI, TDO, TRSTn; clocked at 3\,MHz or below \\
+Host     & OpenOCD 0.12.0, unmodified, with a target script naming the TAP and the DM \\
+Debugger & \texttt{riscv-none-elf-gdb} 13.2 over OpenOCD's GDB server \\
+Console  & UART0 to a terminal for the ROM monitor \\
+Image    & SPI flash programmer; images cannot be loaded over the debug port \\
+\bottomrule
+\end{tabular}}
+\column{0.50\textwidth}
+{\footnotesize \textbf{What it can do, verified on the RTL}\par}
+\vspace{0.1cm}
+{\scriptsize
+\begin{itemize}\setlength{\itemsep}{1pt}
+  \item attach, enumerate all five harts, halt and resume each individually
+  \item read and write registers and memory, one word at a time, through a halted hart
+  \item software breakpoints and single-step; no hardware watchpoints
+  \item halt-on-reset by arming \texttt{setresethaltreq} and power-cycling the tile through PWRCTRL
+\end{itemize}}
+\vspace{0.15cm}
+{\footnotesize \textbf{Rules}\par}
+{\scriptsize
+\begin{itemize}\setlength{\itemsep}{1pt}
+  \item experiment on harts 1--4: hart 0 has no power gate, and \texttt{resetn} also resets the Debug Module
+  \item \texttt{reset halt} resets nothing (no system reset); memory needs a healthy, halted hart
+\end{itemize}}
+\end{columns}
 \end{frame}
 
 % Sources: innovus/common/MCU_castalia_penta/rpt/MCU_castalia_penta.d13d_postRoute_full.power
@@ -783,13 +772,6 @@ Deep sleep                        & $<2.6$\,mW & 0     & $<2.6$\,mW & shared RAM
 % =====================================================================
 \section{On-Chip Inference}
 
-
-\begin{frame}{NPU Datapath}
-\centering\trmfit[14cm]{\linewidth}{6.0cm}{\TRMinc NpuDatapathDiagram.tex}
-\vspace{0.2cm}
-
-{\footnotesize One MAC, four modes: dense, 1-D convolution, XNOR-popcount, GEMM; Q0.24 $\times$ Q7.24, five activations from one approximator.\par}
-\end{frame}
 
 % Source: TRM Ch. 17 (NPU), ISCAS'27 draft for the fusion form.
 \begin{frame}{Low-Power Inference, Cancer Risk}
