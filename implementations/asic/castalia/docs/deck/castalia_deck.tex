@@ -636,6 +636,13 @@ Digital power      & 12.8\,mW core post-route, SS, 25\,MHz \\
 {\footnotesize Five pins on the package; a JTAG TAP and DMI transport on the die; a RISC-V Debug Module that halts, resumes and runs abstract commands on any hart, reaching memory through that hart over the same arbiter.\par}
 \end{frame}
 
+\begin{frame}{Debug Sequence: Halt, Read a Register, Resume}
+\centering\trmfit[10cm]{\linewidth}{6.0cm}{\TRMinc DebugSwimlaneDiagram.tex}
+\vspace{0.1cm}
+
+{\footnotesize Twelve steps across four agents: the debugger over TCK, the transport, the Debug Module, and the hart executing the abstract command from the program buffer.\par}
+\end{frame}
+
 \begin{frame}{Debugging in the Lab}
 \begin{columns}[T]
 \column{0.48\textwidth}
