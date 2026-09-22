@@ -146,8 +146,7 @@ CEA    & CEACAM5 glycoprotein    & 5\,ng/mL \\
 \column{0.60\textwidth}
 \centering
 \includegraphics[width=\linewidth, height=5.4cm, keepaspectratio]{layout_top.jpg}\\[3pt]
-{\scriptsize Chip Layout, $2.25 \times 2.00$\,mm}\\
-{\scriptsize MPW silicon \$25\,520; budget \$30\,000}
+{\scriptsize Chip Layout, $2.25 \times 2.00$\,mm}
 \column{0.36\textwidth}
 \vspace{0.4cm}
 \centering
@@ -761,29 +760,32 @@ Output  & one risk score \\
 % schedule, the selected run and the quote are to be filled in by hand.
 \begin{frame}{Tapeout}
 \begin{columns}[T]
-\column{0.50\textwidth}
+\column{0.47\textwidth}
 \begin{tikzpicture}
-  \node[inner sep=0] (M) {\includegraphics[width=\linewidth]{muse_schedule.png}};
-  % the 65 nm MS RF GP run of 16 Dec 2026 (bottom row), row fractions read off the 1064 x 1019 image
+  \node[inner sep=0] (M) {\includegraphics[width=\linewidth, height=4.9cm, keepaspectratio]{muse_schedule.png}};
+  % the 65 nm MS RF GP run of 16 Dec 2026 (bottom row), fractions of the 1064 x 1019 image
   \path ($(M.north west)!0.045!(M.north east)$) coordinate (x0);
   \path ($(M.north west)!0.955!(M.north east)$) coordinate (x1);
   \path ($(M.north west)!0.935!(M.south west)$) coordinate (y0);
   \path ($(M.north west)!0.982!(M.south west)$) coordinate (y1);
   \fill[green!60!black, opacity=0.22, rounded corners=1pt] (x0 |- y0) rectangle (x1 |- y1);
 \end{tikzpicture}
-\column{0.48\textwidth}
-\vspace{0.3cm}
-{\footnotesize
-\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{3.2cm}@{}}
-\toprule
-Foundry, process & TSMC 65\,nm GP, MUSE shared MPW \\
-Selected run     & 65 MS RF GP: trial GDS 2 Dec, \textbf{final 9 Dec}, tapeout 16 Dec 2026, ship 14 Mar 2027 \\
-Die              & $2.25\times2.0$\,mm; Y fixed at 2\,mm, priced per area \\
-Silicon          & \$25\,520 \\
-Budget           & \$30\,000 with tax and packaging \\
-\bottomrule
-\end{tabular}}
+\column{0.51\textwidth}
+\begin{tikzpicture}
+  \node[inner sep=0] (P) {\includegraphics[width=\linewidth, height=4.9cm, keepaspectratio]{muse_price_2026.png}};
+  % the 65 MS RF GP column, fractions of the 1083 x 892 image
+  \path ($(P.north west)!0.428!(P.north east)$) coordinate (px0);
+  \path ($(P.north west)!0.566!(P.north east)$) coordinate (px1);
+  \path ($(P.north west)!0.115!(P.south west)$) coordinate (py0);
+  \path ($(P.north west)!0.985!(P.south west)$) coordinate (py1);
+  \fill[green!60!black, opacity=0.22, rounded corners=1pt] (px0 |- py0) rectangle (px1 |- py1);
+\end{tikzpicture}
 \end{columns}
+\vspace{0.2cm}
+
+{\footnotesize\centering
+65\,nm MS RF GP, MUSE shared MPW: trial GDS 2 Dec, \textbf{final 9 Dec}, tapeout 16 Dec 2026, ship 14 Mar 2027.\\
+$2.25 \times 2.00$\,mm at \$5\,800/mm$^2$: \textbf{silicon \$25\,520}, 100 samples; \textbf{budget \$30\,000} with tax and packaging.\par}
 \end{frame}
 
 % =====================================================================
