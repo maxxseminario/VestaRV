@@ -126,6 +126,33 @@
   \ctikzset{bipoles/thickness=1.3}%
 }
 
+% \memrow / \memgap -- the address-column rows AddressSpaceDiagram uses since
+% the 2026-09 TRM (verbatim from packages-commands.template.tex).
+\providecommand{\memrow}[3]{%
+	\bytefieldsetup{bitheight=#2\baselineskip}%
+	\bitbox[]{10}{%
+		\texttt{#1}
+		\\
+		\vspace{#2\baselineskip}
+		\vspace{-2\baselineskip}
+		\vspace{-#2pt}
+		\mbox{}
+	}%
+	\bitbox{16}{\sffamily\small #3}%
+}
+\providecommand{\memgap}[2]{%
+	\bytefieldsetup{bitheight=#2\baselineskip}%
+	\bitbox[]{10}{%
+		\texttt{#1}
+		\\
+		\vspace{#2\baselineskip}
+		\vspace{-2\baselineskip}
+		\vspace{-#2pt}
+		\mbox{}
+	}%
+	\bitbox{16}[bgcolor=black!8]{}%
+}
+
 % --- the maestro2tex categorical palette -----------------------------
 % Slots 1-5 of the validated reference palette, in documented order; the
 % block masters declare these with \providecolor, individual fig_*.tex do not.
