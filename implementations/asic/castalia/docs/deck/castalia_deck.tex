@@ -137,7 +137,6 @@ CEA    & CEACAM5 glycoprotein    & 5\,ng/mL \\
 }{%
   \centering\trmfit[20cm]{\linewidth}{6.0cm}{\TRMinc ChipSystemDiagram.tex}%
 }
-\sowhat{Four channel tiles own four AFE sites; every master reaches ROM, RAM, NPU and peripherals only through the arbiter.}
 \end{frame}
 
 % Layout images pending a Virtuoso export (ducks). tapeout_review/PLAN.md for
@@ -158,7 +157,6 @@ CEA    & CEACAM5 glycoprotein    & 5\,ng/mL \\
 % Source: TRM sch_tb_pixel (analog/).
 \begin{frame}{Potentiostat Schematic}
 \centering\trmfit[20cm]{\linewidth}{6.3cm}{sch_pixel_deck.tex}
-\sowhat{A1 drives CE with RE in feedback; A2 holds WE at $v_\mathrm{cm}$ through $R_f$. $v_\mathrm{out} = v_\mathrm{cm} - I_\mathrm{we} R_f$, both polarities.}
 \end{frame}
 
 % Placeholder: the analog top level (anatop_quad / per-tile channel) is to be
@@ -370,7 +368,6 @@ Accuracy & $\pm$1\,\%, $\pm$0.6\textdegree{} to 5\,kHz; $\pm$5\,\% to 27\,kHz. L
 Range & 246\,$\Omega$ to 12.1\,M$\Omega$. Limits: TIA compliance below, one LSB of output above; 320 $R_f$ codes in between \\
 \end{tabular}\par}
 \vspace{0.05cm}
-\sowhat{The excitation amplitude never enters: $Z$ is the ratio of two records through one converter, so DAC gain and droop cancel.}
 \end{frame}
 
 % Sources: TRM note_eis_coverage (dc error scales with the noise gain
@@ -492,7 +489,6 @@ Seam $63{\to}64$  & 504\,$\Omega$ & 6.8\,\% \\
 \centering\trmfit{\linewidth}{5.4cm}{fig_adc_transfer_deck.tex}
 \vspace{0.05cm}
 {\centering\bext\par}
-\sowhat{23 clocks per conversion, 870\,kSa/s, 50\,pJ. The capacitor array exists only in layout, so this is the one block characterised extracted.}
 \end{frame}
 
 
@@ -627,7 +623,6 @@ Digital power      & 12.8\,mW core post-route, SS, 25\,MHz \\
 \bottomrule
 \end{tabular}}
 \end{columns}
-\sowhat{Digital numbers from the hardened flow; analog numbers schematic-level, except the SAR, which is extracted.}
 \end{frame}
 
 % Sources: innovus/common/MCU_castalia_penta/rpt/MCU_castalia_penta.d13d_postRoute_full.power
@@ -691,7 +686,6 @@ memcpy    &  11\,017 & 1.726 \\
 \centering
 \resizebox{0.62\linewidth}{!}{\input{fig_power_gating.tex}}
 \vspace{0.05cm}
-\sowhat{Cold gating: the header cuts the rail, so a parked tile draws neither dynamic nor leakage power. Each tile gated removes 1.74\,mW; the always-on band keeps 5.9\,mW.}
 \end{frame}
 
 % Sources: MCU_castalia_penta.d13d_postRoute_full.power (core groups 12.84 mW,
