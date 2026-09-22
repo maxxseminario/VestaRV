@@ -1842,3 +1842,116 @@ pads plus the bias island's stay bonded-but-undriven pending Y1 (Y3-A); no
 analog TRM chapter for `PentaWoundPt2mm` (cosmetic); the note 6(i) 1-ohm
 bonded-anchor check is still an extracted number pending Calibre/Quantus,
 unaffected by the package choice. Report `reports/Y9_qfn176_ballmap.md`.
+
+## 4.23 Y8, 2026-09-17: the `_pt` CHIP flow rebased onto the CORE flow of record; the 2 mm die floorplans
+
+**Y5-C is closed by inverting the direction of derivation.** `surgery.py` derives
+the CORE flow from a FROZEN copy of the CHIP flow, so every geometry fix since
+2026-09-16 -- Y2's derived floorplan, Y4's dead clocks, Y5's mesh phase and
+WQ17/WQ26c/WQ27 work, Y6's tile pins -- landed in the core and none of it ever
+reached the chip. On entry the live chip driver had drifted **854 lines** from
+that frozen copy (Y5 recorded 646), still carried the 660 x 880 quad floorplan on
+a 2690 um square die, and could not have run at all: Y3's frame replacement had
+deleted `CORE_SPACING`, `CORE_WIDTH`, `CORE_HEIGHT` and the five `POWER_*`
+constants its own `floorPlan` call reads eleven lines later, and its
+`tcl/wq5_rom_comb.tcl` was one ARGUMENT older than the call the geometry makes.
+
+`innovus/common/MCU_castalia_penta_pt/gen_chip_geometry.py` (NEW) now GENERATES
+the chip driver from the CORE driver (cut c7) plus
+`tcl/MCU_castalia_penta_pt.chipbase.tcl`, the chip-only half. All **103**
+differences between the two flows are classified exactly once -- 46 CORE
+(geometry and gate fixes), 52 CHIP (pad ring, wrapper, the gates a core-only
+block relaxes), 5 FRAME/SKIP -- keyed on the CONTENT of both sides, so a change
+neither author has seen stops the generator rather than being silently taken or
+dropped. `--check` refuses a cut on drift; six shared tcl/py files carry an md5
+equality gate across the two homes, as `cpr6_gate_lib.tcl` has since D19. The
+coordinate systems coincide (core box `(0,0)-(1970,1690)` in both; the ring
+extends into negative coordinates), which is what makes the transplant exact;
+the only rename is the `mcu0/` instance prefix, and `fp::tile_places` grew an
+optional prefix argument rather than the chip keeping a second list of the same
+four placements.
+
+**The floorplan probe reproduces c7 to the digit** -- core 1970.0 x 1690.0,
+hart1 (0,1239) R0 / hart2 (985,1239) R0 / hart3 (0,1) MX / hart4 (985,1) MX,
+band inset 32.7 um with the same 8-step scan, mesh phase 1.0 um on the tile
+riser lattice, stripe band y[343.8,1345.5], SRAM row x[1.00,1631.80] gap 8.14,
+hart0 flank x[1639.8,1968.3] -- with the ring as the only delta: die
+**2280.0 x 2000.0 um**, band 155.0/edge, and a new gate proving the floorplan
+solver and the ring plan agree on the core box before anything is placed.
+128 offline checks (80 `core_floorplan_test.tcl`, 32 a new `penta_pt_ring_test.tcl`,
+16 the ring JSON test) run first, with no Innovus and no licence.
+
+**Y3-1 closed.** Parts 3b / C12 / C14 / C17 and the two WQ27 waiver classes read
+the net from the padlist's new net column; `PENTA_PT_ANA5_OK` is retired. The one
+design change is C12 and it is stated as one: the closed M7/M8 ring that JOINED
+the five islands becomes **five per-island rails**, because a ring that joins
+them shorts AVDD_0..3 and AVDD_B in metal while the netlist says five nets. Drops
+rise 10 -> 44 (every analog supply pad, not just the first pair of each island),
+C17's `-excludePin` list 10 -> all 44 analog supply pad terminals, and new gate
+**C-G11** proves five domains with ten distinct nets before part 3b runs. One
+binding was missing and is not cosmetic: `PVDD3A_G`'s `TAVDD` bond plate was
+floating, and `editPowerVia` refuses to land a via on a floating terminal.
+
+**Y3-2 closed.** `addIoFiller -area` (IMPTCM-48 on 20.12) is replaced by a
+measured gap census, a coordinate placer and a re-measure with a FATAL on any
+residual; the decomposition is unit-tested offline because a gap-free ring proves
+nothing about it.
+
+**Three defects the ring carried, all found by running it.** (a) The four analog
+sections were **177.5 um west of the electrodes**: Y3 built them on the O10 STUB
+tile and y1i's notch is x[355,985] flush east with its six M6 ports at tile-local
+607.5 + 25k. The section origin is PROBED from the abstract now
+(`SECTION_DX = 370.0`, the `anatop_ch` macro's own x0) and gate C-G9 checks the
+ELECTRODES -- 24 pad-to-port alignments, worst **0.000 um** -- instead of the
+notch. `PAD_TRSTN` joins the other four TAP pins as a consequence; every pad
+keeps its name and its cell. (b) `BIASG_X/Y` was the square die's north-centre
+corridor, which a flat floorplan does not have: the position is SOLVED from the
+band, lands at (1271.7, 878.4), and its supply pads sit on a VERTICAL row that
+every branch of part 3b assumed away. (c) **Y8-2**: the core supply pads had
+nothing to strap to on the west row -- the band's west edge is macro from
+x = 1.00 and the tiles are flush elsewhere -- so all three pairs move to the east
+row and WQ22 scores **51 of 51** (pt11 scored 50, wq21e 7).
+
+### Y8 phase 2, 2026-09-22: D21 applied, the shorts classified, and the die grows in X
+
+**D21.** The analog section is trimmed 24 -> **14 slots** -- 2 AVDD, 2 AVSS,
+CE/WE/RE/ATP contiguous over the tile's own die-edge ports, 2 reserved debug,
+2 `PVSS2A_G` latch-up anchors, 2 brackets -- the bias island 12 -> 11, and the
+ring 171 -> **130 pads**. Bond fingers per edge: **north 33, south 34, west 20,
+east 43**, all under the LQFP-176 cap of 44, 130 of 176 in total; the cap is a
+checked invariant in the ring plan and the JSON test with a negative control.
+Y3's gates all pass on the trimmed ring: C-G9 24/24 alignments at 0.000 um, C3
+10 brackets, C4 130 pads, C5 0 gaps, C-G8 worst run 5 cells (better than the
+24-slot form), C-G3 0 unsupplied arcs, **verifyGeometry all-zero**.
+
+**Chip cut `chip_2mm_a` closed timing and failed the geometry gate**: signoff
+setup **+0.092 ns** and hold **0.000 ns**, both 0 violating, density 63.2 %,
+CPR6 passing, WQ22 51/51 -- and `FATAL (WQ27): Short 2040, Wiring 29, SameNet
+1159 (1044 waived, 115 real)`. Classified from the saved report, 3227 markers
+bucketed by layer, location and object pair:
+
+- **1492 shorts are M7 signal-to-signal in the 30 um of pad band outside the
+  core box**, and **1487 of them at y < 500**, on 141 nets of which 140 are
+  GPIO/TAP pad nets; **~300 more are the same router inside the tile abstracts'
+  obstructions**. One cause: with the tiles flush to the west and east core
+  edges the only boundary a pad can enter on is the control band's 788 um, and
+  a `PDUW16SDGZ_G` has four core-side nets, so each row's 16 GPIO bits are 64
+  nets through 30 um of single-layer M7. **Fix: inset the tiles 100 um** -- O10
+  fixes Y and leaves X free, the tiles still ABUT, and 100 is a whole mesh pitch
+  so the tile M7 riser lattice keeps its phase (measured unchanged at 1.0 um).
+  **Die 2280 x 2000 -> 2480 x 2000, core 2170 x 1690, area 4.56 -> 4.96 mm2.**
+- **56 PG shorts** were Y8's own bias strap running its long leg horizontally on
+  M7 across the core's vertical M7 mesh. The leg is M8 now with an M7 patch at
+  the bond plate, and a new clearance gate -- which immediately caught the
+  island centred 1.2 um from an M8 stripe and moved it 10 um.
+- **108 are tie wires under analog pad cells**, the pin-access class the flow
+  already waives for vias; waiver (c) widens to wires and keeps its
+  connectivity test.
+- **WQ23 part 4 and WQ24** were re-keyed off literals belonging to another
+  floorplan: the first killed a cut for adding FEWER taps than c7 did on a
+  smaller base (ratio, not count), the second for welding 0 of **0 candidates**.
+
+**The owner's viewing stream.** `castalia_B` holds `chip_2mm_a` at
+**2280 x 2000 um with 249,668 top-level instances**, streamed by a script that
+refuses to run without `PENTA_VIEWING_STREAM=1`, writes a distinctly named file
+no signoff target reads, and labels itself NOT SIGNED OFF at both ends.
