@@ -665,7 +665,7 @@ Everything on, pads quiet         & 12.8\,mW & 5.3\,mW & 18.1\,mW & pad switchin
 \textbf{One channel measuring}    & \textbf{7.6\,mW} & \textbf{1.3\,mW} & \textbf{8.9\,mW} & three tiles gated, with their channels \\
 Orchestrator only                 & 5.9\,mW  & 0       & 5.9\,mW  & all four tiles and channels gated \\
 Orchestrator asleep               & 2.6\,mW  & 0       & 2.6\,mW  & its clock; always-on leakage remains \\
-Deep sleep                        & $<2.6$\,mW & 0     & $<2.6$\,mW & shared RAM banks and NPU RAM powered off; NPU RAM alone leaks 0.66\,mW \\
+Orchestrator and one channel      & 5.9\,mW  & 1.3\,mW & 7.2\,mW  & all four tiles gated; one analog channel biased \\
 \bottomrule
 \end{tabular}}
 \vspace{0.25cm}
