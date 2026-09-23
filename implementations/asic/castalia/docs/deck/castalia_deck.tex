@@ -585,53 +585,6 @@ Four channels & 5.3\,mW \\
 \section{Digital Subsystem}
 
 
-% Sources: TRM 2.1 Features and Fig. 2.1 (2026-09-15); tapeout_review/PLAN.md
-% for die, package, pads and power.  Analog rows: TRM Ch. 33.
-\begin{frame}{SoC Specifications}
-\vspace{-0.1cm}
-\begin{columns}[T]
-\column{0.49\textwidth}
-{\scriptsize
-\begin{tabular}{@{}ll@{}}
-\multicolumn{2}{@{}l}{\textbf{\normalsize Digital}}\\[2pt]
-\toprule
-Harts            & 5 (1 orchestrator, 4 channel tiles) \\
-ISA              & \texttt{rv32imac\_zba\_zbb\_zbs\_zbc} \\
-Clock            & 24\,MHz rated, closed at 25\,MHz \\
-Measured CPI     & 1.260 aggregate, nine benchmarks \\
-Private TCM      & 8\,KiB per hart, 1-cycle \\
-Shared RAM       & 80\,KiB behind a round-robin arbiter \\
-Synchronisation  & 16 hardware mutexes, LR/SC, AMOs \\
-Interrupts       & claim/complete, any vector to any hart \\
-Accelerator      & NPU: MLP, conv-1D, XNOR, GEMM \\
-Power domains    & 4 MTCMOS, one per channel tile \\
-Debug            & JTAG, RISC-V Debug Module \\
-Field boot       & NFC ISO 14443A harvested boot \\
-\bottomrule
-\end{tabular}}
-\column{0.49\textwidth}
-{\scriptsize
-\begin{tabular}{@{}ll@{}}
-\multicolumn{2}{@{}l}{\textbf{\normalsize Analog and physical}}\\[2pt]
-\toprule
-Measurement sites  & 4 identical, simultaneous \\
-Topology           & bipolar grounded-WE potentiostat \\
-Electrode pads     & 12 (CE/RE/WE $\times$ 4) \\
-Converter          & 10-bit SAR per channel, extracted \\
-Reference DAC      & 12-bit R--2R per channel \\
-Feedback resistor  & 18\,k$\Omega + 6$\,k$\Omega\cdot N$, 320 codes \\
-Full scale         & $\pm$40.7\,\textmu A to $\pm$0.41\,\textmu A \\
-EIS                & firmware mode of the same channels \\
-Analog supply      & 2.5\,V, $v_\mathrm{cm} = 1.25$\,V \\
-\midrule
-Process            & 65\,nm CMOS, 1P8M, HVT cells \\
-Die                & $2.25\times2.0$\,mm, MPW \\
-Digital power      & 12.8\,mW core post-route, SS, 25\,MHz \\
-\bottomrule
-\end{tabular}}
-\end{columns}
-\end{frame}
-
 % Sources: innovus/common/MCU_castalia_penta/rpt/MCU_castalia_penta.d13d_postRoute_full.power
 % (SS 0.9 V 125 C, 25 MHz, activity 0.2; core groups vs the IO group);
 % TRM Table 10.3 for CPI.
