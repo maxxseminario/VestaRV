@@ -1973,3 +1973,64 @@ pin-access class against a TILE, which waiver (c)'s connectivity test already
 expresses (Y8-7). Parked at the bound with the classification in
 `reports/Y8_chip_2mm.md`; signoff, promote and the SDF regression wait on a cut
 that clears WQ26c and WQ27.
+
+### Y10, 2026-09-23: timing closes on the 2 mm chip; the hold ECO's route is the blocker
+
+`chip_2mm_d` (2480 x 2000 die, tiles inset 100 um, 8 h 33 m) **closes timing at
+the coupled-SI signoff views: setup +0.030 ns / 0 violating, hold 0.000 ns /
+0 violating of 36927 paths.** CPR6 (D19), WQ19, WQ21 and WQ27b all pass; WQ26c
+passes with **legalisation moving 0 instances**, the gate that stopped Y8.
+It FATALs at WQ27, and the cause is one missing line rather than a floorplan:
+
+    verifyGeometry postfiller (pre-ECO)  Short 359 , Wiring  2 , SameNet real 14
+                                         M7 signal-over-tile markers:   0
+    verifyGeometry signoff   (post-ECO)  Short 451 , Wiring 22 , SameNet real 49
+                                         M7 signal-over-tile markers: 178
+
+`deleteAllRouteBlks` removes the die-frame M7/M8 block the floorplan creates to
+"reserve M7/M8 for power during signal routing", and nothing restores it, so the
+WQ26 hold ECO routes signal on M7 across the tile abstracts. None of it is
+waivable: the pin-access waiver turns on the net terminating on the instance it
+is reported against, and these are routes crossing a macro they have nothing to
+do with. **`chip_2mm_e` proved that restoring the block so that it survives into
+verification is the wrong form** (Short 359 -> 3136, Overlap 0 -> 1448, all
+`Pin of Cell & Routing Blockage` -- the transient class the flow already
+documents); the correct form is a create/delete pair around the ECO loop, and
+the three-attempt bound is spent.
+
+**The edge channel is 100 um because 100 um routed.** The demand and the supply
+are both countable -- worst crossing 80 core-side pad nets against 750 free
+vertical tracks in a 50 um channel, 9.4x, 5.33 um needed on tracks alone -- and
+the count is not what binds. `chip_2mm_c` took 50 um to a finished route and the
+class returned on M7 inside the tiles, 164 markers where `chip_2mm_b` at 100 um
+scored none. Die 2480 x 2000 = 4.96 mm2, +8.8 % over the flush 2280 x 2000 that
+could not route; die Y untouched, O10 holds.
+
+**Four defects fixed at source, all in the analog ring and all systematic.**
+C12's per-island rail axis was inverted (a tphn pad's long axis is NORMAL to its
+row, so the aspect test returned the opposite of the row for all five islands,
+and AVDD lay on AVSS for 770 um); ANATOP 3b's M8 clearance was gated on the
+stripe-SET lattice while a set carries two stripes, and its M7 leg's x was never
+compared to anything; 3b's jog row was shared by both polarities; C12's
+vertical-row drop crossed the other rail on its own layer. Clearances are
+database queries now, not arithmetic. The special-wire-to-special-wire short
+class went **26 -> 6 -> 0** across the three cuts.
+
+**O-PT7-1's VDD-to-VSS half is closed.** C16d caps the two tie polarities on
+disjoint layer sets (LTIEHI M4, LTIELO M2) and widens the net glob to
+`*TIE_TOP_*`, which is what makes it bind on 103 nets instead of 18: zero
+`LTIEHI`-vs-`LTIELO` shorts on all three cuts, against 1 on pt7, 3 on pt8, 8 on
+pt9, 19 on b1 and 3 on `chip_2mm_b`. One `LTIEHI`-vs-`LTIEHI` marker remains
+(Y10-5) and capping HI at M5 does not remove it, at a cost of 22 ps of setup.
+
+**Y8-6 is closed at source and was half a misdiagnosis**, which is recorded: the
+launch-end fallback was always bounded by the reach from the DRIVER, and the
+391-733 um Y8 measured is the length of the path. The bound is explicit and
+asserted now (`PENTA_HOLDREP_LAUNCH_REACH`), a point beyond it is refused with a
+reason rather than relocated, and the policy has ONE home
+(`tcl/wq26c_site_lib.tcl`, md5-gated across both blocks) with an 87-check
+offline test built on `chip_2mm_b`'s own 19 endpoints. **Y8-4 is closed**: the
+promote gate could not refuse `NOT SIGNED OFF`; it now removes negated verdicts
+before testing for a positive one, 26 offline checks. **Y8-5 is deliberately not
+taken** -- `PENTA_PT_CUT` moves with a promote, and no cut passed WQ27, so there
+is no GDS, no SDF, no Calibre run, no promote and no SDF regression.
