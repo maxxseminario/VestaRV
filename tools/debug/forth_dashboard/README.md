@@ -28,10 +28,24 @@ Wiring is in `../RPI_SETUP.md`: chip TX0 to pin 10, RX0 to pin 8, grounds
 together, and GPIO18 to the BOOT inverter if you want to select Forth mode from
 software.
 
+## Check the link first
+
+The terminal is the simplest test: it drives the boot pin and the reset itself,
+so if it works the wiring, the UART and Forth mode are all proven and only the
+browser layer is left.
+
+```bash
+cd ~/vestarv/tools/debug
+python3 rv4th_terminal.py --reset-pin 17
+```
+
+You should get the `myshkin rv4th-rom!` banner and a `>` prompt; `-500 75689 * .`
+prints `-37844500`. Ctrl-C exits and releases the boot pin.
+
 ## Run
 
-The dashboard talks to a chip that is already at the `>` prompt; it does not set
-boot mode or reset the chip itself.
+The dashboard talks to a chip that is already at the `>` prompt; unlike the
+terminal it does not set boot mode or reset the chip itself.
 
 ```bash
 pinctrl set 18 op dh                  # BOOT low through the PCB inverter
