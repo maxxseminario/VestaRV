@@ -38,8 +38,9 @@ P2.4  (TX0, UART out) ──► Pin 10  (GPIO15 / RXD0)
 P2.5  (RX0, UART in)  ◄── Pin  8  (GPIO14 / TXD0)
 GND                   ────  Pin  6  (GND)
 
-Optional — GPIO-controlled reset:
+Optional — GPIO-controlled reset and boot mode:
 resetn pad (active low)◄── Pin 11  (GPIO17)   ← use --reset-pin 17
+BOOT (via PCB inverter)◄── Pin 12  (GPIO18)   ← --boot-pin 18 (default; 0 disables)
 ```
 
 > **Voltage levels**: Both the RPi GPIO and the chip run at 3.3 V, so
@@ -91,8 +92,8 @@ claimed by the Bluetooth module.  To move it to GPIO14/15:
 ## Installation
 
 ```bash
-cd /home/mseminario/vestarv/rpi
-pip3 install -r requirements.txt
+cd ~/vestarv/tools/debug
+pip3 install -r requirements-rpi.txt   # Bookworm: sudo apt install python3-serial
 ```
 
 `gpiozero` is pre-installed on Raspberry Pi OS; it is only needed when
