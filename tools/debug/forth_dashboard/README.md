@@ -1,40 +1,50 @@
-# Myshkin MCU Configuration Interface
+# Forth dashboard (v1)
 
-Web-based GUI for configuring and interacting with the Myshkin microcontroller via UART.
+Browser GUI on port 8050 for driving the myshkin chip over UART while it runs
+its rv4th Forth ROM. This is the version installed on the boards in use; keep
+using it. `../forth_dashboard_v2` is a rework and is not a drop-in replacement.
 
-## Quick Start
+## Pi setup (once)
 
-```bash
-make run        # Start the application
-make stop       # Stop the application
-make restart    # Restart the application
+Add to `/boot/firmware/config.txt` (`/boot/config.txt` on older images):
+
+```ini
+enable_uart=1
+dtoverlay=disable-bt
 ```
 
-Open browser to http://localhost:8050
+Then:
 
-## Requirements
-
-- Python 3.7+
-- Dash, plotly, dash-daq
-- pyserial (for hardware communication)
-
-## Hardware Setup
-
-- Connect to Raspberry Pi 4 UART: `/dev/ttyAMA0` at 115200 baud
-- See `tools/debug/rv4th_terminal.py` for GPIO wiring details
-
-## Features
-
-- Tab-based interface for all MCU peripherals
-- Bitfield-level register control with descriptions
-- Live Forth command terminal with color-coded output
-- Clock frequency measurement
-- Analog frontend (Potentiostat, SAR ADC, Delta-Sigma ADC) configuration
-- Command logging to file
-
-## Development
-
-Run in simulation mode (no hardware required):
 ```bash
-python3 index.py
+sudo raspi-config nonint do_serial_cons 1   # serial console off
+sudo raspi-config nonint do_serial_hw 0     # UART on
+sudo systemctl disable --now hciuart
+sudo usermod -aG dialout,gpio $USER
+sudo apt install python3-serial python3-dash python3-plotly
+sudo reboot
 ```
+
+Wiring is in `../RPI_SETUP.md`: chip TX0 to pin 10, RX0 to pin 8, grounds
+together, and GPIO18 to the BOOT inverter if you want to select Forth mode from
+software.
+
+## Run
+
+The dashboard talks to a chip that is already at the `>` prompt; it does not set
+boot mode or reset the chip itself.
+
+```bash
+pinctrl set 18 op dh                  # BOOT low through the PCB inverter
+cd ~/vestarv/tools/debug/forth_dashboard
+make run                              # make stop, make restart
+```
+
+Open `http://<pi-address>:8050`, then reset the chip. Without hardware, or if
+`/dev/ttyAMA0` will not open, it starts in simulation mode and returns dummy
+values.
+
+## What it gives you
+
+Tabs per peripheral with bitfield-level register control, a Forth terminal
+panel, clock measurement, the analog front end (potentiostat, SAR ADC,
+dual-slope ADC), and a command log.
