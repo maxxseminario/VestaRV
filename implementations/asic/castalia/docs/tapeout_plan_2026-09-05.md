@@ -2034,3 +2034,96 @@ promote gate could not refuse `NOT SIGNED OFF`; it now removes negated verdicts
 before testing for a positive one, 26 offline checks. **Y8-5 is deliberately not
 taken** -- `PENTA_PT_CUT` moves with a promote, and no cut passed WQ27, so there
 is no GDS, no SDF, no Calibre run, no promote and no SDF regression.
+
+### Y11, 2026-10-02: Y10-1 closed and proved; six source fixes; the blocker moves to WQ26c
+
+**Y10-1 is closed at source and proved by a cut.** The die-frame M7/M8 signal
+route block is a CREATE/DELETE PAIR around each WQ26 ECO pass -- one file, two
+homes, identical md5, md5-gated in `gen_chip_geometry.py`'s `SHARED` list -- and
+the delete's residual is READ BACK from the database with a FATAL on non-zero,
+because a `deleteRouteBlk` that returns cleanly and removes nothing is exactly
+what `chip_2mm_e` was. Offline gate 55/0 with two negative controls; the one that
+matters substitutes a delete that removes nothing and asserts the residual
+reports 2, not 0. **`chip_2mm_f` carries 0 M7 signal markers before AND after
+the hold ECO where `chip_2mm_d` carried 0 -> 237 on the same netlist and the same
+gates, and 0 `Routing Blockage` markers at either stage** -- so the pair neither
+lets signal onto M7 nor leaves the transient class a persistent block does. The
+Short total across the ECO reverses direction, 372 -> 314 against 359 -> 451.
+
+**`chip_2mm_f` closed timing (setup +0.045 ns, hold 0.000 ns, 0 violating) and
+FATALed at WQ27 on 234 markers. Re-running the gate's own connectivity test per
+marker on the saved database resolved them to four root causes, all fixed at
+source** -- 258 signature matches, 59 waived, 199 refused, **0 unresolvable**, so
+it was never an escaping defect.
+
+**121 markers were top-level signal lying on a hardened tile's real metal**, and
+the cause is a sentence in the ring plan that is false: *"signal pads behind a
+tile are fine: the router walks them along the pad band."* The tphn pad cells
+obstruct M1-M6 over the full cell, the pad row abuts the core box with no gap,
+and the tile abstract obstructs M1-M6 over 100 % of the tile -- so a north or
+south signal pad over a tile has **no legal path into the core**. Y10's edge
+channel serves west and east pads; the north and south pads were never in its
+scope. The five TAP pads and the eight `prt6` bits moved to the free west row
+inside the control band: **120 markers -> 0, and 83 ps of setup.**
+
+**72 markers were one C17 scope bug, and it is electrical before it is
+geometric.** `PVDD3A_G` declares `AVDD` (the core-side port) and `TAVDD` (the
+pad frame's analog supply BUS, carried by abutment like `VDDPST`); C17 excluded
+the first and not the second, so `addTieHiLo` tied **all 22 bus terminals to
+1.0 V digital tie cells in the core**, and those eleven nets then ran from the
+core to the analog sections, which sit over the tiles. One line fixes it,
+derived from the same table row. `chip_2mm_g`: 40 terminals excluded, **0
+TIE_TOP loads on any of them**, TIE_TOP nets 99 -> 70.
+
+**22 markers were waiver (c) testing the wrong thing**: `AVDD_0` has two
+instTerms, both pads, and none on the tile, because ANATOP part 3 DRAWS the
+strap and never creates a terminal -- so the analog arm could never be waived by
+construction. It is keyed on the domain table now, with gate C-G2 as the
+connection's own evidence. **The rest were the `SPACING:`/`MINCUT:`/`Regular`
+halves of classes adjudicated only as `SHORT:`/`Special`**: verifyGeometry's
+categories map one-to-one onto the marker kinds, and every waiver was keyed on
+one kind. Nine classifier changes, all POST_EDITS so the core flow of record is
+untouched -- and the drift gate proved that discipline by refusing a launch with
+"105 differences against a table of 104" when the ring-depth edit went into
+shared text.
+
+**The analog ring's last two markers took three floorplan probes and no
+argument.** The via window was narrowed and they did not move; the rail was
+moved M7 -> M8 and the short RELOCATED with identical bounds; only then was the
+cause measurable -- at depth 55 the inner rail's x[2221,2229] overlaps the pads'
+own bond plates, which reach 2226.185. M7 is the pads' top layer, which is why
+the north/south rails have always been M8 and have never scored this class. The
+fix is all three: M8, a via window of the rail's own width, and depths 70/85.
+
+**`chip_2mm_g` (attempt 2 of 2) FATALed at WQ26c, not at WQ27.** Every geometry
+fix held -- pre-ECO **Short 314 -> 58**, the 120 pad-crossing markers and the
+EB island's two and the MAXWIDTH all to **0**, M7 signal 0 -- and **setup reached
++0.128 ns / 0 violating of 36,927, the best any 2 mm cut has produced.** What
+stopped it is Y10-2b: the chip-wide `refinePlace` after the WQ26c insertion
+moved 5062 instances, on a cut that relocated 24 of 24 insertion points off a
+macro (13 to the launch end), the most any cut has done. The residual geometry
+is at the gate's budget; the only unadjudicated class left is four
+`TIE_TOP`-vs-`TIE_TOP` shorts that have **moved into the west edge channel**
+with the tie cells of the relocated pads, where F19b's track repair has room --
+it took one of them in this very cut. **WQ27 is not what stopped this cut.**
+
+**Y10-2b is now implemented in both drivers, identically, STAGED with the gate
+as its test**: the legalisation is scoped to the 40 um windows the insertion
+itself opened, a refused `-area` form falls back to the chip-wide call with a
+WARN, `PENTA_WQ26C_SCOPED_LEGAL=0` restores the old behaviour, and the
+displacement gate is left chip-wide and unchanged so a scoped call that misses
+something is caught rather than hidden. That is the arrangement Y10 asked for
+and declined to take without a measurement; the measurement is five cuts (a, c,
+d moved 0; b 3785, e 3854, g 5062).
+
+**Two chip attempts is the bound and it is spent: no GDS, no SDF, no Calibre, no
+ingest, no promote, no headless proof and no SDF regression.** `PENTA_PT_CUT`
+stays at pt7 for the third wave running and the `chip_2mm_a` `.gds2` symlink
+stays, because it is still the file `castalia_B`'s `PROMOTED.txt` names. The
+chip SDF regression's harness and its two tools ARE built and staged
+(`chip_pt_y11_pnr_20260923`, `gen_gate_sdfcmd_chip.sh`, `rescope_chip_sdf.py`,
+the last validated on a real 11.9 MB SDF): a chip cut's top cell is the pad-level
+wrapper, which the harness cannot bind as its DUT because `riscv_tb_gate.vhd`
+grades every row on `a0`, a port of `MCU` that does not leave the die -- so the
+chip SDF is re-scoped onto `mcu0` and the pad-cell delays stay with the
+harness's own pad entities, as on the core leg.
