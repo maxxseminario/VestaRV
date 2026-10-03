@@ -16,7 +16,7 @@ than for area.
 |---|---|
 | Board | **None is tracked.** No device, constraints file or bitstream exists in this repository; [`implementations/fpga/example-board/`](../../implementations/fpga/example-board/README.md) is an unfilled template for the first port. **The RTL is the deliverable.** |
 | Top entity | `MCU`. `chipName` is documentation only: the emitted top is `entity MCU` in every configuration, because the name is fixed template text in `hdl_templates/MCU.template.vhd`. |
-| Harts | 1, an ordinary `hart_tile` (`orchestrator` is pinned false), `rv32ima`. |
+| Harts | 1, an ordinary `hart_tile` (`orchestrator` is pinned false), `rv32imac`: compressed is on because the one boot ROM is built `rv32ic` (software/bootrom_mp/isa.bzl), and a core without C traps on its first instruction. |
 | Clock | One board clock on the **HFXT pad**. `SYS_CLK_CR` resets to zero, which selects `clk_hfxt` for both MCLK and SMCLK, so the chip runs from that pad out of reset and needs no PLL. Every bench in the tree models it at **24 MHz** with UART0 at 115200 baud. |
 | Boot ROM | 8192 B, one `rom2k_hvt_pg` (2048 x 32). |
 | TCM | 8192 B for the one hart, one `sram1p8k_hvt_pg`. |
@@ -71,7 +71,7 @@ declare the same entity and must never be co-listed either.
 | File | Replaces | Why the simulation model will not do |
 |---|---|---|
 | `ClockPrimitives.vhd` | nothing | declares `ClkBufEn` and `ClkBuf`, the two cells every clock-generation stand-in here is built from. Their architectures are in the `_generic` / `_xilinx` pair below, so no cell in this directory names a vendor primitive |
-| `ClockPrimitives_generic.vhd` | nothing | vendor-neutral architectures: a falling-edge flop and an AND, and a wire. What GHDL and any non-Xilinx flow take |
+| `ClockPrimitives_generic.vhd` | nothing | vendor-neutral architectures: a low-transparent latch and an AND (the ICG function), and a wire. What GHDL and any non-Xilinx flow take |
 | `ClockPrimitives_xilinx.vhd` | nothing | the same two architectures out of `BUFGCE` and `BUFG`. What Vivado takes. Pair file of the one above; exactly one of the two in any file list |
 | `ClkGate.vhd` | `sim/ClkGate.vhd` | the simulation gate is a level-sensitive latch, which Vivado infers as a real latch on every gated clock path; this one is a `ClkBufEn`, i.e. a `BUFGCE` |
 | `ClockMuxGlitchFree.vhd` | `sim/ClockMuxGlitchFree.vhd` | the ASIC mux clocks three flip-flops and a gate from EVERY input, so all eight inputs of each divider mux become flop clock pins for a design that runs one of them; this one is a fabric mux into one clock buffer |

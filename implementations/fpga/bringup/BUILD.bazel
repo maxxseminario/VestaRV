@@ -1,0 +1,102 @@
+# VestaRV: FPGA bring-up kit for the fpga_default cut. README.md is the procedure.
+#
+#   :flash_payload_bin       the binary an external programmer writes at flash address 0
+#   :flash_payload_bin_test  its byte order (EF BE AD 10 first) and length
+#   :fpga_flash_boot         GHDL: the FPGA file set boots the payload out of a SPI flash
+#                            model through the real boot ROM, and prints the boot timeline
+#
+# The payload is the rv32ui-p-simple ISA test, which passes by writing 0xCAFEBABE to a0.
+#
+# The bench needs two files at the runfiles root: the FPGA ROM opens "rom.rcf" from the
+# working directory (hdl/fpga/ARM_IP_ROM.vhd, the same default the Vivado script satisfies by
+# copying), and serial_flash.vhd takes a path of exactly 29 characters. //:fpga_bringup_rom_rcf
+# and //:fpga_bringup_flash_rcf in the root BUILD.bazel stage them there.
+
+load("@rules_python//python:defs.bzl", "py_binary", "py_test")
+load("//toolchains/ghdl:defs.bzl", "ghdl_test", "vhdl_source_set")
+load("//opensource_sim/fpga_default:defs.bzl", "FPGA_DEFAULT_HEAD", "FPGA_DEFAULT_MACROS", "FPGA_DEFAULT_MID")
+
+package(default_visibility = ["//visibility:public"])
+
+py_binary(
+    name = "rcf_to_flash_bin",
+    srcs = ["rcf_to_flash_bin.py"],
+    main = "rcf_to_flash_bin.py",
+)
+
+genrule(
+    name = "flash_payload_bin",
+    srcs = ["//verification/isa:rv32ui-p-simple_flashed"],
+    outs = ["flash_payload.bin"],
+    cmd = "$(location :rcf_to_flash_bin) $< $@",
+    tools = [":rcf_to_flash_bin"],
+)
+
+py_test(
+    name = "flash_payload_bin_test",
+    srcs = ["flash_bin_test.py"],
+    main = "flash_bin_test.py",
+    args = [
+        "$(rootpath //verification/isa:rv32ui-p-simple_flashed)",
+        "$(rootpath :flash_payload_bin)",
+    ],
+    data = [
+        ":flash_payload_bin",
+        "//verification/isa:rv32ui-p-simple_flashed",
+    ],
+)
+
+vhdl_source_set(
+    name = "head_srcs",
+    paths = FPGA_DEFAULT_HEAD,
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "mid_srcs",
+    paths = FPGA_DEFAULT_MID,
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "macro_srcs",
+    paths = FPGA_DEFAULT_MACROS,
+    pool = ["//hdl:vhdl_sources"],
+)
+
+vhdl_source_set(
+    name = "tb_srcs",
+    paths = [
+        "hdl/common/tb/serial_flash.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
+ghdl_test(
+    name = "fpga_flash_boot",
+    size = "medium",
+    srcs = [
+        ":macro_srcs",
+        ":head_srcs",
+        "//opensource_sim/fpga_default:fpga_default_memorymap_vhd",
+        ":mid_srcs",
+        "//opensource_sim/fpga_default:fpga_default_mcu_vhd",
+        ":tb_srcs",
+        "//opensource_sim/rv4th:pads_sim.vhd",
+        "fpga_flash_boot_tb.vhd",
+    ],
+    data = [
+        "//:fpga_bringup_flash_rcf",
+        "//:fpga_bringup_rom_rcf",
+    ],
+    entity = "fpga_flash_boot_tb",
+    flags = [
+        "-fsynopsys",
+        "-frelaxed",
+    ],
+    pass_pattern = "FPGA FLASH BOOT PASSED",
+    run_options = ["--assert-level=failure"],
+    sim_timeout_s = 280,
+    stop_time = "20ms",
+    tags = ["ghdl"],
+)
