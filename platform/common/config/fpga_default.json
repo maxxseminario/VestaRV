@@ -6,7 +6,7 @@
   "orchestrator": false,
 
   "isa": {
-    "compressed": false,
+    "compressed": true,
     "bitmanip": false,
     "minimalTiles": false
   },
