@@ -2423,3 +2423,111 @@ vendor-netlist correspondence wave of its own; the antenna class structurally; t
 real-geometry chipdrc results (at most 49 physical sites, 8 of them tile cut `y1i`'s); the
 zero-delay gate leg. Register `signoff_mp/DRC_WAIVERS_chip_2mm_j.md`, report
 `tapeout_review/reports/Y14_chip_2mm_j.md`.
+
+### Y15, 2026-10-04: the pad ring cannot correspond, and the deck's markers are invisible to the flow
+
+Four mechanisms are now named, the LVS residual falls **155 : 95 -> 16 : 16** with the parameter
+mismatches gone, and the chip cut `chip_2mm_k` is **parked at attempt 2 of 2**: `chip_2mm_j` stays
+the cut of record, `PENTA_PT_CUT` is untouched and `castalia_B` is still promoted to it.
+
+**O-J-1, the pad-ring MISMATCH, is not a CDL version, a tolerance or a missing cpoint.** It is two
+defects and both are inside purchased cells. First,
+`tphn65gpgv2od3_sl_1_2.spi:22` declares `.GLOBAL VDD VSS VDDPST VSSPST POC TAVSS TAVDD TACVSS
+TACVDD` -- one node per ring bus for the whole netlist -- while this ring deliberately CUTS every
+one of them: ten `PRCUTA_G` brackets give five analog domains (`AVDD_0..3`/`AVDD_B`, decision X3-A,
+and the chip log's own ten `ANATOP part 3 -- net AVDD_<n>: 4 pad terminal(s)` lines) and D21 gives
+six VDDPST/VSSPST pairs to five digital arcs. Four pad masters reference the analog pair and two of
+them cannot even name it, because it is not in their port list: `.SUBCKT PVSS2A_G VSS` hangs
+nineteen devices off `TAVDD`/`TAVSS`, and `.SUBCKT PDB3A_G AIO` nine. One schematic net cannot
+correspond to five layout conductors, so every ESD and clamp device in those 57 pads is
+uncorrespondable -- that is the 155 : 95, and all eleven `XPAD_*` "finger-count" parameter errors
+are the same defect seen from the reduction side (`<X2/X39/X450> rm1 w 42.48 u` against
+`<XPAD_AVDD_1_0/X_53> rm1 w 212.4 u` is 2 x 21.24 against 10 x 21.24: the schematic merged all ten
+AVDD pads' copy, the layout merged the two in one island). Second, `PDUW16SDGZ_G` carries
+`X_97 VSS net_37 rppolywo` and `X_98 net_38 VDD rppolywo` with both far nodes used nowhere else --
+108 identical two-terminal devices with an open end, an ambiguity no matcher breaks: 36 : 36
+unmatched `rppolywo`. **The control is Myshkin's shipped `ASIC_final`**: same pad kit, same deck,
+one uncut ring, and every pad device class came back 0 : 0.
+
+**The fix** declares the eleven tphn masters the chip instantiates as regular `lvs_black_box`es --
+no `-black`, no `-gray`, so the cells are still extracted and compared PIN TO PIN, which keeps the
+pin assignment, the one thing chip LVS is for -- plus four scoped `lvs_delete_cell_pin` classes
+with their reasons in the control file: `PGATE`/`NGATE` layout-side (`*PGATE NGATE` is a SPICE
+COMMENT in every vendor pad subckt, so the netlist has no such ports while the GDS carries the
+texts) and `TAVDD`/`TAVSS` on the four analog masters. `lvs_delete_cell` was rejected because
+removing the instance removes the only path from a top-level port to its core net. Measured on
+`chip_2mm_j` with nothing but the control file changed: devices **16 : 16**, nets **14 : 3**,
+parameter mismatches **0**, `rppolywo` **0 : 0**, every MOS and diode class 0 : 0, shorts 0 with
+sentinels armed, **9 of 13 box cells MATCH**, and the design's own 7,968,803 reduced devices still
+compared device for device. **The negative control discriminates**: one deleted `BUFX2BA10TH` moves
+unmatched layout devices 16 -> 20, as MP(PCH_HVT) 0 -> 2 and MN(NCH_HVT) 0 -> 2, with the schematic
+side unchanged -- so black-boxing the purchased pads did not blind the compare, which was the one
+real risk of the fix. The remaining 16 are pad instances and all 16 are the five-domain class;
+**O-K-1** is the three coupled edits that close it and needs no cut.
+
+**O-J-2: `verifyGeometry` does not implement the rules the deck fails on.** `chip_2mm_j`'s signoff
+pass read Wiring 0, real SameNet 0, Short 0, Overlap 0 on the database that carried all 72
+real-geometry chipdrc results, because `M<n>.S.2` is a *union-projection* width/parallel-run
+spacing rule and `M6.A.2` is an *enclosed area* rule Innovus has no equivalent for. F19b, driven
+by a verifyGeometry report, had nothing to repair; the markers exist only in the previous cut's
+chipdrc RDB. New `signoff_mp/drc_eco_markers.py` turns that RDB into a marker file and accounts for
+every result (1874 = 1506 pad-kit ESD + 216 `PO.R.8` + 72 density + 8 dummy + 72 real in 16
+classes); new SHARED `tcl/drc_eco_{lib,test}.tcl` (26/0 offline, gate 12 in `run_chip.sh`) holds the
+policy; stage C-G20 applies it. The 72 are now classified BY REPAIR BRANCH on the real database:
+41 weldable PG -- of which 24 are **8 enclosed 1.5 x 0.1 um = 0.15 um2 holes** on the two flanks of
+the bias-island pads' 4.0 um `TAVDD`/`TAVSS` plate, and 2 are the same-net `M7.S.4` gaps the
+independent WQ21 scorer reproduces to the coordinate -- 23 router geometry, and 8 inside
+`hart_tile_pt`, which belong to tile cut `y1i`.
+
+**O-J-3: the two antenna checks carry the same rule, and the disagreement has no knob in this
+release.** `ant25.rul` says `net_area SD -ge 0.06 -outputlayer M3_DIO` and then
+`antenna M3 M2 M3_DIO HV18_GATE GATE -accumulate ACC_M2` with the 5000 and
+`456*AREA(M3_DIO)+43000` branches; the technology LEF says
+`ANTENNACUMAREARATIO 4996` and `ANTENNACUMDIFFAREARATIO PWL ( (0 4996) (0.059 4996) (0.06 43017)
+(1 43436) )` -- the same 0.06 um2 source/drain break point, the same two branches, the same
+456 um^-2 slope. The gate areas agree to 0.8 % (`AntennaGateArea 0.0593` on the flagged
+`PREICGX0P5BA10TH` CK pin against the deck's measured 0.0588). The whole difference is
+`-accumulate ACC_M2`: the deck scores the PARTIAL net that exists when only M1..M3 are etched, so a
+trunk reached by its driver only through M4 has `M3_DIO = 0` and a limit of 5000, while Innovus
+credits the whole routed net's diffusion and lands on 43017. **Innovus 20.12 has no
+`setAntennaMode`** and `verifyProcessAntenna`'s entire option set is
+`-detailed -error -net -selected -noIOPinDefault -noMaxFloatArea -pgnet -report`; the diode
+insertion earlier waves suspected was never off (`-routeInsertDiodeForClockNets true` has been armed
+since before `pt11`). The only lever is the data -- strip `AntennaDiffArea` from a local macro LEF
+copy, or raise `trunk_rule`/`leaf_rule` one layer -- and both change routing, so neither was
+combined with the DRC repair. **The class is NOT closed by construction and this plan does not
+claim it is**; `ant25` remains the authority.
+
+**O-J-4: the zero-delay leg is the W4 finding-5 artefact, localised.** The hold repeaters are DELAY
+CELLS, so a zero-delay run sets their delay to zero -- it deletes the fix and keeps only its
+one-delta-cycle cost. Ten of `chip_2mm_j`'s fourteen sit on a `hart_tile_pt` boundary pin, and the
+pass pattern matches the per-hart distribution exactly: on the four rows where any hart passes,
+harts 2 and 3 pass and harts 1 and 4 do not, which are precisely the two harts whose
+`tcm_ext_addr` bus carries a repeater in this cut (hart1 bits 4 and 8, hart4 bit 5; harts 2 and 3
+carry none). `chip_2mm_i`'s single `tcm_ext_addr` repeater was on hart4 and `shtcm` is the one row
+that failed there. Not functional: the SDF legs are 14/14 at both corners including the ff/-40 C
+hold corner these insertions exist to fix, signoff hold is 0.000 ns / 0 of 36,927, all four
+single-hart rows pass within 1 s of the reference runtimes, and the netlist carries no antenna
+diode. The actionable item is the LEG (`-excludeCellInst DLY*`, or retire it for the two SDF legs).
+
+**`chip_2mm_k`, both attempts.** Attempt 1 ran clean through the hold ECO and then died at
+`ecoRoute -fix_drc` with IMPSYT-6692, because C-G20's weld is `add_shape -shape STRIPE` and it had
+welded six markers on SIGNAL nets; a STRIPE on a signal net is a disconnected piece to the router,
+which answered "There were 10 open nets". F19b's own header already carried the rule in words; the
+library now enforces it, and both the `ecoRoute` and the whole stage call are caught so a
+non-gating stage can never cost a cut again. Attempt 2 closed **setup at +0.130 ns / TNS 0.0 /
+0 violating of 36,927** -- 75 ps better than the cut of record -- with `verifyProcessAntenna` at 0,
+and then FAILED the WQ27 gate with Wiring 2, Short 3 and SameNet 26 unwaived against
+`chip_2mm_j`'s 0/0/0. **Every delta is at a weld**: replaying the 48 logged weld coordinates
+against the signoff report's own `Bounds` lines, 20 SPACING, 12 SHORT and 2 MINSTEP markers contain
+a weld point on the weld's own layer. The weld is right for the deck and wrong for Innovus's
+checker -- a same-net rectangle abutting existing routing produces same-net SPACING, MINSTEP and
+SHORT-against-blockage of its own, and the WQ27 waiver classifier only knows the two shapes F19b
+draws. `PENTA_DRCECO` now defaults to 0, with three repairs named at the knob (teach the classifier
+the weld boxes by coordinate; draw the weld as a regular wire; or do it in the GDS writer). The
+routed database is saved; no GDS, no SDF, nothing ingested or promoted.
+
+**Next, in order**: O-K-1, because it is the only thing between the chip and an LVS MATCH and it
+needs no cut; O-K-2, after which C-G20 can run and the 72 fall to single digits; the antenna lever,
+on a cut with margin to spare -- this floorplan has 130 ps; O-K-4. Register
+`signoff_mp/DRC_WAIVERS_chip_2mm_k.md`, report `tapeout_review/reports/Y15_chip_2mm_k.md`.
