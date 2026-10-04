@@ -2322,3 +2322,104 @@ Offline gates, both homes: `wq26c_legal_test` **86/0**, `wq27_ant_test` **19/0**
 whole-proc harness **86/0 against both generated flows** (arms 1-20), `gen_chip_geometry.py
 --check` and `gen_padring_pt2mm.py --check` pass, every earlier gate unchanged. Report
 `tapeout_review/reports/Y13_chip_2mm_i.md`.
+
+### Y14, 2026-10-04: Y13-A closed at source -- the placeholder's abstract did not describe its own GDS
+
+`chip_2mm_j` **passes on attempt 1**: signoff setup **+0.055 ns / 0 violating of 36,927**, hold
+**0.000 ns / 0 violating**, WQ27 PASSED, GDS and both per-view SDFs written, ingested, promoted
+as `castalia_B`, **P&R SDF regression 14/14 at both views**. The three Y13 residuals resolve as
+follows: the VDD-to-VSS short is **closed at source and proved three ways**, `ant25` is **clean**
+(0 antenna violations, was 6), and the unadjudicated chipdrc set falls from 436 real-geometry
+results to **72**, every one placed by coordinate.
+
+**The short and the VIA5 DRC class were one defect.** `anatop_biasgen_g` is a black-box
+placeholder, and its abstract did not describe its own GDS. The LEF's M6 OBS leaves a
+**full-height access column** open per supply (`biasgen_g_lef_gen.py`'s own `access_channels()`
+says so in words) and declares only an 8 x 4 um north tab; the GDS fills each column with an M6
+leg running from that tab down to the supply's own **full-width** M5 strap, plus a 338-cut VIA5
+array where the two overlap -- finding F19, drawn so Pegasus sees one conductor per supply
+instead of two same-named shapes. Innovus reads the LEF and therefore saw empty M6 at
+cell-local x 179.5-188.5, y 250-254, and landed a **VSS** M7-M6-M5 via stack at chip
+(1660.200,1130.400) inside the **VDD** leg: `lvs.rep.shorts` SN 40 (the leg), SN 41 (one 0.1 um
+VIA5 cut), SN 42 (the VSS strap). The same blindness let the flow stack its own VDD VIA5 array
+on top of the placeholder's, in one 3.6 x 3.8 um box at x 1652.425-1655.975 y 1058.510-1062.290,
+which produced **373 of the cut's 377 VIA5 results** (220 `VIA5.W.1` -- two abutting 0.1 um cuts
+are no longer the exact rectangle the rule demands -- 207 `VIA5.S.1`, 56 `VIA5.S.2`).
+
+**Fixed in three files with one derivation.** The abstract now declares each pin's M6 leg as a
+PORT rect and carries `LAYER VIA5` OBS over the whole 340 x 340 footprint -- there is no
+legitimate chip-level M5-to-M6 transition over this macro, because the straps are already tied
+to their legs internally and the designed access is the leg itself, reached with a VIA6 from the
+free M7. `gen_anatop_biasgen_g_bbox.py` takes the **union** of a pin's M6 rects for its overlap
+test, so the emitted GDS is identical whether the abstract carries the leg or not (1439
+boundaries, 74 texts, 1352 cuts, per-layer counts and M6 unions all unchanged, CDL byte-identical).
+And NEW SHARED `tcl/pg_blockpin_lib.tcl` + `tcl/pg_blockpin_test.tcl` (both homes, identical md5,
+in `gen_chip_geometry.py`'s SHARED list, **45/0** offline) feed gate **C-G19**: derive the
+same-pin and cross-pin M<k>-n-M<k+1> windows from the abstract's own pin rows, assert the
+abstract declares its internal arrays, blank the six cross-pin windows with
+`createRouteBlk -pgnetonly` **above the first PG sroute**, delete them with a read-back after the
+last one, and audit the database for a via inside a window.
+
+**Four floorplan probes found three defects before a chip attempt was spent.** `FPLAN=1
+./run_chip.sh` stops at the floorplan + PG checkpoint in ~9 minutes, which is where this work
+lives. `y14fp`: the offending via belonged to the `blockPin` **workhorse** sroute 300 lines
+above part 3b -- part 3b's own sroute creates 0 wires on this floorplan -- so C-G19 was split
+into C-G19a (above the first PG sroute) and C-G19b (after the last). `y14fp2`: a **default**
+`createRouteBlk` does not stop a PG sroute and neither does declaring the foreign leg as pin
+metal, so `-pgnetonly` was added and the cut-layer OBS widened to the footprint; the same probe
+showed `dbQuery -area` matching by EXTENT (three `AVDD_B` hits at a y no window contains).
+`y14fp3`: `dbQuery -objType sVia` returns **every** cut layer, and the core M7 VSS column
+crosses the macro freely, so its VIA7 at the VSS M8 strap looked like the short -- the audit now
+filters on the window's own cut layer. `y14fp4` passes: 0 vias in 6 windows, 0 extent-only hits,
+scoped `verifyGeometry` over the bias halo 0 different-net SHORT, and the PG-stage opens
+**improved** (terminals 9, special 1), because the declared leg gives the chip 160 um of pin
+metal to strap instead of a 4 um tab.
+
+**Signoff.** `chipdrc` **1874** against 2368: 1506 in the purchased pad kit (identical counts),
+**zero in the placeholder** (was 110), 368 at top level (was 752) = 80 density/dummy deferred
+per O3 + 216 `PO.R.8` + 64 metal spacing/area + 8 via-rule. `VIA5.W.1`/`S.1`/`S.2` are **110 ->
+0, 207 -> 0, 56 -> 0**: the fix measured by a second, independent check. `PO.R.8` is
+**adjudicated** -- all 234 of `chip_2mm_i`'s result centres were tested for containment against
+259,488 placed components and **234 of 234 landed inside a vendor cell, 0 in flow-drawn
+geometry**, at FIXED cell-local sites (`PDUW16SDGZ_G` 120 at five sites x 24 pads,
+`DLY2X0P5MA10TH` 52 at eight, `BUFX0P7MA10TH` 34 at four, five `NOR2XB*` masters 22,
+`BUFX0P7BA10TH` 6), so the flow cannot move a structure that lives inside a purchased cell;
+waiver W-J-4, and topology A's 132 on `d13d` is the same class. `ant25` is **clean**. Pegasus
+LVS is still a MISMATCH but **`lvs.rep.shorts` is 0 lines** and the compare is back to the
+pad-ring baseline: devices unmatched **155 : 95** against 27,517 : 27,470, nets 46 : 30, pins
+85 : 85 with 0 unmatched, both placeholders matched, and **every digital device class 0 : 0**.
+**Y13-4 is closed**: the negative control deleted one `BUFX2BA10TH` from `orch_vesta` and moved
+unmatched layout devices 155 -> 159 and layout nets 46 -> 47 with the schematic side unchanged --
+one injected fault, one caught fault.
+
+**The antenna premise was wrong.** `tsmc65_hvt_sc_adv10_macro.lef` DOES carry per-pin antenna
+data; the keyword is mixed-case (`AntennaGateArea`, 2643 instances across 916 macros) and an
+uppercase grep misses it. The two checks differ in **which diffusion they credit**: the deck
+counts only the protection diffusion connected at or below the layer under test
+(`M3_DIO AREA = 0` on the violating net, so 294.962 / 0.0588 = 5016.4 against a 5000 limit,
+0.33 % over) while Innovus counts the whole net's, and every std-cell output pin sits above the
+0.06 um2 PWL knee that switches the limit to 43017 -- **8.6x loose**. The metal comes from the
+CTS non-default rule: `CTS_2W2S`/`CTS_2W1S` are 0.4 um wide and `trunk_rule`/`leaf_rule` confine
+clock trunks and leaves to M2/M3, into pure-gate clock-gate and flop CK sinks. New tool
+`signoff_mp/ant_m13_census.py` measures that numerator from a DEF in ~3 minutes against
+`ant25`'s 19: nine nets above 300 um2 on `chip_2mm_i`, 35 above 150, every one a CTS net.
+**Not repaired**: both levers change clock routing on a cut closing at +0.055 ns, and the hard
+LVS blocker had the attempts. `ant25` reads 0 on `chip_2mm_j` and NanoRoute's diode list carries
+exactly one entry where `chip_2mm_i`'s was empty, so the class closed by accident and can return
+(O-J-3).
+
+**What did not improve.** The **zero-delay** gate leg fell 13/14 -> **4/14**: every multi-hart
+row fails with all four per-hart flags false while the four single-hart rows pass with runtimes
+identical to the reference. The failures are in SIMULATED time (`tb_shboot` runs to 56.6 ms and
+reports TEST FAILED with all four tiles silent) and reproduce deterministically at
+`MAX_PARALLEL=1`, so neither machine load nor the antenna diode (which `saveNetlist
+-excludeCellInst`s) is the cause. It is the W4 finding-5 zero-delay artefact class -- a
+zero-delay netlist simulation of a shared-memory multi-hart design has no timing to order the
+arbitration -- widened by a different hold-ECO repeater set (13 against 24). The P&R SDF legs
+are the regression of record and they are 14/14 at both corners (O-J-4).
+
+**Next, in order**: the pad-ring LVS device class 155 : 95, the only remaining MISMATCH and a
+vendor-netlist correspondence wave of its own; the antenna class structurally; the 72
+real-geometry chipdrc results (at most 49 physical sites, 8 of them tile cut `y1i`'s); the
+zero-delay gate leg. Register `signoff_mp/DRC_WAIVERS_chip_2mm_j.md`, report
+`tapeout_review/reports/Y14_chip_2mm_j.md`.
