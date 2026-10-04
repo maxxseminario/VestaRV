@@ -2228,3 +2228,97 @@ them reads a cut that reaches WQ27. `PENTA_PT_CUT` stays at pt7 and the
 input at all -- `out/*.sdf` is empty for every chip cut ever taken. The only
 unadjudicated class above WQ27 is `Antenna 46`, new in `chip_2mm_h` (Y12-4).
 Report `tapeout_review/reports/Y12_chip_2mm_h.md`.
+
+### Y13, 2026-10-04: `chip_2mm_i` closes, and the blocker moves into the layout
+
+**Y12-3 is proved on a real database before the cut, and a probe found the defect in
+Y13's own first draft.** The `chip_2mm_h` place database cannot host WQ26c (the stage
+needs a routed design), so the probe ran on the CORE flow of record's `c7.signoff` --
+290,551 instances, 30 s to restore, the same WQ26c block. The per-insertion group route
+closed its split in 45 s, `verifyConnectivity -type regular` answered `Found no problems
+or warnings.`, and `ecoRoute -fix_drc` passed: the exact step both `chip_2mm_h` attempts
+died at. It also killed the obvious predicate: **`ecoAddRepeater -term` SPLITS the existing
+routing**, so both halves carry wires (2 and 3) the instant the split is made, and
+`dbGet <net>.wires` -- this project's route-status idiom everywhere else -- answers "routed"
+for a net the router has abandoned. And `ecoDeleteRepeater -inst` works: the split merges
+back, one selected-net `ecoRoute` closes the restored net, `-fix_drc` passes.
+
+**`Antenna 46` is adjudicated and the class is not new (Y12-4 closed).** `Antenna` is 0 in
+every non-signoff `verifyGeometry` of every cut because only the signoff call passes
+`-antenna`; in the signoff report `chip_2mm_f` reads **78**, `_g` 47, `_h` 46 -- so the only
+earlier cut to reach WQ27 and stream a GDS already carried 78 of the same signature. All 46
+are `Special Wire of Net <PG net>` (0 Regular Wire/Via), 28 of 46 boxes are exactly
+degenerate, 29 of 46 coincide with a `dangling Wire` WQ27b already waives, and
+`verifyProcessAntenna` reads `No Violations Found`. A power net charges no gate, a zero-area
+marker is not an area ratio, a diode has nothing to attach to and a jumper has nothing to
+break. **WAIVED as class (f)**, with `tcl/wq27_ant_lib.tcl` classifying every marker on BOTH
+tests (structural `Special Wire` and the database's own `isPwrOrGnd`) and three new WQ27 gate
+arms: unclassified markers to 0, a blow-up cap, and a summary-vs-parser mismatch FATAL.
+
+**Attempt 1 FATALed on the NEW check, which is how the real mechanism was found.** Setup
++0.121 ns / 0 violating of 36,927 -- the best number any 2 mm cut has produced -- all 24
+per-insertion groups routed and **0 of 47 split nets open**, so Y12-3 works. Then
+`verifyConnectivity -type regular` found **100 regular nets open, 0 split and 100
+neighbours**, and the stage refused instead of handing an open database down. Two lines above:
+the scoped `refinePlace -preserveRouting true -area <40 um box>` had moved **61 REAL
+instances, worst 2.6 um**, and the old budget (`done + 40` = 64) PASSED it. The 100 opens are
+exactly where those movers are -- 56 `timer1`, 19 `system0`, 7 `timer0`, 7 `spi1`, 2 `spi0`
+and 9 top level including the clock net `CTS_65` -- and the sixteen hart-boundary band-row
+insertions disturbed nothing. `deleteFiller` runs before the insertion, so the rows in the
+window have gaps and a detail placement there COMPACTS them.
+
+**Y13b: audit first, pin what you are not placing, and gate the NEIGHBOURS at zero.** The
+audit now runs before any `refinePlace`; if every repeater is already on a free row site the
+legalisation is SKIPPED entirely, and if one is not, every non-repeater instance in the
+windows is `dbSet pStatus fixed` for the duration and restored afterwards. The displacement
+gate moves off the real count and onto the NON-REPEATER count, at zero: a moved repeater is
+harmless because the stage re-routes its two split nets by construction, and a moved
+neighbour is an open net it does not repair.
+
+**`chip_2mm_i` PASSES, and Y13b ran both of its branches inside the one cut.** 2 h 09 m real,
+exit 0: **setup WNS +0.042 ns / 0 violating of 36,927, hold WNS 0.000 ns / 0 violating**, and
+`WQ27 verification gate PASSED -- unwaived Wiring 0 (3 waived of 3), real SameNet 0 (1173
+waived), unwaived Short 0 (54 waived), Overlap 0, unclassified dangling 0 (41 waived),
+unclassified antenna 0 (46 waived PG special-wire of 46), process antenna 0`. ECO pass 1 found
+**16 of 24 repeaters placed ILLEGALLY by `ecoAddRepeater -loc`** (overlapping tie cells, well
+taps, `timer0` flops), pinned **2354** routed neighbours, legalised, restored all 2354 and
+moved **20 real / 0 non-repeaters**; passes 2 and 3 each inserted one already-legal repeater
+and SKIPPED the legalisation. Every pass reported `every split is CLOSED`. **The first 2 mm
+chip cut of either topology to clear WQ26c, the slack gate and the WQ27 gate, and the first
+chip cut of any size to write an SDF** (`out/*.sdf` was empty for every earlier one).
+
+**Signoff: chipdrc and ant25 run for the first time on a 2 mm cut, and LVS finds ONE VDD-to-VSS
+SHORT.** chipdrc 2366 results classified by cell: 1506 in purchased pad-kit cells (the ESD
+family, Myshkin precedent), 110 in the `anatop_biasgen_g` placeholder, **752 at top level** --
+82 density/dummy deferred per O3, 234 `PO.R.8`, 377 VIA5, 3 VIA4, 56 metal spacing/area, and
+the last 670 are UNADJUDICATED. ant25: **6 real `A.R.6__A.R.8:M3`** plus 2 warnings in a
+Cadence mimcap, and Innovus's `verifyProcessAntenna` and NanoRoute's diode ECO both score 0 on
+the same database -- the two checks disagree and the foundry deck is the one that counts.
+Pegasus: **MISMATCH on exactly one short, `VDD: - VSS:`**, and the 63-polygon path localises it
+to the M5/M6/M7 straps inside `x[1462.4,1822.4] y[868.4,1228.4]` -- the window the cut's own
+log names as `ANATOP part 3b -- VDD/VSS blockPin sroute`. **Innovus never sees it**: Short 54
+are all the adjudicated AVDD/AVSS-vs-blockage class and there is no VDD-vs-VSS marker
+anywhere. Everything else in the compare (27,517 : 27,470 unmatched devices, symmetric;
+26,250 : 26,236 nets; the ERC population) follows from the merge. Not waivable: fix the sroute
+and re-cut. Two collateral scripts had to be fixed first, both naming pt7-era analog pads that
+D21 renamed, and both FATALed correctly rather than labelling the wrong conductor.
+
+**Promoted, proved, and Y8-5 closed after five waves.** `castalia_B_chip_2mm_i` ingested with
+0 errors and a README whose first line carries the timing, the Innovus verdict and the LVS
+verdict; `make promote` rebuilt `castalia_B` from it; the headless proof reads
+`bBox ((-135.0 -135.0) (2305.0 1825.0)) instances 259488` from both libraries through one
+INCLUDE of `ic/cds.lib` (die frame 2480 x 2000, the outer 20 um of scribe carrying no drawn
+geometry). `PENTA_PT_CUT` moved `pt7` -> `chip_2mm_i` and the `chip_2mm_a` `.gds2` symlink is
+deleted. New register `signoff_mp/DRC_WAIVERS_chip_2mm_i.md` (W-I-1..3, O-I-1..5).
+
+**The chip gate regression runs for the first time (Y12-6 closed).** Zero delay on the chip
+netlist **13/14**, reproducing W4's table row for row and flag for flag with `shtcm`'s
+documented zero-delay FAIL; the five-scope P&R SDF leg **14/14 ALL ROWS PASSED at BOTH views**
+(`shtcm` PASSes under SDF, confirmed on a chip netlist for the first time), with 273,390
+top-level INTERCONNECTs kept and 693 dropped by the re-scoper. `A0_PROBE=1` is re-measured
+impossible on this netlist (`*E,CUHPNM Illegal pathname element dut`), so Y12-1 stays open.
+
+Offline gates, both homes: `wq26c_legal_test` **86/0**, `wq27_ant_test` **19/0**, the
+whole-proc harness **86/0 against both generated flows** (arms 1-20), `gen_chip_geometry.py
+--check` and `gen_padring_pt2mm.py --check` pass, every earlier gate unchanged. Report
+`tapeout_review/reports/Y13_chip_2mm_i.md`.
