@@ -2127,3 +2127,104 @@ wrapper, which the harness cannot bind as its DUT because `riscv_tb_gate.vhd`
 grades every row on `a0`, a port of `MCU` that does not leave the die -- so the
 chip SDF is re-scoped onto `mcu0` and the pad-cell delays stay with the
 harness's own pad entities, as on the core leg.
+
+### Y12, 2026-10-03: Y10-2b closed and the Y11 diagnosis overturned; the blocker moves to the scoped reroute
+
+**The review came before the cut, and it changed what had to be fixed.** Y11
+staged Y10-2b (a scoped `refinePlace -area` per insertion window) against the
+reading that `chip_2mm_g`'s "legalisation moved 5062 instances" was a row
+compaction along the 40 um filler windows. The probe Y11 asked for is impossible
+-- WQ26c FATALs ~300 lines above `saveDesign ... .signoff`, so `chip_2mm_g` has
+only `floorplan_pg` and `place` databases -- so the review was done on better
+evidence instead: the `refinePlace` call itself in all **nine** WQ26c
+invocations across the five 2 mm cuts, read at the call rather than at the gate.
+
+1. **Every "legalisation moved 0" is a DENSITY ABORT.** `chip_2mm_a`, `_c`, `_d`
+   and `_f` never legalised their repeaters at all: `**ERROR: (IMPSP-2002):
+   Density too high (99.3%), stopping detail placement.` in 0.3 s of CPU. They
+   were geometrically clean because the SITE FINDER had already chosen
+   verified-free row sites -- four of nine invocations passed the gate while
+   doing nothing, and the block header's correlation with launch-end relocations
+   is spurious. A gate that passes because the tool declined to run is not a
+   gate.
+2. **The gate's number was ~96 % FILLER.** The same refinePlace summary reads
+   `Instances move: 108 / 119 / 182` where the gate counted 3785 / 3854 / 5062,
+   because `dbGet top.insts.pt` includes FILLER and TAPEDGE. A 182-instance
+   problem reported as a 5062-instance one.
+3. **The real movers are REGION/FENCE violations**, and `chip_2mm_g`'s own
+   summary names the constraint: `Max displacement: 1497.00 um
+   (mcu0/hart0/tile/FE_OFC1424_pgen_mem_1) ... constraint:Region / Violation at
+   original loc: Region/Fence Violation`. The floorplan's soft `createRegion` on
+   hart0 is still in force post-route; the containment census measures 66/71/114
+   hart0 instances outside the flank on `_d`/`_f`/`_g` and CTS's `checkPlace`
+   prints `Region/Fence Violation: 70` and `119`. pt1's worst mover was the same
+   instance class at 1146 um, so the "ecoPlace deletes every filler" reading is
+   half the story too.
+
+**Four source fixes**, one new shared file `tcl/wq26c_legal_lib.tcl` (md5
+`39ecaf7f`, both homes, in `SHARED`): drop the post-route region/fence groups
+with a read-back (by TYPE, because the two homes name the region differently);
+split the displacement census into REAL and physical-only and name the worst real
+mover; **AUDIT every inserted repeater** (outside every macro, no real-cell
+overlap, on a row site) -- which replaces "moved 0" as the gate; and read the
+IMPSP-2002 refusal as a log annotation, explicitly not as the gate. Y10-2b kept
+as the blast-radius bound. Offline gate 70/0 with four negative controls, plus a
+harness test of the WHOLE 411-line proc extracted from the generated flow (44/0)
+whose arm 3 isolates the mechanism to one variable: the same chip-wide
+`refinePlace` with the region dropped first moves 0 real instances instead of
+182.
+
+**The four `TIE_TOP`-vs-`TIE_TOP` shorts are closed at source, and the lever is
+not the track.** `chip_2mm_g`'s F19b log shows the one it repaired RELOCATED and
+split in two, and the other two were `marker box larger than 5.0 um -- skipped`
+(60+ um co-linear runs); blockading the only corridor a constant reaching a pad
+terminal has would turn a short into an OPEN, so widening F19b was rejected.
+The fix is C17's own principle applied to the multiplicity:
+`setTieHiLoMode -maxFanout` 2 -> 8 (`PENTA_TIE_MAXFANOUT`), which took the
+chip-level constant nets **70 -> 20** (24 LTIEHI -> 7, 46 LTIELO -> 13) and
+F19b's postfiller scan to **0 constant pairs, 0 skipped**.
+
+**`chip_2mm_h`, both attempts, FATAL at the SAME NEW step -- WQ26c's scoped
+reroute -- with everything above it fixed.** Attempt 1: 24 repeaters, scoped
+legalisation **0 real / 0 filler moved**, all 24 audited LEGAL, setup +0.074 ns /
+0 violating; attempt 2 (`PENTA_HOLDREP_MAX=14`): 14 repeaters, **13 real moved,
+worst 0.8 um**, all 14 audited LEGAL, setup **+0.082 ns / 0 violating**, hold
+back to **-0.023 ns / 16 violating / 0 REMOVAL**. **The pre-ECO geometry is the
+cleanest any 2 mm cut has produced and every class in it is adjudicated**: Short
+54, all one signature (`Special Wire of Net AVDD_*/AVSS_* & Blockage of Cell
+<mcu0/hartN | PAD_AV*>`); SameNet 1172 with **0 real**; Wiring 3; Overlap 0; **0
+TIE_TOP of any kind**. On that geometry WQ27 had nothing to refuse.
+
+**What stops it is characterised but not closed (Y12-A).** Attempt 1: 48 split
+nets, stuck at ~145 violations, **54 open**. Attempt 2: 28 split nets, 68
+violations, **14 open -- exactly one per repeater**, and every `timer1` insertion
+gone, which kills the congestion reading. `chip_2mm_f` is the only comparison
+that holds and it inverts it: stuck at **1611-1625** violations and **ZERO** open
+nets, so `-fix_drc` proceeded and that cut reached WQ27. The selected-net
+`ecoRoute`, given the whole batch at once and no licence to rip anything to make
+room, **abandons nets rather than routing them badly**, independently of the
+violation count. **Y12-3 is implemented and STAGED against it**: one `ecoRoute`
+per insertion group (`PENTA_WQ26C_ROUTE_PER_INSERTION`, default 1), so the router
+sees one repeater's 40 um neighbourhood at a time and a failure names the
+endpoint; harness arms 8-10, and the next cut is its test.
+
+**The chip gate probe: the VHDL route is measured impossible and the Verilog
+route is built.** `xmelab 20.09-s006` will not resolve a VHDL external name into
+a Verilog instance's scope -- a three-arm minimal testcase gives OK inside VHDL
+and `*F,INTERR: INTERNAL EXCEPTION` one and two levels into Verilog, and the real
+bench answered `*E,CUHPNM Illegal pathname element dut`. `wrappers_tap/
+MCU_chip_tap.v` instantiates the pad wrapper and exports `u_chip.mcu0.a0` through
+a Verilog-to-Verilog XMR, proved to resolve. The bench gained an `A0_PROBE`
+generic (default 0 = the old behaviour) and the 14-row genus regression
+reproduces the reference result with it in place (**13 PASS / `shtcm` FAIL at
+zero delay**, W4's table row for row and flag for flag) -- after fixing a stale
+boot-ROM copy in `genus_d13a_pt` that its own md5 guard had been refusing since
+the ROM last changed.
+
+**Parked at the two-attempt bound**: no GDS, no SDF, no Calibre, no Pegasus, no
+ingest, no promote, no headless proof and no SDF regression, because every one of
+them reads a cut that reaches WQ27. `PENTA_PT_CUT` stays at pt7 and the
+`chip_2mm_a` `.gds2` symlink stays in `out/`. The chip SDF regression also has no
+input at all -- `out/*.sdf` is empty for every chip cut ever taken. The only
+unadjudicated class above WQ27 is `Antenna 46`, new in `chip_2mm_h` (Y12-4).
+Report `tapeout_review/reports/Y12_chip_2mm_h.md`.
