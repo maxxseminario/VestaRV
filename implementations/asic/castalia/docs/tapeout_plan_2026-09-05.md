@@ -2904,3 +2904,50 @@ the east M4 access column, 850 um^2 of corridor M4 that dropping the east port b
 `chip_2mm_m` remains the cut of record and `castalia_B`; `PENTA_PT_CUT` is untouched; none of the
 three allowed Pegasus LVS runs was spent, because neither attempt reached a GDS. Report
 `tapeout_review/reports/Y19_chip_2mm_n.md`, `TOPOLOGY_B.md` section B.Q, DECISIONS D23.
+
+### Y20, 2026-10-05: the tiles' AVSS pins were open at TWO joints, every gate that passed was blind to the chain, and the WQ26c repair pass converges
+
+**The promoted library now says what it is, and the promotion gate enforces it.**
+`castalia_B_chip_2mm_m/README`'s first line and the status block `castalia_B/PROMOTED.txt` copies
+from it lead with NOT ELECTRICALLY COMPLETE and carry the number: `pg_island_conn.py` on that cut's
+own floorplan DEF finds **SIX of the ten analog island nets with a block pin that reaches NO supply
+pad at all** -- all four channel AVSS rails plus both east-island rails -- and the other four
+reaching one pad of two, so **4 of 20 analog supply pads are on their island conductor**.
+`promote_status_gate.sh` gained a third verdict, NOT_COMPLETE, tested before the timing verdict; the
+old gate read that first line as CLOSED, which is how the cut was promoted. 34 unit checks, 0 fail.
+
+**Y19-1 is closed at source and it was only half the defect.** `__jsep` is retired: both rails take
+the halfway row between the macro edge and the pad row -- the only y at which a layer transition is
+legal, because outside the 1.0 um band Innovus refuses a via over macro obstruction (IMPPP-528) --
+and the two lateral runs are separated by LAYER, AVSS on M3 under AVDD's M5, clipped inside the band
+and given its own M3-only route blockage (C14b). All eight jog straps now build vias at the row.
+**Y20-2, NEW: the straight straps were open too**, at a zero-area M4-to-M4 joint (`pt_apg_m2_leg`
+drew its M4 tab from `edge-0.5` and each strap's column stopped AT `edge-0.5`), so on chip_2mm_m
+NEITHER AVSS pad of any channel reached its tile; the AVDD ones were saved by accident. The tab is
+now co-extensive in y with the M2 neck, which adds no M4 territory.
+
+**Y20-3, NEW: two M3 tracks do not fit in the 1.0 um band**, so one leg per channel rail cannot be
+built at all -- 0.8 um usable against 0.4 + 0.1 + 0.4 -- and the flow states which. 16 of 20 pads
+are core-strapped on `chip_2mm_n3` and every island rail reaches a pad. The real fix is Y19-2
+remedy 3 (one M7 riser per island per rail from the pad-row M8 rail to the core-side strap, then
+delete the core-side ball pin from the compare) and it is a cut of its own.
+
+**Y20-4, NEW: a window via census cannot tell which transition it counted.** C-G7 reported 2 M2->M4
+vias on a leg that had none, counting the M4-M5-M6 stack on the tile pin whose M5 landing reaches
+into the neck window. `pt_apg_svia_count_lay` keys on the cut layer and all six call sites moved to
+it.
+
+**The acceptance moves to the chain (D24).** NEW gate **C-G4d** runs `pg_island_conn.py` on the
+cut's own floorplan DEF two minutes into the flow and FATALs unless every island net's block pin
+reaches a pad and every pad the flow declared strapped is on that conductor; it then overwrites
+`out/<cut>.corestrap` with the MEASURED map, which is what the LVS collateral reads. The prober
+proves connections now as well as isolation, because it expands each via instance into the real
+metal its DEF `VIAS` entry describes instead of grouping vias by point.
+
+**The WQ26c disturbed-neighbour repair pass is implemented, unit-tested and exercised on the tool.**
+`wq26c_legal_repair` absorbs the disturbed neighbours into the selected set, routes those and nothing
+else, re-checks and iterates to a bound, with the two tool calls handed in as command prefixes so
+the unit test exercises the shipping code. It refuses on a set that stops GROWING as well as on the
+pass count. 126 offline checks, 0 fail, armed with chip_2mm_n2's five `i2c0` names and chip_2mm_n's
+eight. On the core flow of record's signoff database five deliberately opened `i2c0` nets were
+absorbed and closed in ONE pass, 53 s, independently re-verified clean.
