@@ -2827,3 +2827,80 @@ only thing that separates C-G20's two branches and owns the 32 flow-drawn chipdr
 rule (Y18-A); and the PST ratio against a real release note (Y18-B, D22). Report
 `tapeout_review/reports/Y18_chip_2mm_m.md`, registers
 `signoff_mp/RING_SUPPLY_chip_2mm_m.md` and `castalia_B_chip_2mm_m/README`.
+
+### Y19, 2026-10-05: every analog supply pad is strapped, the east island's rails were isolated metal, and the zero-delay dead clock is the root re-entering its own generator
+
+**O-M-1 is a FLOW defect in two parts, and measuring it offline found a second one the prose did
+not contain.** Pegasus `lvs_black_box`es `PVDD3A_G`/`PVSS3A_G` and `lvs_delete_cell_pin`s their
+`TAVDD`/`TAVSS` bond plate, so the only pin compared on a supply pad is the CORE-SIDE one -- and
+ANATOP part 3b walked `ANATOP_PT_APG`, one pad per rail per island, ten of the ring's twenty. Part
+3b now walks `ANATOP_PT_APG_ALL` x `ANATOP_PT_ADOMAIN`, both emitted from the `PRCUTA_G` bracket
+walk, so the pad list is the ring plan's and never a literal; the eight `_0` channel pads sit
+exactly on their tile's M6 port x and take the cheap vertical form, and the east-island pads reach
+their core-side port through an M4 L in the east routing channel, which is EMPTY by measurement (no
+standard-cell row on this die passes x = 1840.6 against a pad band starting at 2170). Gate **C-G7**
+is now one leg per analog supply pad and reports which pads have no core-side strap, so the flow and
+`signoff_mp/padring_arcs_pt.py` state the same thing and can be compared without a cut.
+
+**The second defect: the east bias island's M8 rails were isolated metal.** A union-find over
+`chip_2mm_m`'s own floorplan DEF -- area overlap joins, a shared edge does not, which is Pegasus's
+rule as this campaign measured it -- says `AVDD_B` is THREE conductors and `AVSS_B` THREE: the macro
+strap plus one pad's plate; the island rail ALONE with no via on it; and the second pad's drop, also
+vialess. All four `C12 -- ... drop` lines printed and gate C-G4 PASSED, because C-G4 counts SHAPES.
+`editPowerVia -bottom_layer M6 -top_layer M8` must synthesise the M7 landing between two layers it
+was given no metal on, and over that window it places nothing and says nothing -- the same silence
+B10-32 found on the M2 neck. The vertical-row drop now draws an M7 patch and makes two single-level
+calls, and **new gate C-G4b counts the built vias per drop** and FATALs with the database saved.
+
+**The biasgen placeholder had the same class one level down.** `gen_anatop_biasgen_g_bbox.py`'s
+`_touch` admitted a shared edge as electrically one, so the Y18 proof gate passed on four pins
+Pegasus sees as TWO conductors each -- `AVDD`/`AVSS`/`VDD`/`VSS` each declare an M6 north tab at
+y[336,340] and an M6 leg at y[strap,336] that meet on one line with zero overlap, and the pin TEXT
+goes on the tab. Split into `_conn` (overlap, connectivity) and `_abut` (overlap or edge, the
+cross-pin hazard); the per-layer boundary census moves `34:16 36:8` -> `34:4 36:16` with 74 texts
+unchanged. The four bias outputs also lose their EAST M4 port and the north port widens 2 -> 4 um,
+which deletes the 220 um M4 join leg that `bias_bnc` reached the `VSS` conductor through -- Y17's own
+first prescription, taken in the form that gives the router MORE access on the side that works.
+
+**O-L-1: the dead clock is fixed and its mechanism is measured -- it is not the mux cell.** `mclk`
+in module `MCU` has exactly ONE driver, `system0` (`SYSTEM`) on `mclk_out`, and `SYSTEM` declares
+`clk_mem` and `clk_mem_clone1..5` as INPUTS; six of the Y18 form's 94 collapsed endpoints landed on
+them, so the transform wrote the clock root back into its own generator with no simulated time
+between, through the `ClockMuxGlitchFree*` inside it. Eleven more landed on
+`RC_CG_MOD_108060*.ck_in`. `zero_delay_clk_flatten.py` is rewritten with an admission-controlled
+walk -- single-input inverter/buffer cells only, and an endpoint is collapsed only if every load is
+another admitted cell's input, a flop clock pin, or a submodule/macro port that is neither a clock
+gate/mux nor an instance driving the root -- every refusal counted and printed, and a post-write
+self-check that re-measures both forbidden classes. It refuses 7, collapses 65 (was 94), and the
+netlist RUNS: **4 / 14** with no TIMEOUT but `shtcm`'s own 647 s row, against 1 / 14 with eleven
+TIMEOUTs. `--strict`, the literal rule, collapses ZERO cells on this chip and says so rather than
+writing a no-op: at `MCU` level the clock tree is distributed to MODULE PORTS, so no inverter's
+whole fanout is flop clock pins.
+
+**And the leg's next mechanism is measured too.** The flattened leg passes HART2 and HART4 on every
+multi-hart row and HART1 and HART3 on none, and the split is the transform's own output:
+`hart2.clk` (`CTS_37`) and `hart4.clk` (`CTS_33`) are `assign mclk`, while `hart1.clk` (`CTS_17`)
+and `hart3.clk` (`CTS_22`) are NOT COLLAPSED -- both hang below `CTS_73`, whose load list is
+`CTS_cdb_inv_06801.A , CTS_ccl_inv_00430.A , system0.clk_mem_clone5`. ONE feedback load on an
+eight-deep net stops the walk, so three cells below it keep their deltas. The next change is to
+CLONE the refused net instead of refusing it. `GATE_ZERO_CLKFLAT` stays 0 and the two per-view SDF
+legs remain the record.
+
+**Both chip attempts are spent and there is no new cut.** `chip_2mm_n` (PENTA_DRCECO=1) and
+`chip_2mm_n2` (PENTA_DRCECO=0) both FATALed at the WQ26c scoped-route gate on disturbed
+neighbours -- 8 spread and **5 all inside `mcu0/i2c0`** -- where `chip_2mm_m` reported 0 on both
+hold-ECO passes. So the DRC ECO is NOT the cause: it ran clean (42 markers, 20 router ECOs, 20
+blockages created and deleted, no WARN; the other 22 are 12 weldable-and-skipped and **10 inside a
+placed macro**, which is 10 and not the 8 Y18 read off the rule names) and the pair without it
+failed identically. **O-K-2's blame moves off C-G20**, and Y16's attempt 1 having had 13 of its 21
+disturbed nets inside `mcu0/i2c1` says what the real problem is: the I2C blocks are a congestion
+hot-spot that the hold ECO's scoped route cannot perturb without leaving neighbours open, and
+`chip_2mm_m`'s 0 is the accident. **The next step is in the WQ26c stage, not the geometry: after it
+detects disturbed neighbours, add them to the selected set, re-run the scoped route and re-check.**
+The stage already prints every name and already routes a selected set; the FATAL moves to "still
+disturbed after one repair pass". Two bisection knobs are in for the alternative hypothesis --
+`PENTA_PT_ALLPADS=0` (the Y18 strap set) and `BIAS_EAST_PORT=1` (the biasgen's two-port bias pins and
+the east M4 access column, 850 um^2 of corridor M4 that dropping the east port blocked).
+`chip_2mm_m` remains the cut of record and `castalia_B`; `PENTA_PT_CUT` is untouched; none of the
+three allowed Pegasus LVS runs was spent, because neither attempt reached a GDS. Report
+`tapeout_review/reports/Y19_chip_2mm_n.md`, `TOPOLOGY_B.md` section B.Q, DECISIONS D23.
