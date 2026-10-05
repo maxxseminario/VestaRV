@@ -2718,3 +2718,112 @@ for the two SDF legs.
 8 : 7; the biasgen placeholder's split `bn_o`/`bnc_o`/`bp_o`/`bpc_o` pins and the `AVDD_B`/`AVSS_B`
 collapse, which need a new macro GDS; `PENTA_DRCECO=1` alone to close the 24 core markers. Report
 `tapeout_review/reports/Y17_lvs_zerodelay.md`.
+
+### Y18, 2026-10-04: every rail-cut arc is supplied, the ring plan is the gate, and the package is a standard part
+
+**W-L-6 and W-L-5 are closed in the ring plan, and the gate that found them now lives in three
+places.** `gen_padring_pt2mm.py` adds six pads: `PAD_VDD_3`/`PAD_VSS_3` (`PVDD1DGZ_G` /
+`PVSS1DGZ_G`) on the west row at **y[1025,1075]**, `PAD_POC_1` on the north edge's east span,
+`PAD_POC_2` on the south edge's east span, and a second PST pair `PAD_VDDPST_6`/`PAD_VSSPST_6`
+beside the latter. 130 -> **136 pads**, bond fingers per edge **27 / 27 / 39 / 43** against the
+LQFP-176's 44 cap. The west pair's y is a measurement, not a placement: `chip_2mm_l`'s own
+floorplan DEF puts the westmost standard-cell row at x0 = 90.0 over y[1015,1227] only, and the
+core PG verticals nearest the west edge at x 9.0 / 53.5 (VDD M7) and 23.0 / 62.5 (VSS M7) over
+y ~454-1210, so that window is the only one on the whole row with both -- Y8 measured 0 stubs on
+four pads at y[500,600] and y[1060,1210] and that is why all three pairs went east. The floorplan
+probe proves it: **`WQ22 pad stub census -- 68 M1 stubs on 8 core supply pads, PAD_VDD_3 = 10/10,
+PAD_VSS_3 = 7/7`**, every offered stub on every pad.
+
+**RINGSUP replaces the `VDDPST`-pair-only C-G3, and it found four more findings on the OLD cut.**
+The arcs are now derived from the `PRCUTA_G` bracket positions on the closed perimeter in the ring
+plan (offline), in `pt_gate_cg3` (from the placed database) and in `padring_arcs_pt.py` (from the
+cut's DEF) -- one definition, three implementations. The predecessor grouped the digital runs by
+their `A<n>` NAME prefix, and `A1`, `A2` and `A5` are three names on ONE arc, which is why a
+name-keyed census could not see that the combined west arc had no core-supply pad at all. Run
+against `chip_2mm_l`, the upgraded audit reports **7** arc/rail findings where Y17 had 3: the two
+missing POC sources, the missing west VDD, **plus the west arc's missing `PVSS1DGZ_G`, arc 1's one
+2.5 V pair for 16 I/O pads, and runs of 21 and 16 consecutive I/O pads with no 2.5 V source
+between them**. The 21 is `TCK..TRSTN` then `P1` then `P0`: four pairs in that arc, all four at one
+end of it. Three west runs plus `A4_E` are re-ordered -- same edge, same cells, same instance
+names, only the order and hence each pad's y -- and the worst run on every arc is now 8. The
+8-per-pair ratio is a **STATED ASSUMPTION**: no `tphn65gpgv2od3_sl` release note exists on this
+disk (the vendor install directory holds only the unopened `.zip`), so the number lives in one
+knob that all three gates read. `padring_arcs_pt.py`'s `ACK` table is now EMPTY -- every finding is
+fixed in the plan, not waived -- and `penta_pt_ring_test.tcl` grew negative controls that
+reproduce W-L-6, W-L-5 and the long-run finding from the emitted padlist (34 -> 43 pass / 0 fail).
+
+**The package is a standard LQFP-176 and Y9's model could not have built.** D21 trimmed each
+analog section from 24 slots to 14 precisely so a catalog part would fit; `castalia-qfn176-pt2mm`
+was built before that, assumed an unequal-per-side 23 x 23 mm 0.4 mm-pitch lead frame with no
+vendor match, and its 171-entry `BALL_BY_INST` names 169 pad instances the ring no longer has.
+It is retired to `python/qfn176_pt2mm.py.superseded_d21`. `python/lqfp176_pt2mm.py` bonds all 136
+pads into **24 x 24 mm, 0.5 mm pitch, 44 fingers a side** with 40 NC, the used block centred in
+each side (W 3-41, S 53-79, E 89-131, N 141-167); every latch-up anchor and every per-arc supply
+pad has a finger, `VSS` is a 13-pin rail and `VDD` a 4-pin one. Bond-wire angles from the live die
+row: W 40.6, S 28.9, **E 43.2**, N 27.8 deg against the assumed 45. The east number is inherent to
+D21 -- 44 leads at 0.5 mm span 22 mm and a 2.48 x 2.00 mm die in a 24 mm body has a 10.76 mm
+standoff -- and is **parked for the owner**: if a real assembler's ceiling is below 45 deg the
+answer is fewer east-side pads or a redistribution interposer, not a different ball map. The model
+also found a real ring-plan defect: three `PVDD2POC_G` pads on one net name is a duplicate
+package-pin symbol, so the nets are `POC`, `POC_1`, `POC_2` -- which is the truthful form too,
+since `PRCUTA_G` cuts POC and `chip_2mm_l` measured three POC conductors.
+
+**O-L-2's three `bias_*` opens are closed at the generator and the `AVDD_B`/`AVSS_B` candidate is
+eliminated.** `gen_anatop_biasgen_g_bbox.py` joins any pin whose rects on one layer are disjoint
+and PROVES the join by union-find, so the four bias outputs' two 2 x 2 um M4 squares (north edge
+and east edge, both needed: the macro sits 21.6 um under the top tile row) are one conductor each;
+only GDS layer 34 moves, 8 -> 16 boundaries. `biasgen_g_lef_gen.py` plates M5 over the whole
+footprint -- the banded form advertised 6 800 um^2 of free M5 over four full-width M5 strap shapes,
+and Y14's VIA5 OBS stopped the M5-to-M6 TRANSITION but not plain M5 metal reached with a VIA4.
+**The collapse itself is NOT the macro's M5**: `chip_2mm_l`'s `lvs.rep.cls` puts SIX pins on layout
+net 147 -- the macro's AVDD and AVSS plus all four EAST BIAS island supply pads' ball pins at
+(2170, 742.34 / 767.34 / 917.34 / 942.34) -- which no shape inside a macro at x[1472.4,1812.4]
+reaches. Carried as **O-M-1** with the next artefact named (the Pegasus layout-net geometry for
+net 147, or a frame run on the bias island alone).
+
+**The one LVS line Y17 left is applied**: both `PVDD3A_G` ball pins of a CHANNEL island go on the
+island net and `PVSS3A_G` keeps the strapped-pad-only form, which is what two controlled runs from
+opposite ends measured (Y16: both rails on the island, `PVSS3A_G` 2 : 2; Y17: strapped only, four
+AVDD SHORTs). The east bias island is deliberately untouched -- it has no strapped pad and is the
+O-M-1 class.
+
+**The zero-delay leg is redefined rather than retired.** `run_gate_suite.sh` now runs
+`common/zero_delay_clk_flatten.py` on the zero-delay leg by default, documented at the line as the
+W4/Y17 artefact remedy; the two SDF legs are untouched. It is a partial control by construction
+(module `MCU` holds 19 of the chip's 1152 clock-leaf inverters) and that is recorded at the line.
+
+**Chip cut `chip_2mm_m` (attempt 1 of 2) IS THE CUT OF RECORD, and the ring bought the timing.**
+`WQ26 slack gate PASSED -- setup WNS 0.073 ns, hold WNS 0.001 ns` against `chip_2mm_l`'s +0.006 /
+0.000, with 26 hold repeaters instead of 46 and WQ26c reporting 0 open regular nets and 0 disturbed
+neighbours. **No timing lever was pulled**: every `PENTA_*` knob is at the value `chip_2mm_l` used,
+`PENTA_DRCECO` is 0 and the CTS trunk rule is untouched -- what moved is where 30 west-edge pads
+sit. O-L-3 is answered by +67 ps of setup at no hold cost, so Y16's measured trunk-rule lever (40 ps
+for a WQ26c FATAL and an M1 signal antenna) stays refused and untried. `WQ19` and `WQ27` PASSED,
+`RINGSUP` 0 unsupplied arcs of 5, `WQ22` 68 stubs on 8 core supply pads, density 61.080 %, GDS
+md5 `08ace969df43f72ce86ebd6d0fedc0e6`, both per-view SDFs written, Innovus exit 0 with 0 FATAL.
+`chipdrc` **1736** (1506 + 108 + 80 + 42) against 1839; `ant25` **CLEAN**. Ingested as
+`castalia_B_chip_2mm_m`, promoted into `castalia_B`, `PENTA_PT_CUT` moved, both libraries proved
+headless at **259,611 instances**. **Five-scope P&R SDF regression 14/14 at the setup view** with
+every multi-hart row reporting `pass=true` on all four tiles.
+
+**LVS is MISMATCH and the residual is now ONE class instead of four.** Devices
+**7,964,341 : 7,964,341 reduced, 0 : 0 unmatched** in every class, pins **80 : 80**, shorts file
+EMPTY, no `** missing connection **` on any supply pin -- and unmatched nets **12 : 11 -> 1 : 7**.
+Three of Y17's four classes are gone (the `VDD` OPEN, the three `bias_*` opens, the four AVDD
+SHORTs). The six-line SHORTS AND OPENS section names the mechanism completely: a supply pad's
+AVDD/AVSS BALL pin corresponds to a layout conductor only where top-level metal touches its
+core-side stub, ANATOP part 3b straps ONE pad per rail per CHANNEL island, so the un-strapped AVSS
+pads of islands 0 and 1 and all four EAST BIAS island supply pads land -- with the macro's own AVDD
+and AVSS -- on one layout net. **That is why three waves read net 147 as a macro problem: four of
+its six pins are PADS at x >= 2170.** The fix is a FLOW change, not an LVS one: a core-side strap
+for every supply pad in part 3b (ten more jogs), or those ball pins deleted from the compare rather
+than stated as stub nets. Either is a cut.
+
+**Next, in order**: the ten part-3b straps, which is the whole remaining LVS class and takes the
+chip to MATCH; the east M4 port of the four bias pins dropped (Y17's own prescription), which
+removes the square the join exposed as touching VSS; `PENTA_DRCECO=1` ALONE, which is still the
+only thing that separates C-G20's two branches and owns the 32 flow-drawn chipdrc results (24 on
+`chip_2mm_l`, so the class is routing-dependent); the bond-wire fan-out against a real assembler's
+rule (Y18-A); and the PST ratio against a real release note (Y18-B, D22). Report
+`tapeout_review/reports/Y18_chip_2mm_m.md`, registers
+`signoff_mp/RING_SUPPLY_chip_2mm_m.md` and `castalia_B_chip_2mm_m/README`.
