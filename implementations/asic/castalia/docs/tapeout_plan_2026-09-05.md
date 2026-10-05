@@ -2651,3 +2651,70 @@ the 24 core markers; O-L-2, the `AVDD_B`/`AVSS_B` correspondence collapse at the
 placeholder; O-L-1, the zero-delay bisection between `chip_2mm_i` and `chip_2mm_j`; O-J-3's
 macro-LEF lever. Register `signoff_mp/DRC_WAIVERS_chip_2mm_l.md`, report
 `tapeout_review/reports/Y16_chip_2mm_l.md`, `TOPOLOGY_B.md` section B.P.
+
+### Y17, 2026-10-04: every device corresponds, the ring plan does not, and the zero-delay leg is a scheduler artefact
+
+**O-K-1(a) is built and LVS on `chip_2mm_l` is a different object.** The local de-globalised pad
+SPICE is a BUILD PRODUCT of the vendor file -- `signoff_mp/gen_tphn_local_spi.py` emits it and
+`--check` re-derives it on every collateral build, FATALing unless the only delta is the `.GLOBAL`
+line plus the promoted ports (same 57 subckts, same 5024 device lines). `VDDPST`, `VSSPST` and `POC`
+are ordinary ports now, bound **one net per ring arc** on all 73 digital pads (219 pins, arcs 1, 2
+and 4) from a map `signoff_mp/padring_arcs_pt.py` derives from the cut's own floorplan DEF and
+self-tests against gate C-G3's published census (16 / 8 / 30 I/O pads, VDDPST 1 / 1 / 4); the three
+133 PORT texts came out in the same change. Measured across three Pegasus runs:
+
+| | Y16 | Y17 run 1 | **Y17 run 2** |
+|---|---|---|---|
+| cells matched of 14 | 9 | 13 | **13** |
+| unmatched devices | 6 : 6 | 2 : 2 | **0 : 0** |
+| top-level pins | 83 : 85 | 80 : 80 | **80 : 80**, 0 unmatched |
+| unmatched nets | 17 : 6 | 21 : 10 | **12 : 11** |
+| shorts file | 0, ARMED | 0, ARMED | **0, ARMED** |
+
+7,963,650 : 7,963,650 reduced devices with every class 0 : 0, including all eleven tphn pad masters
+and both analog placeholders, and the five analog domains intact. **The negative control
+discriminates** (O-L-4 CLOSED): one deleted `INVX7P5BA10TH` in `orch_vesta` comes back as 2 : 0
+unmatched with both transistors named at their layout coordinates.
+
+The verdict is still MISMATCH and the four reasons are named. One is LVS and is a one-line change
+with two controlled runs behind it: bind BOTH `PVDD3A_G` ball pins to the island, because the layout
+joins the two pads' AVDD core stubs within a section while their AVSS stubs are separate (Y16
+measured it from the opposite binding, Y17 run 2 from this one). The other three are not LVS.
+
+**W-L-6 is a NEW BLOCKER, and the per-arc audit is what found it.** `PRCUT`/`PRCUTA` pass only VSS,
+so they CUT `VDD`, `VDDPST`, `VSSPST` and `POC` and every bracketed arc is its own conductor on all
+four. All three `PVDD1DGZ_G` and all three `PVSS1DGZ_G` sit in the two EAST arcs, so **arc 4 -- the
+west column plus the two top-west PST pads, 30 I/O pads -- has a 1.0 V ring segment isolated from
+core VDD**, and those pads' pre-drivers and level shifters have no core supply. Innovus cannot see
+it: those pins carry no `USE` line in the tphn LEF, the supply arrives by abutment with no net, and
+WQ19 PASSED with 0 regular-routing PG opens while this was present. The extraction measures it as
+`Layout Pin: VDD ... Layout Net: 4 | OPEN`, and the arc walk predicts all five rail conductor counts
+correctly (VDDPST/VSSPST/POC three each, VDD two, VSS **one** -- VSS being the control, the one
+candidate rail the brackets do not cut). **W-L-5**, same mechanism and lower severity: arcs 1 and 2
+(16 and 8 I/O pads) have no `PVDD2POC_G`, so their `POC` input floats. Both need a ring-plan change,
+i.e. a cut. NEW gate `RINGSUP` audits every arc against all four cut rails and FATALs on any
+arc/rail pair not acknowledged by name with a reason and an owner; C-G3 checked only the
+`VDDPST`/`VSSPST` pair, which is why both survived eleven cuts. Register
+`signoff_mp/RING_SUPPLY_chip_2mm_l.md`.
+
+**O-L-1 is answered and it is not a blocker: the zero-delay leg measures delta-cycle clock skew.**
+Y16's first suspect is eliminated outright -- the de-collided tile netlist is byte-identical (md5
+`b4091d05`) whether generated from `chip_2mm_i`'s chip netlist or `chip_2mm_l`'s. A zero-delay run
+still charges every cell one DELTA, so the chip-level CTS tree is a clock skew of up to 12 delta
+cycles (leaf depths 1..12 on `l`, 1..14 on `i`; the four hart clocks at 10/10/10/12 and 12/10/14/14)
+against shared-interface handshake paths that are 1 to 7 gates deep. The controlled experiment:
+`xcelium/riscv_test/common/zero_delay_clk_flatten.py` collapses every pure-inverter chain from
+`mclk` to a direct `assign` with polarity preserved (149 inverters, hart clocks to 0/0/0/0,
+structurally self-checked), and with no other change `shboot`, `shexec` and `shmutex` go from hart1
+alone passing to **harts 1, 2 and 3** passing. hart4 survives it because `MCU` holds only 19 of the
+chip's 1152 clock-leaf inverters -- the other 1133 are inside the submodules -- so the control is
+partial by construction. The same netlist is 14/14 at BOTH per-view SDF legs and signoff hold is
+0.000 ns / 0 of 36,927 at ff 1.1 V / -40 C, where the insertion delay is common-mode and CPPR
+removes it. The consequence is a change to the leg, not to the design: run it flattened, or retire it
+for the two SDF legs.
+
+**Next, in order**: W-L-6's ring-plan fix, which is a cut and re-times the chip (O-L-3: setup is
++0.006 ns); the one-line AVDD binding change plus one LVS run, which should take unmatched nets to
+8 : 7; the biasgen placeholder's split `bn_o`/`bnc_o`/`bp_o`/`bpc_o` pins and the `AVDD_B`/`AVSS_B`
+collapse, which need a new macro GDS; `PENTA_DRCECO=1` alone to close the 24 core markers. Report
+`tapeout_review/reports/Y17_lvs_zerodelay.md`.
