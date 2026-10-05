@@ -2531,3 +2531,123 @@ routed database is saved; no GDS, no SDF, nothing ingested or promoted.
 needs no cut; O-K-2, after which C-G20 can run and the 72 fall to single digits; the antenna lever,
 on a cut with margin to spare -- this floorplan has 130 ps; O-K-4. Register
 `signoff_mp/DRC_WAIVERS_chip_2mm_k.md`, report `tapeout_review/reports/Y15_chip_2mm_k.md`.
+
+### Y16, 2026-10-04: the island binding takes LVS to 6 : 6, and two prescribed remedies are disproved
+
+`chip_2mm_j` entered this wave as the cut of record with four residuals. Three of them moved and
+one of them was overturned.
+
+**O-K-1(b)/(c), the analog supply domains, stated end to end.**
+`patch_chip_pads_penta_pt.py` bound all twenty analog supply pads to ONE net literally named
+`AVDD`/`AVSS` while the database carries FIVE per rail and says so ten times
+(`ANATOP part 3 -- net AVDD_0: 4 pad terminal(s)`). It now writes the five domains the way the
+database does: every `PAD_AV{DD,SS}_<h>_<k>` ball pin onto `AV{DD,SS}_<h>`, the island nets threaded
+through `module MCU` (the harts are instantiated inside it, the pads at chip top, so without eight
+new ports there is no path between them in the netlist at all), and into each hart's own
+`AVDD`/`AVSS` port and `anatop_biasgen_g0`'s `AVDD_B`/`AVSS_B`. The island tag is read out of the
+instance name and the SET of tags is checked against the five X3-A/D21 islands; the hart-to-island
+map is ANATOP part 3's and the script refuses to run if the tile instances are not `hart1..hart4`.
+Measured on `chip_2mm_j` -- same GDS, same deck, two LVS runs -- unmatched devices **16 : 16 ->
+6 : 6**, `PVDD3A_G` **8 : 8 -> 0 : 0**, `PVSS2A_G` / `PDB3A_G` / `PVDD1DGZ_G` / `PVSS1DGZ_G` /
+`PVDD2POC_G` all 0 : 0, every MOS / diode / `rppolywo` class 0 : 0, 7,968,803 : 7,968,803 reduced
+devices compared, top-level pins **83 : 85 with 0 unmatched** (Y15's two extra layout pins gone),
+`lvs.rep.shorts` empty with the sentinels ARMED.
+
+**O-K-1(a) is required, and the shortcut is disproved.** `lvs_delete_cell_pin` cannot remove a pin
+whose name is also a `.GLOBAL`. pegasusref says `-source_layout` applies to both views and it does
+-- `PGATE`/`NGATE` go 12 pins to 10 on both I/O masters and those cells read `match` -- but
+`VDDPST` is both a port of `PVDD2DGZ_G` and a name in the vendor's
+`.GLOBAL VDD VSS VDDPST VSSPST POC TAVSS TAVDD TACVSS TACVDD`, so Pegasus deletes it and re-creates
+it by global connection. Run 1 measured a one-sided deletion
+(`Layout Pin: ** missing pin ** | Schematic Pin: VDDPST`), which is a guaranteed CELL mismatch, and
+the disturbed pairing made the class worse: `PVSS2DGZ_G` 2 : 2 -> 5 : 5, `PVDD1DGZ_G` and
+`PVSS1DGZ_G` 0 : 0 -> 1 : 1. Reverted, with the measurement written at the line. A second
+experiment was also reverted: ten per-island layout texts on a new non-PORT layer 232 ATTACHED, and
+two of them to the same conductor -- `SHORT 1. AVSS_B: - AVDD_B:`, the first entry this chip's
+shorts file has ever had, because the vendor's M3 ring bus runs ALONG the pad row, so metal3 at a
+bond-plate coordinate names the bus and not the plate. The analog rails now carry no layout text at
+all, which is strictly better than both predecessors.
+
+**The last 6 : 6, named.** `PVSS3A_G` 2 : 2 is the pad whose core-side stub ANATOP part 3b does NOT
+strap (the log names which one it does): the other pad reaches its island only through the vendor's
+own `rm1`/`rm2` metal resistors to the bond plate, which Pegasus extracts as DEVICES, so binding
+that stub to the island is a statement the layout does not support -- reported as a missing
+connection on islands 1 and 3 and as an OPEN on 0 and 2. `PVDD2DGZ_G` / `PVSS2DGZ_G` 2 : 2 is one
+`.GLOBAL VDDPST` against the THREE bracketed arcs the cut's own C-G3 census counts (1, 1 and 4
+supply pads). Both need the de-globalised local copy of the pad SPICE, which the report prescribes
+in four steps.
+
+**O-K-4's prescribed remedy is disproved by a controlled experiment.**
+`xcelium/riscv_test/common/zero_delay_dly_filter.py` (NEW, offline gate 19/0) collapses the 14
+`FE_ECOC*` hold-ECO delay cells to `assign Y = A;` -- instance-scoped on purpose, because the
+netlist carries 1334 `DLY*` instances of which all but 14 are CTS buffers and placement repeaters,
+and `-excludeCellInst` on a two-pin cell leaves its output undriven. The zero-delay leg re-ran all
+14 rows and came back **4/14 with verdicts and per-hart flags byte-identical to the unfiltered
+run**. So the delay cells are not the cause and Y15's hart-1/hart-4 correlation is a coincidence.
+The two SDF legs remain the regression of record (14/14 at both views, signoff hold 0.000 ns / 0 of
+36,927). O-L-1: bisect `chip_2mm_i` 13/14 against `chip_2mm_j` 4/14; every failing row is
+multi-hart and all four single-hart rows pass, so the de-collided tile netlist is the first suspect.
+
+**O-J-2, the largest chipdrc class, fixed in the geometry by a derived number.** 24 of the 72
+real-geometry results are eight sites at the EAST bias island's two AVDD drops, each flagged by
+`M6.A.2` + `M6.S.2` + `M6.S.2.1`. The vendor leaves a 1.5 um M6 gap on each flank of the bond plate
+(the two marker x-ranges are exactly those flanks); the M6 drop bar is drawn at the plate centre
++/- `ANARING_W`/2 = +/- 4.0 um and crosses both, leaving exactly 0.100 um to the vendor's own M6
+above and below -- against 0.12 for `M6.S.2`, 0.16 for `M6.S.2.1` and a 1.5 x 0.1 = 0.15 um2
+enclosed area against `M6.A.2`'s 0.2. New knob `ANARING_DROP_W` = 7.6 um opens the gap to 0.300 um
+and the hole to 0.45 um2, for 5 % of one 22 um M6 strap on a 6.6 ohm budget. Welding it shut was
+`chip_2mm_k`'s mistake; opening it is free.
+
+**O-K-2's per-branch knob.** `PENTA_DRCECO` is back to 1 with `PENTA_DRCECO_WELD` = 0: the ROUTE
+branch (blockage + `ecoRoute -fix_drc`, F19b's own recipe, never implicated in either `chip_2mm_k`
+failure) runs and a weldable marker is SKIPPED with its class named. Re-enabling the weld still
+needs the WQ27 classifier to reconcile 20 SPACING + 12 SHORT + 2 MINSTEP marker lines against
++25 SameNet / +11 Short / +2 Wiring in the summary; a classifier written from the marker lines
+alone would under-waive and FATAL the gate.
+
+**O-J-3's lever is pulled.** `ant_m13_census.py` on `chip_2mm_j`'s own DEF: 2 nets above 300 um2 of
+M1~M3, 10 above 250, 32 above 150, worst 363.16 um2 with 361.84 of it on M3, every one of the top
+twelve a `CTS_2W2S` trunk -- against the 293.8 um2 that the deck's own measured 0.0588 um2 clock-gate
+gate area implies. `trunk_rule` therefore goes from M4/M3 to M5/M4 with its VSS shield, in both the
+chip base and the core flow so `gen_chip_geometry.py`'s decision table still sees an equal run.
+`leaf_rule` is deliberately not raised. `ant25` stays the authority.
+
+**`chip_2mm_l`, attempt 1: FATAL at the WQ26c scoped-route gate, and it priced the antenna lever.**
+0 FATAL through floorplan, PG, placement, CTS, routing, C-G20 and the first signoff timing; then
+`FATAL (WQ26c): the scoped route disturbed 21 net(s) it was not given`, 13 of the 21 inside
+`mcu0/i2c1`. What it measured first: setup IMPROVED to **+0.095 ns / 0 violating of 36,927** on the
+raised trunk (j: +0.055), hold got WORSE (-0.039 / 19 endpoints against -0.037 / 13), and the raised
+trunk created a NEW signal-net antenna marker -- `Non-Default Wire of Net mcu0/afe0/CTS_14 ( M1 )`,
+45 parsed / 44 waived / 1 unclassified -- which the WQ27 gate refuses in its own right. C-G20's
+ROUTE branch ran clean in the same attempt (72 markers, 22 router ECOs, 22 blockages created and
+deleted, 50 skipped, no WARN) but cannot be cleared of the FATAL from one attempt. **O-J-3's cheap
+lever is therefore a measured refusal: 40 ps of setup for a WQ26c FATAL and an M1 antenna.** Both
+routing deltas reverted, each with its measurement at its line.
+
+**`chip_2mm_l`, attempt 2: PASSES, and it is the cut of record.** One delta over `chip_2mm_j`:
+`ANARING_DROP_W`. Setup WNS **+0.006 ns / TNS 0.0 / 0 violating of 36,927**, hold **0.000 ns / 0
+violating** after two hold-ECO passes (-0.030 / 50 endpoints -> 22 -> 0, 46 repeaters), density
+62.989 %. **WQ19 PASSED** (0 regular-routing PG opens) and **WQ27 PASSED** (Wiring 0 of 3, SameNet 0
+of 1171, Short 0 of 54, Overlap 0, dangling 0 of 41, antenna 0 of 44, verifyProcessAntenna 0); C-G19
+clean. GDS 179,323,516 B md5 `68f3e2d29ccff91071c4912b07bbdc6a`, both per-view SDFs.
+`chipdrc` **1874 -> 1839** with **real-geometry results 72 -> 34** (8 of them `hart_tile_pt` cut
+`y1i`'s, 2 the `M7.S.4` west-flank pair, 24 core metal/via) and the bias-island class gone:
+`M6.A.2` 8 -> 0, `M6.S.2` 9 -> 1, `M6.S.2.1` 9 -> 1. **`ant25` CLEAN** (`A.R.6__A.R.8:M3` 0; the
+census says the exposure grew, 8 nets above 300 um2 against j's 2, so the class is clean on this cut
+and not closed). **LVS MISMATCH at 6 : 6 with the shorts file EMPTY** -- the same residual as
+`chip_2mm_j` under this control file. Ingested, promoted, `PENTA_PT_CUT` moved, headless proof
+`PROOF castalia_B ... instances 260252` identical to `castalia_B_chip_2mm_l`. **Five-scope P&R SDF
+regression 14/14 at BOTH views**; the zero-delay leg with the DLY exclusion armed and all 46 cells
+collapsed is 5/14, a third per-hart pattern, which is the second disproof of O-K-4's remedy.
+
+**Setup is +0.006 ns.** 0 violating of 36,927 at four views with SI on is the gate and it passes,
+but the margin moved 90 ps across three cuts that differ only in routing, so none of the three
+numbers is a property of the design and this one leaves no room for a timing-affecting ECO (O-L-3).
+
+**Next, in order**: the LVS negative control on this cut (O-L-4 -- one run, the cheapest item, and
+the cut's LVS cannot be trusted without it); O-K-1(a), the only route to a MATCH and it needs no
+cut; one chip cut with `PENTA_DRCECO=1` alone, to separate the ROUTE branch from the trunk and close
+the 24 core markers; O-L-2, the `AVDD_B`/`AVSS_B` correspondence collapse at the biasgen
+placeholder; O-L-1, the zero-delay bisection between `chip_2mm_i` and `chip_2mm_j`; O-J-3's
+macro-LEF lever. Register `signoff_mp/DRC_WAIVERS_chip_2mm_l.md`, report
+`tapeout_review/reports/Y16_chip_2mm_l.md`, `TOPOLOGY_B.md` section B.P.
