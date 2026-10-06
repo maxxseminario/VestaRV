@@ -2951,3 +2951,27 @@ the unit test exercises the shipping code. It refuses on a set that stops GROWIN
 pass count. 126 offline checks, 0 fail, armed with chip_2mm_n2's five `i2c0` names and chip_2mm_n's
 eight. On the core flow of record's signoff database five deliberately opened `i2c0` nets were
 absorbed and closed in ONE pass, 53 s, independently re-verified clean.
+
+**The cut of record is `chip_2mm_n4`** (attempt 2 of 2; attempt 1, `chip_2mm_n3`, got past WQ26c --
+the repair pass absorbed 9 real disturbed neighbours and converged in one pass, which is the first
+time this chip cleared that gate with a non-zero disturbed list -- and FATALed at WQ27 on **Y20-5**,
+Y19's east-island core arm reaching 4.65 um inside `mcu0/hart0/tile/ram0`, because Y19 justified the
+arm's depth by measuring standard-cell ROWS and the obstacle is a MACRO; the arm's limit is now
+derived from the macros in its own y band and `chip_2mm_n3`'s artefacts are kept as the
+measurement). `chip_2mm_n4`: setup WNS **+0.040 ns / 0 violating of 36,927**, hold **0.000 / 0**,
+**WQ27 PASSED with unwaived Short 0 of 62 waived**, WQ19 0 PG opens, RINGSUP 0 unsupplied arcs of 5,
+**C-G4d PASSED -- all ten analog islands reach a pad from the block pin, 16 of 20 pads strapped**,
+chipdrc **1726 with 31 real-geometry** (19 flow-drawn against chip_2mm_m's 32), ant25 **CLEAN**, LVS
+**devices 0 : 0 over 7,966,772, pins 80 : 80, nets `*0 : 1`, shorts file EMPTY** with the single
+residual the biasgen BLACK BOX's own layout net (W-PT1-1) and a **live negative control (4 : 0 on
+one deleted std cell)**, GDS md5 `caaee67e1eb1fc606980df4f21c837d9`, promoted to `castalia_B` with a
+headless proof at 259,828 instances in both libraries, `PENTA_PT_CUT` moved, five-scope P&R SDF
+**14 / 14 at BOTH views**, zero-delay leg **5 / 14** with HART1-3 passing and only HART4 false (108
+cells collapsed, SELFCHECK PASS) -- equal to the unflattened count, so `GATE_ZERO_CLKFLAT` stays 0
+and the SDF legs remain the record.
+
+**Two open items, each with its fix written down**: **Y20-3**, one leg per channel rail is
+unstrappable because two M3 tracks need 0.9 um of the 0.8 um usable in the jog band, closed by
+Y19-2 remedy 3 (an M7 riser per island per rail, which also closes the W-PT1-1 residual) and a cut
+of its own; and **Y20-6**, 12 of the 31 real-geometry chipdrc results are a new same-net M5 class at
+the AVDD strap's tile-pin column, closed by the WQ21 part-1 weld idiom in 8 shapes.
