@@ -1,31 +1,61 @@
 # Myshkin chip generator
 
 Single-core Myshkin generator. `python/generate.py` is the single source of truth for the
-memory map, peripheral registers and TRM; peripheral prose is in
-`latex/PeripheralIntroductions/*.tex`. Python 3 stdlib; `pdflatex` for the PDF. New work
-belongs in [`platform/common`](../common/README.md).
+memory map, peripheral registers and TRM. Python 3 stdlib only; `pdflatex` for the PDF.
+New work belongs in the hermetic Castalia/Argus generator,
+[`platform/common`](../common/README.md).
 
 **Not Bazel-managed:** it overwrites tracked files in place, inside and outside this
 directory. Review `git status` after every run. Never hand-edit the outputs.
 
-Run from `platform/myshkin/` (`make help` lists all targets):
+## Commands
 
-```sh
-make             # regenerate (same as ./regenerate.sh)
-make show        # print the configuration
-make pdf         # build latex/TRM/TRM.pdf
-```
+Run from `platform/myshkin/`:
 
-| Output | Content |
+| Command | Action |
+|---|---|
+| `make` / `make generate` / `./regenerate.sh` | Regenerate every output below |
+| `make show` / `./show_config.sh` | Print the configuration from `config/MemoryMap.json` |
+| `make pdf` | Compile `latex/TRM/TRM.pdf` (two `pdflatex` passes) |
+| `make clean` | Delete the generated outputs (prompts first) |
+| `make install-deps` | Check for Python 3 and `pdflatex` |
+
+After regenerating, rebuild firmware from the repo root: `tools/bin/bazel build //software/...`.
+
+## Outputs
+
+| File | Content |
 |---|---|
 | `../../software/commune/include/MemoryMap.h`, `periph.S` | C and assembly register definitions |
-| `../../tools/build/linker-scripts/memory.x`, `periph.x`, `*.txt` | Linker regions and sizes |
-| `../../hdl/myshkin/MemoryMap.vhd`, `MCU.vhd` | RTL constants; `MCU.vhd` generated sections edited in place |
-| `config/MemoryMap.json`, `latex/TRM/` | Memory map JSON, TRM LaTeX project |
+| `../../tools/build/linker-scripts/memory.x`, `periph.x`, `*.txt` | Linker regions, peripheral symbols, ROM/RAM sizes |
+| `../../hdl/myshkin/MemoryMap.vhd` | `RegSlot*` constants for the RTL |
+| `../../hdl/myshkin/MCU.vhd` | Generated sections only, edited in place |
+| `config/MemoryMap.json` | Machine-readable memory map |
+| `latex/TRM/` | TRM LaTeX project |
 
-`gcc/lib/` holds tracked snapshots of the headers and linker fragments (not written by the
-generator), exposed as `//platform/myshkin/gcc/lib:platform_headers` and
-`:linker_fragments`.
+Hand-edited sources: `python/generate.py`, `latex/TRM.template.tex`, and
+`latex/PeripheralIntroductions/*.tex` (one intro per peripheral, placed before its
+generated register tables). `gcc/lib/` holds tracked snapshots of the headers and linker
+fragments, not written by the generator, exposed to Bazel as
+`//platform/myshkin/gcc/lib:platform_headers` and `:linker_fragments`.
 
-RAM `0x0C000–0x0FFFF` is the NPU DMA buffer, and the stack starts at `0x10000` inside it:
-applications using the NPU must move the stack pointer to `0x0C000`.
+## Adding a peripheral
+
+In `generate.py`: create a `PeripheralTemplate`, add `RegisterTemplate`s and `BitField`s
+(unused bits as `BitField(msb=…, lsb=…, unused=True)`), then `m.CreatePeripheral(...,
+peripheralMemorySlot=…, interruptPriority=…)`. Add the intro as
+`latex/PeripheralIntroductions/<PERIPH>-intro-<chip>.tex` and name it in `latexIntroFileName`.
+
+## Memory map
+
+| Range | Region |
+|---|---|
+| `0x00000–0x03FFF` | ROM, 16 KiB |
+| `0x04000–0x04FFF` | Peripherals |
+| `0x08000–0x0814B` | Interrupt vectors (83 × 4 B) |
+| `0x0814C–0x0BFFF` | RAM block 0 |
+| `0x0C000–0x0FFFF` | RAM block 1, NPU DMA buffer |
+
+The stack pointer initialises to `0x10000`, inside the NPU DMA block; applications using
+the NPU must move it to `0x0C000`. `MemoryMap.h` provides `MMR_32_BIT_MACRO(addr)`,
+`MMR_32_PTR(base, offset)` and `RVISR(vector, handler)`.
