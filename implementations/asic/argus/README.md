@@ -1,118 +1,20 @@
-# Argus ASIC Implementation
+# Argus
 
-Argus is an **18-hart (eighteen-core) multiprocessor** — a teaching chip built from the
-same identical VestaRV hart tile as Castalia, scaled up to eighteen cores and physically
-assembled as a **3 × 3 tile array**. It is generated from one configuration
-(`config/argus.json`) by the `platform/common/` chip generator.
+18-hart VestaRV teaching chip, TSMC 65 nm, assembled as a 3 × 3 tile array. Generated
+from [`platform/common/config/argus.json`](../../../platform/common/config/argus.json);
+frozen RTL snapshot in `hdl/argus/`.
 
-## Building through Bazel
-
-Argus is generated from `platform/common/config/argus.json` by the same
-Bazel-managed generator as Castalia. Run all commands below **from the repo
-root**.
-
-One-time bootstrap:
-
-```sh
-sh tools/get_bazel.sh            # fetches bazelisk into tools/bin/bazel
-tools/bin/bazel test //...       # first run downloads all toolchains
-```
-
-### Generating the chip
+| | |
+|---|---|
+| Harts | 18× `rv32imac_zba_zbb_zbs`, no orchestrator |
+| Memory | 16 KiB shared boot ROM; 16 KiB TCM per hart; 128 KiB shared RAM |
+| Sync | CLINT, 32 mutexes, per-hart interrupt router |
+| Peripherals | 4× GPIO, 2× SPI, 2× UART, 2× I²C, 2× timer, CRC16, watchdog; no NPU |
 
 ```sh
 tools/bin/bazel build //platform/common:chip_artifacts_argus
+tools/bin/bazel test  //platform/common:argus_generation_test
 ```
 
-| Target | What it produces |
-|--------|------------------|
-| `//platform/common:chip_artifacts_argus` | The whole 18-hart Argus artifact tree: `MCU.vhd`, `MemoryMap.vhd`, `riscv_tb.vhd`, `MemoryMap.h`, `periph.S`, the web data bundle (`chip_data.js`, `MemoryMap.json`), `ChipConfig.resolved.json`, `PadRing.json`, and the TRM LaTeX project. |
-| `//platform/common:chip_artifacts_castalia` | The 4-hart sibling configuration, for comparison. |
-
-Never run `bazel run //:generate` - that is the raw generator and it writes
-wherever it happens to be invoked. The hermetic path is
-`//platform/common:chip_artifacts_argus`.
-
-### Gates attached to those artifacts
-
-| Target | What it proves |
-|--------|----------------|
-| `//platform/common:argus_generation_test` | The Argus configuration still generates, and every machine-readable output listed above is present and parses. |
-| `//platform/common/python:check_config_defaults_test` | Each knob's two default literals in `generate.py` agree with each other. |
-
-There are deliberately **no identity gates for Argus**: the tracked RTL is
-Castalia's, so the identity checks
-(`//platform/common:check_mcu_vhd_test` and siblings, run by
-`tools/bin/bazel test //platform/...`) are measured against the 4-hart
-configuration. The Argus bar is that the configuration still generates.
-
-### License-free simulation of the shared RTL
-
-```sh
-tools/bin/bazel test //opensource_sim:isa_regression
-```
-
-Nine GHDL ISA suites (`//opensource_sim:isa_rv32ui` and siblings) over
-`//hdl:vhdl_sources` - the parameterized tile Argus is built from - plus the
-unit benches `//hdl/common/tb:mp_arbiter_tb` and
-`//hdl/common/tb:pmp_unit_tb`.
-
-### Outside Bazel
-
-Cadence flows (Genus, Innovus, Pegasus, Xcelium, `make verify`) are permanently
-outside Bazel - they are licensed binaries behind a license server, so no
-hermetic target can wrap them. Run them via `source cdspaths.sh`.
-
-Full map of the Bazel build: [`BAZEL.md`](../../../BAZEL.md).
-
-## Overview
-
-- **Chip Name**: Argus
-- **Configuration**: 18-hart multiprocessor teaching chip
-- **Process Node**: TSMC 65nm
-- **Physical assembly**: 3 × 3 tile array (nine hardened tiles; 18 harts derive from the parameterized generator)
-
-## Configuration
-
-- **Core**: 18× VestaRV32 (RV32IMAC + Zb*, ISA string `rv32imac_zba_zbb_zbs`), each with private RAM; hart ID via the `mhartid` CSR
-- **Boot ROM**: 16 KiB shared boot ROM (all 18 harts reset to PC 0x0)
-- **Private memory**: 16 KiB TCM per hart
-- **Shared memory window** (arbitrated, serializing round-robin): 128 KiB of shared RAM (8× 16 KiB banks)
-- **Synchronization**: CLINT (inter-processor + per-hart timer interrupts), 32 hardware mutexes, and a per-hart PLIC-style peripheral interrupt router (claim/complete, any-vector-to-any-hart routing)
-- **Interrupt vectors**: 85 (vectors 83/84 are the CLINT software/timer interrupts)
-- **NPU**: none (dropped for this configuration)
-
-### Peripherals
-
-- **GPIO**: 4× 8-pin ports with edge-triggered interrupts and per-pin alternate-function mux (up to 8 AFs per pin)
-- **Communication**:
-  - 2× SPI (SPI0 provides memory-mapped access to external flash)
-  - 2× UART with hardware parity
-  - 2× I²C (master and slave mode)
-- **Timers**: 2× 32-bit timers with PWM outputs and input capture
-- **System Control**: CRC16 engine, 2× digitally controllable oscillators, windowed watchdog timer, per-tile MTCMOS power gating with hardware gate/wake sequencing
-
-## Directory Contents
-
-- **`docs/`** — Technical documentation
-  - `TRM.pdf` — Technical Reference Manual (config-driven, built from the
-    generated TRM LaTeX tree)
-
-## Configuration Provenance
-
-Argus is produced from the same generator as Castalia, differing only in configuration
-knobs: `numHarts = 18`, `numMutexes = 32`, `memory.sharedBulkRamSize = 128 KiB`,
-`memory.npuStagingRamSize = 0`, `peripherals.npu = false`. The shared-window word layout is
-parameterized on hart count (`NHARTS`), so the identical hart tile scales from 4 harts
-(Castalia) to 18 (Argus) with no per-tile RTL differences.
-
-## Silicon Status
-
-- [x] RTL Complete (parameterized `hdl/common/` tree; frozen snapshot in `hdl/argus/`)
-- [x] 18-hart behavioral verification (multi-core boot/ISA + shared-window suite)
-- [x] Compact tile hardened and 3 × 3 assembly placed & routed
-- [x] Connected pad-ring chip-top (A5)
-
-## Contact
-
-For detailed specifications or collaboration opportunities, contact Maxx Seminario (mseminario2@huskers.unl.edu).
+Argus has no RTL identity gate: `//platform/...` grades the tracked RTL against
+Castalia only. TRM: `docs/TRM.pdf`.
