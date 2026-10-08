@@ -3217,3 +3217,72 @@ recommended lever is a geometry ECO on the saved database, the pattern topology 
 already uses in `hart_tile/tcl/drc_eco.tcl` -- one extra VIA1 cut and two
 0.01-0.02 um wire nudges. Full evidence: `tapeout_review/reports/Y23_tile_v2d.md`,
 open items Y23-A2 through Y23-H; defaults recorded as **D26**.
+
+### Y24, 2026-10-08: the three Calibre-only wide-metal results closed by a geometry ECO, and none of the three repairs is the one its rule name names
+
+Open item **Y23-A2** resolved. Cut **`v2g`** is `v2f` plus a geometry ECO on
+`v2f`'s own saved signoff database (`tcl/drc_eco_pt.tcl`, after topology A's
+read-only `hart_tile/tcl/drc_eco.tcl`). Calibre `blockdrc` goes from **22
+results, 3 real** to **19 results, 0 real** — 18 `*.DN.*` density/dummy plus the
+one whole-die `DRM.R.1`, the two classes `y1i` also carries — with **no new
+class**, and everything else reproduces `v2f` number for number: setup
+**+0.420** / hold **+0.053** ns with 0 violating paths of 4,642,
+`verifyGeometry` with exactly `y1i`'s four SameNet markers, `ant25` 0, Pegasus
+LVS **MATCH** (548,835 : 548,835 devices, 356 : 356 pins, 206,655 : 206,655
+nets, shorts file empty) with a live negative control at **4 : 0**, gate harness
+**41/41 at both SDF corners**, density unchanged at 39.285 %.
+
+**The diagnosis did not come from the database, and could not have.** Two of the
+three markers are triggered by **via enclosure metal**, which Innovus carries
+inside the via instance: `dbGet <via>.box` returns nothing and
+`dbQuery -objType sWire|wire` never reports it. On the database the
+`VIA1.R.4:M2` site reads as five 0.1 um M2 segments with nothing wide anywhere
+near. All three sites were therefore read out of the 36 MB flattened GDS Calibre
+itself read, with an SREF/AREF-aware window dump, and the plate the rule is about
+turned out to be the 0.4 x 0.4 um M2 landing of a CTS double-width VIA2 whose
+top edge sits **exactly 0.800 um** — `VIA1_R_4_D` — from the flagged cut.
+
+**Each repair is the opposite of its rule name.** `VIA1.R.4:M2` asks for a second
+via cut; a second cut leaves 0.005 um against `M1_S_1` = 0.09, so the repair
+deletes the **plate** instead (the CTS 2W VIA2 swapped for `VIA2_2CUT_E`, both
+cuts kept, so via resistance and EM are untouched, and the 0.4 um M3 trunk covers
+the new landing so no M3 outline moves). `M3.S.2` asks for space between two
+same-net VSS M3 shield bars 0.100 um apart; **filling** the gap — which is
+exactly what topology A's own `drc_eco.tcl` does for an identical-looking site —
+merges both bars with the PG stack's M3 landing into a 0.44 um wire and two
+single-cut VSS vias then violate `MINIMUMCUT` (`verifyGeometry` Wiring 0 → 2,
+Calibre `VIA3.R.2`/`VIA2.R.2`), so the gap is **opened**, the bar re-laid
+0.040 um higher and spanning the full extent of the two via landings it serves so
+no sub-minimum edges end up adjacent. `M2.S.2.1` is closed by moving a 0.1 um
+clock riser 0.025 um west — the one offset that lands its VIA1's M1 landing
+exactly on the cell pin's own west edge, so no M1 protrudes and no `G.4:M1i` jog
+appears.
+
+Three mechanism findings are worth more than the cut. **`editMove` is a GUI
+command**: with `-dx/-dy` it displaced the selected riser one routing track in Y,
+and with `-direction/-distance` it did nothing and returned cleanly — a batch
+wire move has to be delete-and-re-lay, with the rigidity of the move proved
+against the pre-move census. **An ECO must not re-emit the abstract**: `lefOut`
+is only half of how this flow builds the tile LEF, and a bare call emits 164
+extra stray M2 PG ports and 32 fewer OBS rectangles, i.e. an abstract that
+invites the chip router into the analog face and buries the six analog ports
+under their own obstruction; the ECO carries the parent cut's abstract over under
+a gate that FATALs unless the two PIN lists match. And **Y23-C is answered, no**:
+`verify_drc` exists in Innovus 20.12 and is `verifyGeometry` renamed, with nothing
+in its option set or in `setCheckMode` that switches the wide-metal spacing
+lookup from per-edge to Calibre's union projection — the available gate is a
+reduced Calibre deck through the existing `drc.sh`, not an Innovus check.
+
+**The chip re-cut on `v2g` was not run**, so `hart_tile_pt_signoff` still holds
+`y1i`, proved bit-identical from a fresh headless Virtuoso, and `out/`, `rpt/`,
+the shared LVS netlist and labels and `signoff_mp/anatop_ch_bbox` were all
+restored to `y1i`'s state with md5s verified. Nothing is blocked by the gap:
+`out.v2g_ref/hart_tile_pt.lef` is **bit-identical to `v2f`'s**, so
+`TILE_OUT=../hart_tile_pt/out.v2g_ref` is the only tile-side knob and every
+chip-level number Y23 published — the 1090 um band, the six analog ports at
+707.5 + 25k, C-G9, RINGSUP — reads exactly as it did. The ETMs did change, so it
+is a real cut and not a relabel. `out/Y1_READY_v2` carries every `v2g` number in
+`Y1_READY`'s format so the promote needs no re-derivation, and
+`signoff_mp/anatop_ch_bbox` is one library for one footprint for the fourth
+time (Y1-D, Y21-I, Y23-B): its rebuild-and-restore commands are a hard ordering
+constraint written into that file.
