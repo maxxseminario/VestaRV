@@ -532,7 +532,7 @@ begin
 
         -- GROUP 5: Type-2 READ returns the CPU-loaded 16-byte payload plus CRC_A
         report "=== GROUP 5: READ-BLOCK payload ===" severity note;
-        fill_payload;                      -- firmware fills the wound record
+        fill_payload;                      -- firmware fills the sensor record
         fr := (others => (others => '0'));
         fr(0) := x"30"; fr(1) := x"00";    -- READ, block 0
         cfg_bytes <= fr;

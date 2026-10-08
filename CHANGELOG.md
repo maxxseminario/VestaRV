@@ -222,7 +222,7 @@ Anchor: `74baa48`
 - A U-mode CSR-write escape, a trapping-AMO write in the default build, and a
   PMP MRET-return escape — three real defects found by the programme itself.
 
-## [2.6.0] — 2026-07-27 — Field power, event fabric, and the wound chip
+## [2.6.0] — 2026-07-27 — Field power, event fabric, and the full-peripheral chip
 
 Anchor: `8eeb491`
 
@@ -237,7 +237,7 @@ Anchor: `8eeb491`
 
 ### Fixed
 - **A real VDD–VSS short in the PDB3A pad-ring cell**, found during the
-  symmetric wound-chip signoff and confirmed to be inherited family-wide.
+  symmetric full-peripheral-chip signoff and confirmed to be inherited family-wide.
 - A nibble-packing bug in the harvested bootrom's `P6AFS` write, found by a
   composed board-level bench.
 
@@ -255,7 +255,7 @@ Anchor: `55361d9`
 - A think-done interrupt for the NPU.
 
 ### Fixed
-- A gate-level X-collapse root-caused to three nested defects; the wound gate
+- A gate-level X-collapse root-caused to three nested defects; the full-peripheral gate
   smoke went 27/27 green for the first time.
 
 ## [2.4.0] — 2026-07-18 — X-series ISA extensions + CI

@@ -48,7 +48,7 @@ Waves are named as in `~/chips/castalia/tapeout_review/reports/`.
 | `platform/common/python/web_export.py` | AFE2 in the derived counts and memory regions | F7 |
 | `platform/common/python/check_configurator_sync.py` | one AFE2 derived fragment | F7 |
 | `platform/common/hdl_templates/MCU.template.vhd` | three `--@GEN:afe2-*@` markers | F7 |
-| `platform/common/BUILD.bazel` | `chip_artifacts_penta_wound`, `..._penta_wound_afe`, `..._penta_wound_afe_pt` and their generation / memorymap / intro-name tests (223 new lines) | F7 + B2 |
+| `platform/common/BUILD.bazel` | chip-artifact targets for the full-peripheral configuration, the AFE overlay configuration and its topology-B twin, and their generation / memorymap / intro-name tests (223 new lines) | F7 + B2 |
 | `docs/chip_configurator.html` | the `afe2` and `afeTopology` knobs, and a re-spliced `VESTA_DATA` blob | F7 + B2 (+F8 address-map data) |
 | `platform/common/config/ChipConfig.resolved.json` | two generated lines: `"afeTopology": "top_ports"` and `"afe2": false` | F11 / B2 regeneration |
 
@@ -115,10 +115,10 @@ Waves are named as in `~/chips/castalia/tapeout_review/reports/`.
 | `platform/common/latex/packages-commands.template.tex` | `\usepackage[noforwardlinks]{acronym}`; kills all 39 dead `acro:*` forward links and the standing "There were undefined references" | F10 |
 | `platform/common/latex/TRM.template.tex` | build hash on the title page; the AFE feature bullet gated on the analog chapter's presence; `\RevisionDateISO` in the revision table; a PENDING block recording D-1/D-4/D-5 | F10 |
 | `platform/common/Makefile` | `trm-lint` now fails on `There were undefined references` and prints the offending targets; header corrected to five harts | F10 |
-| `platform/common/README.md` | states which suite is the standing regression (`SUITE=full CONFIG=config/penta_wound_afe.json`, 157/157) and that `behavioral_mp` is a smoke | F15 |
+| `platform/common/README.md` | states which suite is the standing regression (`SUITE=full` on the AFE overlay configuration, 157/157) and that `behavioral_mp` is a smoke | F15 |
 | `platform/common/latex/PeripheralIntroductions/{DMA,EVFAB,I2CT,I3C,OneWire,PWM,QSPI,RTC,TRNG}-intro-castalia-2026-07.tex` | section skeleton added so `check_intro_names.py` grades them | F15 |
 | `platform/common/latex/PeripheralIntroductions/{DEBUG-...-2026-08,SYSTEM-...-2026-07}.tex` | two lines each | F10 |
-| `platform/common/python/LatexUserGuide.py` | analog-chapter path guard for `chipName` PentaWound; the AFE prose corrections; the private-band decode width read from the geometry record; `AFEx` register-name mapping | F7 + F8 + F10 |
+| `platform/common/python/LatexUserGuide.py` | analog-chapter path guard for the full-peripheral configuration's `chipName`; the AFE prose corrections; the private-band decode width read from the geometry record; `AFEx` register-name mapping | F7 + F8 + F10 |
 | `platform/common/tools/maestro2tex/configs/*.json` (10 files) | 13 rewritten captions and the em-dashes removed at source, so a regeneration does not put them back; `note_dacr2r12_driver` added to the DAC config `order` | F10 + F26 |
 | `implementations/asic/castalia/analog/AnalogChapter.tex` | `\ifcqanalog` guard on the placeholder-map reference; the four-channel macro row and its nominal-only caveat; em-dashes | F10 + F26 |
 | `implementations/asic/castalia/analog/DacR2R12.tex` | `\input` of the new driver-correction note | F16 + F26 |
@@ -195,9 +195,9 @@ free in every configuration. It carries the 50 anatop_pixel control bits and the
 register demultiplexes; sources 55 and 56 stay QSPI0's.
 
 The generator gains peripherals.afe2, the IRQB_AFE vector and its clear method,
-the three MCU.template markers and the McuMpGeometry flag. config/
-penta_wound_afe.json is the tape-out configuration: cqAfeStubs false, qspi true,
-afe2 true. //opensource_sim/penta_wound_afe elaborates the generated MCU.vhd
+the three MCU.template markers and the McuMpGeometry flag. the AFE
+overlay configuration is the tape-out configuration: cqAfeStubs false, qspi true,
+afe2 true. its opensource_sim elaboration target elaborates the generated MCU.vhd
 against the tracked spine and is what caught the 128-source overflow.
 //hdl/common/tb:AFE2_tb is the directed register bench.
 
@@ -209,9 +209,9 @@ Claude-Session: https://claude.ai/code/session_016qtJvKtLuonAvtu3a4sjUB
 ```
 
 Files: `hdl/common/periph/AFE2.vhd` (new), `hdl/common/tb/AFE2_tb.vhd` (new),
-`platform/common/config/penta_wound_afe.json` (new),
+the AFE overlay configuration in `platform/common/config/` (new),
 `platform/common/latex/PeripheralIntroductions/AFE-intro-castalia-2026-09.tex` (new),
-`docs/afe2_chip_wrapper_patch.md` (new), `opensource_sim/penta_wound_afe/` (new, 2 files),
+`docs/afe2_chip_wrapper_patch.md` (new), its `opensource_sim/` elaboration package (new, 2 files),
 `platform/common/hdl_templates/MCU.template.vhd`,
 `platform/common/python/{generate,mcu_vhd,web_export,check_configurator_sync}.py` (F7 hunks),
 `platform/common/BUILD.bazel` (F7 hunks), `hdl/common/tb/BUILD.bazel` (AFE2 hunks),
@@ -242,15 +242,15 @@ south digital pads move north (R1) and ATP_2/ATP_3 go unbonded to give the south
 segment a post-driver supply pair (S1).
 
 Both configurations generate and elaborate:
-//platform/common:penta_wound_afe_pt_generation_test and
-//opensource_sim/penta_wound_afe_pt:penta_wound_afe_pt_elaborate.
+the topology-B AFE overlay configuration's generation test and
+its opensource_sim elaboration target.
 
 Claude-Session: https://claude.ai/code/session_016qtJvKtLuonAvtu3a4sjUB
 ```
 
 Files: `hdl/common/hart_tile_pt.vhd` (new), `hdl/common/periph/BIASG.vhd` (new),
-`platform/common/config/{padring_pt,penta_wound_afe_pt}.json` (new),
-`opensource_sim/penta_wound_afe_pt/` (new, 2 files),
+`platform/common/config/padring_pt.json` and the topology-B AFE overlay configuration (new),
+its `opensource_sim/` elaboration package (new, 2 files),
 `platform/common/python/{generate,mcu_vhd,tb_vhd,verify_stage,LatexUserGuide,ChipGenerator}.py`
 (B2/B9 hunks), `platform/common/BUILD.bazel` (B2 hunks),
 `opensource_sim/isa/{BUILD.bazel,run_isa.sh}`, `docs/chip_configurator.html` (B2 hunk).
@@ -423,13 +423,13 @@ them leaves the TRM unbuildable.
 Docs: give nine peripheral intros the section skeleton, and name the regression
 
 check_intro_names.py grades every intro against one template. Nine
-wound-configuration intros (DMA, EVFAB, I2CT, I3C, OneWire, PWM, QSPI, RTC,
+full-peripheral-configuration intros (DMA, EVFAB, I2CT, I3C, OneWire, PWM, QSPI, RTC,
 TRNG) predate it and had no \section skeleton, which is why
-penta_wound_afe_intro_names_test shipped tagged manual. They have it now and
+the AFE overlay intro-names test shipped tagged manual. They have it now and
 the gate passes, so the tag can go.
 
 platform/common/README.md states which suite is the regression: make verify
-SUITE=full CONFIG=config/penta_wound_afe.json, 157/157 on 2026-09-05.
+SUITE=full on the AFE overlay configuration, 157/157 on 2026-09-05.
 xcelium/riscv_test/behavioral_mp is a smoke, not the regression: it compiles the
 same generated tape-out RTL but has no polarity gate and runs the DEFINES=(none)
 image set, so a green run there covers the OFF-arm software only.
@@ -613,7 +613,7 @@ is the default five-hart chip.
 
 The proof that it changed nothing is a byte-diff of the generation before and
 after across ALL SEVEN configurations with a chip_artifacts target - castalia,
-penta_wound, penta_wound_afe, penta_wound_afe_pt, argus (18 harts, 32
+the full-peripheral configuration, the AFE overlay configuration and its topology-B twin, argus (18 harts, 32
 mutexes), mcu_hart (1 hart) and fpga (1 hart). config/MemoryMap.json, the
 whole latex/TRM/include tree (604 files), out/software/include/MemoryMap.h,
 out/hdl/MemoryMap.vhd and out/hdl/MCU.vhd are identical in every one. The
@@ -738,18 +738,18 @@ Conflicts with C2/C3 and C10 on `generate.py` and with C10 on `Peripheral.py` an
 
 | path | wave | why it is source |
 |---|---|---|
-| `hdl/common/periph/AFE2.vhd` | F7 | 394 lines of hand-written RTL; `//opensource_sim/penta_wound_afe` will not elaborate without it |
+| `hdl/common/periph/AFE2.vhd` | F7 | 394 lines of hand-written RTL; the AFE overlay elaboration target will not elaborate without it |
 | `hdl/common/periph/BIASG.vhd` | B2 | 134 lines of hand-written RTL |
 | `hdl/common/hart_tile_pt.vhd` | B2 | 277 lines; the topology-B tile wrapper `mcu_vhd.py` binds to |
 | `hdl/common/sim/sar_macro_model.vhd` | F22 | 97 lines; sim-only converter model. Note the directory also holds gitignored vendor files (`ARM_IP_*.vhd`); this one is not matched by any ignore rule |
 | `hdl/common/tb/AFE2_tb.vhd` | F7 | 426 lines; `//hdl/common/tb:AFE2_tb` is already declared in the tracked BUILD file |
 | `verification/isa/tests/rv32ui/shafe2.S` | F22 | 586 lines; already listed in the tracked `Makefrag`, `verification/isa/BUILD.bazel` and `opensource_sim/isa/run_isa.sh` |
-| `platform/common/config/penta_wound_afe.json` | F7 | 8 lines; named by `platform/common/BUILD.bazel:617` |
-| `platform/common/config/penta_wound_afe_pt.json` | B2 | 9 lines; named by `platform/common/BUILD.bazel:631` |
+| the AFE overlay configuration (`platform/common/config/`) | F7 | 8 lines; named by `platform/common/BUILD.bazel:617` |
+| the topology-B AFE overlay configuration (`platform/common/config/`) | B2 | 9 lines; named by `platform/common/BUILD.bazel:631` |
 | `platform/common/config/padring_pt.json` | B3, B2 | 460 lines; `generate.py:4179` opens it at run time, and `config_srcs`' `glob(["config/*.json"])` already makes it a hermetic build input. **Trim before committing**: the `_hook` key is a block of agent-to-agent instructions whose own `status` field says IMPLEMENTED. Replace it with a two-line provenance comment |
 | `platform/common/latex/PeripheralIntroductions/AFE-intro-castalia-2026-09.tex` | F7 | 71 lines; graded by `check_intro_names.py` |
-| `opensource_sim/penta_wound_afe/{BUILD.bazel,defs.bzl}` | F7 | the elaboration gate that caught the 128-source overflow; ran and passed in this session's regression |
-| `opensource_sim/penta_wound_afe_pt/{BUILD.bazel,defs.bzl}` | B2 | same for topology B; ran and passed |
+| the AFE overlay elaboration package (`opensource_sim/`, `BUILD.bazel` + `defs.bzl`) | F7 | the elaboration gate that caught the 128-source overflow; ran and passed in this session's regression |
+| the topology-B AFE overlay elaboration package (`opensource_sim/`, `BUILD.bazel` + `defs.bzl`) | B2 | same for topology B; ran and passed |
 | `implementations/asic/castalia/analog/note_quad_tb09.tex` | F13, F26 | holds `\label{ss:quad}`, which a tracked file already references |
 | `implementations/asic/castalia/analog/tab_quad_tb09.tex` | F13, F26 | `\input` by the above |
 | `implementations/asic/castalia/analog/note_dacr2r12_driver.tex` | F16, F26 | `\input` by tracked `DacR2R12.tex` |
@@ -786,7 +786,7 @@ tools/bin/bazel test //platform/... //hdl/common/tb:all //opensource_sim/...
 targets`, `Executed 10 out of 116 tests: 116 tests pass`, elapsed 338.6 s (3,383 action
 cache hits). Breakdown: `//hdl/common/tb` 15, `//opensource_sim` 9, `//opensource_sim/isa`
 43, `//opensource_sim/mcu` 2, `//opensource_sim/mcu_hart` 2,
-`//opensource_sim/penta_wound_afe` 1, `//opensource_sim/penta_wound_afe_pt` 1,
+AFE overlay elaboration 1, topology-B AFE overlay elaboration 1,
 `//opensource_sim/pmp` 22, `//opensource_sim/rv4th` 1, `//platform/common` 19,
 `//platform/common/python` 1. No failure, no flake, no error. Log:
 `scratchpad/bazel_test.log`.
@@ -797,7 +797,7 @@ The four identity gates that would catch a hand-edited generated file all pass:
 `check_configurator_sync_test`.
 
 One test in `//platform/...` does not run under the wildcard:
-`//platform/common:penta_wound_afe_intro_names_test` is tagged `manual`
+the AFE overlay intro-names test is tagged `manual`
 (`platform/common/BUILD.bazel:702`). Run explicitly: **PASSED in 0.2 s**. See finding U-2.
 
 ### 4.2 TRM build, not re-run
@@ -817,9 +817,9 @@ PDF rebuild has happened since, so the 309-page log is still the log of the curr
 **`make check-publish` will be red.** The published
 `implementations/asic/castalia/docs/TRM.pdf` is tracked and dated 2026-08-30; the build is
 2026-09-05 and 309 pages. F10 left it alone on purpose: republishing belongs with the
-`penta_wound_afe` republish (TRM.template.tex's PENDING block, items D-1, D-4, D-5), not
+AFE overlay configuration republish (TRM.template.tex's PENDING block, items D-1, D-4, D-5), not
 with this campaign. Either commit with `--no-verify` and republish separately, or run
-`make publish-chip CONFIG=config/penta_wound_afe.json` first and add `TRM.pdf` to C7.
+`make publish-chip` on the AFE overlay configuration first and add `TRM.pdf` to C7.
 
 ### 4.3 Files two waves edited, and how to split them
 
@@ -834,7 +834,7 @@ still has a non-empty diff under `git diff --ignore-all-space`.
 | `platform/common/python/tb_vhd.py` | F22, B2 | F22: `+21` (`tb-afe2-signals`), `+174` (`emitAfe2Signals`). B2: the `perTile` branch inside `__init__` at `+52` and the port emission at `+93` |
 | `platform/common/python/verify_stage.py` | F15, F22, B2 | F15: `+1145`, `+1175`, `+1275` (cell-list anchors). F22: `+133` (shafe2 CATALOG row). B2: `+61` (afe2pt tag) |
 | `platform/common/python/LatexUserGuide.py` | F7, F8, F10, B2 | F7/F10: `+990`, `+1026`, `+1065` (AFE prose), `+1662`, `+3765` (AFEx mapping). F8: `+1227` (private-band decode width). F10: `+70` (analog path guard). B2: `+1489` (`afeTopology` keyOrder) |
-| `platform/common/BUILD.bazel` | F7, B2 | one 223-line block; F7's `penta_wound` / `penta_wound_afe` targets precede B2's `_pt` twins |
+| `platform/common/BUILD.bazel` | F7, B2 | one 223-line block; F7's full-peripheral / AFE overlay targets precede B2's `_pt` twins |
 | `hdl/common/tb/BUILD.bazel` | F4, F7, F11 | F4: the ten `*_rtl` / `*_tb` pairs. F7: `afe2_rtl` + `AFE2_tb`. F11: `NUM_SRCS` 121 -> 125 |
 | `docs/chip_configurator.html` | F7, F8, B2 | the `afe2` and `afeTopology` knob definitions are hand edits; the rest is one re-spliced `VESTA_DATA` blob, which is machine output and cannot be split. Regenerate once at the end with `make web-copy` |
 | `hdl/common/periph/SPI.vhd` | F9, F12 | F9: the `s_rx_sreg` -> `s_rx_hold` rename and the 16-arm read mux. F12: `s_spi_teif` |
@@ -856,11 +856,11 @@ emitted file over `hdl/castalia/tb/riscv_tb.vhd` before committing C5, or state 
 (`hdl/castalia/MCU.vhd` is also stale, generated 2026-08-16 against `hdl/common`'s
 2026-08-24, but that predates this campaign and F7 left it alone deliberately.)
 
-**U-2 (MINOR). `penta_wound_afe_intro_names_test` is still tagged `manual` for a reason
-that no longer holds.** F7 tagged it because nine wound-configuration intros had no
+**U-2 (MINOR). The AFE overlay intro-names test is still tagged `manual` for a reason
+that no longer holds.** F7 tagged it because nine full-peripheral-configuration intros had no
 `\section` skeleton (`platform/common/BUILD.bazel:693-697`). F15 added the skeleton to all
 nine later the same day. Run explicitly, the test passes. It is the only `manual`-tagged
-target in the file, and its topology-B twin `penta_wound_afe_pt_intro_names_test` is not
+target in the file, and its topology-B twin is not
 tagged, so `//platform/...` grades one configuration and not the other. Drop the tag in C8.
 
 **U-3 (needs a decision, not a defect). The two 2,780-line `.rcf` goldens are regenerated
@@ -891,13 +891,13 @@ the entity. Left alone.
 
 1. Copy the emitted `riscv_tb.vhd` onto `hdl/castalia/tb/riscv_tb.vhd` (U-1).
 2. Trim the `_hook` block out of `config/padring_pt.json`.
-3. Drop the `manual` tag from `penta_wound_afe_intro_names_test` (U-2).
+3. Drop the `manual` tag from the AFE overlay intro-names test (U-2).
 4. `make generate` once, so `ChipConfig.resolved.json` and `docs/chip_configurator.html`
    are a single machine-produced state rather than three interleaved ones.
 5. Commit C1 through C8 in order. C2 and C3 both touch the generators, so C3's tests only
    pass with C2 in; C7 needs the four new `.tex` fragments staged with it.
 6. Re-run `tools/bin/bazel test //platform/... //hdl/common/tb:all //opensource_sim/...`
-   plus `//platform/common:penta_wound_afe_intro_names_test` after the last commit.
+   plus the AFE overlay intro-names test after the last commit.
 7. Decide the TRM republish (4.2) before or after; `make check-publish` is red either way
    until it happens.
 
@@ -928,7 +928,7 @@ modification: the working tree and HEAD are byte-identical.
 
 `tools/bin/bazel test //platform/... //tools/rdl:all //hdl/common/tb:all
 //opensource_sim/... //software/...` is **157 of 157** before the first commit and
-again at `14f1235`, `penta_wound_afe_intro_names_test` included (its `manual` tag
+again at `14f1235`, the AFE overlay intro-names test included (its `manual` tag
 had already been dropped, U-2). Every commit carries the session trailer; all
 twelve used `--no-verify`, for the pre-existing stale-TRM `check-publish` hook
 (§4.2), which no commit here addresses.
@@ -989,7 +989,7 @@ twelve used `--no-verify`, for the pre-existing stale-TRM `check-publish` hook
 
 `make check-publish` is red: the tracked `implementations/asic/castalia/docs/TRM.pdf`
 is 2026-08-30 and the build is 309 pages of 2026-09-05 (§4.2). Republishing belongs
-with the `penta_wound_afe` republish named in `TRM.template.tex`'s PENDING block.
+with the AFE overlay configuration republish named in `TRM.template.tex`'s PENDING block.
 The cosim boot-mode X pins at pc `0x5c` / `0x15c` and the physical `rom2k_hvt_pg`
 plate are stale against the ROM C4 carries (U-3), and Genus needs the two `read_hdl`
 lines C12's message names.

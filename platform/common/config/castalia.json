@@ -1,4 +1,4 @@
 {
-  "_comment": "Castalia: the five-hart wound-monitoring tape-out chip (soft orchestrator on hart 0, four hardened rv32iac channel tiles). It is also the generator's built-in default, so this file states only chipName. Build with: make chip CONFIG=config/castalia.json ; prove with: make verify CONFIG=config/castalia.json",
+  "_comment": "Castalia: the five-hart tape-out chip (soft orchestrator on hart 0, four hardened rv32iac channel tiles). It is also the generator's built-in default, so this file states only chipName. Build with: make chip CONFIG=config/castalia.json ; prove with: make verify CONFIG=config/castalia.json",
   "chipName": "Castalia"
 }

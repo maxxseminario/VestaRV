@@ -417,7 +417,7 @@ Runs of record: `simruns/ch_20260906/{ch_op2,ch_bias_*,pxxb2}` (**not yet archiv
 
 Two models, and they are simulation elements, not silicon. Neither carries a spread, so no
 Monte Carlo σ anywhere in this document accounts for electrode-to-electrode variation,
-which on a real wound interface is likely to exceed the process spread reported beside it.
+which on a real biological interface is likely to exceed the process spread reported beside it.
 
 | Model | Element | Value | Role | Source |
 |---|---|---|---|---|
@@ -679,7 +679,7 @@ cut — restoring it to a deck costs nothing.
 | TIA loop MC | `fig_tiaab_mc_pm.tex`, `fig_tiaab_mc_voff.tex`, `fig_tiaab_mc_inoise.tex` | `data/tiaab_mc_{pm,voff,inoise}_00.dat` | Phase margin, output offset and integrated input noise of the transimpedance loop, 200 samples | PM: all 200 clear 45°, minimum 64.7°, measured through the feedback probe with the Randles electrode included; right-skewed, so percentiles rather than ±3σ | Input (Fig. 24.25–24.27) |
 | A1 into a real cell | `fig_ampab_cell_ce.tex`, `fig_ampab_mc_cellaol.tex` | `data/ampab_cell_ce_0{0..4}.dat`, `data/ampab_mc_cellaol_00.dat` | CE potential against commanded RE potential over corners, and the DC loop gain closed around the cell | The central segment's 12/11 slope is the cell divider, the flat ends are compliance limits. The loop includes the cell, whose 12 kΩ loads a ~25 kΩ open-loop output resistance | Input (Fig. 24.29–24.30) |
 | Electrode model validation | `fig_electrode_validation.tex` | `data/electrode_cv_{bc,randles}.dat`, `data/electrode_rs_{line,sim}.dat` | Nonlinear electrode against the linear cell, and peak current against √v against Randles–Ševčík | The two panels use different cycles: Randles–Ševčík describes the first scan into an undepleted bulk; the second cycle is the repeatable response and sits 3–5 % below it | Input (Fig. 24.3) |
-| Four-analyte CV panel | `fig_electrode_panel.tex` | `data/electrode_panel_{ua,aa,h2o2,pyo}.dat` | Voltammograms of the wound panel through the rev-2 channel, one parameter set per analyte | E⁰′ and concentrations are literature-anchored; k⁰ is fitted, and reversal peaks appear for irreversible couples because following chemistry is not modelled. Two cathodic markers span −1.4 to −2.4 µA, unmeasurable by the rev-1 front end | Input (Fig. 24.4) |
+| Four-analyte CV panel | `fig_electrode_panel.tex` | `data/electrode_panel_{ua,aa,h2o2,pyo}.dat` | Voltammograms of the four-analyte panel through the rev-2 channel, one parameter set per analyte | E⁰′ and concentrations are literature-anchored; k⁰ is fitted, and reversal peaks appear for irreversible couples because following chemistry is not modelled. Two cathodic markers span −1.4 to −2.4 µA, unmeasurable by the rev-1 front end | Input (Fig. 24.4) |
 | DPV panel and dose response | `fig_electrode_dpv.tex`, `fig_electrode_dose.tex` | `data/electrode_dpv_*.dat`, `data/electrode_dose_*.dat` | DPV of the four-reporter panel and the dose curves through the measured current transfer | The 152.6 µV DPV step is finer than the shipped 12-bit DAC's 610.35 µV LSB, so the apex accuracy read off the panel is a **lower bound** on the channel's. The binding model is analytic; only the electrode and channel are simulated | Input (Fig. 24.5–24.6) |
 
 Caption: every analog figure worth a slide, with the fragment that draws it, the data it

@@ -24,11 +24,11 @@ the fab deliverable checks are deferred by the owner and listed in section 7.
 | # | Blocker | Evidence | Owner of the fix |
 |---|---|---|---|
 | B1 | JTAG/debug transport synthesized to tie cells: `dm0` 99 tie cells, `dtm0` 43; `tdo` tied low into PAD_TDO. The Genus prep strips `ENABLE_DEBUG => CORE_ENABLE_DEBUG`, both entities default to false. | 05 F1, 06 F6 | F2 (Genus) |
-| B2 | No analog interface in the tapeout netlist: `penta_wound.json` sets `cqAfeStubs=false`; 0 AFE instances in the Genus and P&R netlists; MCU has no analog ports; 8 `PDB3A_G` pads with no core connection. Each `anatop_pixel` needs 50 control bits, SAR clock and reset in, 11 bits out. | 02 B-1, 08 F5 | F7 (AFE2) |
+| B2 | No analog interface in the tapeout netlist: the full-peripheral configuration sets `cqAfeStubs=false`; 0 AFE instances in the Genus and P&R netlists; MCU has no analog ports; 8 `PDB3A_G` pads with no core connection. Each `anatop_pixel` needs 50 control bits, SAR clock and reset in, 11 bits out. | 02 B-1, 08 F5 | F7 (AFE2) |
 | B3 | The assembled analog tops (`anatop`, `anatop_channel`, `anatop_pstat`, `anatop_controlamp`, `anatop_dacsupply`) are absent from the OA library since the 2026-08-26 write; no backup existed. `anatop_pixel` is the only assembled channel and has no routed layout. | 01 F1, 03 F-1 | new wave (section 5) |
 | B4 | The four reserved analog windows cannot reach a pad or the core: the tile obstructs M1 to M8 over its footprint, all 281 tile pins sit on the centre-band edge, no pad faces a window. | 06 F7 | decision D17 |
 | B5 | Signoff timing never ran on coupled-SI parasitics: wq22e used `setDelayCalMode -SIAware false` and `rc_decoupled`. Re-timed with coupled SI on 2026-09-05 (F6, read-only): setup WNS +0.012 ns (the quoted +0.239 was 95 % uncomputed crosstalk), hold WNS -0.003 ns at three `hart_tile` boundary inputs (`hart3/sh_rdata[19]`, `[27]`, `hart1/mtip_in`), still at 25 C RC corners. Five generated clocks were sourced with the wrong edge (ICGs fed by the inverted clock), handing crossing paths a phantom 20 ns. The tile's own signoff extraction aborted (`tech_file = ""`). | 06 F1 F2, 06a F2, F6 | F3, F6 |
-| B6 | The synthesized RTL is not the simulated RTL: `hdl/common/MCU.vhd` (penta.json), `genus/common/in/penta_wound_hdl/MCU.vhd` (penta_wound.json, 733 diff lines) and `hdl/castalia/MCU.vhd` (older) are three variants; `NUM_IRQ_SRCS` 121 vs 124. | 04 F2, 08 F3 F4 | F7 (single config `penta_wound_afe`) |
+| B6 | The synthesized RTL is not the simulated RTL: `hdl/common/MCU.vhd` (penta.json), the full-peripheral Genus staging copy of `MCU.vhd` (full-peripheral configuration, 733 diff lines) and `hdl/castalia/MCU.vhd` (older) are three variants; `NUM_IRQ_SRCS` 121 vs 124. | 04 F2, 08 F3 F4 | F7 (single config: the AFE overlay configuration) |
 | B7 | DAC bit drivers in `anatop_pixel_dacR2R12` are 1.0 V HVT core cells (`AND2X8MA10TH`, 24 per pixel) on the 2.5 V rail, schematic and layout. | 01 F2 | F1 |
 | B8 | The tile GDS of record carries two real DRC results (`M1.S.5`, `M2.S.2`) that Innovus did not gate; the `pg_clearance.tcl` that ran is not the one on disk. | 06a F1 F5 | F3 |
 | B9 | 22 real chipdrc results on wq22e (4 `M4.S.1` at tile corners, 3 pad risers, 4 VIA4, 9 signal spacing, 2 tile-internal); none fixable by `ecoRoute` as the flow stands. | 07 F4, 06 F4 | F6 step 5 |
@@ -64,7 +64,7 @@ superseded signoff libraries and run trees.
 
 ## 4 Fix waves, 2026-09-05 (status at 15:00)
 
-Done: F1 to F10. Running: F11 (regression on `penta_wound_afe`), F12 (generated clocks,
+Done: F1 to F10. Running: F11 (regression on the AFE overlay configuration), F12 (generated clocks,
 resynthesis, LEC), F13 (`anatop_quad` wrapper, bench, LEF), F14 (SAR/DAC/pixel re-runs).
 
 New facts from the fix waves:
@@ -75,7 +75,7 @@ New facts from the fix waves:
 - `hdl_error_on_latch` trips on two further RTL sites (`csr_unit.vhd:463`, `NFC.vhd:600`) beyond the three fixed in F9 (F2; fix in F12).
 - Coupled-SI re-time of wq22e: setup +12 ps, hold -3 ps; five generated clocks were edge-wrong (F6).
 - The JTAG bench carried a four-week-old stale `hartinfo` assertion; corrected, 16/17 then re-run (F9).
-- The TRM republish path deleted the analog chapter under any `penta_wound*` config; fixed (F10).
+- The TRM republish path deleted the analog chapter under any full-peripheral config; fixed (F10).
 
 
 | Wave | Scope | Report |
@@ -86,19 +86,19 @@ New facts from the fix waves:
 | F4 | Testbenches: SYSTEM_tb widths, dbg_dmi C5, pwr_ctrl at shipped generics, ten new GHDL targets, tile-ISA objdump gate. | `F4_testbench_fixes.md` |
 | F5 | Signoff hygiene: cut-knob derivation and ingest guard, legacy-block fence, strmin gate, LVS negative control, ERC baseline, DRC waiver skeleton. | `F5_signoff_hygiene.md` |
 | F6 | Chip Innovus flow: coupled-SI signoff setup+hold with hold ECO, corner temperatures, SDC generator, verification gates, fenced `ANATOP_INTEGRATION` block and 14-pad list. | `F6_penta_innovus_fixes.md` |
-| F7 | AFE2 peripheral (RTL, generator, `penta_wound_afe.json` with Bazel gates, bench), pad-ring model, wrapper-netlist patch. | `F7_afe2_peripheral.md` |
+| F7 | AFE2 peripheral (RTL, generator, the AFE overlay configuration with Bazel gates, bench), pad-ring model, wrapper-netlist patch. | `F7_afe2_peripheral.md` |
 | F8 | Boot ROM: stack init, flash-boot timeout and WDT, ROM image symlinks in gate sims, header contradictions, sidecars. | `F8_bootrom_fixes.md` |
 | F9 | RTL: three latch sites, sensitivity lists, TIMER CDC, CLINT mtime race, irq_router, trstn path, fk51mp test contract. | `F9_rtl_fixes.md` |
 
 ### 4.1 Second-round waves (status at 18:30)
 
-Done: F11 regression on the single-source RTL (147/147, verify_pentawound 157/157, cosim
+Done: F11 regression on the single-source RTL (147/147, full-peripheral verify 157/157, cosim
 8/8, JTAG at five harts 17/17 and 51 checks); F13 `anatop_quad` (4 x pixel + 200 shifter
 bits + ATP grant; TB-09 top_op/top_mix/top_xtalk/top_pwr pass; placeholder LEF 760 x 240 um
 at `innovus/common/shared/anatop_quad/`); F14 re-runs (1.63 V SAR span is the extracted
 CDAC; AFE2 capture window safe with 50 ns margin at 20 MHz, 83 ns at 12 MHz; pixel
 regression clean); F15 ROM signoff collateral from the re-cut plate, `make verify` on
-`penta_wound_afe`, Bazel 112/112; F16 DAC driver (`anatop_and2_dac`, Ron 104/47 ohm vs
+the AFE overlay configuration, Bazel 112/112; F16 DAC driver (`anatop_and2_dac`, Ron 104/47 ohm vs
 the 1.0 V cell's 117/68; INL 0.376 LSB, MC monotonic yield 42 %). Running: F12
 (generated clocks, resynthesis, LEC), F17 (square-wave EIS benches SQ-01/02/09), F18
 (rev-1 leaf layouts copied, per-cell DRC v2.6 + LVS harness, layout work list).
@@ -125,12 +125,12 @@ bench updated; 57 GB of raw psf from the quad runs deleted (numbers archived).
 
 1. Done (F13): `anatop_quad` schematic, symbol, TB-09 bench, placeholder LEF/CDL.
 2. Done (F13). Open: a minimal `.lib` for the macro's clock input pins if Innovus refuses a LEF-only macro with clock pins (rom2k precedent).
-3. Resynthesis: `hart_tile` (latch fixes) then `MCU_PENTA` from `penta_wound_afe` with debug restored; LEC (Conformal) RTL vs netlist for both.
+3. Resynthesis: `hart_tile` (latch fixes) then `MCU_PENTA` from the AFE overlay configuration with debug restored; LEC (Conformal) RTL vs netlist for both.
 4. Tile re-harden with F3; chip re-cut with F6 and the `anatop_quad` LEF; coupled-SI signoff; `penta_era`; ingest + chipdrc + ant25 + LVS with the knobs moved to the new tag.
 5. Analog layout: `anatop_tia_rprog`, `anatop_tia`, `anatop_pixel` (pin labels, on-grid ADC), `anatop_quad`; per-cell blockdrc v2.6_2a + ant25 + Pegasus LVS; `castalia_sign` builder; reference library for the SAR sub-cells in `strmin/reflib.list`; CDL into `lvs_include_chip_penta`.
 6. Square-wave EIS verification through the real pixel: the SQ-00 to SQ-09 Maestro plan in `reports/02_eis_and_ada_interface.md` Part A3, plus READY width and data hold on the extracted converter.
 7. Gate-level regression on the new netlist (cp5 was the last, two revisions stale); JTAG bench at NHARTS=5; the single-source harness alignment named in F9.
-8. Documentation: republish the TRM from `penta_wound_afe`; errata list in `reports/09_docs.md` (18 items); ISCAS27 paper is a rev-1 draft, the fact-checked successor is `~/work/ieee/ISCAS27/latek/iscas27.tex`; `SIM_STATUS.md` rewrite.
+8. Documentation: republish the TRM from the AFE overlay configuration; errata list in `reports/09_docs.md` (18 items); ISCAS27 paper is a rev-1 draft, the fact-checked successor is `~/work/ieee/ISCAS27/latek/iscas27.tex`; `SIM_STATUS.md` rewrite.
 
 ### 4.4 Chip cut d13a, resumed (status 2026-09-06 02:40)
 
@@ -176,7 +176,7 @@ validator, the SDF chip-wrapper DUT, the orchestrator-tile region fence, and W-D
 
 Built in parallel under the `_pt` suffix without touching topology A (contract:
 `~/chips/castalia/tapeout_review/TOPOLOGY_B.md`). Waves: B1 `anatop_ch` (pixel with
-external bias plus shifters, benches, LEF); B2 config `penta_wound_afe_pt`, the
+external bias plus shifters, benches, LEF); B2 config (the topology-B AFE overlay configuration), the
 `hart_tile_pt` pass-through wrapper (63 signals per site), gates, regression, Genus staging;
 B3 pads and floorplan (done: the LQFP-100 south edge cannot take the two south corners'
 analog pads with the digital pads frozen; option R1 chosen, 11 south digital pads move to
@@ -274,7 +274,7 @@ verbatim and the remaining 16 (the MUTEX owner width) landed, taking the generat
 0 divergences. R5 (done): the `.rdl` descriptions are the ONLY register source for 18 of
 the 22 peripherals -- 1227 lines of hand-written register tables deleted from
 `generate.py`, with the TRM register tables, the register index, `config/MemoryMap.json`
-and `MCU.vhd` byte-identical for `castalia`, `penta_wound_afe` and `penta_wound_afe_pt`.
+and `MCU.vhd` byte-identical for `castalia`, the AFE overlay configuration and its topology-B twin.
 One more doc-side defect fell out: the per-TEMPLATE GPIO constants published 8-pin
 registers as 32 bits wide (12 constants, regenerated). The generation action is hermetic
 on the descriptions and systemrdl is mandatory.
@@ -286,7 +286,7 @@ rendered where the generator's loops rendered it -- elaborated by
 `rdl_model.registerTemplatesFor()` with `numHarts`, `numMutexes`, `masterW()` and
 `vectorsCount`, the same numbers the RTL is given. 225 more lines deleted; `generate.py`
 carries no register data at all. The proof is a byte-diff across **all seven**
-configurations (`castalia`, `penta_wound`, `penta_wound_afe`, `penta_wound_afe_pt`,
+configurations (`castalia`, the full-peripheral configuration, the AFE overlay configuration and its topology-B twin,
 `argus` at 18 harts and 32 mutexes, `mcu_hart` and `fpga` at one hart): the TRM register
 tables, the register index, the whole `latex/TRM/include` tree, `config/MemoryMap.json`,
 `MemoryMap.h`, `MemoryMap.vhd` and `MCU.vhd` are identical in every one. Three things
@@ -446,7 +446,7 @@ modified; everything is under `genus/`, `innovus/` and `xcelium/`.
 
 | defect | state |
 |---|---|
-| **P15-1** TILE_ generic strip | **CLOSED.** `=> TILE_` with any suffix, plus a census that ENUMERATES what the staged generation emits, both in `genus/common/tcl/flow_gates.tcl` and called from all three assemblies. `genus/common/in/{penta_wound_hdl,penta_wound_pt_hdl}` re-staged from the current generator. Proven by both 30-minute cuts: 100 associations removed, 0 remain, elaborate clean |
+| **P15-1** TILE_ generic strip | **CLOSED.** `=> TILE_` with any suffix, plus a census that ENUMERATES what the staged generation emits, both in `genus/common/tcl/flow_gates.tcl` and called from all three assemblies. The full-peripheral Genus staging directories (topologies A and B) re-staged from the current generator. Proven by both 30-minute cuts: 100 associations removed, 0 remain, elaborate clean |
 | **T2 footer** | **CLOSED at the netlist.** The pmk `set_dont_use` block and census copied verbatim into `MCU_PENTA` and `MCU_PENTA_pt_b` (never `hart_tile_pt`). First exercise: 46 of 46 cells marked avoid, census 0 in soft logic, and **`FOOTBUF32MA10TH` 13 -> 0 on topology A and 71 -> 0 on topology B**. The chip-LVS improvement itself still needs a cut |
 | **P15-2** WQ25 extraction census | **CLOSED, and the verdict reverses.** Cause: the denominator counted the constant `assign` tie-offs the regenerated register blocks emit (the `MCU_PENTA_pt` netlist went 1,698 -> 58,435 assigns). Measured on both databases -- pt9 **97,083 extractable, Quantus 97,083 (100.00 %)**; b1 **123,938 extractable, Quantus 123,923 (99.99 %)**. **Both extractions COMPLETED. pt9's and b1's timing stands; pt9 stays parked for HOLD, not for extraction.** Basis replaced with `flow_extractable_nets` (F19c's, from `hart_tile.innovus.tcl`) at six sites |
 | **P15-3** C16 criterion in the hold ECO | **CLOSED.** Ported into `MCU_castalia_penta_pt`; both drivers now share `flow_c16_above_cap` |
@@ -1829,8 +1829,8 @@ new `AsymmetricSidesTest` cases prove the 225fadcd ball-map gate at real-shape
 skew); the default-chip and `castalia_b` generation/determinism gates
 unaffected. Private (`private/analog/platform/common`): `padring_pt2mm_test`
 (Y3's, untouched) 15/15; new `qfn176_pt2mm_ballmap_test` 10/10 and
-`penta_wound_afe_pt_2mm_generation_test` pass; `overlay_generation_determinism_test`
-unaffected. `make generate CONFIG=.../penta_wound_afe_pt_2mm.json` ran end to
+the 2 mm topology-B AFE overlay generation test pass; `overlay_generation_determinism_test`
+unaffected. `make generate` on the 2 mm topology-B AFE overlay configuration ran end to
 end; verified from the artefact that `PadRing.json` carries the QFN-176 shape
 and `chip_top_padring.tcl` emits exactly 171 `lappend` + 5 NC lines with every
 analog island contiguous.
@@ -1839,7 +1839,7 @@ Parked: package sourcing (no vendor match for the assumed body); the N/S
 wire-angle margin (re-check against a real assembler's rules once a vendor is
 chosen); the east side now has zero spare pins; the 24 reserved analog debug
 pads plus the bias island's stay bonded-but-undriven pending Y1 (Y3-A); no
-analog TRM chapter for `PentaWoundPt2mm` (cosmetic); the note 6(i) 1-ohm
+analog TRM chapter for the 2 mm topology-B configuration (cosmetic); the note 6(i) 1-ohm
 bonded-anchor check is still an extracted number pending Calibre/Quantus,
 unaffected by the package choice. Report `reports/Y9_qfn176_ballmap.md`.
 

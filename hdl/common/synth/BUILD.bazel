@@ -647,7 +647,7 @@ vhdl_source_set(
 # RTL in the physical flow.  See hdl/common/synth/macro_blackbox.vhd for the
 # contract; the short version is that genus reads these from timing libraries
 # and elaborates them as blackboxes (`set_db hdl_error_on_blackbox false`,
-# genus/MCU_WOUND/tcl/MCU_WOUND_hier.genus.tcl:163), the only HDL that exists
+# the full-peripheral Genus build script), the only HDL that exists
 # for them is behavioural, and an 8 KiB array modelled as RTL would census as
 # 65536 flop bits of silicon that does not exist.
 

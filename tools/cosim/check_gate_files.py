@@ -482,7 +482,7 @@ GATE_FILES = [
      'instrument that drives the TAP while the chip is held in system reset'),
     ('flow/chip_top_wound_padlists.tcl',
      'innovus/common/MCU_castalia/tcl/chip_top_wound_padlists.tcl',
-     'the ONE REAL padlist copy (chip_top_wound_quad symlinks to it). '
+     'the ONE REAL padlist copy (the quad chip-top cut symlinks to it). '
      'BOTTOM gains TCK/TMS/TDI/TDO at pins 47-50, RIGHT gains TRSTn at the '
      'HEAD (the east edge runs 51-75, so 51 precedes 52). Nothing on the '
      'north edge -- ever: it is the PRCUT-isolated analog band'),

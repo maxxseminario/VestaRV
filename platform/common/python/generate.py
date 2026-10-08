@@ -1598,7 +1598,7 @@ p = PeripheralTemplate(nameTemplate='IRQROUTER', description='THE peripheral int
 m.AddPeripheralTemplate(p)
 
 # The routing rows and the read-only status readback are vectorsCount-driven. Every current
-# configuration has more than 96 sources (114 by default, up to 125 wound), so the router
+# configuration has more than 96 sources (114 by default, up to 125 with every peripheral), so the router
 # carries four enable words per hart: the fourth, HhENX at row word 4h+3, covers vectors
 # (vectorsCount-1):96, and the status readback has the matching PENDX and INSVCX words at
 # 0x781C and 0x782C. The U words are then fully live, vectors 95:64 in bits 31:0. The
@@ -2191,7 +2191,7 @@ def _buildPackageData(model):
 		# the island side of the PRCUT ring breaks.
 		# This is intent, not as-built, and the manual says so: package.preliminary, default true,
 		# prints the Preliminary banner over Section \ref{s:pinsConfig}. The as-built ring in
-		# innovus/common/MCU_castalia/tcl/chip_top_wound_padlists.tcl has 77 pads, carrying
+		# the Innovus chip-top pad-list script has 77 pads, carrying
 		# PAD_ARSV0-7 and nothing on 86-100; renaming those eight and adding eight more PDB3A_G
 		# instances in the north band is work for the AFE integration programme.
 		_lqfpElectrodes = []
@@ -2962,7 +2962,7 @@ m.McuMpCompat = {
 # template stays untouched and //platform/common:rdl_vs_generator_test, which grades
 # templates, still passes while the per-instance values reach the emitted artifacts. The
 # .rdl side assigns exactly these at the top addrmap
-# (hdl/common/regs/rdl/castalia_penta_wound.rdl).
+# (hdl/common/regs/rdl/castalia.rdl).
 i2cDefaultSad = {'0': 0x79, '1': 0x23}	# hdl/common/constants.vhd: i2c{0,1}_default_SAD
 
 def _setInstanceReset(peripheralName, registerName, value):

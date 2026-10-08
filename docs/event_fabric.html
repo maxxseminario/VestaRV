@@ -933,7 +933,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
           are live poll bits instead. Free IRQ vectors were budgeted elsewhere by the time this block
           was frozen, and going vectorless costs nothing structural: the IE slot is already reserved
           and reads 0, so spending a vector later is purely additive, no map break.</p>
-        <p>Wound-chip physical integration &mdash; folding EVFAB0 into a combined re-synth of the
+        <p>Full-peripheral-chip physical integration &mdash; folding EVFAB0 into a combined re-synth of the
           full SoC &mdash; rides the next re-synth cycle; the fabric itself has closed its own gate
           run (Error&#8239;=&#8239;0, every timing path met) standalone.</p>
       </div>

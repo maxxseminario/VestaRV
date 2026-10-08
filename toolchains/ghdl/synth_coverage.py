@@ -33,7 +33,7 @@ EXCLUSIONS = [
         "clone), the analog oscillator / POR / glitch filter, and the "
         "technology clock cells.  Genus reads the real versions from timing "
         "libraries and elaborates them as blackboxes "
-        "(genus/MCU_WOUND/tcl/MCU_WOUND_hier.genus.tcl:163).  ClkGate, "
+        "(the full-peripheral Genus build script).  ClkGate, "
         "ClockMuxGlitchFree and PreICG are nevertheless graded here, "
         "transitively, through every peripheral that gates a clock -- they "
         "are the modules on the allow_latches list.",

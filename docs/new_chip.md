@@ -147,7 +147,7 @@ Five rows, all of them in lists that already exist.
   `rdl: true`, `source`, `top`, `registerPrefix`, `bitFieldPrefix` and
   `registerSource: "rdl"`. This is the only registry; there is no second list in
   Python.
-- `hdl/common/regs/rdl/castalia_penta_wound.rdl`, the chip addrmap: an
+- `hdl/common/regs/rdl/castalia.rdl`, the chip addrmap: an
   `` `include `` and one instance line at the base address the generator
   computes, with its `->vesta_vector`. The firmware header emitter reads the chip
   addrmap, so without that line `software/include/regs/<block>_regs.h` and the

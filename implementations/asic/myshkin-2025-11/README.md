@@ -6,7 +6,7 @@ Silicon received and validated March 2026. RTL is the frozen
 
 | | |
 |---|---|
-| Application | Mixed-signal electrochemical sensing SoC |
+| Application | Mixed-signal electrochemical sensing SoC for autonomous wound monitoring |
 | Core | VestaRV32, RV32IMAC + Zba/Zbb/Zbc/Zbs, 24 MHz |
 | Memory | 16 KiB ROM, 32 KiB RAM |
 | Peripherals | 4× 8-bit GPIO, 2× SPI (one with flash extension), 2× UART, 2× I²C, 2× timer, NPU, system control (clocks, power gating, watchdog) |

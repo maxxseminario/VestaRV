@@ -73,7 +73,7 @@
 #define MB_ZERO_END         0x10800     // zeroed region end (exclusive)
 
 // DP-S3 harvested boot (stage 4): PWRCTRL sampled the P6.6 strap at reset
-// release; PWRSTS @+0x18 reports it. NFC0 (wound config) sits in the mutex
+// release; PWRSTS @+0x18 reports it. NFC0 (full-peripheral config) sits in the mutex
 // page at 0x6200; GPIO5 (port 6) at 0x6400. On a config WITHOUT NFC the
 // 0x6200 window aliases the MUTEX BANK: writes there are ignored/harmless,
 // but a READ would CLAIM a mutex — the harvested path must NEVER read an

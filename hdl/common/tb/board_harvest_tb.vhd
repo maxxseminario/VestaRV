@@ -1,6 +1,6 @@
 -- VestaRV: harvested field-power board testbench
 -- Board-level bench for the harvested field-power / NFC path: field on, NTAG 5 harvests, the supercap charges, PGOOD (pin 69, P6.7) releases the boot gate, the chip cold-boots the harvested ROM path and serves an NFC Type-2 READ, then field off, re-hold, field back, cold re-boot.
--- DUT is the wound-configuration MCU booting from the real shared ROM image; no firmware is downloaded on the harvested path, only the bootrom's harvested branch runs.
+-- DUT is the full-peripheral-configuration MCU booting from the real shared ROM image; no firmware is downloaded on the harvested path, only the bootrom's harvested branch runs.
 -- Every check is EXTERNALLY OBSERVABLE (package pins, board-model ports, tb edge counters) because VHDL hierarchical references are unavailable under -V200X.
 -- The bench does NOT claim NFC service is lost during brownout: the boot gate folds only the hart resets and VDD collapse is not modelled, so the re-hold is proven by the cold-re-boot PWRSTS payload delta instead.
 -- NEGCTRL true selects the disarmed-board negative control; a bare boolean generic override is silently ignored by xmelab (EVBBOL warning only), so the literal must be QUOTED in the -generic argument.
@@ -26,7 +26,7 @@ end entity board_harvest_tb;
 
 architecture sim of board_harvest_tb is
 
-    -- DUT component: the wound-configuration MCU
+    -- DUT component: the full-peripheral-configuration MCU
     component MCU
         port (
             resetn_in  : in  std_logic;

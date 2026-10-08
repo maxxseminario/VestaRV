@@ -19,7 +19,7 @@ peripherals\ifcqanalog{} in Section~\ref{ss:cqanalog-regs}, a placeholder map un
 the analog IP is integrated\fi.
 % ss:cqanalog-regs lives in the generated CqAnalog chapter, which the master template
 % inputs only under \ifcqanalog. A config that ships the analog IP with cqAfeStubs
-% false (penta_wound_afe.json) renders this chapter without that one, so an unguarded
+% false (the AFE overlay configuration) renders this chapter without that one, so an unguarded
 % \ref is undefined and trm-lint turns that into a build failure.
 
 Unless stated otherwise, every figure and table in this chapter is taken from
