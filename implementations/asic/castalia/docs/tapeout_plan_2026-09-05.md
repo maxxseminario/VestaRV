@@ -3286,3 +3286,90 @@ is a real cut and not a relabel. `out/Y1_READY_v2` carries every `v2g` number in
 `signoff_mp/anatop_ch_bbox` is one library for one footprint for the fourth
 time (Y1-D, Y21-I, Y23-B): its rebuild-and-restore commands are a hard ordering
 constraint written into that file.
+
+## 4.24 Y25, 2026-10-08: the chip on the 300 um tile. Cut `chip_v2_a` is the cut of record and both libraries are promoted
+
+Open item Y24-A, closed. The chip of record was `chip_2mm_n4` on tile `y1i` (985 x 450);
+`chip_v2_a` is the same chip on `hart_tile_pt` cut `v2g` -- 985 x 300, the analog strip
+deepened to 417 x 180 at zero tile-area cost, the six die-edge analog ports 100 um east at
+707.5 + 25k. `castalia_B` holds it, `hart_tile_pt_signoff` holds `v2g`, and `PENTA_PT_CUT`'s
+default has moved.
+
+**Y24-A's premise was wrong in one respect and that is the finding of this wave.**
+`out.v2g_ref/hart_tile_pt.lef` is bit-identical to `v2f`'s, so Y24 recorded that the chip
+"needs no tile-side re-derivation". An identical abstract is not an identical chip binding:
+the tile is **150 um shorter per row**, which moves the band, the M8 stripe lattice, the
+analog section x and the notch. Three things in the chip flow were deriving a number from the
+wrong side of the tile, and only a cut on this geometry could say so.
+
+**(a) The mesh phase had no solution at all, and the notch floor was why.** `fp::lef_probe`
+calls the notch floor the MODAL ceiling of the tile's M7 PG column stripes. On the 450 um tile
+that is right -- 24 columns stop at y 140, 12 run to the top. On the 300 um tile the
+population INVERTS: 20 run the full 300 and 17 stop at 60, so the probe returns
+`notch_y0 = 300 = TILE_H`, i.e. no notch. `mesh_rows` is derived from that floor, so the set
+kept the **die-facing analog PG row** the chip pad ring owns, and every band inset from 39.0
+down to 12.0 was refused with a worst gap of **303 um** -- not by a nanometre, which is the
+tell that the input was wrong rather than the geometry tight. `PENTA_CORE_NOTCH_Y0` now pins
+the floor (unset, nothing moves), `mesh_rows` is re-derived from it, and the pinned-abstract
+gate compares the pinned probe against the SOURCE probe instead of against the derived values
+-- comparing a knob against a probe would FATAL on exactly the cut the knob exists for. The
+solver then lands at inset 28.2 um with a worst gap of 24.0 (y1i: 32.7 / 30.2). This is the
+D26(c) class again: a gate measuring a proxy for the thing.
+
+**(b) The east-island arm post-check FATALed on legal geometry, in two ways at once.** It
+tested `__ebcol`, the bounding BOX of an L-shaped arm, which claims the L's empty corner; and
+it tested boxes with no LAYER predicate. So an M4 column was compared against an M2 leg two
+layers down and the run stopped. It never fired on `chip_2mm_n4` because the M8 leg y is
+chosen nearest-free against the core's actual M8 stripes, and the lattice moved with the band
+(AVDD_B's offset +13.0 -> 0.0, AVSS_B's 0.0 -> -12.2), closing the two arms from 1.0 um of y
+separation to a bounding-box overlap. The census now describes the arm as the five pieces it
+draws plus its two via windows, each with its own layer set, and judges a foreign shape
+against the piece on its own layer; the WARN carries the layer too, which is what makes the
+remaining 0.15 um neighbour judgeable -- it is VDD on M7, and WQ21's whole-die M7 scorer reads
+`S3 0 / S4 0` on the same DEF.
+
+**(c) The ring plan carried the tile height as a literal and the abstract at a fixed path.**
+`TILE_W`/`TILE_H` are now probed from the abstract's own `SIZE` line and the abstract is the
+one `TILE_OUT` names -- the same variable the flow reads -- so the one knob that selects a
+tile reaches the ring plan too. The emitted delta is exactly the four analog sections moving
+**+100.0 um east**: 52 of 136 pad rows moved, all by that one distinct delta, no pad
+instance / cell / net / orientation changed and `in/MCU_castalia_penta_pt.v` is byte-identical,
+so the chip netlist binds unchanged. C-G9 measures 24 of 24 pad-to-port alignments at 0.000 um.
+
+**Y20-6 is closed at source, and it was the largest real-geometry class on the cut it came
+from.** Twelve of `chip_2mm_n4`'s thirty-one results were `M5.S.2`, `M5.S.2.1` and `M5.S.3`,
+four each, at the four analog straight-strap columns. The mechanism, read out of that cut's own
+DEF by the new `analog_column_census.py`: the strap draws an M4 column and an M6 column and
+**nothing at all on M5**, so M5 is only the two M4-M5 via landings, whose enclosures tile the
+column except for a 2 x 0.1 um slot. Gate **C-G22** is one `add_shape` of M5 with the same box
+as the M4 column -- it never puts M5 where the net does not already have M4, and on the four
+holed columns that box is strictly inside the existing M5 union, so no outer edge moves.
+Measured with one instrument on three DEFs: `chip_2mm_n4` 4 holes, the pre-fix v2g probe 4,
+the fixed one **0**.
+
+**`chip_v2_a`, attempt 1 of 2, Innovus exit 0, 0 FATAL, 2:00:30.** Signoff setup WNS
+**+0.042 ns / 0 violating of 36,927** and hold **+0.001 ns / 0 violating** at four views with
+coupled SI, OCV and CPPR, on two hold-ECO passes (24 then 4 repeaters) from a pre-ECO
+-0.047 / 33; WQ26c reported **0 disturbed neighbours on both passes**; WQ19 and WQ27
+verification gates **PASSED** (unwaived Wiring 0, real SameNet 0 of 1199, unwaived Short 0 of
+61, Overlap 0, dangling 0 of 35, antenna 0 of 48, process antenna 0); RINGSUP 0 unsupplied arcs
+of 5; C-G4d **PASSED** with all ten analog island nets one conductor from the block pin and
+16 of 20 pads strapped. Calibre `chipdrc` **1710** results with every class accounted for and
+**26 real-geometry, NONE of them inside a tile macro** (`chip_2mm_n4`: 31 with 12 inside one);
+`ant25` **CLEAN**. Pegasus LVS devices **7,954,091 : 7,954,091 with 0 : 0 unmatched in every
+class**, pins 80 : 80, nets *0 : 1, shorts file EMPTY, and the single residual is the
+`anatop_biasgen_g` black-box class W-PT1-1 -- with a live negative control at 4 : 0. The
+five-scope P&R SDF regression is 14 / 14 at both views.
+
+**The chip-level delta that matters is the density**, and it is not a knob: the tile gave back
+150 um per row, so 591,000 um2 of macro area became placeable band and placement density fell
+**61.195 % -> 30.947 %** with every timing and ECO knob at the `chip_2mm_n4` default. Setup did
+not improve (+0.042 against +0.040) because the critical paths are shared-interface handshakes
+that cross the band and the band got WIDER; what the room bought is routability -- WQ21 M7
+`S4` 1 -> 0, WQ19 PG-stage opens down to 9 + 1, zero disturbed neighbours.
+
+Two gate defects found on the way are fixed and both would have bitten any wave: the Y22
+hand-edit cellview guard took `cdsinfo.tag` as a completion marker, but strmin writes it when
+it CREATES the library, so **every pre-guard library's first re-ingest was refused** and told
+the operator to rescue ~1,800 streamed cellviews; and `run_gate_suite.sh` prints
+`timing SDF MAXIMUM` for both views as a literal while the sdfcmd it reads says MINIMUM.
