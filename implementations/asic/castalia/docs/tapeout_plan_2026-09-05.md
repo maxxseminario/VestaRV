@@ -2975,3 +2975,146 @@ unstrappable because two M3 tracks need 0.9 um of the 0.8 um usable in the jog b
 Y19-2 remedy 3 (an M7 riser per island per rail, which also closes the W-PT1-1 residual) and a cut
 of its own; and **Y20-6**, 12 of the 31 real-geometry chipdrc results are a new same-net M5 class at
 the AVDD strap's tile-pin column, closed by the WQ21 part-1 weld idiom in 8 shapes.
+
+### Y21, 2026-10-08: the tile re-floorplanned as a STACK -- 985 x 300, a 500 x 150 analog strip, and a macro halo that destroyed the core ring
+
+Owner decision **O11**: (a) the per-tile analog reservation comes down by a factor
+of two to three from the 150 k um^2 Y1 set, to the owner's own 75 k budget, and
+(b) **there is no corner to turn to reach the TCM** -- the tile becomes a stack
+from the band-facing pin edge upward: the 348 pins, then the digital logic
+directly above them across the full width, then a top band with the TCM
+`sram1p8k_hvt_pg` in the west beside the analog strip in the east, so
+logic-to-TCM and logic-to-analog routes go straight up and pin escapes straight
+down.
+
+`TILE_PT_FLOORPLAN` selects the generation and **`v1` reproduces the `y1i` tile
+of record**, so the chip flow of record keeps working; `CH_FLOORPLAN=v1` in
+`skill/ch_lef_gen.py` does the same for the abstract and regenerates the v1 LEF
+**byte for byte** (verified by diff). One table in the flow holds both sets of
+defaults; every geometry number derives from it.
+
+| | v1 `y1i` | **v2** |
+|---|---|---|
+| outline | 985 x 450 = 443,250 um^2 | **985 x 300 = 295,500 um^2** (-33.3 %) |
+| analog notch | 630 x 310 = 195,300 um^2 | **530 x 210 = 111,300 um^2** (-43.0 %) |
+| `anatop_ch` | 600 x 250 = 150,000 um^2 | **500 x 150 = 75,000 um^2** (-50.0 %) |
+| ram0 | (30,10) MX, full-height west column | **(130,81.325) R0**, top-west, pins facing the logic |
+| logic | the west column above ram0 **plus** the base band east of it | **one full-width band** |
+| core row area / gate density | 169,638 um^2 / 27.19 % | **84,688 um^2 / 55.2 % (measured)** |
+| six die-facing analog ports | 607.5 + 25k | **657.5 + 25k** (same pitch, same phase, 100 um east) |
+| chip band between the tile rows | 1690 - 900 = 790 um | **1690 - 600 = 1090 um**, same 2480 x 2000 die |
+
+**Every v2 wall is a multiple of 50 um from its v1 wall** -- notch west
+455 = 355 + 100, floor 90 = 140 - 50, top 300 = 450 - 150 -- so every
+ring-leg-to-stripe gap is numerically identical to the geometry Calibre signed
+off on `y1f`/`y1i`. The phase condition is now **solved** rather than sampled:
+`(w mod 50)` in `[35.5,50) U [0,12.5]`, the same set on both axes. The brief's
+estimate `H = 330` is unavailable -- `330 mod 50 = 30` puts the top edge's VSS
+ring leg `[302,312]` **on** the VDD M8 stripe `[301,306]` -- and with a 210 um
+notch depth both `H` and `H - 210` must be in the band, which forces
+`(H mod 50)` in `[45.5,50) U [0,12.5]`.
+
+**THE WAVE IS PARKED AT THE THREE-HARDEN BOUND, and the third attempt is the only
+one that is about the design.** `v2c` passes **every floorplan and PG gate** --
+Y21-RING (12 ring sWires), Y1-PSW 94 segments / 0 uncovered, T-G2b 348 / 0,
+T-G2c part 1 and 2 both 0, T-G1/T-G3/T-G4, **T5b GATE VDD 34 / VSS 19 with the M5
+plate 8.000 of 8.000 and 0 parent cuts, identical to `y1i` cut for cut**,
+PG4/F1 755 of 751 pads via'd, PG4/F2 2140 of 2140 covered, PG5/PG6 0/0, pgsw
+258 / 258 / 0 floating -- and dies at the **G0 gate on 13 real shorts, 19 of the
+29 markers in one 3 um site**:
+
+    SHORT: Special Wire of Net VDD & Blockage of Cell
+           tile/core/irq_handler_inst/context_restored_reg  ( M1 )
+
+A 5.8 um `SDFFRPQX1MA10TH` straddles the x = 25.0 well-tap column, whose taps sit
+in every *other* row so that row legitimately has no `FILLBIAS` there, and a
+**3.42 um lateral M1 VDD special stripe x[25.10,28.52] y[31.30,31.60] runs across
+it.** That stripe is the secondary `sroute`'s M1 jog, and the sroute runs at line
+2406 while `place_opt_design` is at line 4732 -- **on empty rows**, with the
+placer under no obligation to avoid a special M1 wire. At v1's 28 % gate density
+those laterals landed under filler; at v2's 55 % one got a flop. The flow's own
+comment predicted the family and blamed the wrong author: *"a bring-up
+sroute-rerun variant 'fixed' naked pins with 12-um M1 corewires across the row --
+a short factory once placement fills the rows. Deleted."* It is the tool's own
+sroute that draws them. **And F1's repair never ran**: `F1_MAXSITES = 20` counts
+markers, not sites, so 29 markers in 5 sites skipped the stage whole.
+
+**Measured anyway, from the post-route database, because the floorplan question
+is answerable without a signed-off cut**:
+
+| | `y1i` | **`v2c`** |
+|---|---|---|
+| gate density | 28.4 % (48,054.8 / 169,410; tool's own "#6" 26.798) | **55.2 %** (46,753.2 / 84,688) |
+| logic-to-TCM routing, 87 nets | 19,079.2 um, 700 vias, mean 219.30 um/net | **13,456.7 um, 857 vias, mean 154.67 -- -29.5 %** |
+| logic-to-analog, 71 nets | 18,396.4 um, 221 vias, mean 259.10 | **14,741.2 um, 229 vias, mean 207.62 -- -19.9 %** |
+| non-filler instances / flops | -- | 10,502 / 2,131 |
+
+**The row-area model is confirmed by the placer rather than asserted**: it
+predicted 84,688 um^2 of placeable row and the placer put 46,753.2 of cells plus
+37,928.8 of filler into it, 84,682.0 um^2, with the rows 100 % full. That is
+O11(b) measured -- the TCM's 87 pins are all on the master's south edge, `MX`
+turned them north into a west column while much of the logic sat in the base band
+*east* of the macro, and `R0` points them straight down into a band that spans
+the whole tile width.
+
+**Nothing was promoted.** `out/` still holds the `y1i` collateral (md5s
+verified), `dbs/hart_tile_pt.signoff.innovus` is still `y1i`'s, **`out/Y1_READY`
+is unchanged and still true**, and `out.y1i_ref/` + `rpt.y1i_ref/` are untouched.
+The v2 geometry Y2 will need is in the new `out/Y21_PARKED`, in `Y1_READY`'s own
+format; the attempt is pinned at `rpt.v2c_fail/` with a `README.Y21` carrying the
+diagnosis and the three resume levers. Signoff, the gate harness, the promote and
+the headless bBox proof all need a cut and were not reached.
+
+**The failure worth the whole wave: a macro halo that reaches the die edge
+destroys the core ring, silently.** The attractive edit was to run ram0's north
+halo to the die edge, cutting an 8 um band of row that would otherwise have to
+route back down past a macro obstructing M1-M4. `addRing -follow io` **derives
+its ring path from the core ROWS**: an edge of the die polygon with no row
+adjacent to it gets no leg, and the command then fails *whole* -- 0 wires, one
+`**WARN: (IMPPP-4051)`, success returned. Measured on an isolated addRing probe
+(empty design, no flow): 0 rows within 6 um of an edge fails, 1 row is enough,
+and the v2 polygon closes the ring with no macro at all. Six symptoms then
+cascade from it -- `core ring for VDD is incomplete ... stripes only within the
+core area`, the M8 grid spanning the stripe lattice x[51,956] instead of the ring
+x[4,981], the six west strap columns losing their path to M8, and finally
+`FATAL (PG4/F1): no healthy strap column within 30 um of sick run T25.00`, 48 um
+from the nearest healthy column. New FATAL gate **Y21-RING** measures the ring
+five seconds after it is drawn and prints the per-edge adjacent-row census
+beside it, so the message names the cause and not the effect.
+
+**Two frozen population floors in PG4 were rejecting a correct run**, and both are
+now ratios. `PG4/F1`'s `< 1000` VIA2s ("expect ~2000") is a *population*, not a
+result: `y1i` laid 1173 M3 pads and got 1181 vias, v2 laid 751 and got 755 --
+the engine via'd **every pad it was offered** -- and the absolute floor refused
+it because the tile has half the rows. `PG4/F2`'s `< 1400` strap-covered cells
+is the same shape. Both now measure the fraction of what was offered, which
+catches a mechanism change on either floorplan and is blind to the floorplan's
+size. **The PG4 ladder is also transitive now**: it used to evaluate the sick
+list once against a frozen healthy list, so a run of consecutive sick columns was
+unreachable even when every hop in the chain was 12 um; a laddered column is
+itself an anchor. One-round floorplans get exactly the old link set, so v1 stays
+bit-identical.
+
+**Open, in the order they should be taken**: **Y21-A**, the sroute laterals --
+after the secondary sroute, delete or blockage-protect every M1 secondary sWire
+wider than the cell whose pin it serves, and let PG4's per-cell `top=M2` retry
+supply the rest (its coverage gate now measures the fraction and read 2140 of
+2140 on this very run); one harden. **Y21-B**, cluster F1's markers into sites
+before applying `F1_MAXSITES`. **Y21-C**, worth copying out of this flow: the
+chip and the topology-A tile flows run the same `addRing -follow io` with the same
+halo idiom and have **no** Y21-RING-equivalent gate. **Y21-F**, an owner
+decision: the strip is 150 um tall and
+`castalia/anatop_pixel/layout_v1_floorplan` is **173.409** um tall, so either the
+pixel is re-stacked wider and shallower (recommended -- it is a sketch) or the
+strip deepens to 417 x 180 = 75,060 at **+13 % tile area**, because the notch then
+eats the band the TCM needs. **Y21-G**, 75,000 um^2 is 1.24x the ~60,700 um^2 cell
+sum where 150,000 was 2.5x, and the guard rings, the deep n-well ring and the
+analog supply distribution come out of that 24 %. **Y21-H**, Y3's ring must move
+its six-port analog section 100 um east per tile (607.5 + 25k -> 657.5 + 25k; the
+pitch and the 25k + 7.5 phase are unchanged, so Y1-A is unaffected). **Y21-I**,
+`signoff_mp/anatop_ch_bbox` now holds 500 x 150, so rebuild it from
+`shared/anatop_ch/v1/anatop_ch.lef` before signing off any v1-based cut.
+**Y21-J**, the narrower-tile option is reported and not taken: 885 x 350 buys
+-8.1 % of die and costs +4.8 % of tile area, 16 points of density and a
+re-derivation of the core X, both pad-ring arcs and the LQFP-176 ball map, whose
+east arc is already at 43 of 44 fingers.
