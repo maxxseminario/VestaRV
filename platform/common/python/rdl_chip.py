@@ -22,7 +22,7 @@ import rdl_model
 
 from LatexUserGuide import fmthex, fmttex
 
-DEFAULT_TOP = os.path.join(rdl_model.RDL_DIR, 'castalia_penta_wound.rdl')
+DEFAULT_TOP = os.path.join(rdl_model.RDL_DIR, 'castalia.rdl')
 
 
 class _InstanceBlock(object):

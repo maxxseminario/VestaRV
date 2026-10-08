@@ -1,7 +1,7 @@
 # See LICENSE for license details.
 
-# VestaRV: decode proof for the wound configuration's three new peripherals
-# Hart 0 only, tiles parked. It proves QSPI0 at 0x4C00, I3C0 at 0x6100 and NFC0 at 0x6200 decode in gates, with one inert write and readback plus two known-nonzero reset-value reads. IT IS NOT A DRIVER: no engine is ever launched, no CMD or trigger register is touched, and no interrupts are used, so the wound-configuration vectors are deliberately left unarmed.
+# VestaRV: decode proof for the full-peripheral configuration's three new peripherals
+# Hart 0 only, tiles parked. It proves QSPI0 at 0x4C00, I3C0 at 0x6100 and NFC0 at 0x6200 decode in gates, with one inert write and readback plus two known-nonzero reset-value reads. IT IS NOT A DRIVER: no engine is ever launched, no CMD or trigger register is touched, and no interrupts are used, so the full-peripheral-configuration vectors are deliberately left unarmed.
 # QSPI0ADR at 0x4C08 is a plain 32-bit address-holding register and a write there never launches a transaction, so it takes an inert 0xA5 write and readback. I3C0CR at 0x6100 has SDAPP bit 2 set at reset and is read masked to that bit, never written, since a known-nonzero reset field already proves the decode. NFC0CR at 0x6200 has AUTOREAD bit 12 set at reset and is read masked to that bit, never written.
 
 #include "riscv_test.h"

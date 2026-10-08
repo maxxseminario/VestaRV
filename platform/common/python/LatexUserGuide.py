@@ -69,8 +69,8 @@ class LatexUserGuide():
 	# inheriting measured analog data is an explicit, per-chip decision.
 	AnalogChapterLineage = {
 		'castaliapenta': 'castalia',
-		# The private overlay configurations set chipName "PentaWound", which has no
-		# implementations/asic/pentawound/analog, so generating from one of them dropped the whole
+		# The private overlay configurations set a chipName that has no
+		# implementations/asic/<chip>/analog directory, so generating from one of them dropped the whole
 		# analog chapter: CopyAnalogChapter rmtree's include/analog and then takes the empty
 		# branch. Same physical chip and same analog IP, so it inherits Castalia's.
 		'pentawound': 'castalia',
@@ -1621,7 +1621,7 @@ class LatexUserGuide():
 			if nums == list(range(nums[0], nums[-1] + 1)):
 				stem = ms[0].group(1)
 				return fmttex(stem + str(nums[0])) + '--' + fmttex(stem + str(nums[-1]))
-		# A mixed family (I2C0, I2C1, I3C0, I2CT0 on the wound configuration)
+		# A mixed family (I2C0, I2C1, I3C0, I2CT0 on the full-peripheral configuration)
 		# gets an EXPLICIT break every second name: the head's reserved height is
 		# computed from the \\ count, so a line left to wrap on its own would
 		# push the rest of the box's contents through its bottom border.

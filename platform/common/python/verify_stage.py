@@ -141,7 +141,7 @@ CATALOG = [
     # on, and there it is the cheapest proof that the apertures were built.
     T('rv32ui-p-shtcm', 'tiles orch', True),
     # shdma proves DMA0 inside the full MCU. DMA0 exists ONLY in
-    # dma-enabled configs (castalia_dma NCH=2, wound NCH=4) -> tag 'dma' gates it
+    # dma-enabled configs (castalia_dma NCH=2, full-peripheral NCH=4) -> tag 'dma' gates it
     # into ONLY those verify runs (filtered out of the default/non-dma configs).
     # Hart-0 directed (tiles parked), so no 'tiles' tag needed.
     T('rv32ui-p-shdma', 'dma', True),
@@ -153,12 +153,12 @@ CATALOG = [
     # ONLY in configs carrying both (config/castalia_evfab.json today); TIMER0
     # and UART0 are unconditional. Hart-0 directed (tiles parked) -> no 'tiles'.
     T('rv32ui-p-shevfab', 'eventFabric dma', True),
-    # Firmware smoke companions (wound-config additions).
+    # Firmware smoke companions (full-peripheral-config additions).
     # Each is single-hart directed (hart 0; tiles parked) and hardcodes its
     # peripheral's FROZEN library-tail vectors (A5 GLOBAL VECTOR RULE): RTC0=114,
     # PWM0=115/116, OW0=117, DMA0=118/119. Gated by the peripheral knob so they
     # appear ONLY where that peripheral is instantiated (the single-peripheral
-    # proof configs + wound) and never on plain Castalia (where the slot decodes
+    # proof configs + full-peripheral) and never on plain Castalia (where the slot decodes
     # to zero and the vectors are RSVD).
     T('rv32ui-p-wrtc', 'rtc', True),
     T('rv32ui-p-wpwm', 'pwm', True),
@@ -175,7 +175,7 @@ CATALOG = [
     # inside the full MCU -- register resets, the DR read-CONSUME contract, two
     # successive words (LFSR-stub movement), and the combined data-ready/health-
     # alarm IRQ (vector 121) through the real meip path. Gated by the 'trng' knob
-    # so it appears ONLY where TRNG0 is instantiated (castalia_trng.json + wound).
+    # so it appears ONLY where TRNG0 is instantiated (castalia_trng.json + full-peripheral).
     T('rv32ui-p-wtrng', 'trng', True),
     # wnpuconv proves NPU MODE=1 (conv) inside
     # the full MCU at the MCU/silicon generics (Q0.24 in / Q7.24 weight+acc+out) --
