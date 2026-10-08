@@ -3118,3 +3118,102 @@ pitch and the 25k + 7.5 phase are unchanged, so Y1-A is unaffected). **Y21-I**,
 -8.1 % of die and costs +4.8 % of tile area, 16 points of density and a
 re-derivation of the core X, both pad-ring arcs and the LQFP-176 ball map, whose
 east arc is already at 43 of 44 fingers.
+
+### Y23, 2026-10-08: the tile's analog strip deepened to 417 x 180 so the owner's pixel floorplan fits, and the three gates that were measuring proxies
+
+Open item **Y21-F** resolved by measurement rather than by the price Y21 put on
+it. `castalia/anatop_pixel/layout_v1_floorplan` is 148.565 x 173.409 um, so v2's
+150 um analog strip could not hold it; `TILE_PT_FLOORPLAN=v2d` deepens the strip
+to **417 x 180 = 75,060 um^2**, the nearest same-area shape that does.
+
+**Y21 priced this at +13 % of tile area and that was wrong.** Y21 solved the
+50 um wall-phase rule for `H` alone and read off H = 340 or 390. The rule
+constrains every wall: with a 240 um notch depth both `H` and `H - 240` have to
+land in `(w mod 50)` in `[35.5,50) U [0,12.5]`, which forces `(H mod 50)` in
+`[0,2.5] U [35.5,50)` -- and **H = 300 is in it**. So v2d keeps v2's outline
+exactly, **985 x 300 = 295,500 um^2**, the same -33.3 % against `y1i`, the same
+1090 um chip band, and no chip-level number changes at all. The notch narrows to
+447 x 240 (`NOTCH_X0 = 538`, derived, because the macro's east edge stays at
+W - 15), which **widens the west column from 455 to 538 and raises the core row
+area from 84,688 to 115,916 um^2** -- gate density 39.3 % measured, against v2's
+55.2 % and `y1i`'s 27.2 %. The one cost: the notch wall and floor sit on phases
+38 and 10 rather than v1's 5 and 40, so two minimum opposite-net ring-leg-to-
+stripe gaps are 4.0 um where v1 and v2 had 6 and 9 -- legal at 2.7x the 1.5 um
+requirement, and the first v2d geometry whose proof is Calibre rather than
+arithmetic.
+
+**Y21-A closed at source, and the discriminator was not the one Y21 named.**
+Y21's lever was "delete every M1 secondary sWire wider than the cell pin it
+serves". Measured on `v2c`'s own database, size does not separate the offenders:
+7 of the 10 shapes that ended up under a logic cell are minimum 0.09 x 0.245
+fingers. **Containment does, perfectly**: of 3,870 non-followpin M1 PG shapes,
+3,793 are covered by the PG-fabric cells beneath them and **none** of those
+overlaps a logic cell, while 77 are not and 10 of those do. A contained shape
+can never be shorted, because the cells covering it are fixed before the placer
+runs. `TILE_PT_SECM1_FIX` (default `delete`) deletes a shape that reaches beyond
+every PG cell it touches **and then measures whether the pin is still supplied**,
+restoring and blockage-protecting it if any serving cell is left with no same-net
+metal. New gate **Y23-A**, immediately after `place_opt_design`, FATALs on any M1
+PG shape under a placed standard cell: **0 on the cut**. On v2d the whole
+population was ONE 3.42 um VDD lateral, redundant -- the tap it serves already
+sits under its own full-height VDD M2 strap column with its VIA1 in place.
+
+**Three gates were measuring proxies, and all three were found by probes rather
+than by cuts.** `TILE_PT_STOP_AFTER=pg` stops the flow immediately before
+`place_opt_design` with every floorplan and PG gate run and the database saved,
+for about 40 seconds; Y21 spent two of its three attempts on failures that all
+sit before that line.
+
+* **PG5** counted VSS special vias by *via-definition name* (`via4*`) and
+  *reference point*, and read 0 on a run in which the sroute reported `Number of
+  Block ports routed: 16` and ViaGen reported VIA4 x16 created. The predicate is
+  now the CUT LAYER of the vias in the routed area -- **67** -- with the old
+  count reported beside it and a per-cut-layer dump before any abort.
+* **`F1_MAXSITES` counted markers** (Y21-B), which is why `v2c`'s repair stage
+  was skipped whole at 29 markers in 5 sites. Markers are clustered by transitive
+  overlap of their halo-expanded boxes first; the cut read 8 markers -> 4 sites
+  -> 4 `ecoRoute` passes.
+* **The west macro halo was unconditional.** `TCM_X - CORE_SPACING` implements
+  the y1a/y1b rule *one column cannot power a strip*, which is a rule about
+  strips narrower than two switch-column pitches. v2d's west strip is 212 um and
+  carries three columns, so the premise is re-measured at the halo; v1 (29 um)
+  and v2 (129 um) still fail it and keep the edge halo bit for bit. Y1-PSW
+  confirms 298 row segments, 0 uncovered.
+
+**And a class the flow could not see at all.** `verifyGeometry` reported
+`Wiring = 0` on every v2d cut, and Calibre `blockdrc` then found two or three
+real wide-metal spacing results per cut -- a different set each time, because they
+move with the routing. Every rule involved is in the tech LEF the run read
+(M2/M3 `SPACINGTABLE` rows WIDTH 0.20 -> 0.12 and WIDTH 0.40 -> 0.16 at
+PARALLELRUNLENGTH 0.38/0.40, and `MINIMUMCUT 2 WIDTH 0.3 LENGTH 0.3 WITHIN 0.8`),
+so this is not a LEF-versus-deck gap: the router has the rules and the flow's own
+checker does not enforce them. `y1i`, at 27 % density, happened to have none.
+`TILE_PT_DRC_MARKERS` feeds a Calibre marker file back into F1's existing
+per-site `ecoRoute -fix_drc` machinery with a wider window, which is the only
+piece that was missing; the acceptance is still the next Calibre run.
+
+**Three cuts, and the floorplan passed every gate on the first.** `v2f` is the
+one signed off: FATALs 0, G0 clean with **exactly `y1i`'s four markers** (the
+accepted `anatop_ch` M6 OBS SPACING class), Quantus 10,911 of 10,911, signoff
+setup **+0.420 ns** and hold **+0.053 ns** with 0 violating paths (both better
+than `y1i`'s +0.462 / +0.025), gate density **40.6 %** (46,999.2 um^2 of cells in
+115,890 of row, the model 26 um^2 out), Calibre `ant25` **0**, Pegasus LVS
+**MATCH** with no supply-pin exception, gate harness **41/41 at both SDF
+corners**, and an OA proof of `bBox=((0.05 0.0) (984.0 300.0))` with 32,249
+instances. The TCM route length is **-57.9 %** against `y1i` and the analog
+**-31.2 %**, which is O11(b) measured twice over.
+
+**It is NOT promoted, one gate short, and not on the floorplan.** Calibre
+`blockdrc` leaves three real wide-metal results (`VIA1.R.4:M2`, `M2.S.2.1`,
+`M3.S.2`; 0.01-0.02 um shortfalls) where `y1i` had zero -- and they move with the
+routing, so the mechanism is density-driven router escapes in a class
+`verifyGeometry` is blind to. `hart_tile_pt_signoff` still holds the `y1i` stream,
+proved bit-identical; `out/`, `rpt/`, the shared LVS netlist and
+`signoff_mp/anatop_ch_bbox` were all restored to the `y1i` state with READMEs
+saying why; the three cuts are pinned as `out.v2{d,e,f}_ref/` and the per-cut OA
+libraries `hart_tile_pt_v2{d,e,f}`; and `out/Y1_READY_v2` carries every v2d
+number in `Y1_READY`'s format so the promote needs no re-derivation. The
+recommended lever is a geometry ECO on the saved database, the pattern topology A
+already uses in `hart_tile/tcl/drc_eco.tcl` -- one extra VIA1 cut and two
+0.01-0.02 um wire nudges. Full evidence: `tapeout_review/reports/Y23_tile_v2d.md`,
+open items Y23-A2 through Y23-H; defaults recorded as **D26**.
