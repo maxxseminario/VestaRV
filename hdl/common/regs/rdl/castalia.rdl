@@ -15,6 +15,7 @@
 `include "nfc.rdl"
 `include "npu.rdl"
 `include "onewire.rdl"
+`include "pinmux.rdl"
 `include "pwm.rdl"
 `include "pwr_ctrl.rdl"
 `include "qspi.rdl"
@@ -27,7 +28,7 @@
 
 addrmap castalia {
     name = "Castalia";
-    desc = "The memory-mapped register space of the five-hart Castalia chip (config castalia.json): 30 peripherals in the shared window at 0x4000 and up.";
+    desc = "The memory-mapped register space of the five-hart Castalia chip (config castalia.json): 31 peripherals in the shared window at 0x4000 and up.";
 
     default regwidth = 32;
 
@@ -60,11 +61,12 @@ addrmap castalia {
     trng       TRNG0      @0x6900;
     i2ctarget  I2CT0      @0x6A00;
     evfab      EVFAB      @0x6B00;
+    pinmux     PINMUX     @0x6C00;
     irq_router IRQROUTER  @0x7000;
 
     // Interrupt vectors.
     // The vector each instance owns, from the resolved configuration. A block
-    // with no vector (PWRCTRL, MUTEX, EVFAB, IRQROUTER) carries none.
+    // with no vector (PWRCTRL, MUTEX, EVFAB, PINMUX, IRQROUTER) carries none.
     GPIO0      ->vesta_vector = 1;
     GPIO1      ->vesta_vector = 28;
     SPI0       ->vesta_vector = 9;

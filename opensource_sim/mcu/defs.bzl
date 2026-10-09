@@ -91,6 +91,8 @@ _MCU_EXTRA = [
     "hdl/common/periph/I2CTarget.vhd",
     "hdl/common/regs/vhdl/evfab_regs_pkg.vhd",
     "hdl/common/periph/EVFAB.vhd",
+    "hdl/common/regs/vhdl/pinmux_regs_pkg.vhd",
+    "hdl/common/periph/PINMUX.vhd",
     "hdl/common/regs/vhdl/dma_regs_pkg.vhd",
     "hdl/common/periph/DMA.vhd",
     "hdl/common/regs/vhdl/trng_regs_pkg.vhd",

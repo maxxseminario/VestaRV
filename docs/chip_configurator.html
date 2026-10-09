@@ -1093,6 +1093,21 @@ const VESTA_DATA = {
       "default": true,
       "group": "basic"
     },
+    "peripherals.pinmux": {
+      "description": "bool: PINMUX spare-pad pin multiplexer at 0x6C00 (menu in config/pinmux.json)",
+      "type": "bool",
+      "default": true,
+      "group": "basic"
+    },
+    "peripherals.pinmuxPads": {
+      "description": "int, 8 to 120: pmx pad count when peripherals.pinmux is true (default 19)",
+      "type": "int",
+      "default": 19,
+      "min": 8,
+      "max": 120,
+      "step": 1,
+      "group": "advanced"
+    },
     "peripherals.trng": {
       "description": "bool: TRNG0 ring-oscillator entropy source at 0x6900 (firmware must DRBG it)",
       "type": "bool",
@@ -1191,6 +1206,8 @@ const VESTA_DATA = {
     "peripherals.i2ctarget": true,
     "peripherals.trng": true,
     "peripherals.trngRings": 8,
+    "peripherals.pinmux": true,
+    "peripherals.pinmuxPads": 19,
     "peripherals.eventFabric": true,
     "package.model": "castalia-lqfp100",
     "package.preliminary": true
@@ -4336,6 +4353,7 @@ const SCHEMA_TO_CFG = {
   "peripherals.i2ctarget":"i2ctarget",
   "peripherals.trng":"trng", "peripherals.trngRings":"trngRings",
   "peripherals.eventFabric":"eventFabric",
+  "peripherals.pinmux":"pinmux", "peripherals.pinmuxPads":"pinmuxPads",
   "package.model":"packageModel", "package.preliminary":"packagePreliminary",
 };
 
@@ -4661,6 +4679,7 @@ function render(){
    ["onewire","OW0","Dallas/Maxim 1-Wire master (reset+presence, write/read bit + byte link-layer primitives off a programmable time base; ROM search + CRC-8 in firmware; standard + overdrive) in the MUTEX page, sub-slot 7 @0x6700. Off by default. One open-drain DQ pad on P4.7 / GPIO31 (DTP3) alt plane AF2 (rstREN=1) — the pin-mux-v2 replaced-spread-slot mechanism: DQ takes over the redundant TIMER0 compare-1 output-spread copy in that slot, and T0CMP1 stays reachable on its P3.1 primary, its P2.1/P4.5 AF1 relocations and 26 other spread copies. Off, the slot keeps its T0CMP1 copy. The engine runs on the free-running MCLK (no LFXT, no generated clocks, no clock on the DQ pad — DQ is 2-FF synchronized), so its tick base is immune to clock reconfig (a driver must NOT write SYS_CLK_CR=0 for it). On extends the IRQ source list per the global vector rule to 118: vector 117 = OW0's single combined transaction-complete/error source; when RTC (114) or PWM (115/116) are off but OneWire is on, those slots backfill as reserved so OW0 keeps 117. NUM_EN_WORDS stays 4 (118 ≤ 128)."],
    ["fieldPower","Field power","DP-S3 field-powered NFC mode supervision wiring into PWRCTRL: P6.7/GPIO47 becomes the PGOOD supply-supervisor input and P6.6/GPIO46 the harvested-boot strap — both plain-GPIO DIRECT pad taps (always readable, independent of PxSEL/PxAFS, since the boot gate must work before any software runs), with reset pulls enabled pull-down (unconnected reads power-not-good + NORMAL/SPI boot). NFC0's field_detect level is also tapped as an optional PWRCTRL wake/release source (tied 0 when NFC is off). PWRCTRL's PWRWAKE/PWRSTS registers and the pgood_rstn HOLD-IN-RESET boot gate exist in the RTL in every configuration; this knob only wires or ties the pad-side inputs, so off leaves the whole feature a provable no-op. On by default. Independent of every other knob (OW0's DQ moved off P6.6 to P4.7 AF2, so the old field-power/1-Wire conflict is gone). Zero IRQ vectors."],
    ["i2ctarget","I2CT0","Hardware-autonomous I2C target (slave): 7-bit address match + mask + general call, byte-at-a-time RX/TX with ready/empty status, hardware clock stretching, START/STOP/repeated-START/NACK framing flags, and a stuck-SCL watchdog — all in the free-running MCLK domain (D4-clean: 2-FF SDA/SCL sync, no pad-clocked processes). In the MUTEX page, sub-slot 10 @0x6A00. Off by default. NO new pins: it shares the I2C0 SDA0/SCL0 pads via an open-drain wired-AND DIR merge (target clock stretching + ACK/data driving), complementary to I2C0/I2C1's software-serviced slave registers. Because it clocks off MCLK, the SYS_CLK_CR=0 footgun does NOT bind it. On extends the IRQ source list per the global vector rule to 124: vectors 122 = I2CT0_AE (address/error), 123 = I2CT0_DATA (tx-ready/rx-full); vector 120 (NPU0 think-done, DP-SG) rides the NPU knob and 121 (TRNG0, DP-SG) rides the TRNG knob — either backfills as reserved when its block is off so 122/123 hold. NUM_EN_WORDS stays 4 (124 ≤ 128)."],
+   ["pinmux","PINMUX","Pin multiplexer over the 19 spare digital pads pmx0-pmx18 (PDUW16SDGZ_G, 1.0 V bidirectional) in the MUTEX page, sub-slot 12 @0x6C00. Each pad carries a menu of at most 8 functions and a 4-bit select nibble that picks one of them, so the same code means a different function on a different pad; the per-pad menu is platform/common/config/pinmux.json and mcu_vhd.PINMUX_FN owns each function name's RTL spelling and output-enable policy. Every nibble resets to 0, which is DISABLED: driver off, pull off, pad floating, so an unconfigured pad never fights what is wired to it, and a code past a pad's own menu length is refused the same way. Each pad's menu holds one GPIO port-bit OUTPUT mirror plus one of four relocatable serial classes, so the 19 pads between them reach every UART, SPI, I2C and QSPI pin function the configuration instantiates; a function the configuration drops is removed and the pad's codes close up. Relocated INPUTS really reach their peripheral: the pad level joins that peripheral's own pad-input mux, AND-ed where the wire idles high and OR-ed where it idles low. VECTORLESS and zero new arbiter masters; PMXIN reads every pad through a two-flop synchroniser whatever it is selecting, which is how a pmx pad is observed, since a pmx pad raises no pin interrupt."],
    ["eventFabric","EVFAB0","Event/trigger fabric (PPI-style crossbar) in the MUTEX page, sub-slot 11 @0x6B00. Off by default. Zero pins, and VECTORLESS — it spends no IRQ vector at all (the interrupt output is a constant 0 and the enable register slot is reserved), so the frozen vector numbering is untouched. 8 channels, each a {EVSEL, TASKSEL} pair, route one of 16 hardware EVENTS to one of 10 hardware TASKS as a registered one-MCLK pulse with 1 MCLK of in-fabric latency: RTC0 tick/alarm, PWM0 period/fault, TIMER0 compare0/overflow, TIMER1 compare0, UART0 RX, NFC0 field/rx-frame, DMA0 done×2/error, TRNG0 data-ready, I2CT0 address-match and a masked GPIO0 pad-edge path drive DMA0 channel GO×2, TIMER0 START/STOP, PWM0 fault trip, PWRCTRL tile wake, NPU0 THINK and GPIO0 OUT-SET/OUT-CLR. Every producer or consumer whose block is absent from the configuration is tied inactive, so the fabric composes with every other knob. It runs on the free-running MCLK in the always-on domain (WFI keeps it alive, field-power mode only slows it, PWRCTRL never gates it), which is the point: peripheral-to-peripheral chains keep firing with every hart asleep."]].forEach(([key,name,desc])=>{
     const el = document.createElement("div"); el.className="peri"+(cfg[key]?" on":"");
     el.innerHTML = `<div class="pt"><span class="pn">${name}</span>
@@ -5191,7 +5210,7 @@ function configObject(){
       romSize: cfg.romSize, tcmSizePerHart: cfg.tcmSize,
       sharedBulkRamSize: cfg.sharedRamSize,
     },
-    peripherals: { npu: cfg.npu, i2c1: cfg.i2c1, uart1: cfg.uart1, spi1: cfg.spi1, timer1: cfg.timer1, cqAfeStubs: cfg.cqAfeStubs, qspi: cfg.qspi, i3c: cfg.i3c, nfc: cfg.nfc, rtc: cfg.rtc, pwm: cfg.pwm, onewire: cfg.onewire, fieldPower: cfg.fieldPower, dma: cfg.dma, dmaChannels: cfg.dmaChannels, i2ctarget: cfg.i2ctarget, trng: cfg.trng, trngRings: cfg.trngRings, eventFabric: cfg.eventFabric },
+    peripherals: { npu: cfg.npu, i2c1: cfg.i2c1, uart1: cfg.uart1, spi1: cfg.spi1, timer1: cfg.timer1, cqAfeStubs: cfg.cqAfeStubs, qspi: cfg.qspi, i3c: cfg.i3c, nfc: cfg.nfc, rtc: cfg.rtc, pwm: cfg.pwm, onewire: cfg.onewire, fieldPower: cfg.fieldPower, dma: cfg.dma, dmaChannels: cfg.dmaChannels, i2ctarget: cfg.i2ctarget, trng: cfg.trng, trngRings: cfg.trngRings, eventFabric: cfg.eventFabric, pinmux: cfg.pinmux, pinmuxPads: cfg.pinmuxPads },
     package: { model: cfg.packageModel, preliminary: cfg.packagePreliminary },
   };
   if(cfg.npu) o.memory.npuStagingRamSize = cfg.npuRamSize;

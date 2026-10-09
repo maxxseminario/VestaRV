@@ -61,6 +61,8 @@ _FPGA_DROP = [
     "hdl/common/periph/TrngRoEnsemble.vhd",
     "hdl/common/periph/TrngRoEnsemble_sim.vhd",
     "hdl/common/periph/TRNG.vhd",
+    "hdl/common/regs/vhdl/pinmux_regs_pkg.vhd",
+    "hdl/common/periph/PINMUX.vhd",
 ]
 
 # The synthesizable stand-ins, keyed by the source cell each one replaces. The

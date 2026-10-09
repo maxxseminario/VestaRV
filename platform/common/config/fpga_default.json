@@ -28,7 +28,7 @@
     "dma": false,
     "i2ctarget": false,
     "trng": false,
-    "eventFabric": false
+    "eventFabric": false, "pinmux": false
   },
 
   "debug": {

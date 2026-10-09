@@ -324,6 +324,97 @@ SPREAD_SIG = {
 	# the pad input is a separate AFS-keyed relocation mux there too.
 	'OW_DQ': 'ow0_dq',
 }
+# PINMUX_FN is SPREAD_SIG's counterpart for the pin multiplexer: one row per MENU FUNCTION
+# NAME that platform/common/config/pinmux.json may list, giving the RTL spelling of the four
+# nets the mux needs and the output-enable policy the pad must take.
+#
+#   out / oen / ren   expressions PINMUX reads. `oen` is active high = DRIVE, which is the
+#                     house `_dir` sense, so a peripheral that already encodes open drain as
+#                     "drive low or release" (every I2C engine here) arrives push-pull and
+#                     needs no policy bit.
+#   in                the peripheral's pad-input net, or absent for an output-only function.
+#                     PINMUX returns the pad level on this function's slot and its IDLE level
+#                     on every unselected slot, and the merge below ORs or ANDs that
+#                     reduction onto the net's existing relocation mux.
+#   pol               'pp' push-pull (the function's own oen decides), 'in' never drives,
+#                     'od' drive low only. 'od' is the block's generic third policy, for a
+#                     function that presents DATA rather than a drive-low enable; no Castalia
+#                     function needs it, and PINMUX_tb is what proves it.
+#   idle              what the function sees while no pad selects it. '1' for every wire that
+#                     idles high (a UART receive line, a released open-drain bus), so a
+#                     receiver handed a constant '0' never sees a permanent start bit.
+#   pull              the function wants the pad's pull resistor on whatever it asks for.
+#   needs             the knob attribute that must be true, or absent for always-available.
+#
+# A function name in the menu file with no row here is an error, which is the check that the
+# config and the RTL spellings cannot drift apart.
+PINMUX_FN = {
+	'UART0_TX': {'out': 'tx0_out', 'oen': 'tx0_dir', 'ren': 'tx0_ren', 'pol': 'pp', 'idle': '0'},
+	'UART0_RX': {'ren': 'rx0_ren', 'in': 'rx0_in', 'pol': 'in', 'idle': '1'},
+	'UART1_TX': {'out': 'tx1_out', 'oen': 'tx1_dir', 'ren': 'tx1_ren', 'pol': 'pp', 'idle': '0',
+	             'needs': 'uart1'},
+	'UART1_RX': {'ren': 'rx1_ren', 'in': 'rx1_in', 'pol': 'in', 'idle': '1', 'needs': 'uart1'},
+	# SPI0's pad nets carry the _flash_ stem: the port doubles as the boot-flash port and the
+	# SPI entity's sck/mosi/miso/cs ports are wired to sck_flash_* and friends.
+	'SPI0_SCK':  {'out': 'sck_flash_out', 'oen': 'sck_flash_dir', 'ren': 'sck_flash_ren',
+	              'pol': 'pp', 'idle': '0'},
+	'SPI0_MOSI': {'out': 'mosi_flash_out', 'oen': 'mosi_flash_dir', 'ren': 'mosi_flash_ren',
+	              'pol': 'pp', 'idle': '0'},
+	'SPI0_MISO': {'ren': 'miso_flash_ren', 'in': 'miso_flash_in', 'pol': 'in', 'idle': '0'},
+	'SPI0_CS':   {'out': 'cs_flash_out', 'oen': 'cs_flash_dir', 'ren': 'cs_flash_ren',
+	              'pol': 'pp', 'idle': '0'},
+	'SPI1_SCK':  {'out': 'sck1_out', 'oen': 'sck1_dir', 'ren': 'sck1_ren', 'pol': 'pp',
+	              'idle': '0', 'needs': 'spi1'},
+	'SPI1_MOSI': {'out': 'mosi1_out', 'oen': 'mosi1_dir', 'ren': 'mosi1_ren', 'pol': 'pp',
+	              'idle': '0', 'needs': 'spi1'},
+	'SPI1_MISO': {'ren': 'miso1_ren', 'in': 'miso1_in', 'pol': 'in', 'idle': '0',
+	              'needs': 'spi1'},
+	# The I2C lines arrive ALREADY open drain: _out is tied '0' and the _dir scalar is the
+	# drive-low enable, so the push-pull path carries them exactly. I2C0's enable is the
+	# wired-AND merge of the master and the I2C target when the target is present.
+	'I2C0_SDA': {'out': 'sda0_out', 'oen': ('i2ctarget', 'sda0_dir_mrg', 'sda0_dir'),
+	             'ren': 'sda0_ren', 'in': 'sda0_in', 'pol': 'pp', 'idle': '1', 'pull': True},
+	'I2C0_SCL': {'out': 'scl0_out', 'oen': ('i2ctarget', 'scl0_dir_mrg', 'scl0_dir'),
+	             'ren': 'scl0_ren', 'in': 'scl0_in', 'pol': 'pp', 'idle': '1', 'pull': True},
+	'I2C1_SDA': {'out': 'sda1_out', 'oen': 'sda1_dir', 'ren': 'sda1_ren', 'in': 'sda1_in',
+	             'pol': 'pp', 'idle': '1', 'pull': True, 'needs': 'i2c1'},
+	'I2C1_SCL': {'out': 'scl1_out', 'oen': 'scl1_dir', 'ren': 'scl1_ren', 'in': 'scl1_in',
+	             'pol': 'pp', 'idle': '1', 'pull': True, 'needs': 'i2c1'},
+	'QSPI0_SCK': {'out': 'qspi_sck_out', 'oen': 'qspi_sck_dir', 'pol': 'pp', 'idle': '0',
+	              'needs': 'qspi'},
+	'QSPI0_CS':  {'out': 'qspi_cs_out', 'oen': 'qspi_cs_dir', 'pol': 'pp', 'idle': '0',
+	              'needs': 'qspi'},
+}
+for _b in range(4):
+	PINMUX_FN['QSPI0_IO' + str(_b)] = {
+		'out': 'qspi_io_out(%d)' % _b, 'oen': 'qspi_io_dir(%d)' % _b,
+		'in': 'qspi_io_in', 'inbit': _b, 'pol': 'pp', 'idle': '0', 'needs': 'qspi'}
+# The GPIO mirrors. A pmx pad selecting GPIO<p>_<b> repeats port p+1 bit b's OUTPUT level,
+# direction and resistor enable; the port keeps reading its own DEDICATED pad, so there is no
+# input row and no pin interrupt on the pmx pad. PMXIN is how the pmx pad is read.
+for _p in range(6):
+	for _b in range(8):
+		PINMUX_FN['GPIO%d_%d' % (_p, _b)] = {
+			'out': 'p%d_out(%d)' % (_p + 1, _b), 'oen': 'p%d_dir(%d)' % (_p + 1, _b),
+			'ren': 'p%d_ren(%d)' % (_p + 1, _b), 'pol': 'pp', 'idle': '0'}
+
+# The pad-input nets PINMUX may merge onto, with their width and the reduction. A net listed
+# here has exactly ONE concurrent assignment in the generated entity; the emitter renames that
+# assignment's target to <net>_home and drives <net> from the reduction, so with the pin mux
+# absent not one character of the file moves. `bits` is the per-bit spelling a vector net is
+# assigned in (qspi_io_in(0) <= ... through (3)), or None for a scalar.
+PINMUX_MERGE = {
+	'rx0_in':        {'width': 1, 'idle': '1', 'bits': None},
+	'rx1_in':        {'width': 1, 'idle': '1', 'bits': None},
+	'miso_flash_in': {'width': 1, 'idle': '0', 'bits': None},
+	'miso1_in':      {'width': 1, 'idle': '0', 'bits': None},
+	'sda0_in':       {'width': 1, 'idle': '1', 'bits': None},
+	'scl0_in':       {'width': 1, 'idle': '1', 'bits': None},
+	'sda1_in':       {'width': 1, 'idle': '1', 'bits': None},
+	'scl1_in':       {'width': 1, 'idle': '1', 'bits': None},
+	'qspi_io_in':    {'width': 4, 'idle': '0', 'bits': 4},
+}
+
 # Per-port spread-block header comments, transcribed. The flatten lines are emitted by the
 # same region, so the whole block is one marker per port.
 SPREAD_HEADERS = {
@@ -804,6 +895,31 @@ class McuVhdEmitter():
 		# The config file's chipName, never the CHIP_NAME environment override, which is
 		# documentation-only. One half of the IDCODE chip-identity discriminator in jtagIdcode().
 		self.chipNameConfigured = geo.get('chipNameConfigured', '')
+		# PINMUX, page-2 sub-slot 12 at 0x6C00. pinmuxMenu is already compacted by
+		# configuration in generate.py, so len(menu[p]) IS pad p's MENU_LEN nibble.
+		self.pinmux = geo.get('pinmux', False)
+		self.pinmuxPads = geo.get('pinmuxPads', 0)
+		self.pinmuxMaxMenu = geo.get('pinmuxMaxMenu', 8)
+		self.pinmuxMenu = list(geo.get('pinmuxMenu', []))
+		self.pinmuxPadPrefix = geo.get('pinmuxPadPrefix', 'pmx')
+		if self.pinmux:
+			if not 8 <= self.pinmuxPads <= 120:
+				raise Exception('mcu_vhd: pinmuxPads is %r; the knob allows 8 to 120'
+				                % (self.pinmuxPads,))
+			if not 1 <= self.pinmuxMaxMenu <= 15:
+				raise Exception('mcu_vhd: pinmuxMaxMenu is %r; a select field is one nibble, '
+				                'so 1 to 15' % (self.pinmuxMaxMenu,))
+			if len(self.pinmuxMenu) != self.pinmuxPads:
+				raise Exception('mcu_vhd: pinmuxMenu has %d rows for %d pads'
+				                % (len(self.pinmuxMenu), self.pinmuxPads))
+			for p, row in enumerate(self.pinmuxMenu):
+				if len(row) > self.pinmuxMaxMenu:
+					raise Exception('mcu_vhd: pmx pad %d has %d menu entries, past MAXMENU %d'
+					                % (p, len(row), self.pinmuxMaxMenu))
+				for name in row:
+					if name not in PINMUX_FN:
+						raise Exception('mcu_vhd: pmx pad %d lists the function %r, which '
+						                'PINMUX_FN does not spell' % (p, name))
 		self.trng = geo.get('trng', False)
 		self.trngRings = geo.get('trngRings', 8)
 		if self.trng and self.trngRings not in (4, 8):
@@ -966,6 +1082,15 @@ class McuVhdEmitter():
 		if self.eventFabric:
 			self.shslv = dict(self.shslv)
 			self.shslv['EVFAB'] = {'sel': 'evfab0', 'shim': None, 'rdata': 'evfab0_sh_rdata'}
+		# PINMUX joins the same native-slave fabric at mutex-page sub-slot 12, exactly as
+		# EVFAB does: hand-decoded SEL, shim=None so the standard enable, registered rd-sel
+		# and rdata-mux loops cover it, and its active-low raw-strobe en shim inside
+		# emitPinmuxInstance. The description peripheral is PINMUX, a single instance with
+		# unindexed registers like EVFAB, MUTEX and PWRCTRL, while the RTL nets and the
+		# instance carry the 0 (pinmux0_*) like every other page-2 block.
+		if self.pinmux:
+			self.shslv = dict(self.shslv)
+			self.shslv['PINMUX'] = {'sel': 'pinmux0', 'shim': None, 'rdata': 'pinmux0_sh_rdata'}
 		# GPIO4 and GPIO5 are unconditional native slaves on the mutex page, sub-slots 3 and 4 at
 		# 0x6300 and 0x6400. Same native-fabric membership as I3C0 and NFC0 (shim=None,
 		# hand-decoded SEL, own en_n shim inside the instance emitter), but the instance is a full
@@ -982,7 +1107,8 @@ class McuVhdEmitter():
 			+ (['DMA0'] if self.dma else []) \
 			+ (['I2CT0'] if self.i2ctarget else []) \
 			+ (['TRNG0'] if self.trng else []) \
-			+ (['EVFAB'] if self.eventFabric else [])
+			+ (['EVFAB'] if self.eventFabric else []) \
+			+ (['PINMUX'] if self.pinmux else [])
 		# An overlay's native slaves join the fabric here: it appends to self.shslv and to the
 		# order list, and every enable, rd-sel and rdata loop below then covers them unchanged.
 		self.nativeOrder = nativeOrder
@@ -1260,6 +1386,9 @@ class McuVhdEmitter():
 		if self.eventFabric:
 			# EVFAB0 is page-2 sub-slot 11 (0x6B00).
 			lines.append(ind + 'shslv_evfab0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "1011" else \'0\';')
+		if self.pinmux:
+			# PINMUX is page-2 sub-slot 12 (0x6C00).
+			lines.append(ind + 'shslv_pinmux0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "1100" else \'0\';')
 		# An overlay's page-2 sub-slot decodes. It is handed the indent and the page's own address
 		# bits so its lines match the shape of the tree's.
 		lines.extend(self.overlay.lines('mcuSubdecode', emitter=self, indent=ind, pageBits=mtxBits))
@@ -1870,6 +1999,247 @@ class McuVhdEmitter():
 		]
 		# EV14 producer tap
 		return self.evfabInsertTaps(lines, '            irq_data    => irq_i2ct0_data,', 'i2ct0')
+
+	# PINMUX, the spare-pad pin multiplexer at page-2 sub-slot 12 (0x6C00). Three regions and
+	# one text rewrite: the pad port group, the declarations, the instance with its slot
+	# aggregates, and the rename that lets the block's input reductions merge onto the
+	# peripherals' existing pad-input relocation muxes. Every one of them emits NOTHING when
+	# the knob is off, which is what keeps a pin-mux-less configuration byte-identical.
+
+	def pinmuxFnRow(self, name):
+		"""One PINMUX_FN row with its conditional spellings resolved against this configuration."""
+		row = dict(PINMUX_FN[name])
+		for key in ('out', 'oen', 'ren'):
+			v = row.get(key)
+			if isinstance(v, tuple):
+				flag, whenTrue, whenFalse = v
+				row[key] = whenTrue if getattr(self, flag, False) else whenFalse
+		return row
+
+	def pinmuxSlotBit(self, slot, pad):
+		"""The flattened index of slot `slot` of pad `pad`: slot-major, as GPIO flattens its
+		alternate-function planes, so the whole plane of a function is contiguous.
+		"""
+		return slot * self.pinmuxPads + pad
+
+	def pinmuxBits(self, width, ones):
+		"""A bit-string literal of `width` bits with `ones` set, MSB first, which is how
+		PINMUX.vhd's positional normalisation reads a generic.
+		"""
+		return ''.join('1' if b in ones else '0' for b in range(width - 1, -1, -1))
+
+	def pinmuxMergeNets(self):
+		"""The pad-input nets at least one pad's menu reaches, in PINMUX_MERGE order, each with
+		the list of (slot, pad, bit) triples whose slot_in bit carries it.
+		"""
+		out = []
+		for net in PINMUX_MERGE:
+			taps = []
+			for pad, row in enumerate(self.pinmuxMenu):
+				for slot, name in enumerate(row):
+					fn = self.pinmuxFnRow(name)
+					if fn.get('in') == net:
+						taps.append((slot, pad, fn.get('inbit')))
+			if taps:
+				out.append((net, PINMUX_MERGE[net], taps))
+		return out
+
+	def emitPinmuxPorts(self):
+		"""The pmx pad port group. The pads are MCU ENTITY ports and not package balls: which
+		ball each one bonds to is the pad ring's business, and config/PadRing.json carries only
+		what the package model in generate.py places. pmx_in takes a default so an instantiation
+		that does not connect the group -- hdl/common/tb/riscv_tb.vhd, whose component
+		declaration predates it -- still elaborates.
+		"""
+		if not self.pinmux:
+			return []
+		hi = str(self.pinmuxPads - 1)
+		return [
+			' ' * 8 + '-- PINMUX Connections (' + self.pinmuxPadPrefix + '0-' + self.pinmuxPadPrefix + hi + '): spare digital pads, one register-selected function each out of that pad\'s menu',
+			' ' * 8 + '-- I/DIR/REN, the GPIO pad convention and the one the pad ring binds (pmx_dir is the pad cell OEN terminal, high = DRIVE); every pad is high-Z with its pull off until software writes a PMXCFG nibble.',
+			' ' * 8 + 'pmx_in'.ljust(14) + ': in  std_logic_vector(' + hi + ' downto 0) := (others => \'0\');',
+			' ' * 8 + 'pmx_out'.ljust(14) + ': out std_logic_vector(' + hi + ' downto 0);',
+			' ' * 8 + 'pmx_dir'.ljust(14) + ': out std_logic_vector(' + hi + ' downto 0);',
+			' ' * 8 + 'pmx_ren'.ljust(14) + ': out std_logic_vector(' + hi + ' downto 0);',
+		]
+
+	def emitPinmuxDecls(self):
+		"""PINMUX declarative region: the native-slave fabric nets, the four slot vectors, the
+		five configuration constants, and one `<net>_home` plus one reduction scalar per merged
+		pad-input net.
+		"""
+		if not self.pinmux:
+			return []
+		n = self.pinmuxPads
+		mm = self.pinmuxMaxMenu
+		w = n * mm
+		menuLen, inonly, od, pren, idle = [], set(), set(), set(), set()
+		for pad, row in enumerate(self.pinmuxMenu):
+			menuLen.append(len(row))
+			for slot, name in enumerate(row):
+				fn = self.pinmuxFnRow(name)
+				b = self.pinmuxSlotBit(slot, pad)
+				if fn['pol'] == 'in':
+					inonly.add(b)
+				elif fn['pol'] == 'od':
+					od.add(b)
+				if fn.get('pull'):
+					pren.add(b)
+				if fn.get('idle') == '1':
+					idle.add(b)
+		# A slot no pad reaches idles HIGH, the safe level for a receiver: a function whose
+		# menu slot does not exist must never look like a start bit or a held-low bus.
+		for pad in range(n):
+			for slot in range(len(self.pinmuxMenu[pad]), mm):
+				idle.add(self.pinmuxSlotBit(slot, pad))
+		lenBits = ''.join(format(menuLen[p], '04b') for p in range(n - 1, -1, -1))
+		lines = [
+			'        /* PINMUX (spare-pad pin multiplexer: one 4-bit select nibble per pad picks one entry of THAT PAD\'S function menu, 0 = disabled), page-2 (MUTEX page) sub-slot 12 @0x6C00, a registered-read native slave with a PLAIN active-low one-cycle en shim (no falling_edge(EnMemPeriph) pre-latch, no capture-clock en_q).',
+			'           The pad mux is COMBINATIONAL: a select write reaches the pads on the cycle that lands it. The only clocked logic in the block is the two-flop synchroniser behind the PMXIN pad readback, on the free-running mclk.',
+			'           VECTORLESS: a pmx pad raises no pin interrupt. The GPIO menu entries mirror a port bit\'s OUTPUT, direction and resistor enable onto the pad while the port keeps reading its own DEDICATED pad, so no GPIO input is contended and PMXIN is how a pmx pad is observed.',
+			'           The four slot vectors are flattened SLOT-MAJOR, slot j of pad i at bit j*' + str(n) + '+i, the packing GPIO uses for its alternate-function planes. */',
+			'        signal shslv_pinmux0_sel, shslv_pinmux0_en : std_logic;',
+			"        signal shslv_rd_pinmux0 : std_logic := '0';",
+			'        signal pinmux0_sh_rdata : std_logic_vector(31 downto 0);',
+			'        signal pinmux0_sh_en_n  : std_logic;',
+			'        signal pmx_slot_out     : std_logic_vector(' + str(w - 1) + ' downto 0);',
+			'        signal pmx_slot_oen     : std_logic_vector(' + str(w - 1) + ' downto 0);',
+			'        signal pmx_slot_ren     : std_logic_vector(' + str(w - 1) + ' downto 0);',
+			'        signal pmx_slot_in      : std_logic_vector(' + str(w - 1) + ' downto 0);',
+			'        signal pmx_sel          : std_logic_vector(' + str(4 * n - 1) + ' downto 0);',
+			'        -- The menu geometry and the per-slot policy, as PINMUX generics. One nibble per pad in MENU_LEN; the rest are slot-major bit per slot, MSB first.',
+			'        constant PMX_MENU_LEN   : std_logic_vector(' + str(4 * n - 1) + ' downto 0) := "' + lenBits + '";',
+			'        constant PMX_POL_INONLY : std_logic_vector(' + str(w - 1) + ' downto 0) := "' + self.pinmuxBits(w, inonly) + '";',
+			'        constant PMX_POL_OD     : std_logic_vector(' + str(w - 1) + ' downto 0) := "' + self.pinmuxBits(w, od) + '";',
+			'        constant PMX_POL_REN    : std_logic_vector(' + str(w - 1) + ' downto 0) := "' + self.pinmuxBits(w, pren) + '";',
+			'        constant PMX_SLOT_IDLE  : std_logic_vector(' + str(w - 1) + ' downto 0) := "' + self.pinmuxBits(w, idle) + '";',
+		]
+		merges = self.pinmuxMergeNets()
+		if merges:
+			lines.append('        -- The input merge. Each peripheral pad-input net below keeps its own relocation mux, renamed to <net>_home, and is driven from that AND-ed or OR-ed with the pin mux\'s reduction: AND where the wire idles high (a UART receive line, a released open-drain bus), OR where it idles low, which is the same rule PMX_SLOT_IDLE states.')
+			for net, spec, _taps in merges:
+				if spec['width'] == 1:
+					lines.append('        signal ' + (net + '_home').ljust(17) + ' : std_logic;')
+					lines.append('        signal ' + ('pmx_' + net).ljust(17) + ' : std_logic;')
+				else:
+					rng = ' : std_logic_vector(' + str(spec['width'] - 1) + ' downto 0);'
+					lines.append('        signal ' + (net + '_home').ljust(17) + rng)
+					lines.append('        signal ' + ('pmx_' + net).ljust(17) + rng)
+		return lines
+
+	def emitPinmuxInstance(self):
+		"""PINMUX instance region: the raw-strobe active-low en shim, the three slot aggregates
+		built from the per-pad menu, the PINMUX entity, and the input reductions and merges.
+		"""
+		if not self.pinmux:
+			return []
+		n = self.pinmuxPads
+		mm = self.pinmuxMaxMenu
+		lines = [
+			'',
+			'    -- PINMUX: spare-pad pin multiplexer, MUTEX-page sub-slot 12 @0x6C00, ' + str(n) + ' pads with a menu of at most ' + str(mm) + ' functions each (platform/common/config/pinmux.json). Every pad is high-Z with its pull off until software writes a PMXCFG nibble, and a code past a pad\'s own menu length is refused, so a pad can never be pointed at a function it does not carry.',
+			'    -- PLAIN raw active-low en strobe (the GPIO4/5 native-slave idiom), so NO falling_edge(EnMemPeriph) pre-latch and NO capture-clock en_q here.',
+			'    pinmux0_sh_en_n <= not shslv_pinmux0_en;',
+		]
+		# The three fan-in aggregates. Slot-major, one entry per live (pad, slot); every bit a
+		# menu does not reach reads '0', which the refused-code guard never looks at anyway.
+		for key, sig, dflt in (('out', 'pmx_slot_out', "'0'"),
+		                       ('oen', 'pmx_slot_oen', "'0'"),
+		                       ('ren', 'pmx_slot_ren', "'0'")):
+			lines.append('    ' + sig + ' <= (')
+			for pad, row in enumerate(self.pinmuxMenu):
+				for slot, name in enumerate(row):
+					fn = self.pinmuxFnRow(name)
+					src = fn.get(key, "'0'")
+					b = self.pinmuxSlotBit(slot, pad)
+					entry = '        %d => %s,' % (b, src)
+					lines.append('    ' + entry.ljust(44) + '-- ' + self.pinmuxPadPrefix
+						+ str(pad) + ' code ' + str(slot + 1) + ': ' + name)
+			lines.append('        others => ' + dflt + ');')
+		lines.extend([
+			'    pinmux0: entity work.PINMUX',
+			'        generic map (',
+			'            NPADS          => ' + str(n) + ',',
+			'            MAXMENU        => ' + str(mm) + ',',
+			'            MENU_LEN       => PMX_MENU_LEN,',
+			'            POL_INONLY     => PMX_POL_INONLY,',
+			'            POL_OD         => PMX_POL_OD,',
+			'            POL_REN        => PMX_POL_REN,',
+			'            SLOT_IDLE      => PMX_SLOT_IDLE,',
+			'            PadOUTPosLogic => true,',
+			'            PadOENPosLogic => true,',
+			'            PadRENPosLogic => true)',
+			'        port map (',
+			'            resetn      => resetn,',
+			'            clk_mem     => mclk,',
+			'            en          => pinmux0_sh_en_n,',
+			'            wen         => sh_wen_n,',
+			'            write_data  => sh_wdata,',
+			'            read_data   => pinmux0_sh_rdata,',
+			'            addr_periph => sh_addr(7 downto 2),',
+			'            pmx_in      => pmx_in,',
+			'            pmx_out_out => pmx_out,',
+			'            pmx_oen_out => pmx_dir,   -- the pad cell OEN terminal, spelled dir at the entity like every other pad group',
+			'            pmx_ren_out => pmx_ren,',
+			'            slot_out_in => pmx_slot_out,',
+			'            slot_oen_in => pmx_slot_oen,',
+			'            slot_ren_in => pmx_slot_ren,',
+			'            slot_in_out => pmx_slot_in,',
+			'            PMXSEL_out  => pmx_sel);',
+		])
+		merges = self.pinmuxMergeNets()
+		if merges:
+			lines.append('    -- The input path back to the peripherals. pmx_slot_in carries the pad level on the SELECTED slot and the slot\'s idle level everywhere else, so reducing the slots of one function over every pad whose menu lists it yields that function\'s view of the pin mux: AND for a wire that idles high, OR for one that idles low. Each peripheral\'s own relocation mux survives as <net>_home.')
+			for net, spec, taps in merges:
+				op = ' and ' if spec['idle'] == '1' else ' or '
+				if spec['width'] == 1:
+					terms = ['pmx_slot_in(%d)' % self.pinmuxSlotBit(sl, pd) for sl, pd, _ in taps]
+					lines.append('    pmx_' + net + ' <= ' + op.join(terms) + ';')
+					lines.append('    ' + net + ' <= ' + net + '_home ' + op.strip()
+						+ ' pmx_' + net + ';')
+				else:
+					for bit in range(spec['width']):
+						terms = ['pmx_slot_in(%d)' % self.pinmuxSlotBit(sl, pd)
+							for sl, pd, ib in taps if ib == bit]
+						if terms:
+							lines.append('    pmx_%s(%d) <= %s;' % (net, bit, op.join(terms)))
+						else:
+							lines.append("    pmx_%s(%d) <= '%s';" % (net, bit, spec['idle']))
+					lines.append('    ' + net + ' <= ' + net + '_home ' + op.strip()
+						+ ' pmx_' + net + ';')
+		return lines
+
+	def pinmuxRenameHomes(self, lines):
+		"""Rename the one concurrent assignment of each merged pad-input net to <net>_home, so
+		the pin mux can drive the net itself from the reduction. EXACTLY one assignment per net
+		(per bit, for a vector) must match, and the method raises rather than guessing: a silent
+		miss would leave the pin mux's contribution unreachable and the peripheral reading only
+		its home pad. With the knob off nothing is renamed and the file is unchanged.
+		"""
+		if not self.pinmux:
+			return lines
+		out = list(lines)
+		for net, spec, _taps in self.pinmuxMergeNets():
+			targets = ([net] if spec['bits'] is None
+				else ['%s(%d)' % (net, b) for b in range(spec['bits'])])
+			for target in targets:
+				pat = re.compile(r'^(\s*)' + re.escape(target) + r'(\s*<=)')
+				# The pin mux's OWN merge line assigns the same target from <net>_home; it is
+				# the consumer of this rename, not a candidate for it.
+				hits = [i for i, l in enumerate(out)
+					if pat.match(l) and (net + '_home') not in l]
+				if len(hits) != 1:
+					raise Exception('mcu_vhd: the PINMUX input merge expects exactly one '
+						'concurrent assignment of %s in the generated entity, found %d; '
+						'PINMUX_MERGE and the relocation mux that drives it have drifted.'
+						% (target, len(hits)))
+				i = hits[0]
+				if spec['bits'] is None:
+					repl = net + '_home'
+				else:
+					repl = target.replace(net, net + '_home', 1)
+				out[i] = pat.sub(lambda m, r=repl: m.group(1) + r + m.group(2), out[i], count=1)
+		return out
 
 	def emitTrngDecls(self):
 		'''TRNG0 (ring-oscillator entropy source, page-2 sub-slot 9, 0x6900) declarative region:
@@ -4262,6 +4632,12 @@ class McuVhdEmitter():
 			return self.emitTrngDecls()
 		if name == 'trng-instance':
 			return self.emitTrngInstance()
+		if name == 'pinmux-ports':
+			return self.emitPinmuxPorts()
+		if name == 'pinmux-decls':
+			return self.emitPinmuxDecls()
+		if name == 'pinmux-instance':
+			return self.emitPinmuxInstance()
 		if name == 'evfab-decls':
 			return self.emitEvfabDecls()
 		if name == 'evfab-instance':
@@ -4351,6 +4727,12 @@ def generateMcuVhd(gen, templatePath, outPath):
 		seen.add(name)
 		out.extend(emitter.emitRegion(name))
 
+	# The PINMUX input merge: rename each merged pad-input net's own relocation mux to
+	# <net>_home so the pin mux can drive the net from its reduction. Done on the ASSEMBLED
+	# text, because the drivers live in several different regions and in the fixed template,
+	# and skipped entirely when the pin mux is absent.
+	out = emitter.pinmuxRenameHomes(out)
+
 	expected = set(['irq-signal-decls', 'irq-comb', 'shslv-subdecode', 'shslv-rd-sel', 'rdata-bridge',
 		'sh-rdata-mux', 'polarity-shims',
 		# page-0 slot 12 (0x4C00) real estate: AFE stubs or QSPI0
@@ -4388,6 +4770,10 @@ def generateMcuVhd(gen, templatePath, outPath):
 		# side templates, so they are spliced by spliceSideBlock and never appear in the main
 		# template's seen set.
 		'evfab-decls', 'evfab-instance',
+		# PINMUX in mutex-page sub-slot 12 at 0x6C00, plus the pmx pad port group. All three
+		# emit nothing when peripherals.pinmux is off, and the input-merge rename below is
+		# skipped with them, so a pin-mux-less configuration is byte-identical.
+		'pinmux-ports', 'pinmux-decls', 'pinmux-instance',
 		'evfab-taps:gpio0', 'evfab-taps:uart0', 'evfab-taps:timer0',
 		# ... and the matching port declarations in the GPIO, UART and TIMER component declarations
 		# those four instances bind through

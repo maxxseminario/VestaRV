@@ -1,0 +1,105 @@
+% VestaRV: PINMUX chapter of the TRM.
+% Section order is the per-peripheral template enforced by
+% python/check_intro_names.py (Overview / Functional description / Interrupts
+% and events / Programming / Usage notes).
+\section{Overview}
+
+The pin multiplexer (\peripheral{PINMUX}) owns the nineteen spare digital pads \texttt{pmx0} through \texttt{pmx18} and gives each one a register-selected function. A pad's \register{PMXSELn} nibble selects one entry of \emph{that pad's} menu, so the same code means a different function on a different pad; the menus are tabulated below. The dedicated pads of every other block are untouched: this block adds pins, it does not re-route existing ones. The main features are listed below:
+
+\begin{itemize}
+	\item One 4-bit select field per pad, eight pads per select word (\register{PMXCFG0} through \register{PMXCFG2}), so a byte-lane store reconfigures exactly two pads and disturbs no other
+	\item High impedance at reset: every select field resets to 0, which means disabled, with the pad output driver off and the pull resistor disabled, so an unconfigured pad floats rather than fighting whatever is wired to it
+	\item A refused code is a disabled pad: a value above the pad's own menu length, or above \register{PMXMENU}, reads back as written but leaves the pad high impedance, so a pad can never be pointed at a function it does not carry
+	\item Per-function output-enable policy in hardware, not in a register bit: a transmit function drives push-pull, a receive function never drives, and an open-drain function drives low and releases the pad for the external pull-up
+	\item A relocated input really reaches its peripheral: the pad level is returned to the selected function, and a function no pad selects sees its idle level, which is high for a receive line or a released open-drain bus
+	\item Pad observability independent of configuration (\register{PMXIN0}): the level of every pad, whatever that pad is selecting and whichever way it is driven
+	\item A capability register (\register{PMXCAP}) publishing the pad count, the menu depth and the block revision, so firmware walks the block without a compiled-in copy of the configuration
+\end{itemize}
+
+\section{Functional description}
+
+\subsection{The Per-Pad Menu}
+
+A pad's menu is a short ordered list of functions, at most \register{PMXMENU} of them, fixed at build time from the chip configuration. Select code 0 is disabled on every pad; codes 1 upward index that pad's list. A function whose peripheral the configuration does not instantiate is removed from every menu and the remaining entries close up, so a pad's codes are always 1 through the length of its live menu and no code reaches a tie-off. Spreading one function across several pads' menus is normal and is what makes the block a multiplexer rather than a pin table: a function may be offered on many pads, and selecting it on two pads at once drives both, which is legal for an output and a wiring error for an input.
+
+The select fields are nibbles, eight to a word, so \register{PMXSEL0} through \register{PMXSEL7} live in \register{PMXCFG0}, \register{PMXSEL8} through \register{PMXSEL15} in \register{PMXCFG1}, and so on. A select word always carries eight nibbles; at a pad count that is not a multiple of eight the top nibbles of the last word are writable and read back but control no pad, and \register{PMXNPADS} says where the real pads stop.
+
+\subsection{The Pad Menus}
+
+Code 1 is a \peripheral{GPIOx} port-bit mirror on every pad, and codes 2 through 8 repeat one of four relocatable classes, so the nineteen pads between them reach every UART, SPI, I2C and QSPI pin function the configuration instantiates. The authority for both tables is \texttt{platform/common/config/pinmux.json}, which the generator reads directly; a function whose peripheral the configuration drops is removed and the pad's remaining codes close up, so a pad's codes are always 1 through the length of its live menu.
+
+\begin{table}[htbp]
+	\centering
+	\caption{Pin-mux pad menus: the code-1 mirror and the class carried by codes 2 and up.}
+	\begin{tabular}{llll}
+		\toprule
+		Pad & Code 1 & Class & Pad side \\
+		\midrule
+		\texttt{pmx0} & GPIO0\_0 & A & W \\
+		\texttt{pmx1} & GPIO1\_0 & B & W \\
+		\texttt{pmx2} & GPIO2\_0 & C & W \\
+		\texttt{pmx3} & GPIO3\_0 & D & W \\
+		\texttt{pmx4} & GPIO4\_0 & A & W \\
+		\texttt{pmx5} & GPIO5\_0 & B & W \\
+		\texttt{pmx6} & GPIO0\_1 & C & S \\
+		\texttt{pmx7} & GPIO1\_1 & D & S \\
+		\texttt{pmx8} & GPIO2\_1 & A & S \\
+		\texttt{pmx9} & GPIO3\_1 & B & S \\
+		\texttt{pmx10} & GPIO4\_1 & C & S \\
+		\texttt{pmx11} & GPIO5\_1 & D & S \\
+		\texttt{pmx12} & GPIO0\_2 & A & E \\
+		\texttt{pmx13} & GPIO1\_2 & B & N \\
+		\texttt{pmx14} & GPIO2\_2 & C & N \\
+		\texttt{pmx15} & GPIO3\_2 & D & N \\
+		\texttt{pmx16} & GPIO4\_2 & A & N \\
+		\texttt{pmx17} & GPIO5\_2 & B & N \\
+		\texttt{pmx18} & GPIO0\_3 & C & N \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+
+\begin{table}[htbp]
+	\centering
+	\caption{The four pin-mux classes: what codes 2 and up select on a pad of each class.}
+	\begin{tabular}{llllllll}
+		\toprule
+		Class & Code 2 & Code 3 & Code 4 & Code 5 & Code 6 & Code 7 & Code 8 \\
+		\midrule
+		A & UART0\_TX & UART0\_RX & UART1\_TX & UART1\_RX & I2C0\_SDA & I2C0\_SCL & QSPI0\_SCK \\
+		B & SPI0\_SCK & SPI0\_MOSI & SPI0\_MISO & SPI0\_CS & I2C1\_SDA & I2C1\_SCL & QSPI0\_CS \\
+		C & SPI1\_SCK & SPI1\_MOSI & SPI1\_MISO & QSPI0\_IO0 & QSPI0\_IO1 & UART0\_TX & UART0\_RX \\
+		D & QSPI0\_IO2 & QSPI0\_IO3 & UART1\_TX & UART1\_RX & I2C0\_SDA & I2C0\_SCL & SPI0\_MISO \\
+		\bottomrule
+	\end{tabular}
+\end{table}
+\subsection{What the Pad Does}
+
+Which way the pad is driven is a property of the selected function and not of any register bit, which is what stops a configuration mistake from shorting a bus. Three policies exist. A push-pull function drives the pad with its own output level under its own output enable, which covers a transmitter, a GPIO mirror and a bidirectional memory data line. A receive function never drives the pad at all, whatever it asks for; the pad stays an input and only the pull resistor request reaches it. An open-drain function drives the pad low on a logic 0 and releases it on a logic 1, and its own output enable is not consulted, because on a wired-AND bus the data is the enable. The pull resistor follows the selected function, either because the function asks for it or because its policy does; a disabled pad has it off.
+
+\subsection{The Input Path}
+
+The level of a pad selecting a function is returned to that function directly, with no synchronizer in the way: a serial input that crosses a clock domain is synchronized by the peripheral that receives it, and a second chain here would only add latency to a path that is already timed. A function sees the idle level of its slot on every pad that is not selecting it, and the per-function view is the combination of all of them, so an unselected pin-mux pad contributes nothing: a receive line reads high and a released open-drain bus reads high. Each peripheral keeps its existing dedicated-pad input path, and the pin mux's contribution joins it, so the peripheral reads whichever pad is actually presenting the signal.
+
+\register{PMXIN0} is a separate, slower path meant for bring-up: it reports every pad through a two-flop synchronizer on the peripheral clock, so a level appears about two clock edges after it settles, a pulse shorter than one clock period is not captured, and nothing is captured while the clock is stopped. It is independent of the selection, so a pad is readable before it is configured and after it is disabled.
+
+\subsection{The GPIO Mirrors}
+
+Each pad's menu begins with a mirror of one \peripheral{GPIOx} port bit. The mirror repeats that bit's output level, direction and resistor enable onto the pin-mux pad while the port keeps reading its own dedicated pad, so no port input is contended and a mirror costs nothing in the \peripheral{GPIOx} block. A software-controlled extra pin is therefore one register write away, and \register{PMXIN0} is how its level is read back.
+
+\section{Interrupts and events}
+
+\peripheral{PINMUX} has \emph{no interrupt vector} and is not an event-fabric source or sink. A pin-mux pad raises no pin interrupt of its own: pin interrupts are a \peripheral{GPIOx} feature of the port's own dedicated pads, and the \peripheral{GPIOx} menu entries mirror a port bit's output rather than handing it a second input. A relocated peripheral keeps its own interrupts, which arrive on that peripheral's vector exactly as they do from its dedicated pad; an edge on a pin-mux pad that no peripheral is reading is visible only by polling \register{PMXIN0}.
+
+\section{Programming}
+
+Read \register{PMXCAP} first: \register{PMXNPADS} gives the pad count, \register{PMXMENU} the largest code any pad accepts, and \register{PMXREV} the block revision. Then write a pad's nibble with the code its menu row gives in the pad-menu tables above. A byte-lane store to \register{PMXCFGn} covers two pads and leaves the other six nibbles of the word alone, which is the safe way to change one pad without a read-modify-write.
+
+A select write takes effect on the bus cycle that lands it: the pad multiplexer is combinational and there is no commit, no busy bit and no handshake. The consequence is that a function in the middle of a transfer loses its pad immediately, so deselect only an idle function, and configure a pad before enabling the peripheral that is to use it. Setting a nibble to 0 returns the pad to high impedance with its pull disabled, which is also what a reset does to every pad.
+
+Two configuration errors the hardware cannot refuse are worth stating. Selecting one input function on two pads at once combines both pads into that function's input, which reads as a stuck level if only one pad is driven; select an input function on exactly one pad. And a code above the pad's live menu length is accepted by the register and ignored by the pad, so firmware that writes a code without consulting the pad's own menu row gets a silently disabled pin rather than a fault.
+
+\section{Usage notes}
+
+In configurations that include it, \peripheral{PINMUX} lives in the shared peripheral window behind the multi-core arbiter (see Section \ref{s:multicore}) in the mutex-bank page, sub-slot 12 at \texttt{0x6C00}, so any hart can use it. Nothing arbitrates between harts for a pad: two harts writing the same \register{PMXCFGn} word race as they would on any other register, and the per-pad nibble packing is what lets them own separate pads without a lock.
+
+The pads are 1.0\,V bidirectional pads on the digital I/O rail, the same cell the \peripheral{GPIOx} ports use. Their positions in the pad ring are a property of the ring and not of this block; the block's own view is the pad index alone.

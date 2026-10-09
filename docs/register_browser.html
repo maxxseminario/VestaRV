@@ -18532,6 +18532,362 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 			]
 		},
 		{
+			"PeripheralName": "PINMUX",
+			"PeripheralTemplateName": "PINMUX",
+			"BaseAddress": 27648,
+			"PeripheralMemorySlot": null,
+			"isGPIO": false,
+			"InterruptPriority": null,
+			"Description": "Pin multiplexer for the 19 spare digital pads pmx0-pmx18. Each pad carries a menu of at most 8 functions and a 4-bit select nibble that picks one of them; the menu is PER PAD and is tabulated in the pin configuration table of this chapter, so a select code means a different function on a different pad. Code 0 is DISABLED and is the reset value of every nibble: the pad output driver is off and the pull resistor disabled, so an unconfigured pad floats rather than fighting whatever is wired to it, and a code past the pad's own menu length is treated as DISABLED too, which is why a pad can never be pointed at a function it does not carry. What the pad then does is the function's own output-enable policy and not a register bit: a transmit function drives push-pull, a receive function never drives and only returns the pad level to the peripheral, and an I2C function drives low and releases for the external pull-up. One nibble per pad and eight pads per PMXCFG word means a byte-lane store reconfigures exactly two pads and disturbs no other. PMXIN reads the level of every pad through the block's synchroniser whatever each pad is selecting, so a pad is observable before and after it is configured. The pad pull resistor follows the selected function; a disabled pad has it off. The GPIO menu entries mirror a port bit's OUTPUT level, direction and resistor enable onto the pmx pad, while the port keeps reading its own dedicated pad, so a pmx pad raises no pin interrupt and PINMUX has no interrupt vector.",
+			"Registers": [
+				{
+					"RegisterName": "PMXCAP",
+					"Address": 27648,
+					"Offset": 0,
+					"RegisterMemorySlot": 0,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Pin-mux capability register, read-only. Publishes the three numbers firmware needs to walk the block without a compiled-in copy of the configuration: how many pmx pads the ring carries, how deep each pad's function menu is, and the block revision. Writes are ignored.",
+					"BitFields": [
+						{
+							"BitFieldName": "Unused",
+							"MSB": 31,
+							"LSB": 16,
+							"Accessibility": "r0",
+							"ResetValue": 0,
+							"Unused": true,
+							"Description": "",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXREV",
+							"MSB": 15,
+							"LSB": 12,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Block revision. 1 is the first silicon revision of this pin mux.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXMENU",
+							"MSB": 11,
+							"LSB": 8,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Menu depth: the largest select code any pad accepts, and therefore the number of functions in a pad's menu. Codes above this value are reserved and are treated as DISABLED by the hardware, as is a code above the pad's own menu length.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXNPADS",
+							"MSB": 7,
+							"LSB": 0,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Pad count: how many pmx pads exist, pmx0 through pmx(PMXNPADS-1). Select nibbles at or above this index are writable and read back but control no pad.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "PMXIN0",
+					"Address": 27652,
+					"Offset": 4,
+					"RegisterMemorySlot": 1,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Pin-mux pad input register 0, read-only: the logic level of pads 32*0+31 down to 32*0, whatever function the pad is selecting and whichever way it is driven. The pad is sampled through the block's two-flop synchroniser on the peripheral clock, so a level appears here two clock edges after it settles on the pad, a pulse shorter than one clock period is not captured, and nothing is captured while the clock is stopped. Bits above the pad count read 0. Writes are ignored.",
+					"BitFields": [
+						{
+							"BitFieldName": "PMXPIN0",
+							"MSB": 31,
+							"LSB": 0,
+							"Accessibility": "r",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Pad input levels for pads 32*0+31 down to 32*0, synchronised to the peripheral clock. Bit y reads the level of pad 32*0+y; bits above the pad count read 0.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "PMXCFG0",
+					"Address": 27656,
+					"Offset": 8,
+					"RegisterMemorySlot": 2,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Pin-mux pad select register 0: one 4-bit select field per pad for pads 8*0+7 down to 8*0. A field at 0 (the reset value) leaves its pad DISABLED, meaning the pad output driver is off, the pull resistor is disabled and the pad is a floating input; a field at 1 through PMXMENU selects that entry of the PAD'S OWN function menu, which is per pad and is tabulated in the pin configuration table of the Pin Multiplexer chapter. A code above the pad's menu length, or above PMXMENU, is treated as DISABLED, so a pad can never be pointed at a function it does not carry. The function's own output-enable policy decides whether the pad then drives: a transmit function drives push-pull, a receive function never drives and only returns the pad level to the peripheral, and an I2C function drives low only and leaves the pad released for the external pull-up. Changing a select field takes effect on the bus cycle that writes it, so a function in mid-transfer sees its pad disappear: deselect only an idle function.",
+					"BitFields": [
+						{
+							"BitFieldName": "PMXSEL7",
+							"MSB": 31,
+							"LSB": 28,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx7. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL6",
+							"MSB": 27,
+							"LSB": 24,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx6. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL5",
+							"MSB": 23,
+							"LSB": 20,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx5. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL4",
+							"MSB": 19,
+							"LSB": 16,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx4. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL3",
+							"MSB": 15,
+							"LSB": 12,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx3. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL2",
+							"MSB": 11,
+							"LSB": 8,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx2. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL1",
+							"MSB": 7,
+							"LSB": 4,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx1. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL0",
+							"MSB": 3,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx0. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "PMXCFG1",
+					"Address": 27660,
+					"Offset": 12,
+					"RegisterMemorySlot": 3,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Pin-mux pad select register 1: one 4-bit select field per pad for pads 8*1+7 down to 8*1. A field at 0 (the reset value) leaves its pad DISABLED, meaning the pad output driver is off, the pull resistor is disabled and the pad is a floating input; a field at 1 through PMXMENU selects that entry of the PAD'S OWN function menu, which is per pad and is tabulated in the pin configuration table of the Pin Multiplexer chapter. A code above the pad's menu length, or above PMXMENU, is treated as DISABLED, so a pad can never be pointed at a function it does not carry. The function's own output-enable policy decides whether the pad then drives: a transmit function drives push-pull, a receive function never drives and only returns the pad level to the peripheral, and an I2C function drives low only and leaves the pad released for the external pull-up. Changing a select field takes effect on the bus cycle that writes it, so a function in mid-transfer sees its pad disappear: deselect only an idle function.",
+					"BitFields": [
+						{
+							"BitFieldName": "PMXSEL15",
+							"MSB": 31,
+							"LSB": 28,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx15. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL14",
+							"MSB": 27,
+							"LSB": 24,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx14. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL13",
+							"MSB": 23,
+							"LSB": 20,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx13. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL12",
+							"MSB": 19,
+							"LSB": 16,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx12. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL11",
+							"MSB": 15,
+							"LSB": 12,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx11. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL10",
+							"MSB": 11,
+							"LSB": 8,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx10. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL9",
+							"MSB": 7,
+							"LSB": 4,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx9. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL8",
+							"MSB": 3,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx8. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						}
+					]
+				},
+				{
+					"RegisterName": "PMXCFG2",
+					"Address": 27664,
+					"Offset": 16,
+					"RegisterMemorySlot": 4,
+					"Size": 32,
+					"ResetValue": 0,
+					"Description": "Pin-mux pad select register 2: one 4-bit select field per pad for pads 8*2+7 down to 8*2. A field at 0 (the reset value) leaves its pad DISABLED, meaning the pad output driver is off, the pull resistor is disabled and the pad is a floating input; a field at 1 through PMXMENU selects that entry of the PAD'S OWN function menu, which is per pad and is tabulated in the pin configuration table of the Pin Multiplexer chapter. A code above the pad's menu length, or above PMXMENU, is treated as DISABLED, so a pad can never be pointed at a function it does not carry. The function's own output-enable policy decides whether the pad then drives: a transmit function drives push-pull, a receive function never drives and only returns the pad level to the peripheral, and an I2C function drives low only and leaves the pad released for the external pull-up. Changing a select field takes effect on the bus cycle that writes it, so a function in mid-transfer sees its pad disappear: deselect only an idle function.",
+					"BitFields": [
+						{
+							"BitFieldName": "PMXSEL23",
+							"MSB": 31,
+							"LSB": 28,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx23. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL22",
+							"MSB": 27,
+							"LSB": 24,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx22. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL21",
+							"MSB": 23,
+							"LSB": 20,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx21. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL20",
+							"MSB": 19,
+							"LSB": 16,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx20. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL19",
+							"MSB": 15,
+							"LSB": 12,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx19. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL18",
+							"MSB": 11,
+							"LSB": 8,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx18. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL17",
+							"MSB": 7,
+							"LSB": 4,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx17. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						},
+						{
+							"BitFieldName": "PMXSEL16",
+							"MSB": 3,
+							"LSB": 0,
+							"Accessibility": "rw",
+							"ResetValue": 0,
+							"Unused": false,
+							"Description": "Function select for pad pmx16. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.",
+							"ValueDescriptions": []
+						}
+					]
+				}
+			]
+		},
+		{
 			"PeripheralName": "IRQROUTER",
 			"PeripheralTemplateName": "IRQROUTER",
 			"BaseAddress": 28672,
