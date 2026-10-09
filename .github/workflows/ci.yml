@@ -252,7 +252,7 @@ jobs:
       # --nobuild analysis step above still covers it, so a broken BUILD file
       # or a dangling label there fails HERE, in seconds.
       #
-      # //implementations/fpga/bringup is excluded for the same reason: its six
+      # //implementations/fpga/bringup is excluded for the same reason: its seven
       # flash-boot benches run GHDL. They run in sim.yml.
       - name: Run the hermetic gate set
         run: |

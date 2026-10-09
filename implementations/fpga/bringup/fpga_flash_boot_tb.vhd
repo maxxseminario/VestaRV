@@ -188,12 +188,15 @@ begin
         wait;
     end process;
 
-    -- Failure: UART0 TX idles high only once the Forth monitor initialises it, which the ROM does when the flash never answers.
+    -- Failure: a UART start bit. TX0 idles high from reset, so the monitor shows itself by transmitting: TX falls.
     ProcMonitor: process
     begin
         wait until reset_released;
-        wait until to_X01(TX0) = '1';
-        report "Error: UART0 TX went active: the ROM fell back to the Forth monitor instead of booting the flash image" severity error;
+        if to_X01(TX0) /= '1' then
+            wait until to_X01(TX0) = '1';
+        end if;
+        wait until to_X01(TX0) = '0';
+        report "Error: UART0 TX sent a start bit: the ROM fell back to the Forth monitor instead of booting the flash image" severity error;
         MonitorSeen <= true;
         wait;
     end process;
