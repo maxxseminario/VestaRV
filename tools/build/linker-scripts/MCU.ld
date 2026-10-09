@@ -123,14 +123,11 @@ SECTIONS
 	.plt            : { *(.plt) }
 	.iplt           : { *(.iplt) }
 	
-	/* TODO: Add extra memory sections */
-	.NN0SRAM : { PROVIDE (_start = .); . = ALIGN(4); } > NPU0_RAM
-	.AFE0_HISTOGRAM_RAM : { PROVIDE (_start = .); . = ALIGN(4); } > AFE0_HISTOGRAM_RAM
-	.AFE1_HISTOGRAM_RAM : { PROVIDE (_start = .); . = ALIGN(4); } > AFE1_HISTOGRAM_RAM
-	.AFE2_HISTOGRAM_RAM : { PROVIDE (_start = .); . = ALIGN(4); } > AFE2_HISTOGRAM_RAM
-	.AFE3_HISTOGRAM_RAM : { PROVIDE (_start = .); . = ALIGN(4); } > AFE3_HISTOGRAM_RAM
-	.AFE4_HISTOGRAM_RAM : { PROVIDE (_start = .); . = ALIGN(4); } > AFE4_HISTOGRAM_RAM
-	.AFE5_HISTOGRAM_RAM : { PROVIDE (_start = .); . = ALIGN(4); } > AFE5_HISTOGRAM_RAM
+	/* software/commune's ALLOCATE_IN_NN0SRAM pins NPU buffers here, but no memory map this
+	   script links with has that window (the old 0x1C000 NN0SRAM), so a program that uses it
+	   must fail to link rather than land wherever the linker puts an orphan. */
+	.NN0SRAM (NOLOAD) : { *(.NN0SRAM) }
+	ASSERT(SIZEOF(.NN0SRAM) == 0, "MCU.ld: .NN0SRAM is used, but no NPU0 window is mapped on this chip")
 	
 	.fini           :
 	{

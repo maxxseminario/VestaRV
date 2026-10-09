@@ -13,10 +13,9 @@ __start_RAM_program__:
 
 .section .text.init
 _init:
-    # Initialize stack pointer to end of RAM
-    # Stack grows downward from top of RAM
-    # Adjust 0x10000 based on your RAM size
-    li sp, 0x10000
+    # Stack at the top of the 8 KiB TCM (0x8000-0x9FFF) every current chip has, which is also
+    # inside Myshkin's RAM. 0x10000 put it in the NPU staging RAM, absent on fpga_default.
+    li sp, 0xA000
     
     # Clear BSS section
     la a0, __bss_start

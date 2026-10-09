@@ -12,7 +12,7 @@ __start_RAM_program__:
 
 .section .text.init
 _init:
-    li sp, 0x10000
+    li sp, 0xA000           # top of the 8 KiB TCM; see software/blinky/src/start.S
     jal main
 halt:
     j halt
