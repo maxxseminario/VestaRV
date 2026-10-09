@@ -24,7 +24,7 @@
         "enmemperiph": {
           "main": true,
           "port": false,
-          "processes": 7,
+          "processes": 8,
           "sync": false
         },
         "mclk": {
@@ -920,6 +920,27 @@
           ],
           "rst_val": "",
           "width": "4"
+        }
+      ]
+    },
+    "hdl/common/periph/PINMUX.vhd": {
+      "clocks": {},
+      "main_clock": "",
+      "syncs": [
+        {
+          "areset": "resetn",
+          "clk": "clk_mem",
+          "d": [
+            "pmx_in"
+          ],
+          "depth": "2",
+          "line": 264,
+          "name": "u_sync_pmx_in",
+          "q": [
+            "pmx_in_s2"
+          ],
+          "rst_val": "",
+          "width": "NPADS"
         }
       ]
     },

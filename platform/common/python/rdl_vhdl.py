@@ -119,6 +119,18 @@ def _pwrVariants():
     return tuple(out)
 
 
+def _pinmuxVariants():
+    """NPADS the pad count, with NSELW = ceil(NPADS/8) select words and NINW = ceil(NPADS/32)
+    input words passed in rather than derived: a SystemRDL array dimension is a constant
+    expression of the component's own parameters, so the addrmap cannot compute either.
+    """
+    out = []
+    for n in (8, 16, 40, 64, 120):
+        out.append({'NPADS': n, 'NSELW': (n + 7) // 8, 'NINW': (n + 31) // 32,
+                    'MAXMENU': 8})
+    return tuple(out)
+
+
 RTL_PACKAGES = (
     # the memory-map-package convention
     # These six read their word offsets from work.MemoryMap's RegSlot* /
@@ -347,6 +359,17 @@ RTL_PACKAGES = (
         'variants': _pwrVariants(),
         'variantNote': 'NHARTS 1, 5, 8, 9, 18, 32 (the PWRSR word count is ceil(NHARTS/8))',
     },
+    {
+        'package': 'pinmux_regs_pkg',
+        'file': 'hdl/common/regs/vhdl/pinmux_regs_pkg.vhd',
+        'source': 'pinmux.rdl',
+        'top': 'pinmux',
+        'rtl': 'hdl/common/periph/PINMUX.vhd',
+        'periph': 'pinmux',
+        'migrated': True,
+        'variants': tuple((p, None) for p in _pinmuxVariants()),
+        'variantNote': 'NPADS 8, 16, 40, 64, 120 (NSELW = ceil(NPADS/8), NINW = ceil(NPADS/32), MAXMENU 8)',
+    },
     # not a memory-mapped peripheral
     # debug_module.vhd decodes DMI addresses as 7-bit vectors (A_DATA0 ...), not
     # word offsets, and rdl.json marks it registerSource "none". The package is
@@ -452,6 +475,10 @@ _DECODE = {
     'pwr_ctrl': {'rtl': 'pwr_ctrl.vhd', 'style': 'map',
                  'names': {'PWRWAKE': 'W_PWRWAKE', 'PWRSTS': 'W_PWRSTS',
                            'TASKWKM': 'W_TASKWKM'}},
+    # PINMUX names its ONE configuration-independent word. PMXIN and PMXCFG are
+    # variable-count groups above it, so PINMUX.vhd computes their first word
+    # from NPADS with the same arithmetic the package's NWORDS function uses.
+    'pinmux': {'rtl': 'PINMUX.vhd', 'style': 'map', 'names': {'PMXCAP': 'W_PMXCAP'}},
 }
 
 
@@ -601,8 +628,8 @@ def _aggregateLines(block):
 _REGFILE = ('uart', 'spi', 'timer', 'i2c', 'npu', 'gpio', 'qspi', 'i3c', 'nfc',
             'rtc', 'pwm', 'onewire', 'trng', 'i2ctarget', 'dma', 'system', 'evfab')
 
-# CLINT, MUTEX and PWRCTRL are NOT here: their register set is a function of a
-# generic, and _REGFILE_FN below emits their rows as functions of it instead.
+# CLINT, MUTEX, PWRCTRL and PINMUX are NOT here: their register set is a function
+# of a generic, and _REGFILE_FN below emits their rows as functions of it instead.
 _REGFILE_SKIP = {
     'irq_router': ('CLAIM sits at word 512 and the status words at 516-523, so the',
                    'window is 524 words wide while periph_regs decodes 64 (MABPart is',
@@ -893,6 +920,37 @@ _REGFILE_FN = {
                        'RSTVAL': _ref('TASKWKM', 'RESET'),
                        'IMPL': _ex('bitRun(NHARTS-1, 1)',
                                    lambda p, k: _bitRun(p['NHARTS'] - 1, 1))},)},
+        ),
+    },
+    'pinmux': {
+        'args': ('NPADS',),
+        'note': ('PMXCAP at word 0, then ceil(NPADS/32) read-only PMXIN words, then '
+                 'ceil(NPADS/8) PMXCFG words of eight 4-bit select nibbles'),
+        'nwords': ('1 + (NPADS + 31) / 32 + (NPADS + 7) / 8',
+                   lambda p: 1 + (p['NPADS'] + 31) // 32 + (p['NPADS'] + 7) // 8),
+        'segments': (
+            {'note': 'PMXCAP: read-only capability, every bit a constant the hardware drives',
+             'first': ('0', lambda p: 0),
+             'count': ('1', lambda p: 1),
+             'rows': ({'name': 'PMXCAP',
+                       'RSTVAL': _ref('PMXCAP', 'RESET'),
+                       'IMPL': _ref('PMXCAP', 'IMPL'),
+                       'HWOWN': _ex('bitRun(PMXREV_MSB, PMXNPADS_LSB)',
+                                    lambda p, k: _bitRun(15, 0))},)},
+            {'note': 'PMXIN{k}: the synchronised pad levels, read-only, 32 bits per word',
+             'first': ('1', lambda p: 1),
+             'count': ('(NPADS + 31) / 32', lambda p: (p['NPADS'] + 31) // 32),
+             'rows': ({'name': 'PMXIN{k}',
+                       'RSTVAL': _ref('PMXIN0', 'RESET'),
+                       'IMPL': _ref('PMXIN0', 'IMPL'),
+                       'HWOWN': _ex('bitRun(PMXPIN0_MSB, PMXPIN0_LSB)',
+                                    lambda p, k: _bitRun(31, 0))},)},
+            {'note': 'PMXCFG{k}: eight select nibbles, all eight stored at every pad count',
+             'first': ('1 + (NPADS + 31) / 32', lambda p: 1 + (p['NPADS'] + 31) // 32),
+             'count': ('(NPADS + 7) / 8', lambda p: (p['NPADS'] + 7) // 8),
+             'rows': ({'name': 'PMXCFG{k}',
+                       'RSTVAL': _ref('PMXCFG0', 'RESET'),
+                       'IMPL': _ref('PMXCFG0', 'IMPL')},)},
         ),
     },
 }

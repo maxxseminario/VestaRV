@@ -426,6 +426,20 @@ vhdl_source_set(
     pool = ["//hdl:vhdl_sources"],
 )
 
+# PINMUX reads its slot count and its whole register layout from NPADS, so the
+# bench drives it at a pad count of its own; the package's tables are functions.
+vhdl_source_set(
+    name = "pinmux_rtl",
+    paths = [
+        "hdl/common/constants.vhd",
+        "hdl/common/sync.vhd",
+        "hdl/common/periph_regs.vhd",
+        "hdl/common/regs/vhdl/pinmux_regs_pkg.vhd",
+        "hdl/common/periph/PINMUX.vhd",
+    ],
+    pool = ["//hdl:vhdl_sources"],
+)
+
 vhdl_source_set(
     name = "gpio_rtl",
     paths = [
@@ -718,6 +732,20 @@ ghdl_test(
     ],
     entity = "TIMER_tb",
     pass_pattern = "TIMER_TB PASS (1 expected negative-control failure)",
+    sim_timeout_s = 300,
+    tags = ["ghdl"],
+)
+
+ghdl_test(
+    name = "PINMUX_tb",
+    size = "small",
+    srcs = [
+        ":pinmux_rtl",
+        "periph_tb_pkg.vhd",
+        "PINMUX_tb.vhd",
+    ],
+    entity = "PINMUX_tb",
+    pass_pattern = "PINMUX_TB PASS (1 expected negative-control failure)",
     sim_timeout_s = 300,
     tags = ["ghdl"],
 )
