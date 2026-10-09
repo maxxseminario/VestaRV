@@ -842,7 +842,7 @@ py_binary(
     )
     for periph in [
         "uart",
-        # The twenty house-style blocks (R2, 2026-09-10). One shared reader --
+        # The twenty-one house-style blocks (R2, 2026-09-10). One shared reader --
         # makeGenericReader in rdl_vs_vhdl_test.py -- covers all of them: slot
         # constants (local SLOT_*, the memory-map package's RegSlot*, NPU's
         # MmrAddr*, or a literal table guarded by `require` patterns) and the
@@ -859,6 +859,7 @@ py_binary(
         "nfc",
         "npu",
         "onewire",
+        "pinmux",
         "pwm",
         "pwr_ctrl",
         "qspi",

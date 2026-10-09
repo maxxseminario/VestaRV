@@ -180,6 +180,16 @@
       "note": "hdl/common/periph/EVFAB.vhd. EVFCAP is the hardwired constant 0x010A1008; CHENSET/CHENCLR are w1s/w1c aliases of CHEN.",
       "registerSource": "rdl"
     },
+    "PINMUX": {
+      "rdl": true,
+      "source": "pinmux.rdl",
+      "top": "pinmux",
+      "registerPrefix": "PMX",
+      "bitFieldPrefix": "PMX",
+      "note": "hdl/common/periph/PINMUX.vhd, the spare-pad pin multiplexer. One 4-bit select nibble per pad, eight pads per PMXCFG word; the menu is PER PAD and the select code indexes that pad's menu, not a global function list.",
+      "registerSource": "rdl",
+      "parameters": "PARAMETERISED: NPADS, NSELW = ceil(NPADS/8), NINW = ceil(NPADS/32), MAXMENU. NSELW and NINW are arguments because a SystemRDL array dimension is a constant expression of the component's own parameters and cannot be derived inside the addrmap."
+    },
     "IRQROUTER": {
       "rdl": true,
       "source": "irq_router.rdl",

@@ -1,0 +1,128 @@
+// VestaRV: the register map of hdl/common/periph/PINMUX.vhd
+// The spare digital pads pmx0..pmx(NPADS-1) each take one function out of a PER-PAD menu of at most MAXMENU entries. A pad's select nibble is 0 at reset, which is DISABLED: the pad driver is off and the pull resistor disabled, so an unconfigured pad floats rather than fighting whatever is wired to it.
+// Parameterised on NPADS (the pad count the ring carries), NSELW = ceil(NPADS/8) select words, NINW = ceil(NPADS/32) input words and MAXMENU (the menu depth, 8). generate.py passes all four, computed once there, so the description and the numbers the RTL is given cannot drift apart. NSELW and NINW are arguments because a SystemRDL array dimension is a constant expression of the component's own parameters and cannot be derived inside the addrmap.
+// Word layout: PMXCAP at 0, then NINW input words, then NSELW select words. The variable-count groups sit ABOVE the one register at a fixed address, so PMXCAP_WORD is the same at every pad count and the emitted package can publish it; the word index of each group is arithmetic on NPADS, which PINMUX.vhd computes exactly as the package's NWORDS function does (hdl/common/regs/REGFILE.md, "A register set that is a function of a generic").
+// A select nibble exists for every pad of every select word, so NSELW words always carry eight: at a pad count that is not a multiple of eight the top nibbles are writable and read back but control no pad. The alternative, a partial top word, would make the field geometry a function of the array index, which SystemRDL cannot express.
+// PMXIN is 32 bits per word at every pad count, and the bits above the pad count read 0: hardware drives them, with a constant.
+
+`include "vesta_udp.rdl"
+
+reg PMXCAP_t #(longint unsigned NPADS = 19, longint unsigned MAXMENU = 8) {
+    regwidth = 32;
+    desc = "Pin-mux capability register, read-only. Publishes the three numbers firmware needs to walk the block without a compiled-in copy of the configuration: how many pmx pads the ring carries, how deep each pad's function menu is, and the block revision. Writes are ignored.";
+    field {
+        sw = r; hw = w;
+        reset = 0;
+        vesta_access = "r";
+        desc = "Block revision. 1 is the first silicon revision of this pin mux.";
+    } PMXREV[15:12];
+    field {
+        sw = r; hw = w;
+        reset = 0;
+        vesta_access = "r";
+        desc = "Menu depth: the largest select code any pad accepts, and therefore the number of functions in a pad's menu. Codes above this value are reserved and are treated as DISABLED by the hardware, as is a code above the pad's own menu length.";
+    } PMXMENU[11:8];
+    field {
+        sw = r; hw = w;
+        reset = 0;
+        vesta_access = "r";
+        desc = "Pad count: how many pmx pads exist, pmx0 through pmx(PMXNPADS-1). Select nibbles at or above this index are writable and read back but control no pad.";
+    } PMXNPADS[7:0];
+};
+
+reg PMXIN_t {
+    regwidth = 32;
+    vesta_name = "PMXIN{i}";
+    desc = "Pin-mux pad input register {i}, read-only: the logic level of pads 32*{i}+31 down to 32*{i}, whatever function the pad is selecting and whichever way it is driven. The pad is sampled through the block's two-flop synchroniser on the peripheral clock, so a level appears here two clock edges after it settles on the pad, a pulse shorter than one clock period is not captured, and nothing is captured while the clock is stopped. Bits above the pad count read 0. Writes are ignored.";
+    field {
+        sw = r; hw = w;
+        reset = 0;
+        vesta_access = "r";
+        vesta_name = "PMXPIN{i}";
+        desc = "Pad input levels for pads 32*{i}+31 down to 32*{i}, synchronised to the peripheral clock. Bit y reads the level of pad 32*{i}+y; bits above the pad count read 0.";
+    } PMXPIN[31:0];
+};
+
+// One nibble per pad, eight pads per word: pad p lives in word p/8, bits 4*(p%8)+3
+// downto 4*(p%8). A byte-lane write therefore reconfigures exactly two pads and
+// disturbs no other, which is what makes a lane-wide store a safe in-place edit.
+reg PMXCFG_t {
+    regwidth = 32;
+    vesta_name = "PMXCFG{i}";
+    desc = "Pin-mux pad select register {i}: one 4-bit select field per pad for pads 8*{i}+7 down to 8*{i}. A field at 0 (the reset value) leaves its pad DISABLED, meaning the pad output driver is off, the pull resistor is disabled and the pad is a floating input; a field at 1 through PMXMENU selects that entry of the PAD'S OWN function menu, which is per pad and is tabulated in the pin configuration table of the Pin Multiplexer chapter. A code above the pad's menu length, or above PMXMENU, is treated as DISABLED, so a pad can never be pointed at a function it does not carry. The function's own output-enable policy decides whether the pad then drives: a transmit function drives push-pull, a receive function never drives and only returns the pad level to the peripheral, and an I2C function drives low only and leaves the pad released for the external pull-up. Changing a select field takes effect on the bus cycle that writes it, so a function in mid-transfer sees its pad disappear: deselect only an idle function.";
+    field {
+        sw = rw; hw = r;
+        reset = 0;
+        vesta_access = "rw";
+        vesta_name = "PMXSEL{8*i+7}";
+        desc = "Function select for pad pmx{8*i+7}. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.";
+    } PMXSEL7[31:28];
+    field {
+        sw = rw; hw = r;
+        reset = 0;
+        vesta_access = "rw";
+        vesta_name = "PMXSEL{8*i+6}";
+        desc = "Function select for pad pmx{8*i+6}. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.";
+    } PMXSEL6[27:24];
+    field {
+        sw = rw; hw = r;
+        reset = 0;
+        vesta_access = "rw";
+        vesta_name = "PMXSEL{8*i+5}";
+        desc = "Function select for pad pmx{8*i+5}. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.";
+    } PMXSEL5[23:20];
+    field {
+        sw = rw; hw = r;
+        reset = 0;
+        vesta_access = "rw";
+        vesta_name = "PMXSEL{8*i+4}";
+        desc = "Function select for pad pmx{8*i+4}. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.";
+    } PMXSEL4[19:16];
+    field {
+        sw = rw; hw = r;
+        reset = 0;
+        vesta_access = "rw";
+        vesta_name = "PMXSEL{8*i+3}";
+        desc = "Function select for pad pmx{8*i+3}. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.";
+    } PMXSEL3[15:12];
+    field {
+        sw = rw; hw = r;
+        reset = 0;
+        vesta_access = "rw";
+        vesta_name = "PMXSEL{8*i+2}";
+        desc = "Function select for pad pmx{8*i+2}. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.";
+    } PMXSEL2[11:8];
+    field {
+        sw = rw; hw = r;
+        reset = 0;
+        vesta_access = "rw";
+        vesta_name = "PMXSEL{8*i+1}";
+        desc = "Function select for pad pmx{8*i+1}. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.";
+    } PMXSEL1[7:4];
+    field {
+        sw = rw; hw = r;
+        reset = 0;
+        vesta_access = "rw";
+        vesta_name = "PMXSEL{8*i+0}";
+        desc = "Function select for pad pmx{8*i+0}. 0 = disabled (high-Z, pull off), 1 to PMXMENU = that entry of the pad's menu.";
+    } PMXSEL0[3:0];
+};
+
+addrmap pinmux #(
+    longint unsigned NPADS   = 19,
+    longint unsigned NSELW   = 3,
+    longint unsigned NINW    = 1,
+    longint unsigned MAXMENU = 8
+) {
+    name = "PINMUX";
+    desc = "Pin multiplexer for the spare digital pads";
+    vesta_peripheral = "PINMUX";
+    vesta_word_base = 0;
+    vesta_indexed = true;
+
+    default regwidth = 32;
+
+    PMXCAP_t #(.NPADS(NPADS), .MAXMENU(MAXMENU)) PMXCAP @0x00;
+    PMXIN_t                                      PIN[NINW] @0x04 += 0x4;
+    PMXCFG_t                                     CFG[NSELW] @(0x04 + 0x4 * NINW) += 0x4;
+};

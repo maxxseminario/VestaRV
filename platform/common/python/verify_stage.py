@@ -52,6 +52,7 @@ REGS_PACKAGES = (
     ('i2ctarget_regs_pkg.vhd', 'periph/I2CTarget.vhd'),
     ('trng_regs_pkg.vhd', 'periph/TRNG.vhd'),
     ('evfab_regs_pkg.vhd', 'periph/EVFAB.vhd'),
+    ('pinmux_regs_pkg.vhd', 'periph/PINMUX.vhd'),
     ('clint_regs_pkg.vhd', 'clint.vhd'),
     ('irq_router_regs_pkg.vhd', 'irq_router.vhd'),
     ('mutex_bank_regs_pkg.vhd', 'mutex_bank.vhd'),

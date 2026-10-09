@@ -401,6 +401,27 @@ _EVF_SLOTS = dict(('EVFCH%dCFG' % n, 16 + n) for n in range(1, 16))
 _PWR_SLOTS = {'PWRCR': 0, 'PWRSR': 1, 'PWRWAKE': 5, 'PWRSTS': 6, 'TASKWKM': 7}
 _PWR_RESET = {'PWRCR': 0, 'PWRWAKE': 0, 'TASKWKM': 0}
 
+# PINMUX decodes bare integers too, and its WORD COUNT is a function of the pad
+# count: PMXCAP at 0 and PMXIN0 at 1 are fixed, then ceil(NPADS/32) input words
+# and ceil(NPADS/8) select words. The table is written as that arithmetic rather
+# than as a list, because a list would be a second copy of the layout and would
+# have to be rewritten every time the pad ring changes. Every bit of every word
+# resets to 0, which is the whole safety property: a pad comes up high-Z.
+_PMX_NPADS = 19    # platform/common/python/generate.py, peripherals.pinmuxPads
+
+
+def _pmxSlots(npads=_PMX_NPADS):
+    out = {'PMXCAP': 0}
+    for k in range((npads + 31) // 32):
+        out['PMXIN%d' % k] = 1 + k
+    for k in range((npads + 7) // 8):
+        out['PMXCFG%d' % k] = 1 + (npads + 31) // 32 + k
+    return out
+
+
+_PMX_SLOTS = _pmxSlots()
+_PMX_RESET = dict((n, 0) for n in _PMX_SLOTS)
+
 GENERIC_BLOCKS = {
     # GPIO is on periph_regs. It was parked until NUM_AFS became a
     # generic and the entity could drop `use work.MemoryMap.all`; its slots and
@@ -550,6 +571,27 @@ GENERIC_BLOCKS = {
                               r'task_wkm <= regs_q\(W_TASKWKM\)\(PD_HI downto 1\);',
                               r'hw_clr_s\(PWRCR_WORD\)\(PD_HI downto 1\) <= task_wkm;']
                              + _FN_TABLE_REQUIRE('NHARTS')),
+    # PINMUX is a periph_regs block. Its register SET is a function of NPADS, so
+    # pinmux_regs_pkg carries the eight tables as FUNCTIONS of it and the entity
+    # calls them in its generic map; rdl_vhdl._checkRegfileFn grades those
+    # functions against this .rdl at every shipped pad count, which is the leg of
+    # the argument the require list below cannot carry. What stayed in the entity
+    # is the word arithmetic for the two variable-count groups and the pad mux.
+    'pinmux': dict(vhdl='PINMUX.vhd', slots='none', name=lambda k: None,
+                   literalSlots=_PMX_SLOTS, storage=_PMX_RESET,
+                   require=[r'u_regs\s*:\s*entity work\.periph_regs',
+                            r'constant NW\s*:\s*natural\s*:=\s*NWORDS\(NPADS\);',
+                            r'NWORDS      => NW',
+                            r'STROBE_HOLD => false',
+                            r'constant NINW\s*:\s*natural\s*:=\s*\(NPADS \+ 31\) / 32;',
+                            r'constant NSELW\s*:\s*natural\s*:=\s*\(NPADS \+ 7\) / 8;',
+                            r'constant W_PMXIN0\s*:\s*natural\s*:=\s*W_PMXCAP \+ 1;',
+                            r'constant W_PMXCFG0\s*:\s*natural\s*:=\s*W_PMXIN0 \+ NINW;',
+                            r'assert PMXSEL1_LSB - PMXSEL0_LSB = 4 and PMXSEL0_LSB = 0',
+                            r'regs_q\(W_PMXCFG0 \+ \(p / 8\)\)',
+                            r'hw_rd_s\(W_PMXCAP\) <= CAP_WORD;',
+                            r'hw_rd_s\(W_PMXIN0 \+ k\)\(b\) <= pmx_in_s2\(lo \+ b\);']
+                           + _FN_TABLE_REQUIRE('NPADS')),
     # I3C is a periph_regs block. The DAT window is an indexed
     # four-entry side table, not register storage, so its three words are RDTHRU
     # and their writes stay in the clk domain behind acc_hit. I3CxCR's reset
@@ -715,6 +757,7 @@ _RDL_FOR = {
     'rtc': ('rtc.rdl', 'rtc'), 'pwm': ('pwm.rdl', 'pwm'), 'onewire': ('onewire.rdl', 'onewire'),
     'dma': ('dma.rdl', 'dma'), 'trng': ('trng.rdl', 'trng'),
     'i2ctarget': ('i2ctarget.rdl', 'i2ctarget'), 'evfab': ('evfab.rdl', 'evfab'),
+    'pinmux': ('pinmux.rdl', 'pinmux'),
 }
 for _k, _spec in GENERIC_BLOCKS.items():
     _inner = (makeRegfileReader(_spec['regfile']) if _spec.get('regfile')

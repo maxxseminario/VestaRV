@@ -62,8 +62,8 @@
         "macro_blackbox.vhd",
         "system_blackbox.vhd"
       ],
-      "cells": 137072,
-      "flop_bits": 30718,
+      "cells": 139061,
+      "flop_bits": 30895,
       "latch_bits": 144,
       "latch_modules": [
         "clkgate_Bbehavioral",
@@ -87,6 +87,12 @@
     "OneWire": {
       "cells": 712,
       "flop_bits": 179,
+      "latch_bits": 0,
+      "latch_modules": []
+    },
+    "PINMUX": {
+      "cells": 1896,
+      "flop_bits": 176,
       "latch_bits": 0,
       "latch_modules": []
     },

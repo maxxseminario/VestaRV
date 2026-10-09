@@ -312,6 +312,20 @@ ghdl_synth_test(
     tags = ["ghdl"],
 )
 
+# NPADS has no default: the whole register layout is a function of it, so the
+# census is taken at the pad count MCU.vhd instantiates.  MAXMENU and the four
+# policy vectors take their entity defaults, which is the full menu on every pad
+# with push-pull policy throughout -- the widest mux and therefore the honest
+# cell count.
+ghdl_synth_test(
+    name = "PINMUX",
+    size = "small",
+    srcs = ["//hdl/common/tb:pinmux_rtl"],
+    entity = "PINMUX",
+    generics = {"NPADS": "19"},
+    tags = ["ghdl"],
+)
+
 # num_pins has NO default and GPIO.vhd:160 asserts it is 8, because the .rdl
 # the register package is generated from describes the 8-pin port.  All five
 # instances in MCU.vhd pass 8.
@@ -782,6 +796,7 @@ SYNTH_TARGETS = [
     ":NFC",
     ":NPU",
     ":OneWire",
+    ":PINMUX",
     ":PWM",
     ":QSPI",
     ":RTC",
