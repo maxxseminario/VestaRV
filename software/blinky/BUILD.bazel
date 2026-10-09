@@ -13,13 +13,10 @@ myshkin_app(
     hdrs = ["src/platform_fix.h"],
 )
 
-# The linked image is byte identical to the bench copy in bin/blinky.bin
-# (116 bytes, cmp clean). The bench rcf/ image is NOT reproduced, and cannot
-# be: it predates flash_prepend.sh moving the program load
-# base from 0x8200 to 0x8000 and gained the M19c GAP_MIN/REGION_PAD region
-# rules. The golden below is the current recipe's output, so the gate is
-# reproducibility going forward rather than agreement with a superseded
-# artifact.
+# The golden below is the current recipe's output: .text at 0x8200, the boot ROM's entry,
+# anchored at 0x8000 by toolchains/riscv/app_base.S. The bench copies in bin/ and rcf/
+# predate that and are not reproduced. Whether the image boots is
+# //implementations/fpga/bringup:blinky_flash_boot's job, not this byte gate's.
 firmware_image_test(
     name = "blinky_flashed_rcf_test",
     image = "xxxxxxxxxxxxblinky.rcf",

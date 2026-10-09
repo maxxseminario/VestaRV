@@ -2,7 +2,10 @@
 # The @xpack_riscv_gcc repository is declared in MODULE.bazel; firmware rules
 # consume its filegroups directly.
 
-exports_files(["xpack_gcc.BUILD"])
+exports_files([
+    "app_base.S",
+    "xpack_gcc.BUILD",
+])
 
 # Sandboxed compile+link proof for the hermetic toolchain, covering the
 # host-glibc ld shim path. If this target builds, the toolchain works here.

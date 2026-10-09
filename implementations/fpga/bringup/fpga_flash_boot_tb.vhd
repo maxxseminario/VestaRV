@@ -1,6 +1,12 @@
 -- VestaRV: FPGA bring-up bench, boot from SPI flash (config/fpga_default.json)
 -- Boots the FPGA file set (hdl/fpga/ clock, memory and analog stand-ins) out of the real mask-ROM image with BOOT (P1.7) HIGH, so the ROM takes the SPI flash path: wake the flash, stream the payload into the TCM, power the flash down and jump to it.
--- The payload is the rv32ui-p-simple ISA test. Its verdict is the MCU's a0 test port: 0xCAFEBABE is pass. On a board the same port is the observable (an ILA, or a comparator onto an LED).
+-- FLASH_IMAGE names the flashed image (29 characters, staged at the runfiles root); EXPECT is what it must do once entered:
+--   a0      a0 = 0xCAFEBABE, the ISA-test pass label (the default payload, rv32ui-p-simple; on a board, watch the a0 port)
+--   gpio    P3.0 switches to an output (blinky, slowblink)
+--   toggle  P3.0 switches to an output and toggles (gpiotoggle)
+--   loop    the core is still inside the image 100 us after entry, with no trap (looptest)
+--   trap    the core runs past the entry instruction, then traps (traptest)
+-- Entered means hart 0's PC reached PROG_BASE_ADDR 0x8200, the address the ROM jumps to.
 -- Every edge on the flash bus and every pass/fail condition is reported with its simulation time, so a logic-analyzer capture on the board can be read against this run.
 -- The ROM reads "rom.rcf" from the working directory (hdl/fpga/ARM_IP_ROM.vhd) and the flash model reads a 29-character path; //:fpga_bringup_rom_rcf and //:fpga_bringup_flash_rcf stage both at the runfiles root.
 library ieee;
@@ -11,6 +17,10 @@ use work.constants.all;
 use work.MemoryMap.all;
 
 entity fpga_flash_boot_tb is
+    generic (
+        FLASH_IMAGE : string := "fpga_bringup_flashpayload.rcf";
+        EXPECT      : string := "a0"
+    );
 end fpga_flash_boot_tb;
 
 architecture behavior of fpga_flash_boot_tb is
@@ -19,8 +29,6 @@ architecture behavior of fpga_flash_boot_tb is
     constant clk_lfxt_delay : time := (0.5 sec) / 32768;	-- 32.768 kHz
     constant clk_hfxt_period : time := clk_hfxt_delay * 2;
     constant clk_lfxt_period : time := clk_lfxt_delay * 2;
-
-    constant FLASH_IMAGE : string(1 to 29) := "fpga_bringup_flashpayload.rcf";
 
     signal clk_hfxt : std_logic := '0';
     signal clk_lfxt : std_logic := '0';
@@ -56,6 +64,10 @@ architecture behavior of fpga_flash_boot_tb is
     signal reset_released : boolean := false;
     signal TrapSeen		: boolean := false;
     signal MonitorSeen	: boolean := false;
+    signal Entered		: boolean := false;
+    signal Progressed	: boolean := false;	-- PC left 0x8200: the image's own code ran
+    signal P3_0_DIR		: std_logic;	-- GPIO2 pin 0 direction, '0' = output (PadDIRPosLogic false)
+    signal P3_0_OUT		: std_logic;	-- GPIO2 pin 0 output value
 
     component MCU
         port (
@@ -119,6 +131,8 @@ begin
     SCK0 <= prt1(pnum_gpio0_spi_clk);
     TRAP <= prt1(pnum_gpio0_trap);
     TX0 <= prt2(pnum_gpio1_tx0);
+    P3_0_DIR <= prt3_dir(pnum_gpio2_t0_cmp0);
+    P3_0_OUT <= prt3_out(pnum_gpio2_t0_cmp0);
 
     -- The AT45DB021E-class model riscv_tb boots every ISA test from. It starts in deep power-down, so the ROM's ABh wake-up is exercised too.
     flash_reset <= not to_X01(resetn_pad);
@@ -165,7 +179,11 @@ begin
     begin
         wait until reset_released;
         wait until to_X01(TRAP) = '1';
-        report "Error: TRAP pin (P1.6) asserted: the core took a terminal trap" severity error;
+        if EXPECT = "trap" then
+            report "TIMELINE TRAP pin (P1.6) asserted";
+        else
+            report "Error: TRAP pin (P1.6) asserted: the core took a terminal trap" severity error;
+        end if;
         TrapSeen <= true;
         wait;
     end process;
@@ -180,18 +198,63 @@ begin
         wait;
     end process;
 
-    -- The verdict: code loaded from the flash ran to its pass label, which writes 0xCAFEBABE to a0.
-    ProcVerdict: process
+    -- Entry: hart 0's PC reaches PROG_BASE_ADDR, where the boot ROM hands over to the image.
+    ProcEntry: process
+        alias core_pc is << signal .fpga_flash_boot_tb.dut.hart0.core.pc : std_logic_vector(31 downto 0) >>;
     begin
         wait until reset_released;
-        wait until a0 = x"CAFEBABE" or TrapSeen or MonitorSeen;
-        if TrapSeen or MonitorSeen then
+        wait until core_pc = x"00008200";
+        report "TIMELINE image entered at 0x8200";
+        Entered <= true;
+        wait until core_pc /= x"00008200" or TrapSeen;
+        Progressed <= core_pc /= x"00008200" and not TrapSeen;
+        wait;
+    end process;
+
+    -- The verdict, per EXPECT.
+    ProcVerdict: process
+        alias core_pc is << signal .fpga_flash_boot_tb.dut.hart0.core.pc : std_logic_vector(31 downto 0) >>;
+        variable ok : boolean := false;
+        procedure fail(msg : string) is
+        begin
+            report "Error: " & msg severity error;
             report "===== FPGA FLASH BOOT FAILED =====" severity failure;
+        end procedure;
+    begin
+        assert FLASH_IMAGE'length = 29 report "FLASH_IMAGE must be 29 characters (serial_flash.vhd)" severity failure;
+        wait until reset_released;
+        if EXPECT = "a0" then
+            wait until a0 = x"CAFEBABE" or TrapSeen or MonitorSeen;
+            ok := a0 = x"CAFEBABE";
+            if ok then report "TIMELINE payload passed: a0 = 0xCAFEBABE"; end if;
+        else
+            wait until Entered or TrapSeen or MonitorSeen;
+            if not Entered then fail("the image was never entered"); end if;
+            if EXPECT = "gpio" or EXPECT = "toggle" then
+                wait until P3_0_DIR = '0' or TrapSeen or MonitorSeen;
+                ok := P3_0_DIR = '0';
+                if ok then report "TIMELINE P3.0 switched to output"; end if;
+                if ok and EXPECT = "toggle" then
+                    wait until P3_0_OUT'event or TrapSeen for 1 ms;
+                    wait until P3_0_OUT'event or TrapSeen for 1 ms;
+                    ok := P3_0_OUT'event and not TrapSeen;
+                    if ok then report "TIMELINE P3.0 toggling"; end if;
+                end if;
+            elsif EXPECT = "loop" then
+                wait until TrapSeen or MonitorSeen for 100 us;
+                ok := not (TrapSeen or MonitorSeen) and unsigned(core_pc) >= 16#8200# and unsigned(core_pc) < 16#8400#;
+                if ok then report "TIMELINE still in the image after 100 us, pc = 0x" & to_hstring(core_pc); end if;
+            elsif EXPECT = "trap" then
+                wait until TrapSeen or MonitorSeen for 100 us;
+                ok := TrapSeen and Progressed and not MonitorSeen;
+                if TrapSeen and not Progressed then report "Error: trapped at the entry instruction itself, not in the image's code" severity error; end if;
+            else
+                fail("unknown EXPECT value: " & EXPECT);
+            end if;
         end if;
-        report "TIMELINE payload passed: a0 = 0xCAFEBABE";
         wait for 10 * clk_hfxt_period;
-        if TrapSeen or MonitorSeen then
-            report "===== FPGA FLASH BOOT FAILED =====" severity failure;
+        if not ok or MonitorSeen or (TrapSeen and EXPECT /= "trap") then
+            fail("expected behaviour not observed: " & EXPECT);
         end if;
         report "===== FPGA FLASH BOOT PASSED =====";
         wait;

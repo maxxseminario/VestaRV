@@ -22,9 +22,10 @@ packages (`//software/<app>`), each with the same targets:
 | `<app>_flashed_rcf` | RCF with SPI-flash protocol headers prepended |
 | `<app>_flashed_rcf_test` | byte-identical to `<app>/testdata/<app>_flashed_rcf_golden.txt` |
 
-These images do not currently boot from flash: they link at `0x814C` and the flash
-tool loads them at `0x8000`, while the boot ROM jumps to `PROG_BASE_ADDR` `0x8200`.
-The golden tests check image bytes only.
+Each app is entered at `0x8200`, the address the boot ROM jumps to (`PROG_BASE_ADDR`);
+a zero word at `0x8000` anchors the flash image there (`toolchains/riscv/app_base.S`).
+`//implementations/fpga/bringup:<app>_flash_boot` boots each one from a flash model through
+the real ROM and checks it does what it says; the golden tests only check bytes.
 
 ## Boot ROM and debug trampoline
 

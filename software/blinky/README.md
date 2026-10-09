@@ -16,8 +16,8 @@ tools/bin/bazel test  //software/blinky:blinky_flashed_rcf_test
 | `//software/blinky:blinky_flashed_rcf_test` | byte-identical to `testdata/blinky_flashed_rcf_golden.txt` |
 
 - A firmware change regenerates `testdata/blinky_flashed_rcf_golden.txt` in the same commit.
-- The image does not currently boot from flash: it links at `0x814C`, the flash tool
-  loads it at `0x8000`, and the boot ROM jumps to `0x8200`. The golden test checks bytes only.
+- Entered at `0x8200`, where the boot ROM jumps. `//implementations/fpga/bringup:blinky_flash_boot`
+  boots it from flash through the real ROM and checks that P3.0 becomes an output.
 - Linker memory definitions: `platform/myshkin/gcc/lib/linker/`.
 
 Xcelium (outside Bazel): copy the flashed RCF into `verification/isa/rcf/` under its

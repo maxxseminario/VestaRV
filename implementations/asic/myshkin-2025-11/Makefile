@@ -12,7 +12,7 @@ BOARD_NAME = MyshkinDevBoard
 
 # Entry point for `make run*`, the forthram.py call0 target. Override on the
 # command line: make run-rcf blinky RAM_ENTRY=0x8000
-RAM_ENTRY = 0x0000814c
+RAM_ENTRY = 0x00008200
 
 # UART transcript log for `make run*`: a path, or "auto" for
 # ./forthram-<timestamp>.log.

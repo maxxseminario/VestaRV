@@ -251,6 +251,9 @@ jobs:
       # runs in sim.yml instead, which already has the GHDL cache. The
       # --nobuild analysis step above still covers it, so a broken BUILD file
       # or a dangling label there fails HERE, in seconds.
+      #
+      # //implementations/fpga/bringup is excluded for the same reason: its six
+      # flash-boot benches run GHDL. They run in sim.yml.
       - name: Run the hermetic gate set
         run: |
           set -o pipefail
@@ -262,6 +265,7 @@ jobs:
             --test_summary=detailed \
             -- //... -//opensource_sim/... -//hdl/common/tb/... -//toolchains/... \
                -//hdl/common/synth/... -//verification/cpi/... \
+               -//implementations/fpga/bringup/... \
             2>&1 | tee bazel_ci.log
 
       # BAZEL.md's central claim: everything under `bazel build`/`bazel test`

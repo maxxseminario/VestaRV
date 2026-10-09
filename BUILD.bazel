@@ -7,6 +7,7 @@
 exports_files([".bazelignore"])
 
 load("@rules_shell//shell:sh_binary.bzl", "sh_binary")
+load("//toolchains/riscv:defs.bzl", "flash_padded_name")
 
 # Convenience entry point: bazel run //:generate
 alias(
@@ -67,9 +68,8 @@ filegroup(
 # FPGA bring-up bench inputs, staged at the runfiles root because that is the GHDL
 # working directory: hdl/fpga/ARM_IP_ROM.vhd opens "rom.rcf" there (MCU.vhd binds it with
 # no generic map), and hdl/common/tb/serial_flash.vhd takes a path of exactly 29
-# characters. Read only by //implementations/fpga/bringup:fpga_flash_boot. The payload is the
-# rv32ui-p-simple ISA test: blinky is linked at 0x814C and loaded at 0x8000, but the ROM
-# enters at PROG_BASE_ADDR 0x8200, so blinky traps on entry (the other apps share its layout).
+# characters. Read by //implementations/fpga/bringup:fpga_flash_boot, whose payload is the
+# rv32ui-p-simple ISA test.
 genrule(
     name = "fpga_bringup_rom_rcf",
     srcs = ["//software/bootrom_mp:rom_rcf"],
@@ -85,3 +85,14 @@ genrule(
     cmd = "cp $< $@",
     visibility = ["//implementations/fpga/bringup:__pkg__"],
 )
+
+# The five firmware apps' flash images, staged the same way for the per-app boot tests
+# (//implementations/fpga/bringup:<app>_flash_boot). Each is renamed to the 29-character
+# x-padded form serial_flash.vhd's path port takes.
+[genrule(
+    name = "fpga_bringup_app_" + app,
+    srcs = ["//software/%s:%s_flashed_rcf" % (app, app)],
+    outs = [flash_padded_name(app, 29)],
+    cmd = "cp $< $@",
+    visibility = ["//implementations/fpga/bringup:__pkg__"],
+) for app in ["blinky", "gpiotoggle", "looptest", "slowblink", "traptest"]]
