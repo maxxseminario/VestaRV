@@ -131,8 +131,8 @@ jobs:
       # //implementations/fpga/bringup:all boots the fpga_default cut (hdl/fpga/ cells)
       # from a SPI flash model through the real boot ROM: the rv32ui-p-simple payload
       # and each of the five firmware apps, which must be entered at 0x8200 and do what
-      # they say. It found the FPGA ClkBufEn sampling its enable on the wrong edge and
-      # the apps linked off the ROM's entry point. Six benches, about 1-2 min each.
+      # they say, and once more through the generated board top (fpga_top). It found the FPGA ClkBufEn sampling its enable on the wrong edge and
+      # the apps linked off the ROM's entry point. Seven benches, about 1-2 min each.
       - name: Run ISA regression + GHDL unit benches
         run: |
           set -o pipefail
