@@ -400,6 +400,20 @@ _CONFIG_SCHEMA = {
 	# architecture split (TrngRoEnsemble_sim.vhd behavioral, TrngRoEnsemble.vhd gate-only),
 	# and the two must never co-list. Entropy caveat: bring-up grade, not certified, no
 	# hardware conditioner. Firmware must DRBG the raw words and honor ALMF.
+	# true instantiates the PINMUX pin multiplexer at 0x6C00, page-2 sub-slot 12: one 4-bit
+	# select nibble per spare digital pad, eight pads per PMXCFG word, every pad high-Z at
+	# reset. Vectorless: a pmx pad raises no interrupt, because the GPIO menu entries mirror a
+	# port bit's OUTPUT and the port keeps reading its own dedicated pad.
+	# The per-pad menu is platform/common/config/pinmux.json, not a knob: it is a table per
+	# pad, generated from the pad census, and mcu_vhd.PINMUX_FN owns the RTL spelling and the
+	# output-enable policy of each function name in it.
+	'peripherals.pinmux':    ('bool: PINMUX spare-pad pin multiplexer at 0x6C00 (menu in config/pinmux.json)',
+	                         _isBool),
+	# How many pmx pads the ring carries. The whole register layout is a function of it:
+	# 1 + ceil(N/32) input words + ceil(N/8) select words, so PMXCAP publishes it and firmware
+	# need not compile a copy in. Consulted only when peripherals.pinmux is true.
+	'peripherals.pinmuxPads': ('int, 8 to 120: pmx pad count when peripherals.pinmux is true (default 19)',
+	                         lambda v: _isInt(v) and 8 <= v <= 120),
 	'peripherals.trng':      ('bool: TRNG0 ring-oscillator entropy source at 0x6900 (firmware must DRBG it)',
 	                         _isBool),
 	# TRNG0 ring-oscillator ensemble size, 4 or 8 only (the NRO generic). Consulted only when
@@ -540,6 +554,8 @@ _CONFIG_META = {
 	'peripherals.i2ctarget': {'type': 'bool', 'default': True},
 	'peripherals.trng':      {'type': 'bool', 'default': True},
 	'peripherals.trngRings': {'type': 'int', 'default': 8, 'min': 4, 'max': 8, 'step': 4},
+	'peripherals.pinmux':    {'type': 'bool', 'default': True},
+	'peripherals.pinmuxPads': {'type': 'int', 'default': 19, 'min': 8, 'max': 120, 'step': 1},
 	'peripherals.eventFabric': {'type': 'bool', 'default': True},
 	# castalia-lqfp100 is the only model that bonds the TAP (balls 47-51, carved from NC
 	# balls), and it is the tape-out product's package. See _checkDebugTransportBonded.
@@ -827,6 +843,50 @@ i2ctargetPresent = _cfg('peripherals.i2ctarget', True)
 # the output and honor ALMF.
 trngPresent = _cfg('peripherals.trng', True)
 trngRings = _cfg('peripherals.trngRings', 8)
+
+# PINMUX takes page-2 sub-slot 12 at 0x6C00, the first slot the peripheral library had left.
+# One 4-bit select nibble per spare digital pad picks one entry of THAT PAD'S menu, and 0,
+# the reset value, is DISABLED: the pad driver off and the pull resistor disabled, so an
+# unconfigured pad floats. Vectorless, mclk, zero new arbiter masters.
+# The pad count sizes the register set (1 + ceil(N/32) + ceil(N/8) words) and the pad ports
+# of the MCU entity; the per-pad menu is config/pinmux.json, read below.
+pinmuxPresent = _cfg('peripherals.pinmux', True)
+pinmuxPads = _cfg('peripherals.pinmuxPads', 19)
+
+# The pad menu. A function whose peripheral this configuration does not instantiate is
+# dropped and the pad's menu COMPACTS, so the select codes of a pad are always 1..len and
+# a code can never reach a tie-off. The filter is by function-name prefix, which is the one
+# thing the menu file and the knob set share.
+_pinmuxCfgPath = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              '..', 'config', 'pinmux.json')
+with open(_pinmuxCfgPath) as _f:
+	_pinmuxCfg = json.load(_f)
+pinmuxMaxMenu = int(_pinmuxCfg['maxMenu'])
+pinmuxPadPrefix = _pinmuxCfg.get('padPrefix', 'pmx')
+
+# Which function names this configuration can offer. A prefix absent from the table is
+# always available (the GPIO mirrors, UART0, SPI0 and I2C0, which every chip has).
+_pinmuxGate = {
+	'UART1_': uart1Present, 'SPI1_': spi1Present, 'I2C1_': i2c1Present,
+	'QSPI0_': qspiPresent, 'TIMER1_': timer1Present,
+}
+
+
+def _pinmuxAvailable(name):
+	for pfx, live in _pinmuxGate.items():
+		if name.startswith(pfx):
+			return bool(live)
+	return True
+
+
+pinmuxMenu = []
+for _p in range(pinmuxPads):
+	_raw = _pinmuxCfg['menu'][_p] if _p < len(_pinmuxCfg['menu']) else []
+	_live = [n for n in _raw if _pinmuxAvailable(n)]
+	if len(_live) > pinmuxMaxMenu:
+		raise Exception('config/pinmux.json: pad %d lists %d functions, past maxMenu %d'
+		                % (_p, len(_live), pinmuxMaxMenu))
+	pinmuxMenu.append(_live)
 
 # EVFAB0 takes page-2 sub-slot 11 at 0x6B00, the last slot the peripheral library uses
 # (0x6000 mutex, 0x6100 I3C0, 0x6200 NFC0, 0x6300 GPIO4, 0x6400 GPIO5, 0x6500 RTC0,
@@ -1655,6 +1715,25 @@ _rdlRegisters('PWRCTRL', p, parameters={'NHARTS': numHarts}, defines=_pwrDefines
 
 
 
+# PINMUX register template: a 0x6C00 map of PMXCAP, ceil(N/32) PMXIN words and ceil(N/8)
+# PMXCFG words, added only when pinmuxPresent CreatePeripheral()s it. The register SET is a
+# function of the pad count, so the four parameters below are passed to the description
+# rather than recomputed inside it: NSELW and NINW because a SystemRDL array dimension is a
+# constant expression of the component's own parameters and cannot be derived in the addrmap.
+# Registered read on rising ClkMem, no strobe and no command word: every select nibble is
+# plain storage and takes effect on the cycle that writes it.
+if pinmuxPresent:
+	pinmux = PeripheralTemplate(nameTemplate='PINMUX', description='Pin multiplexer for the ' + str(pinmuxPads) + ' spare digital pads pmx0-pmx' + str(pinmuxPads - 1) + '. Each pad carries a menu of at most ' + str(pinmuxMaxMenu) + ' functions and a 4-bit select nibble that picks one of them; the menu is PER PAD and is tabulated in the pin configuration table of this chapter, so a select code means a different function on a different pad. Code 0 is DISABLED and is the reset value of every nibble: the pad output driver is off and the pull resistor disabled, so an unconfigured pad floats rather than fighting whatever is wired to it, and a code past the pad\'s own menu length is treated as DISABLED too, which is why a pad can never be pointed at a function it does not carry. What the pad then does is the function\'s own output-enable policy and not a register bit: a transmit function drives push-pull, a receive function never drives and only returns the pad level to the peripheral, and an I2C function drives low and releases for the external pull-up. One nibble per pad and eight pads per PMXCFG word means a byte-lane store reconfigures exactly two pads and disturbs no other. PMXIN reads the level of every pad through the block\'s synchroniser whatever each pad is selecting, so a pad is observable before and after it is configured. The pad pull resistor follows the selected function; a disabled pad has it off. The GPIO menu entries mirror a port bit\'s OUTPUT level, direction and resistor enable onto the pmx pad, while the port keeps reading its own dedicated pad, so a pmx pad raises no pin interrupt and PINMUX has no interrupt vector.', registerPrefix='PMX', bitFieldPrefix='PMX', latexIntroFileName='PINMUX-intro-castalia-2026-10.tex', latexFeatureSummary='Pin multiplexer over ' + str(pinmuxPads) + ' spare pads (per-pad function menu, high-Z at reset)')
+	m.AddPeripheralTemplate(pinmux)
+
+	_rdlRegisters('PINMUX', pinmux, parameters={
+			'NPADS': pinmuxPads,
+			'NSELW': (pinmuxPads + 7) // 8,
+			'NINW': (pinmuxPads + 31) // 32,
+			'MAXMENU': pinmuxMaxMenu,
+		})
+
+
 # Check the peripheral templates for errors
 # QSPI0 register template, added unconditionally before CheckPeripheralTemplates so the
 # template exists whenever qspiPresent CreatePeripheral()s it at slot 12. With qspi off it
@@ -1962,7 +2041,17 @@ if eventFabricPresent:
 	# producer and consumer tap port-map lines on the existing instances are emitted by
 	# mcu_vhd.py under geo['eventFabric'], with every absent source tied '0'.
 	m.CreatePeripheral(nameTemplate='EVFAB', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x6B00, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 11; registered read, no bridge, no CAPTURE_CLOCK pre-latch; free-running MCLK fabric in the always-on domain (never gated by PWRCTRL, alive through WFI); vectorless — poll EVFSR, there is no interrupt; a CHTRIG/EVTRIG/W1C write takes effect 3 MCLK after the access opens, so a read issued immediately after one (only possible from a faster master than the shared bus) can see stale state; disable a channel before changing its EVSEL/TASKSEL')	# EVFAB0: native page-2 sub-slot 11; mcu_vhd emits the raw-strobe shim, the evfab0 instance and every producer and consumer tap
-overlay.call('peripheralInstances', m=m, vals=_overlayVals)	# an overlay's CreatePeripheral calls; page-2 sub-slots 12-15 are free in every public configuration
+if pinmuxPresent:
+	# PINMUX at 0x6C00 is mutex-page sub-slot 12, the same native page-2 shape as RTC0 and the
+	# first slot the library had left. Vectorless: interruptPriority=None, so this knob adds
+	# nothing to _LIBRARY_TAIL_SPEC, NUM_IRQ_SRCS or _mcuMpIrqFirstVector and no existing
+	# vector moves. clockDomain='mclk' names the bus clock ClkMem and the only clock in the
+	# block: the pad-readback synchroniser. The pad mux itself is combinational, so a select
+	# write reaches the pads on the cycle that lands it. Neither combinationalRead nor a
+	# CAPTURE_CLOCK slave: a plain raw-strobe active-low en shim, pinmux0_sh_en_n <= not
+	# shslv_pinmux0_en, with no falling_edge(EnMemPeriph) pre-latch.
+	m.CreatePeripheral(nameTemplate='PINMUX', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x6C00, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 12; registered read, no bridge, no CAPTURE_CLOCK pre-latch; the pad mux is COMBINATIONAL, so a select write takes effect on the cycle that lands it and a function in mid-transfer loses its pad -- deselect only an idle function; vectorless, and a pmx pad raises no pin interrupt (the GPIO menu entries mirror a port bit output, and the port keeps reading its own dedicated pad); PMXIN is the pad two mclk edges ago, not the live pad')	# PINMUX: native page-2 sub-slot 12; mcu_vhd emits the raw-strobe shim, the PINMUX instance, the pmx pad port group and the slot aggregates
+overlay.call('peripheralInstances', m=m, vals=_overlayVals)	# an overlay's CreatePeripheral calls; page-2 sub-slots 13-15 are free in every public configuration (12 is PINMUX)
 m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x7000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(524))	# IRQ router at 0x7000, window page 3: routing rows plus the fixed-address CLAIM block, through word 523 = 0x782C = INSVCX
 
 
@@ -2271,6 +2360,29 @@ def _checkDebugTransportBonded(_pkg, _model, _dbgOn):
 
 
 _checkDebugTransportBonded(m.Package, packageModel, _debug['enable'])
+
+# THE PAD RING IS THE AUTHORITY ON HOW MANY pmx PADS THERE ARE (D29 e).
+# A package model that CLASSES its pads -- Package.AddPin's padClass and
+# PackageData.PadClasses(), the generic hook the ring work added -- states the
+# pin-mux pad count itself, and this block binds to that CLASS rather than to a
+# pad name. The knob then only has to agree, and a disagreement is a FATAL
+# naming both numbers rather than a silent re-size of the register file: the
+# register SET is a function of the pad count, so a ring and an RTL that
+# disagree would emit a map for pads that are not bonded.
+# A model that classes no pad leaves the knob standing alone, which is every
+# public model today, and the hasattr guard is what lets this file predate the
+# hook landing.
+if pinmuxPresent and hasattr(m.Package, 'PadClasses'):
+	_padClasses = m.Package.PadClasses() or {}
+	_pmxClass = _padClasses.get('pinmux')
+	if _pmxClass is not None:
+		_pmxRingCount = int(_pmxClass['count'])
+		if _pmxRingCount != pinmuxPads:
+			raise Exception('package model "' + packageModel + '" classes '
+				+ str(_pmxRingCount) + ' pinmux pad(s), but peripherals.pinmuxPads is '
+				+ str(pinmuxPads) + '. The ring is the authority on how many pmx pads '
+				'exist (D29 e) and the register set is a function of the count, so set '
+				'the knob to the ring\'s number rather than letting the two drift.')
 
 # Per-model GPIO bit to package pin number, keyed (objGPIOk, bit b). None means unbonded:
 # the bit stays in the RTL and register map but has no package ball, and the netlist ties
@@ -3024,6 +3136,11 @@ m.McuMpGeometry = {
 	'i2ctarget': i2ctargetPresent,  # True = the I2CT0 I2C target in mutex-page sub-slot 10 (0x6A00): raw-strobe shim, shares the I2C0 SDA0/SCL0 pads through a wired-AND DIR merge emitted separately, vectors 122 and 123, source list grows to 124 with 120 and 121 as DP-SG placeholders
 	'trng': trngPresent,        # True = TRNG0 in mutex-page sub-slot 9 (0x6900); raw-strobe shim, sibling u_ro TrngRoEnsemble instance, vector 121, source list grows to 122
 	'trngRings': trngRings,     # TRNG0 NRO generic, 4 or 8, consulted only when trng is true; the register map is NRO-invariant
+	'pinmux': pinmuxPresent,    # True = PINMUX in mutex-page sub-slot 12 (0x6C00): raw-strobe shim, vectorless, plus the pmx_in/out/oen/ren entity port group and the slot aggregates built from pinmuxMenu
+	'pinmuxPads': pinmuxPads,   # PINMUX NPADS generic and the width of the four pmx pad port groups, consulted only when pinmux is true
+	'pinmuxMaxMenu': pinmuxMaxMenu,  # PINMUX MAXMENU generic: menu depth, 1 to 15 (the select field is a nibble)
+	'pinmuxMenu': pinmuxMenu,   # per pad, the ordered live function names its codes 1..len reach, already compacted by configuration
+	'pinmuxPadPrefix': pinmuxPadPrefix,  # the pad name stem, pmx0 .. pmx(N-1)
 	'eventFabric': eventFabricPresent,  # True = the EVFAB0 event and trigger fabric in mutex-page sub-slot 11 (0x6B00): raw-strobe shim, vectorless, plus the producer and consumer tap port maps on RTC0, PWM0, TIMER0, TIMER1, UART0, NFC0, DMA0, TRNG0, I2CT0, GPIO0, NPU0 and pwr0, with every absent source tied '0'
 	'chipNameConfigured': (_cfg('chipName', None) or ''),  # the config file's chip name, never the CHIP_NAME environment override, which is documentation-only. One half of the JTAG IDCODE chip-identity discriminator (mcu_vhd.isArgusFamily); the other half is numHarts == 18. A docs-only switch must never change an RTL constant
 	'debug': _debug['enable'],  # True = the Debug Module dm0, the eight MCU-entity dmi_* ports, the per-tile dbg_* hookup and DEBUG_ENTRY_ADDR => 0x00010780. dm0 is the second new arbiter master after the DMA, at index nMasters-1, so it drags the same fabric widening. False, the pre-debug default shape, emits no trace: no ports, no declarations, no instance, no clamp row, which check_mcu_vhd.py STRICT grades. The same knob carries JTAG: the five tck/tms/tdi/tdo/trstn pins (the last entity port group), the dtm0 jtag_dtm instance beside dm0, and the valid-gated OR-merge that keeps the raw dmi_* ports reaching the DM with the DTM present and inert
@@ -3180,7 +3297,8 @@ _resolvedConfig = [
 		('dma', dmaPresent),
 		('dmaChannels', dmaChannels), ('i2ctarget', i2ctargetPresent),
 		('trng', trngPresent), ('trngRings', trngRings),
-		('eventFabric', eventFabricPresent)]),
+		('eventFabric', eventFabricPresent),
+		('pinmux', pinmuxPresent), ('pinmuxPads', pinmuxPads)]),
 	('package', [('model', packageModel), ('preliminary', packagePreliminary)]),
 	# The knob grouping, so a consumer of this record can present the schema the way the TRM and
 	# the configurator do without re-deriving the rule. Names only: the values are above.

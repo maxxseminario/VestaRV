@@ -12,7 +12,18 @@
 (identical)
 
 === periph.x ===
-(identical)
+--- tracked/periph.x
++++ generated/periph.x
+@@ -310,4 +310,9 @@
+ __EVFCH14CFG				= 0x6B78;
+ __EVFCH15CFG				= 0x6B7C;
++__PMXCAP					= 0x6C00;
++__PMXIN0					= 0x6C04;
++__PMXCFG0					= 0x6C08;
++__PMXCFG1					= 0x6C0C;
++__PMXCFG2					= 0x6C10;
+ __H0ENL						= 0x7000;
+ __H0ENM						= 0x7004;
 
 === RAM_START.txt ===
 (identical)

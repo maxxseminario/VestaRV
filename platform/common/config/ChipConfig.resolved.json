@@ -70,7 +70,9 @@
     "i2ctarget": true,
     "trng": true,
     "trngRings": 8,
-    "eventFabric": true
+    "eventFabric": true,
+    "pinmux": true,
+    "pinmuxPads": 19
   },
   "package": {
     "model": "castalia-lqfp100",
@@ -106,6 +108,7 @@
       "peripherals.nfc",
       "peripherals.npu",
       "peripherals.onewire",
+      "peripherals.pinmux",
       "peripherals.pwm",
       "peripherals.qspi",
       "peripherals.rtc",
@@ -136,6 +139,7 @@
       "isa.zimop",
       "isa.zkn",
       "peripherals.dmaChannels",
+      "peripherals.pinmuxPads",
       "peripherals.trngRings",
       "priv.pmp",
       "priv.pmpEntries",
@@ -195,6 +199,6 @@
     },
     "bootromLoaderRowBase": "0x10500 + 0x10*hartid",
     "stackPointerInit": "0xA000",
-    "peripheralCount": 30
+    "peripheralCount": 31
   }
 }

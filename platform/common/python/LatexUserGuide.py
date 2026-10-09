@@ -1381,6 +1381,8 @@ class LatexUserGuide():
 			'peripherals.fieldPower', 'peripherals.dma', 'peripherals.dmaChannels',
 			'peripherals.i2ctarget', 'peripherals.trng', 'peripherals.trngRings',
 			'peripherals.eventFabric',
+			'peripherals.pinmux',
+			'peripherals.pinmuxPads',
 			'package.model', 'package.preliminary']
 
 		# OVERLAY: a knob an overlay added to the schema takes its place in the
@@ -1587,6 +1589,7 @@ class LatexUserGuide():
 	# inward-facing half (time, clocks, power, memory, engines).
 	_CHIP_FIG_BUCKET = {
 		'GPIOx':     'io',
+		'PINMUX':    'io',
 		'SPIx':      'spi',
 		'QSPIx':     'spi',
 		'UARTx':     'uart',
@@ -3378,7 +3381,7 @@ class LatexUserGuide():
 			'I3Cx': 'I3C', 'NFCx': 'NFC', 'OWx': '1-Wire', 'TIMERx': 'TIMER', 'PWMx': 'PWM',
 			'RTCx': 'RTC', 'SYSTEM': 'SYSTEM', 'PWRCTRL': 'PWRCTRL', 'CLINT': 'CLINT',
 			'MUTEX': 'MUTEX', 'IRQROUTER': 'IRQROUTER', 'NPU': 'NPU', 'DMAx': 'DMA',
-			'TRNGx': 'TRNG', 'EVFAB': 'EVFAB', 'AFEx': 'AFE'}
+			'TRNGx': 'TRNG', 'EVFAB': 'EVFAB', 'PINMUX': 'PINMUX', 'AFEx': 'AFE'}
 		groups = {}
 		for p in gen.Peripherals:
 			t = p.Template.NameTemplate

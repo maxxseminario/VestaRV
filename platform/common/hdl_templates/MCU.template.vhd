@@ -52,6 +52,7 @@ entity MCU is
 		prt6_ren		: out	std_logic_vector(7 downto 0);
 
 
+        --@GEN:pinmux-ports@
         --@GEN:a0-ports@
         --@GEN:dmi-ports@
         --@GEN:jtag-ports@
@@ -446,6 +447,7 @@ architecture behav of MCU is
         --@GEN:trng-decls@
         --@GEN:i2ct-decls@
         --@GEN:evfab-decls@
+        --@GEN:pinmux-decls@
         --@GEN:debug-decls@
         --@GEN:slot12-decls@
         --@GEN:overlay-decls@
@@ -959,6 +961,7 @@ begin
     --@GEN:trng-instance@
     --@GEN:i2ct-instance@
     --@GEN:evfab-instance@
+    --@GEN:pinmux-instance@
 
     -- MTCMOS power controller, window slot 11 at 0x4B00: one gate bit per tile hart, and a per-tile FSM sequences the domain controls in the only legal order, iso then rst then rail off to gate, rail on then settle then un-iso then un-rst to wake.
     -- pd_rstn folds into the tile's resetn below, so a wake is a cold boot (shared-ROM fetch, WFI park, loader relaunch); the controller resets all-on, and software must gate only parked or quiesced tiles.

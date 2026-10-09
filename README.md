@@ -209,12 +209,15 @@ which is `//verification/npu`; MUTEX has none.
 | TRNG | Ring-oscillator entropy source with a harvest engine and a repetition-count health test | 4 | - | 1 | Y | `TRNG_tb` |
 | I2CTarget | Hardware-autonomous I2C target with address match and clock stretching | 5 | - | 1 | Y | `I2CTarget_tb` |
 | EVFAB | PPI-style event and trigger crossbar, eight channels, with no processor in the loop | 29 | - | 1 | Y | `EVFAB_tb` |
+| PINMUX | Pin multiplexer giving each of the nineteen spare digital pads a register-selected function out of that pad's own menu | 5 | - | 1 | Y | `PINMUX_tb` |
 | IRQROUTER | Per-hart interrupt routing and enable rows ahead of a claim and complete stage | 29 | 1 | 1 | - | `irq_router_tb` |
 
-227 registers over 21 blocks in the default configuration, 323 over 30 in
-`castalia.json`. Seventeen blocks instantiate `periph_regs` and keep only their
-datapath; CLINT, MUTEX, IRQROUTER and PWRCTRL cannot, because their register set
-is a function of the hart, mutex or vector count. See
+227 registers over 21 blocks in the default configuration, 328 over 31 in
+`castalia.json`. Eighteen blocks instantiate `periph_regs` and keep only their
+datapath; IRQROUTER cannot, because its `CLAIM` word sits past the module's
+64-word decode window. CLINT, MUTEX, PWRCTRL and PINMUX have a register SET that
+is a function of a generic -- the hart, mutex or pad count -- so their eight
+tables are emitted as FUNCTIONS of it rather than as constant aggregates. See
 [`hdl/common/regs/REGFILE.md`](hdl/common/regs/REGFILE.md).
 
 ---
