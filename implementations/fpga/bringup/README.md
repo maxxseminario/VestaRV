@@ -21,10 +21,20 @@ tools/bin/bazel build //implementations/fpga/bringup:flash_payload_bin
 Output: `bazel-bin/implementations/fpga/bringup/flash_payload.bin`, the
 `rv32ui-p-simple` ISA test. Write it at flash address 0.
 
+For an LED instead of the `a0` check, use `slowblink`, which toggles P3.0 at a few
+hertz from a CPU loop:
+```
+tools/bin/bazel build //implementations/fpga/bringup:slowblink_flash_bin
+```
+Output: `bazel-bin/implementations/fpga/bringup/slowblink_flash.bin`.
+`blinky` clocks its timer from SMCLK, which the ROM switches to LFXT after a flash
+boot, so it toggles only every few minutes.
+
 **4. Simulate the boot (optional, ~2 min)**
 ```
 tools/bin/bazel test //implementations/fpga/bringup:fpga_flash_boot
 ```
+`:<app>_flash_boot` runs the same boot for each of the five firmware apps.
 The boot timeline is in
 `bazel-testlogs/implementations/fpga/bringup/fpga_flash_boot/test.outputs/run.log`.
 

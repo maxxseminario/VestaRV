@@ -127,6 +127,12 @@ jobs:
       # They live here, not in ci.yml's `//...` job, because they run the
       # simulator: ci.yml excludes them for the same reason it excludes
       # //hdl/common/tb.  All 41 together add under 8 s.
+      #
+      # //implementations/fpga/bringup:all boots the fpga_default cut (hdl/fpga/ cells)
+      # from a SPI flash model through the real boot ROM: the rv32ui-p-simple payload
+      # and each of the five firmware apps, which must be entered at 0x8200 and do what
+      # they say. It found the FPGA ClkBufEn sampling its enable on the wrong edge and
+      # the apps linked off the ROM's entry point. Six benches, about 1-2 min each.
       - name: Run ISA regression + GHDL unit benches
         run: |
           set -o pipefail
@@ -138,6 +144,7 @@ jobs:
             //opensource_sim/mcu:mcu_elaborate \
             //opensource_sim/castalia_b:castalia_b_elaborate \
             //opensource_sim/fpga_default:fpga_default_elaborate \
+            //implementations/fpga/bringup:all \
             //opensource_sim/tile_isa:tile_rv32ui \
             //opensource_sim/rv4th:rv4th_forth \
             --repository_cache=~/.cache/bazel-repo-cache \

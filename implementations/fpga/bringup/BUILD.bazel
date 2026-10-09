@@ -15,6 +15,7 @@
 load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 load("//toolchains/ghdl:defs.bzl", "ghdl_test", "vhdl_source_set")
 load("//opensource_sim/fpga_default:defs.bzl", "FPGA_DEFAULT_HEAD", "FPGA_DEFAULT_MACROS", "FPGA_DEFAULT_MID")
+load("//toolchains/riscv:defs.bzl", "flash_padded_name")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -28,6 +29,15 @@ genrule(
     name = "flash_payload_bin",
     srcs = ["//verification/isa:rv32ui-p-simple_flashed"],
     outs = ["flash_payload.bin"],
+    cmd = "$(location :rcf_to_flash_bin) $< $@",
+    tools = [":rcf_to_flash_bin"],
+)
+
+# The LED payload: slowblink toggles P3.0 at a few hertz from a CPU loop on MCLK.
+genrule(
+    name = "slowblink_flash_bin",
+    srcs = ["//software/slowblink:slowblink_flashed_rcf"],
+    outs = ["slowblink_flash.bin"],
     cmd = "$(location :rcf_to_flash_bin) $< $@",
     tools = [":rcf_to_flash_bin"],
 )
@@ -72,19 +82,21 @@ vhdl_source_set(
     pool = ["//hdl:vhdl_sources"],
 )
 
+_BENCH_SRCS = [
+    ":macro_srcs",
+    ":head_srcs",
+    "//opensource_sim/fpga_default:fpga_default_memorymap_vhd",
+    ":mid_srcs",
+    "//opensource_sim/fpga_default:fpga_default_mcu_vhd",
+    ":tb_srcs",
+    "//opensource_sim/rv4th:pads_sim.vhd",
+    "fpga_flash_boot_tb.vhd",
+]
+
 ghdl_test(
     name = "fpga_flash_boot",
     size = "medium",
-    srcs = [
-        ":macro_srcs",
-        ":head_srcs",
-        "//opensource_sim/fpga_default:fpga_default_memorymap_vhd",
-        ":mid_srcs",
-        "//opensource_sim/fpga_default:fpga_default_mcu_vhd",
-        ":tb_srcs",
-        "//opensource_sim/rv4th:pads_sim.vhd",
-        "fpga_flash_boot_tb.vhd",
-    ],
+    srcs = _BENCH_SRCS,
     data = [
         "//:fpga_bringup_flash_rcf",
         "//:fpga_bringup_rom_rcf",
@@ -100,3 +112,35 @@ ghdl_test(
     stop_time = "20ms",
     tags = ["ghdl"],
 )
+
+# Every firmware app boots from flash through the real ROM: <app>_flash_boot. The image goldens
+# only prove the bytes are unchanged; these prove the image is entered and does what it says.
+[ghdl_test(
+    name = app + "_flash_boot",
+    size = "medium",
+    srcs = _BENCH_SRCS,
+    data = [
+        "//:fpga_bringup_app_" + app,
+        "//:fpga_bringup_rom_rcf",
+    ],
+    entity = "fpga_flash_boot_tb",
+    flags = [
+        "-fsynopsys",
+        "-frelaxed",
+    ],
+    generics = {
+        "EXPECT": expect,
+        "FLASH_IMAGE": flash_padded_name(app, 29),
+    },
+    pass_pattern = "FPGA FLASH BOOT PASSED",
+    run_options = ["--assert-level=failure"],
+    sim_timeout_s = 280,
+    stop_time = "12ms",
+    tags = ["ghdl"],
+) for app, expect in [
+    ("blinky", "gpio"),
+    ("gpiotoggle", "toggle"),
+    ("looptest", "loop"),
+    ("slowblink", "gpio"),
+    ("traptest", "trap"),
+]]

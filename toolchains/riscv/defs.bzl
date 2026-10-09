@@ -165,7 +165,9 @@ rm -rf "$$OBJ_DIR"
             name = name + "_hex",
             srcs = [elf],
             outs = [name + ".hex"],
-            cmd = PRELUDE + '"$$OBJCOPY" -O ihex "$<" "$@"\n',
+            # .app_base (myshkin_app's 0x8000 anchor word) exists only to align the raw binary;
+            # the hex feeds the Forth upload tools, which must not write over the IVT.
+            cmd = PRELUDE + '"$$OBJCOPY" -O ihex -R .app_base "$<" "$@"\n',
             tools = FIRMWARE_TOOLS,
             visibility = visibility,
             tags = tags,
@@ -220,9 +222,13 @@ def myshkin_app(name, srcs = None, hdrs = [], copts = [], visibility = None):
     with a different TARGET. Their wildcard fallback is hard coded to the platform branch here,
     because a build graph must not depend on whether a directory happens to be present.
     """
+    # The boot ROM enters an image at PROG_BASE_ADDR 0x8200 (software/bootrom_mp/src/start.S),
+    # and the flash pipeline loads the binary at 0x8000. .text therefore starts at 0x8200, which
+    # puts __start_RAM_program__ (.program_start, first in .text) exactly on the entry, and
+    # app_base.S anchors the binary at 0x8000.
     rv32_firmware(
         name = name,
-        srcs = srcs if srcs else ["src/start.S", "src/main.c"],
+        srcs = (srcs if srcs else ["src/start.S", "src/main.c"]) + ["//toolchains/riscv:app_base.S"],
         march = "rv32ima",
         mabi = "ilp32",
         copts = ["-Wall", "-O2", "-g", "-ffreestanding", "-nostdlib"] + copts,
@@ -237,6 +243,8 @@ def myshkin_app(name, srcs = None, hdrs = [], copts = [], visibility = None):
             "-nostartfiles",
             "-nostdlib",
             "-Wl,-Map={map}",
+            "-Wl,--section-start=.app_base=0x8000",
+            "-Wl,--section-start=.text=0x8200",
             "-L" + PLATFORM_LINKER_DIR,
             "-L" + TOOLS_LINKER_DIR,
         ],
