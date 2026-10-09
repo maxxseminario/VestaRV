@@ -129,10 +129,34 @@ class PackageData():
 
 		return pd
 
-	def AddPin(self, packagePinNumber:int, name:str, ioType:str, powerDomain=None, noConnect:bool=False):
+	def AddPin(self, packagePinNumber:int, name:str, ioType:str, powerDomain=None, noConnect:bool=False, padClass=None):
+		'''padClass is an OPTIONAL label for a family of pads a downstream consumer binds to
+		as a group rather than one pin at a time -- a bank of register-muxed pads, say, whose
+		RTL ports are generated from the count and the sides rather than named individually.
+		It is descriptive: nothing in this file behaves differently for a classed pin, and a
+		model that sets none emits byte-identical output. PadClasses() below is the summary a
+		generator reads.'''
 		p = PackagePin(packagePinNumber=packagePinNumber, name=name, ioType=ioType, powerDomain=powerDomain, noConnect=noConnect)
+		p.PadClass = padClass
 		self.Pins.append(p)
 		return p
+
+	def PadClasses(self):
+		'''{class: {'count': n, 'perSide': {'W': .., 'S': .., 'E': .., 'N': ..}, 'pins': [..]}}
+		over every pin that declares a padClass, pins in ascending ball order. Empty for a
+		model that classes nothing, which is every model but the 2 mm topology-B ring. Sides
+		come from SideOfPin, so the answer holds before CheckPackagePins has run.'''
+		out = {}
+		for pin in sorted((q for q in self.Pins if q.PadClass is not None),
+				key=lambda q: q.PackagePinNumber):
+			e = out.setdefault(pin.PadClass,
+				{'count': 0, 'perSide': {'W': 0, 'S': 0, 'E': 0, 'N': 0}, 'pins': []})
+			e['count'] += 1
+			side = self.SideOfPin(pin.PackagePinNumber)
+			if side is not None:
+				e['perSide'][side] += 1
+			e['pins'].append({'pin': pin.PackagePinNumber, 'name': pin.Name, 'side': side})
+		return out
 	
 	def AddGpioPin(self, packagePinNumber:int, gpio):
 		p = self.AddPin(packagePinNumber, gpio.GpioName, 'io')
@@ -303,6 +327,8 @@ class PackagePin():
 	Name = None
 	IOType = None
 	NoConnect = False
+
+	PadClass = None	# optional pad-family label; see PackageData.AddPin/PadClasses
 
 	IsPowerDomainPin = False
 	PowerDomain = None

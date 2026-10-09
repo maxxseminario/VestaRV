@@ -3296,6 +3296,11 @@ def _padRingDict(pkg):
 			_e['noConnect'] = True
 		else:
 			_e['powerDomain'] = _pp.PowerDomain.Name
+			# A pad FAMILY a downstream generator binds to as a group (Package.AddPin's
+			# padClass). Emitted only when a model sets one, so every model that classes
+			# nothing keeps its PadRing.json byte-identical.
+			if _pp.PadClass is not None:
+				_e['padClass'] = _pp.PadClass
 			if _pp.Gpio is not None:
 				_e['gpio'] = _pp.Gpio.GpioName
 				if len(_pp.Gpio.FuncName) > 0:
@@ -3304,7 +3309,7 @@ def _padRingDict(pkg):
 				if _af:
 					_e['altFuncs'] = dict(('AF' + str(a.Index), a.Name) for a in sorted(_af, key=lambda a: a.Index))
 		_pins.append(_e)
-	return {
+	_ring = {
 		'_comment': 'Derived pad ring — computed by make chip from the package model in generate.py '
 			+ '(pin numbers, sides, power domains are single-sourced there; edit generate.py, not this file).',
 		'package': {
@@ -3318,6 +3323,13 @@ def _padRingDict(pkg):
 		'powerDomains': [_padRingDomainEntry(_pd) for _pd in pkg.PowerDomains],
 		'pins': _pins,
 	}
+	_classes = pkg.PadClasses()
+	if _classes:
+		# The count-and-side summary a pad-class consumer reads instead of filtering the pin
+		# list itself: one derivation (Package.PadClasses), so the ring, the pad list and the
+		# RTL generator cannot disagree about how many pads a class has or where they are.
+		_ring['padClasses'] = _classes
+	return _ring
 
 # The same ball-number gate again, now that the GPIO pads have joined the ring. The call in
 # _buildPackageData runs before AddGpioPin, so a die-row row for a GPIO pad is deferred there;
