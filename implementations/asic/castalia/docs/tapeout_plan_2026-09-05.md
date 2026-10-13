@@ -3443,3 +3443,63 @@ disagree about how many pads a class has or where they are. The pads themselves 
 PARKED as inputs in the chip wrapper until the pin-mux RTL exposes its bus, on the same
 contract as the reserved analog debug pads: the pad, the ball and the bond are real now
 and the function arrives without the ring moving.
+
+## Y28 -- PINMUX into the netlist of record, and the two defects generating the real chip found (2026-10-13)
+
+The pin multiplexer existed as a verified block and a bonded pad ring, and had never been
+generated for the chip it is for. Doing that first is what this wave is about, and it
+refused in one line:
+
+    Exception: The registers "PMXCAP", "AFE0CR" all share the same address of 0x6c00
+
+**PINMUX had no address.** Page-2 sub-slot 12, chosen as "the first slot the peripheral
+library had left", is the first AFE2 site in every overlay configuration -- the analog
+overlay takes sub-slots 12-15 at 0x6C00 + 0x100 per site, and those addresses are named by
+the verification environment and by the ISA test that covers them, so AFE2 cannot move.
+Page 0 is sixteen slots of sixteen used and page 1 is aliased end to end by the CLINT, so
+there was exactly one candidate: the top quarter of the interrupt-router page,
+0x7C00-0x7FFF, which is aliased space (the router implements words 0-523 of a 1024-word
+decode) and already carries a carve for the legacy AFE-stub bank. PINMUX becomes the second
+tenant of that window and the two are now refused together by a configuration guard, in the
+shape of the guard that already keeps the stub bank and the QSPI controller apart. The
+address stays single-valued: a block whose base address depends on which peripherals are
+present cannot be documented, linked against or tested.
+
+The defect class is worth more than the fix. The public generator and the private analog
+overlay were each correct about themselves and contradicted each other in their own
+comments, and nothing gated the pair, because no public test generates an overlay
+configuration. The standing instrument is the first step of this wave: a change to the
+peripheral address map generates the analog chip configuration before anything else.
+
+**The second defect would have taped out.** Binding the nineteen pads showed the MCU
+instantiation passing positive-logic generics for the pad cell's output enable and pull
+enable, both of which are ACTIVE LOW on the purchased pad -- which is why every GPIO
+instance in the same emitter has always passed the opposite. Every select nibble resets to
+DISABLED, so the block asks for its driver off, and with the generic inverted that reaches
+the pad as DRIVE: all nineteen pads would have driven zero out of reset, with the pull
+enabled on every pad a function releases, into whatever a board has wired to those nineteen
+balls. The block's own bench could not see it, because it instantiates the block with its
+own generics and is self-consistent; and the chip wrapper's pads were parked until this
+wave, so nothing had ever driven the group through a pad model. The fix is one definition
+rather than two corrected literals: both pad-group emitters now read the memory map's pad
+polarity constants, so a third pad group cannot disagree with the first two. The gate is in
+the bench, at the pad: all nineteen pads now run through the same pad model as every GPIO
+pad and an assertion fails the run if any of them drives while reset is asserted.
+
+With both fixed the chip assembly re-cut cleanly with every synthesis gate strict and the
+clock-domain-crossing census armed: **zero unwaived crossings, zero dead clocks, zero data
+signals on a flop clock pin, zero latches, zero source drift**, and the crossing census is
+identical to its predecessor's to the endpoint -- the pad-readback synchroniser adds a
+chain and no crossing, because a pad input has no launch clock. The assembly gained **177
+flops, which is the block to the flop**, and the critical path moved into the pin mux's own
+pad output, where a pad-to-pad combinational path with fifteen nanoseconds budgeted each
+side of a forty nanosecond period belongs. It still closes with 3.26 ns of slack.
+
+Binding the pads also opened a hole on the way out, and it is the same hole the chip I/O
+timing block was written to close for the GPIO pads: the nineteen new chip ports reached
+the constraint set with no arrival or required time at all, because the assembly's
+port constraints are dropped by design at chip level and the chip's own ports are
+constrained by a hand-written list that did not know about them. An empty port collection
+is legal, so the pads would have gone into a cut untimed without a line in any log. They
+now carry the GPIO budget and the pad's characterisation load, and a new gate fails the
+generator if the wrapper places pin-mux pads that the constraint set does not constrain.
