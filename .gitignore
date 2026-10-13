@@ -358,3 +358,4 @@ sky130/sim/*.vcd
 # configurations, benches and tools; the local Genus and Xcelium flows read it
 # from there. See private/analog/README.md.
 private/
+/private
