@@ -100,6 +100,6 @@ Two configuration errors the hardware cannot refuse are worth stating. Selecting
 
 \section{Usage notes}
 
-In configurations that include it, \peripheral{PINMUX} lives in the shared peripheral window behind the multi-core arbiter (see Section \ref{s:multicore}) in the mutex-bank page, sub-slot 12 at \texttt{0x6C00}, so any hart can use it. Nothing arbitrates between harts for a pad: two harts writing the same \register{PMXCFGn} word race as they would on any other register, and the per-pad nibble packing is what lets them own separate pads without a lock.
+In configurations that include it, \peripheral{PINMUX} lives in the shared peripheral window behind the multi-core arbiter (see Section \ref{s:multicore}) in the top quarter of the interrupt-router page at \texttt{0x7C00}, so any hart can use it. Nothing arbitrates between harts for a pad: two harts writing the same \register{PMXCFGn} word race as they would on any other register, and the per-pad nibble packing is what lets them own separate pads without a lock.
 
 The pads are 1.0\,V bidirectional pads on the digital I/O rail, the same cell the \peripheral{GPIOx} ports use. Their positions in the pad ring are a property of the ring and not of this block; the block's own view is the pad index alone.

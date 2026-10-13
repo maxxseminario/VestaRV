@@ -62,7 +62,7 @@
         "macro_blackbox.vhd",
         "system_blackbox.vhd"
       ],
-      "cells": 139061,
+      "cells": 139101,
       "flop_bits": 30895,
       "latch_bits": 144,
       "latch_modules": [

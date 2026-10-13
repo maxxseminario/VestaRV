@@ -63,8 +63,8 @@
 #define TRNG0_BASE_ADDR        0x6900u
 #define I2CT0_BASE_ADDR        0x6A00u
 #define EVFAB_BASE_ADDR        0x6B00u
-#define PINMUX_BASE_ADDR       0x6C00u
 #define IRQROUTER_BASE_ADDR    0x7000u
+#define PINMUX_BASE_ADDR       0x7C00u
 
 /* One typed pointer per instance. `UART0_REGS->UARTxCR = v;` writes UART0's
    control register; the struct is the block's, so the member names carry the
@@ -98,8 +98,8 @@
 #define TRNG0_REGS             ((volatile trng_t *) TRNG0_BASE_ADDR)
 #define I2CT0_REGS             ((volatile i2ctarget_t *) I2CT0_BASE_ADDR)
 #define EVFAB_REGS             ((volatile evfab_t *) EVFAB_BASE_ADDR)
-#define PINMUX_REGS            ((volatile pinmux_t *) PINMUX_BASE_ADDR)
 #define IRQROUTER_REGS         ((volatile irq_router_t *) IRQROUTER_BASE_ADDR)
+#define PINMUX_REGS            ((volatile pinmux_t *) PINMUX_BASE_ADDR)
 
 /* The interrupt vector each instance owns, from the top addrmap. A block with
    no vector (PWRCTRL, MUTEX, EVFAB, IRQROUTER) has no define here. Instances

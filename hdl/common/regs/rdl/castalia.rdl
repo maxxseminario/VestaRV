@@ -61,8 +61,16 @@ addrmap castalia {
     trng       TRNG0      @0x6900;
     i2ctarget  I2CT0      @0x6A00;
     evfab      EVFAB      @0x6B00;
-    pinmux     PINMUX     @0x6C00;
     irq_router IRQROUTER  @0x7000;
+    // PINMUX is the IRQ-router page TOP QUARTER (0x7C00-0x7FFF), not a page-2 sub-slot.
+    // Y28 (2026-10-09): page-2 sub-slot 12 at 0x6C00 is the FIRST AFE2 SITE in every
+    // overlay configuration (AFE2 takes sub-slots 12-15, 0x6C00-0x6F00, and the ISA test
+    // rv32ui-p-shafe2 and verification/env name those addresses), so a PINMUX at 0x6C00
+    // cannot be generated at all for the chip that bonds the pmx pads. The router decodes
+    // ADDR_W=10 and implements words 0-523, so its top quarter is aliased space; the only
+    // other tenant of that window is the cqAfeStubs EIS stub, and generate.py refuses the
+    // two together.
+    pinmux     PINMUX     @0x7C00;
 
     // Interrupt vectors.
     // The vector each instance owns, from the resolved configuration. A block
