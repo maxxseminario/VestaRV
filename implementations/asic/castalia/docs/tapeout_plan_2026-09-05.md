@@ -3503,3 +3503,109 @@ constrained by a hand-written list that did not know about them. An empty port c
 is legal, so the pads would have gone into a cut untimed without a line in any log. They
 now carry the GPIO budget and the pad's characterisation load, and a new gate fails the
 generator if the wrapper places pin-mux pads that the constraint set does not constrain.
+### Y29, 2026-10-13: the two-axis-symmetric die -- mirroring two tiles closes the mesh-phase item it was expected to open
+
+Owner decision O13 reflects two of the four hart tiles so the analog cutouts sit in the
+four die corners, symmetric about both axes, and asks that every ring section be its own
+supply arc. Both land, and the wave's finding is that the mirror **closes** an open item
+rather than costing one.
+
+**The orientations are R180 / MX / MY / R0 -- bottom-left, bottom-right, top-left,
+top-right.** The v2g tile's analog cutout is flush with its EAST edge, so mirroring the
+west column is exactly what puts the four cutouts in the four corners, and the floorplan
+proves it as geometry rather than as orientation names: the four keep-out windows land at
+x[100,547] and x[1623,2070], y[1449,1690] and y[0,241], symmetric about the core centre in
+both axes. The orientation policy the predecessor carried -- "never MY or R180" -- was a
+property of the ring's alignment GATE, not of the ring: that gate re-derived each analog
+pad section by translating tile-local x, which is correct for R0 and MX only. It now reads
+the placed orientation, derives a mirrored section as the same fourteen cells in reversed
+position order from an origin that is the reflection about the tile centre, and measures
+all six electrode pads on all four sites: **24 of 24 alignments at 0.000 um**, with the
+port order reversed (ATP RE WE CE AVSS AVDD) on the two mirrored sites.
+
+**Three statements of one predicate became one.** Whether an orientation reverses
+tile-local x was written out separately in the tile-placement status line and in the
+analog-window derivation, and the two disagreed for a whole wave on an earlier cut. There
+is now one predicate and two helpers built on it -- the cutout's chip-x span and the riser
+lattice's chip-x phase -- and the ring plan, the windows and the status line all take
+them. The second helper is where the arithmetic bites: a mirrored 5 um riser pad's low
+corner is `tile_x + tile_w - (local_x + pad_width)`, not `tile_x + tile_w - local_x`, so
+the measured mirrored phases are 29.0 and 20.0 um and the naive form gives 34 and 25 --
+one pad width out, which on a 1.5 um metal spacing rule is the whole margin. Both numbers
+are negative controls in the unit test, which went from 46 to 91 checks.
+
+**The mesh phase: one global phase served one tile column, now two passes serve both.**
+The vertical top-metal mesh phase is pinned to a tile's riser lattice because a 5 um stripe
+landing ON a 5 um riser pad is legal and welds, while one landing 0.8 um beside it shipped
+twelve spacing violations and zero welds on an earlier core cut. The east column was always
+35 um out of phase and was never served -- an open item carried since that cut. Mirroring
+the west column moves ITS lattice too, so one phase would now serve NEITHER, which forces
+the fix that serves BOTH: one `addStripe` pass per tile column, west at phase 20.0 with the
+net order reversed and east at phase 36.0. The reversal is not cosmetic: the tool lays a
+stripe set in ascending coordinate, so a west pass laid in the old order would put the
+wrong net on every riser column and connectivity checking would see one net. The cost is
+one missing stripe set -- 102 um of the 2170 um row, over the tile seam, which the
+horizontal mesh crosses unbroken; the gain is a welded riser lattice on four tiles instead
+of two. **No tile was re-hardened and the solve needed none.**
+
+The phase move did fire the boot-ROM comb gate, which is the gate working: the ROM's
+hazard count is a function of (comb position minus mesh phase), so a 19 um phase move took
+it from 2 hazards to 7 against a budget of 2, and the gate printed the ROM offsets that
+return it to the floor. The offset moved to the middle of the first legal window and the
+score is back to **2 against a budget of 2**, which is the class floor at every phase --
+the comb is 67 um wide against a 36 um mesh-free run, so no phase closes it and nothing was
+traded.
+
+**The eight arcs are ten, of which eight carry a pad.** The ten rail-cut brackets already
+divide the closed perimeter into ten arcs, and the per-arc supply audit now walks the
+island interiors as well as the digital runs. The four analog sections and the bias island
+each carry their own analog supply pair and their own bonded latch-up anchor; the three
+digital arcs each carry their own core supply pair, power-on-control source and 2.5 V pair
+count. The two that carry no pad are the north and south middle runs, and they cannot be
+given one: they lie wholly over the hart tiles, where a signal pad has no path into the
+core and a core supply pad has no standard-cell row behind its contacts. Supplying them
+would be supplying nothing. The audit also refuses an arc that mixes analog and digital
+pads, which is what the rail cut exists for, and it was changed to walk pad CENTRES rather
+than low row coordinates -- on two of the four edges the walk runs the other way, so a
+pad's low-coordinate position is its far face and equals the bracket it abuts, which put
+such a pad in two arcs at once.
+
+**What O13 costs is one pad, and the pin-mux fill gives back nothing.** The mirrored
+sections move 480 um west, which shortens the north and south rows' west span from
+twenty-six slots to seven, and the west arc -- 44 I/O pads, the largest on the ring --
+then needs six 2.5 V pairs in 58 slots holding 58 pads. It closes exactly, for two
+reasons. The analog section table was permuted (one reserved debug pad moved from the east
+end to the west end of the section) which bought the seventh slot on each row and
+incidentally improved the worst latch-up run inside a section from five cells to four. And
+a power-on-control pad **is** a 2.5 V supply pad: the vendor abstract gives it one pin and
+that pin is the 2.5 V I/O supply, exactly as the plain supply pad's is. Three of the four
+implementations of the pair count had said so since an earlier wave and the fourth counted
+the plain pad alone; no cut could tell the difference until this one, because every
+previous arc had the two sides equal. The ring is 162 pads on 176 fingers, 19 pin-mux pads
+unchanged, and the bond-wire fan-out angle moved 0.03 degrees on two sides and not at all
+on the other two.
+
+The chip cut `chip_sym_a` took two attempts and both bought something. The first reached
+the last gate of the power stage and FATALed there on the island-chain check, with the two
+MIRRORED sites' second AVDD pad declared strapped and measured off the conductor. The
+cause was one line of this wave's own: each analog section's rows were sorted by POSITION,
+and every table emitted from those rows is consumed in list order by the flow's analog
+strap loop, where the geometry depends on the order because the second pad of a pair is
+drawn into a window the first has already occupied. A position sort reverses that order on
+a mirrored site, so the four identical sections were being built two different ways. Rows
+stay in slot order -- the role order, the same on all four sites -- and anything that wants
+geometric order sorts on the position each row already carries. The second attempt is past
+every floorplan and power gate, with the island check reading ten nets, zero bad, sixteen
+of twenty pads measured strapped and every claimed strap on its block pin's conductor:
+exactly the chip of record's numbers, which is the point.
+
+The diagnosis also gave a year-old open item its first mechanism. "One supply leg per
+channel is unstrappable" has stood since October with no reason; measured here as a
+union-find walk over the cut's own layout database, the failing conductor is eight shapes
+and every one of them is on the same layer -- the pad's port fingers, the strap's leg and
+its neck stub, with nothing underneath. The strap needs a via down from that neck, the via
+needs a landing on the layer between, and that landing exists at the OTHER supply's strap
+only because that supply's jogged pad happens to run its lateral on that layer and pass
+over it. The repair is one added rectangle, and it was deliberately NOT attempted on the
+last of two chip attempts: changing two things at once on a final attempt is how a wave
+loses both.
