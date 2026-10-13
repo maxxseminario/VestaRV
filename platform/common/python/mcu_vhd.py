@@ -348,6 +348,26 @@ SPREAD_SIG = {
 #
 # A function name in the menu file with no row here is an error, which is the check that the
 # config and the RTL spellings cannot drift apart.
+# The I/O PAD TERMINAL POLARITIES. They are properties of the tphn PDUW16SDGZ_G cell, not of
+# any register: the signoff model (tsmc/pads/tphn65gpgv2od3_sl/verilog/tphn65gpgv2od3_sl.v,
+# transcribed in opensource_sim/rv4th/pads_sim.vhd) drives the pad with `PAD <= I when
+# OEN = '0'` and pulls the receiver with `C <= '1' when (REN = '0' and PAD = 'Z')` -- so I is
+# positive logic and OEN and REN are ACTIVE LOW.
+#
+# These are the MemoryMap.vhd CONSTANTS, not literals, and MCU.vhd already `use`s that
+# package for every RstValP*. Y28 (2026-10-13) made every pad-group emitter read them,
+# because PINMUX landed with its own literals at true/true while every GPIO instance had
+# always passed false/false: that inverts OEN and REN, and with every select nibble 0 =
+# DISABLED at reset PINMUX asks for oe = '0', which with the generic true reaches the pad as
+# OEN = '0' = DRIVE. All NPADS pads would drive pmx_out = 0 out of reset, the exact opposite
+# of the high-Z-at-reset contract, with the pull enabled on every pad a function releases.
+# PINMUX_tb did not see it: the bench instantiates PINMUX with its own generics and is
+# self-consistent at true. Passing the constants means a second pad group cannot disagree
+# with the first, and a chip whose pad cell differs moves both at once.
+PAD_POL_OUT = 'PadOUTLogicLevel'
+PAD_POL_OEN = 'PadDIRLogicLevel'
+PAD_POL_REN = 'PadRENLogicLevel'
+
 PINMUX_FN = {
 	'UART0_TX': {'out': 'tx0_out', 'oen': 'tx0_dir', 'ren': 'tx0_ren', 'pol': 'pp', 'idle': '0'},
 	'UART0_RX': {'ren': 'rx0_ren', 'in': 'rx0_in', 'pol': 'in', 'idle': '1'},
@@ -895,7 +915,7 @@ class McuVhdEmitter():
 		# The config file's chipName, never the CHIP_NAME environment override, which is
 		# documentation-only. One half of the IDCODE chip-identity discriminator in jtagIdcode().
 		self.chipNameConfigured = geo.get('chipNameConfigured', '')
-		# PINMUX, page-2 sub-slot 12 at 0x6C00. pinmuxMenu is already compacted by
+		# PINMUX, IRQ-router page top quarter at 0x7C00. pinmuxMenu is already compacted by
 		# configuration in generate.py, so len(menu[p]) IS pad p's MENU_LEN nibble.
 		self.pinmux = geo.get('pinmux', False)
 		self.pinmuxPads = geo.get('pinmuxPads', 0)
@@ -1082,12 +1102,12 @@ class McuVhdEmitter():
 		if self.eventFabric:
 			self.shslv = dict(self.shslv)
 			self.shslv['EVFAB'] = {'sel': 'evfab0', 'shim': None, 'rdata': 'evfab0_sh_rdata'}
-		# PINMUX joins the same native-slave fabric at mutex-page sub-slot 12, exactly as
+		# PINMUX joins the same native-slave fabric in the IRQ-router page top quarter, exactly as
 		# EVFAB does: hand-decoded SEL, shim=None so the standard enable, registered rd-sel
 		# and rdata-mux loops cover it, and its active-low raw-strobe en shim inside
 		# emitPinmuxInstance. The description peripheral is PINMUX, a single instance with
 		# unindexed registers like EVFAB, MUTEX and PWRCTRL, while the RTL nets and the
-		# instance carry the 0 (pinmux0_*) like every other page-2 block.
+		# instance carry the 0 (pinmux0_*) like every other native page block.
 		if self.pinmux:
 			self.shslv = dict(self.shslv)
 			self.shslv['PINMUX'] = {'sel': 'pinmux0', 'shim': None, 'rdata': 'pinmux0_sh_rdata'}
@@ -1386,18 +1406,23 @@ class McuVhdEmitter():
 		if self.eventFabric:
 			# EVFAB0 is page-2 sub-slot 11 (0x6B00).
 			lines.append(ind + 'shslv_evfab0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "1011" else \'0\';')
-		if self.pinmux:
-			# PINMUX is page-2 sub-slot 12 (0x6C00).
-			lines.append(ind + 'shslv_pinmux0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + mtxBits + '" and sh_addr(9 downto 6) = "1100" else \'0\';')
 		# An overlay's page-2 sub-slot decodes. It is handed the indent and the page's own address
 		# bits so its lines match the shape of the tree's.
 		lines.extend(self.overlay.lines('mcuSubdecode', emitter=self, indent=ind, pageBits=mtxBits))
+		# Page-3 sub-decode. The router implements words 0-523 of its ADDR_W=10 window, so the
+		# top quarter 0x7C00-0x7FFF is aliased space and either tenant takes it for free. The
+		# two tenants are the cqAfeStubs EIS stub and PINMUX (Y28), and generate.py refuses a
+		# configuration that asks for both, so this is an if/elif and never a priority.
 		if self.afeStubs:
 			lines.append(ind + '-- Page-3 sub-decode: irq_router keeps 0x7000-0x7BFF and the shared EIS engine stub owns the top quarter 0x7C00-0x7FFF (the router ADDR_W=10 decode is inert above word 522, so only aliased space is taken).')
 			lines.append(ind + 'shslv_irtr_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" and sh_addr(9 downto 8) /= "11" else \'0\';')
 			lines.append(ind + 'shslv_eis_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" and sh_addr(9 downto 8) = "11" else \'0\';')
+		elif self.pinmux:
+			lines.append(ind + '-- Page-3 sub-decode: irq_router keeps 0x7000-0x7BFF and PINMUX owns the top quarter 0x7C00-0x7FFF (the router ADDR_W=10 decode is inert above word 523, so only aliased space is taken). Page-2 sub-slot 12 is NOT where PINMUX lives: an overlay configuration puts AFE2 site 0 there.')
+			lines.append(ind + 'shslv_irtr_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" and sh_addr(9 downto 8) /= "11" else \'0\';')
+			lines.append(ind + 'shslv_pinmux0_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" and sh_addr(9 downto 8) = "11" else \'0\';')
 		else:
-			# No EIS stub: irq_router owns the whole page 3.
+			# Neither page-3 tenant: irq_router owns the whole page 3.
 			lines.append(ind + 'shslv_irtr_sel'.ljust(16) + ' <= shslv_perwin_sel when sh_addr(11 downto 10) = "' + irtrBits + '" else \'0\';')
 		lines.append(ind + '-- page-0 slots (slot = sh_addr(9:6)) at the LEGACY 0x4000 numbering: every peripheral at its original Myshkin address, shared by ' + self.allHartsPhrase(spelled=False))
 		for name in self.pg0SelOrder:
@@ -2000,7 +2025,7 @@ class McuVhdEmitter():
 		# EV14 producer tap
 		return self.evfabInsertTaps(lines, '            irq_data    => irq_i2ct0_data,', 'i2ct0')
 
-	# PINMUX, the spare-pad pin multiplexer at page-2 sub-slot 12 (0x6C00). Three regions and
+	# PINMUX, the spare-pad pin multiplexer at the IRQ-router page top quarter (0x7C00). Three regions and
 	# one text rewrite: the pad port group, the declarations, the instance with its slot
 	# aggregates, and the rename that lets the block's input reductions merge onto the
 	# peripherals' existing pad-input relocation muxes. Every one of them emits NOTHING when
@@ -2094,7 +2119,7 @@ class McuVhdEmitter():
 				idle.add(self.pinmuxSlotBit(slot, pad))
 		lenBits = ''.join(format(menuLen[p], '04b') for p in range(n - 1, -1, -1))
 		lines = [
-			'        /* PINMUX (spare-pad pin multiplexer: one 4-bit select nibble per pad picks one entry of THAT PAD\'S function menu, 0 = disabled), page-2 (MUTEX page) sub-slot 12 @0x6C00, a registered-read native slave with a PLAIN active-low one-cycle en shim (no falling_edge(EnMemPeriph) pre-latch, no capture-clock en_q).',
+			'        /* PINMUX (spare-pad pin multiplexer: one 4-bit select nibble per pad picks one entry of THAT PAD\'S function menu, 0 = disabled), IRQ-router page (page 3) top quarter @0x7C00-0x7FFF, a registered-read native slave with a PLAIN active-low one-cycle en shim (no falling_edge(EnMemPeriph) pre-latch, no capture-clock en_q).',
 			'           The pad mux is COMBINATIONAL: a select write reaches the pads on the cycle that lands it. The only clocked logic in the block is the two-flop synchroniser behind the PMXIN pad readback, on the free-running mclk.',
 			'           VECTORLESS: a pmx pad raises no pin interrupt. The GPIO menu entries mirror a port bit\'s OUTPUT, direction and resistor enable onto the pad while the port keeps reading its own DEDICATED pad, so no GPIO input is contended and PMXIN is how a pmx pad is observed.',
 			'           The four slot vectors are flattened SLOT-MAJOR, slot j of pad i at bit j*' + str(n) + '+i, the packing GPIO uses for its alternate-function planes. */',
@@ -2137,7 +2162,7 @@ class McuVhdEmitter():
 		mm = self.pinmuxMaxMenu
 		lines = [
 			'',
-			'    -- PINMUX: spare-pad pin multiplexer, MUTEX-page sub-slot 12 @0x6C00, ' + str(n) + ' pads with a menu of at most ' + str(mm) + ' functions each (platform/common/config/pinmux.json). Every pad is high-Z with its pull off until software writes a PMXCFG nibble, and a code past a pad\'s own menu length is refused, so a pad can never be pointed at a function it does not carry.',
+			'    -- PINMUX: spare-pad pin multiplexer, IRQ-router page top quarter @0x7C00, ' + str(n) + ' pads with a menu of at most ' + str(mm) + ' functions each (platform/common/config/pinmux.json). Every pad is high-Z with its pull off until software writes a PMXCFG nibble, and a code past a pad\'s own menu length is refused, so a pad can never be pointed at a function it does not carry.',
 			'    -- PLAIN raw active-low en strobe (the GPIO4/5 native-slave idiom), so NO falling_edge(EnMemPeriph) pre-latch and NO capture-clock en_q here.',
 			'    pinmux0_sh_en_n <= not shslv_pinmux0_en;',
 		]
@@ -2166,9 +2191,12 @@ class McuVhdEmitter():
 			'            POL_OD         => PMX_POL_OD,',
 			'            POL_REN        => PMX_POL_REN,',
 			'            SLOT_IDLE      => PMX_SLOT_IDLE,',
-			'            PadOUTPosLogic => true,',
-			'            PadOENPosLogic => true,',
-			'            PadRENPosLogic => true)',
+			# The pad terminal polarities, from the MemoryMap constants rather than literals:
+			# OEN and REN on the tphn pad are ACTIVE LOW. See PAD_POL_* at the top of this file
+			# for what passing true here did.
+			'            PadOUTPosLogic => ' + PAD_POL_OUT + ',',
+			'            PadOENPosLogic => ' + PAD_POL_OEN + ',',
+			'            PadRENPosLogic => ' + PAD_POL_REN + ')',
 			'        port map (',
 			'            resetn      => resetn,',
 			'            clk_mem     => mclk,',
@@ -2626,9 +2654,9 @@ class McuVhdEmitter():
 		# entity can drop the memory-map clause. MCU.vhd `use`s the memory map anyway, so the
 		# constant is passed from here.
 		lines.append('            NUM_AFS         => GPIO_NUM_AFS,')
-		lines.append('            PadOUTPosLogic  => true,')
-		lines.append('            PadDIRPosLogic  => false,')
-		lines.append('            PadRENPosLogic  => false,')
+		lines.append('            PadOUTPosLogic  => ' + PAD_POL_OUT + ',   -- the pad I terminal, from MemoryMap')
+		lines.append('            PadDIRPosLogic  => ' + PAD_POL_OEN + ',  -- the pad OEN terminal (active low), from MemoryMap')
+		lines.append('            PadRENPosLogic  => ' + PAD_POL_REN + ',  -- the pad REN terminal (active low), from MemoryMap')
 		lines.append('            RstValPxOUT     => RstValP%dOUT,' % port)
 		lines.append('            RstValPxDIR     => RstValP%dDIR,' % port)
 		lines.append('            RstValPxSEL     => RstValP%dSEL,' % port)
@@ -4770,7 +4798,7 @@ def generateMcuVhd(gen, templatePath, outPath):
 		# side templates, so they are spliced by spliceSideBlock and never appear in the main
 		# template's seen set.
 		'evfab-decls', 'evfab-instance',
-		# PINMUX in mutex-page sub-slot 12 at 0x6C00, plus the pmx pad port group. All three
+		# PINMUX in the IRQ-router page top quarter at 0x7C00, plus the pmx pad port group. All three
 		# emit nothing when peripherals.pinmux is off, and the input-merge rename below is
 		# skipped with them, so a pin-mux-less configuration is byte-identical.
 		'pinmux-ports', 'pinmux-decls', 'pinmux-instance',

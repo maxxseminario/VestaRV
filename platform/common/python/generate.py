@@ -400,14 +400,14 @@ _CONFIG_SCHEMA = {
 	# architecture split (TrngRoEnsemble_sim.vhd behavioral, TrngRoEnsemble.vhd gate-only),
 	# and the two must never co-list. Entropy caveat: bring-up grade, not certified, no
 	# hardware conditioner. Firmware must DRBG the raw words and honor ALMF.
-	# true instantiates the PINMUX pin multiplexer at 0x6C00, page-2 sub-slot 12: one 4-bit
-	# select nibble per spare digital pad, eight pads per PMXCFG word, every pad high-Z at
-	# reset. Vectorless: a pmx pad raises no interrupt, because the GPIO menu entries mirror a
-	# port bit's OUTPUT and the port keeps reading its own dedicated pad.
+	# true instantiates the PINMUX pin multiplexer at 0x7C00, the IRQ-router page top quarter:
+	# one 4-bit select nibble per spare digital pad, eight pads per PMXCFG word, every pad
+	# high-Z at reset. Vectorless: a pmx pad raises no interrupt, because the GPIO menu entries
+	# mirror a port bit's OUTPUT and the port keeps reading its own dedicated pad.
 	# The per-pad menu is platform/common/config/pinmux.json, not a knob: it is a table per
 	# pad, generated from the pad census, and mcu_vhd.PINMUX_FN owns the RTL spelling and the
 	# output-enable policy of each function name in it.
-	'peripherals.pinmux':    ('bool: PINMUX spare-pad pin multiplexer at 0x6C00 (menu in config/pinmux.json)',
+	'peripherals.pinmux':    ('bool: PINMUX spare-pad pin multiplexer at 0x7C00 (menu in config/pinmux.json)',
 	                         _isBool),
 	# How many pmx pads the ring carries. The whole register layout is a function of it:
 	# 1 + ceil(N/32) input words + ceil(N/8) select words, so PMXCAP publishes it and firmware
@@ -844,14 +844,29 @@ i2ctargetPresent = _cfg('peripherals.i2ctarget', True)
 trngPresent = _cfg('peripherals.trng', True)
 trngRings = _cfg('peripherals.trngRings', 8)
 
-# PINMUX takes page-2 sub-slot 12 at 0x6C00, the first slot the peripheral library had left.
+# PINMUX takes the IRQ-ROUTER PAGE TOP QUARTER at 0x7C00 (page 3, 0x7C00-0x7FFF).
 # One 4-bit select nibble per spare digital pad picks one entry of THAT PAD'S menu, and 0,
 # the reset value, is DISABLED: the pad driver off and the pull resistor disabled, so an
 # unconfigured pad floats. Vectorless, mclk, zero new arbiter masters.
-# The pad count sizes the register set (1 + ceil(N/32) + ceil(N/8) words) and the pad ports
-# of the MCU entity; the per-pad menu is config/pinmux.json, read below.
+#
+# Y28 (2026-10-09) MOVED IT HERE FROM PAGE-2 SUB-SLOT 12 (0x6C00), and the reason is that
+# 0x6C00 is not free on the chip this block exists for. Page-2 sub-slots 12-15 are the four
+# AFE2 sites of every overlay configuration (0x6C00 + 0x100*h, named by the overlay's own
+# CreatePeripheral calls, by verification/isa rv32ui-p-shafe2 and by the analog firmware
+# headers), so `peripherals.pinmux` and `peripherals.afe2` together made CheckPeripherals
+# refuse the build outright -- "PMXCAP, AFE0CR all share the same address of 0x6c00" -- and
+# that is exactly the configuration (penta_wound_afe_pt_2mm) whose pad ring carries the
+# 19 pmx pads. Page 2 has no free sub-slot left in that configuration.
+# The router decodes ADDR_W=10 over 0x7000-0x7FFF but implements words 0-523 (through
+# 0x782C = INSVCX), so its top quarter is ALIASED space and taking it costs no register.
+# mcu_vhd.py already carves that quarter for the cqAfeStubs EIS stub, so the two tenants are
+# mutually exclusive and the guard below says so instead of letting one shadow the other.
 pinmuxPresent = _cfg('peripherals.pinmux', True)
 pinmuxPads = _cfg('peripherals.pinmuxPads', 19)
+if pinmuxPresent and cqAfeStubsPresent:
+	raise Exception('Chip-config conflict: peripherals.pinmux and peripherals.cqAfeStubs '
+		'both claim the IRQ-router page top quarter (0x7C00-0x7FFF) — the EIS engine stub '
+		'is the cqAfeStubs tenant and PINMUX is the native one; set one of them false.')
 
 # The pad menu. A function whose peripheral this configuration does not instantiate is
 # dropped and the pad's menu COMPACTS, so the select codes of a pad are always 1..len and
@@ -1715,7 +1730,7 @@ _rdlRegisters('PWRCTRL', p, parameters={'NHARTS': numHarts}, defines=_pwrDefines
 
 
 
-# PINMUX register template: a 0x6C00 map of PMXCAP, ceil(N/32) PMXIN words and ceil(N/8)
+# PINMUX register template: a 0x7C00 map of PMXCAP, ceil(N/32) PMXIN words and ceil(N/8)
 # PMXCFG words, added only when pinmuxPresent CreatePeripheral()s it. The register SET is a
 # function of the pad count, so the four parameters below are passed to the description
 # rather than recomputed inside it: NSELW and NINW because a SystemRDL array dimension is a
@@ -2042,16 +2057,17 @@ if eventFabricPresent:
 	# mcu_vhd.py under geo['eventFabric'], with every absent source tied '0'.
 	m.CreatePeripheral(nameTemplate='EVFAB', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x6B00, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 11; registered read, no bridge, no CAPTURE_CLOCK pre-latch; free-running MCLK fabric in the always-on domain (never gated by PWRCTRL, alive through WFI); vectorless — poll EVFSR, there is no interrupt; a CHTRIG/EVTRIG/W1C write takes effect 3 MCLK after the access opens, so a read issued immediately after one (only possible from a faster master than the shared bus) can see stale state; disable a channel before changing its EVSEL/TASKSEL')	# EVFAB0: native page-2 sub-slot 11; mcu_vhd emits the raw-strobe shim, the evfab0 instance and every producer and consumer tap
 if pinmuxPresent:
-	# PINMUX at 0x6C00 is mutex-page sub-slot 12, the same native page-2 shape as RTC0 and the
-	# first slot the library had left. Vectorless: interruptPriority=None, so this knob adds
+	# PINMUX at 0x7C00 is the IRQ-ROUTER PAGE TOP QUARTER, the same native shape as RTC0 but
+	# on page 3 rather than page 2 (Y28; page-2 sub-slot 12 is AFE2 site 0 in every overlay
+	# configuration, see the knob block above). Vectorless: interruptPriority=None, so this knob adds
 	# nothing to _LIBRARY_TAIL_SPEC, NUM_IRQ_SRCS or _mcuMpIrqFirstVector and no existing
 	# vector moves. clockDomain='mclk' names the bus clock ClkMem and the only clock in the
 	# block: the pad-readback synchroniser. The pad mux itself is combinational, so a select
 	# write reaches the pads on the cycle that lands it. Neither combinationalRead nor a
 	# CAPTURE_CLOCK slave: a plain raw-strobe active-low en shim, pinmux0_sh_en_n <= not
 	# shslv_pinmux0_en, with no falling_edge(EnMemPeriph) pre-latch.
-	m.CreatePeripheral(nameTemplate='PINMUX', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x6C00, sharedBus='native', clockDomain='mclk', strobeNote='page-2 sub-slot 12; registered read, no bridge, no CAPTURE_CLOCK pre-latch; the pad mux is COMBINATIONAL, so a select write takes effect on the cycle that lands it and a function in mid-transfer loses its pad -- deselect only an idle function; vectorless, and a pmx pad raises no pin interrupt (the GPIO menu entries mirror a port bit output, and the port keeps reading its own dedicated pad); PMXIN is the pad two mclk edges ago, not the live pad')	# PINMUX: native page-2 sub-slot 12; mcu_vhd emits the raw-strobe shim, the PINMUX instance, the pmx pad port group and the slot aggregates
-overlay.call('peripheralInstances', m=m, vals=_overlayVals)	# an overlay's CreatePeripheral calls; page-2 sub-slots 13-15 are free in every public configuration (12 is PINMUX)
+	m.CreatePeripheral(nameTemplate='PINMUX', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x7C00, sharedBus='native', clockDomain='mclk', strobeNote='IRQ-router page top quarter 0x7C00-0x7FFF; registered read, no bridge, no CAPTURE_CLOCK pre-latch; the pad mux is COMBINATIONAL, so a select write takes effect on the cycle that lands it and a function in mid-transfer loses its pad -- deselect only an idle function; vectorless, and a pmx pad raises no pin interrupt (the GPIO menu entries mirror a port bit output, and the port keeps reading its own dedicated pad); PMXIN is the pad two mclk edges ago, not the live pad')	# PINMUX: native IRQ-router page top quarter (0x7C00); mcu_vhd emits the raw-strobe shim, the PINMUX instance, the pmx pad port group and the slot aggregates
+overlay.call('peripheralInstances', m=m, vals=_overlayVals)	# an overlay's CreatePeripheral calls; ALL FOUR page-2 sub-slots 12-15 are free to an overlay (Y28 moved PINMUX off sub-slot 12 to the IRQ-router page top quarter, because the AFE2 overlay takes 12-15)
 m.CreatePeripheral(nameTemplate='IRQROUTER', nameIndex='', peripheralMemorySlot=None, interruptPriority=None, absoluteBaseAddress=0x7000, sharedBus='native', clockDomain='mclk', registerSlotCount=_slotCountOverride(524))	# IRQ router at 0x7000, window page 3: routing rows plus the fixed-address CLAIM block, through word 523 = 0x782C = INSVCX
 
 
@@ -3136,7 +3152,7 @@ m.McuMpGeometry = {
 	'i2ctarget': i2ctargetPresent,  # True = the I2CT0 I2C target in mutex-page sub-slot 10 (0x6A00): raw-strobe shim, shares the I2C0 SDA0/SCL0 pads through a wired-AND DIR merge emitted separately, vectors 122 and 123, source list grows to 124 with 120 and 121 as DP-SG placeholders
 	'trng': trngPresent,        # True = TRNG0 in mutex-page sub-slot 9 (0x6900); raw-strobe shim, sibling u_ro TrngRoEnsemble instance, vector 121, source list grows to 122
 	'trngRings': trngRings,     # TRNG0 NRO generic, 4 or 8, consulted only when trng is true; the register map is NRO-invariant
-	'pinmux': pinmuxPresent,    # True = PINMUX in mutex-page sub-slot 12 (0x6C00): raw-strobe shim, vectorless, plus the pmx_in/out/oen/ren entity port group and the slot aggregates built from pinmuxMenu
+	'pinmux': pinmuxPresent,    # True = PINMUX in the IRQ-router page top quarter (0x7C00): raw-strobe shim, vectorless, plus the pmx_in/out/oen/ren entity port group and the slot aggregates built from pinmuxMenu
 	'pinmuxPads': pinmuxPads,   # PINMUX NPADS generic and the width of the four pmx pad port groups, consulted only when pinmux is true
 	'pinmuxMaxMenu': pinmuxMaxMenu,  # PINMUX MAXMENU generic: menu depth, 1 to 15 (the select field is a nibble)
 	'pinmuxMenu': pinmuxMenu,   # per pad, the ordered live function names its codes 1..len reach, already compacted by configuration
