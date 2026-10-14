@@ -62,8 +62,8 @@
         "macro_blackbox.vhd",
         "system_blackbox.vhd"
       ],
-      "cells": 139101,
-      "flop_bits": 30895,
+      "cells": 82933,
+      "flop_bits": 29377,
       "latch_bits": 144,
       "latch_modules": [
         "clkgate_Bbehavioral",
@@ -71,8 +71,8 @@
       ]
     },
     "NFC": {
-      "cells": 58928,
-      "flop_bits": 3150,
+      "cells": 2760,
+      "flop_bits": 1632,
       "latch_bits": 0,
       "latch_modules": []
     },
