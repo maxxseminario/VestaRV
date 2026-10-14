@@ -3949,3 +3949,124 @@ against zero, which rejects it instead of possibly matching it on stale data.
 The whole regression suite passes, three hundred and fifty tests including the instruction
 set regression, and the block's bench reports every one of its pre-existing checks green
 plus the two the wave added and the one deliberate failure it has always carried.
+
+## Y32 -- tile floorplan v3: the TCM at the far west, four published M7 feedthrough corridors, and the density wall that sets the outline (owner decision O15(a), 2026-10-14)
+
+**PARKED one in-flow line short of a cut.** `TILE_PT_FLOORPLAN=v3` is **935 x 300**
+with the notch 447 x 240 at `NOTCH_X0 488`, the floor at 60, the same 417 x 180
+analog strip at (503,110) R0, **ram0 at the far west (30, 81.325) R0**,
+`DEAD_ROW_BANDS {}` and Y1-PSW armed. Every v3 **x** wall is a v2d wall minus
+exactly 50 and `H`/`BASE_H` do not move, so every ring-leg-to-stripe gap is
+numerically identical to the geometry Calibre signed off on `v2g`, and the
+417 x 180 collateral (`anatop_ch.lef`/`.lib`/`.gds`, `signoff_mp/anatop_ch_bbox`)
+is reused without a rebuild. Tile **280,500 um2 (-5.08 %)**, placement density
+**72.3 %**, core 2070 x 1690, die 2380 x 2000 = **4.760 mm2 (-4.03 %)**, M7
+column phases unchanged at 20.0 / 36.0. `v1`/`y1i`, `v2` and `v2d` are all still
+selectable and byte-for-byte unchanged in the generation table; `out/Y1_READY` is
+untouched and the tile of record is still `v2g`.
+
+**O15's three asks do not fit together, and it is arithmetic.** 330 is phase 30
+and lands the top edge's VSS ring leg [302,312] on the VDD M8 stripe [301,306].
+And moving ram0 off the notch wall destroys the 212 um powerable row strip v2d
+earned -- the leftover strip is 133 um, under the two 80 um switch pitches the
+Y23 conditional halo requires -- so the whole 240 um upper band becomes macro
+plus halo and the row area collapses to `~82*W - 11,281`. The 60-70 % density
+window then needs `W ~= 955`, i.e. **no narrower than v2g**, with a
+discontinuity at 959 where the strip becomes powerable again and density drops
+straight back to 41 %. Measured menu, with the header-switch count as the
+row-area instrument (305 um2 per switch, from v2f): 835 x 300 -> 178 switches /
+86.6 % / die -12.1 %; 885 x 300 -> 199 / 77.4 % / -8.1 %; **935 x 300 -> 213 /
+72.3 % / -4.0 %**; 985 x 300 -> ~350 / 44.0 % / 0. Which point to take is an
+owner call (Y32-C).
+
+**Four published M7 pad-feedthrough corridors** at tile-local x[37.450,49.050],
+[133.450,145.050], [265.450,277.050] and [373.450,385.050] -- one per quarter of
+the west column, each **11.600 um** wide and holding **56** min-width M7 tracks
+against the comb teeth that bound it (43 against a 5 um riser), i.e. 14
+bidirectional pads' worth each against the 4 per tile O15 asked for. The
+resource is set by the **0.4 um M7 VIA6/VIA7 landing-pad comb at x = 1.05 + 12k**
+-- measured on the v2g abstract as 276 narrow M7 rects at 60 distinct x with
+eleven y bands each -- and not by the risers, which is why the windows are
+`12 - 0.4` um and not the 36 the risers alone leave. They are cut out of the
+abstract's M7 OBS over the full tile height, kept pin-free through the T-G2c
+forbidden set, and gate **Y32-FT** re-reads the emitted abstract with its own
+parser and FATALs on any M7 or pin intruder. This is the thing Y31-C said only a
+tile re-harden could open; it is **half** of what a north/south middle-run pad
+needs, because D33(d) and Y31 §1.4 already record that those arcs carry no
+supply and can carry none, so O14 stays closed on the supply ground alone.
+
+**M8 publishes nothing, with a measurement.** The tile's M8 is five horizontal
+straps plus three horizontal ring bands and every one crosses every x: the
+metal-free full-height window set is `{x[0,4], x[981,985]}` = **8.000 um**, both
+outside the ring. Carving an M8 OBS window the tile's own metal still crosses
+would publish a corridor that does not exist. Opening M8 means cutting all eight
+shapes per corridor and carrying ring continuity on the vertical M7 legs alone --
+a PG wave, and the one to spend first, because M8 is the chip's **preferred**
+vertical layer (Y32-D).
+
+**The mirrored riser phase, derived and priced rather than applied.** A
+net-preserving mirror (VDD onto VDD) needs `2*(w+s) == 0 (mod pitch)` and
+`2*(5+4) = 18` is not 0 mod 50, so **no `lx0` and no tile width** makes one
+exist and Y29's two reversed `addStripe` passes are structural. The two chip
+columns do coincide in position with the nets **swapped** iff the first VDD pad
+sits at 18 or 43 mod 50 -- it is at 51, so a **-8 um shift of the whole M7
+lattice**, which re-derives every gap, every pin keep-out window, the bias group,
+both `anatop_ch` supply-port landings and the chip's own WQ5/WQ21 scores. And the
+lattice **doubled with its own mirror image** is net-preserving symmetric for
+free whenever `W == 35 (mod 50)` -- 935 and 985 both are, with min opposite-net
+gap 4.00 um and min same-net 5.00, against the 2.00 um same-net sliver the
+owner's own 900 would produce -- but it adds 34 riser columns, halves the widest
+riser-free window from 36 to 17 um, and 17 um does not hold the four shielded
+bias pins' 24 um span. Gate **Y32-SYM** prints all three results every cut
+(Y32-E).
+
+**Three hardens, which is the bound.** `v3a` (885 x 300, 78.4 % density) passed
+every floorplan and PG gate and was refused at G0 with 1 real short -- a PG4
+strap VIA1's M1 landing merged with a header switch's internal M1 OBS -- plus
+seven new same-net M6 0.09 um `SameNetGap` results on the analog VSS supply
+strap. That short class is **not new and cannot be dodged**: `v2g`'s own preplace
+report carries one and the `fixVia -short` before `place_opt` clears it, and the
+switch pitch 80 against the strap lattice 12 (gcd 4) makes the three distinct
+header residues mod 12 tile the whole period, so every strap x lies inside some
+header footprint at every `TILE_PT_PSW_LEFTOFF`. `v3b` was refused at T-G2c in
+22 s on a `ppd_place` pitch knife-edge (790 and 830 feasible, 810 not, at the
+identical forbidden set). `v3c` added one more `fixVia -short` after the PG
+fabric (`TILE_PT_PGVIA_SHORT_FIX=fixvia`), **cleared the short**, and reached G0
+at `Cells=0 SameNet=4 Wiring=1 Short=0 Overlap=0` -- the four SameNet entries
+being `v2g`'s accepted `anatop_ch` M6 OBS residual entry for entry -- and was
+refused on the **single** remaining Wiring marker: a strap VIA1's M1 pad 0.08 um
+from a logic cell's own M1 pin against a 0.09 minimum, at 72 % row density.
+
+**The one geometry-ECO cycle went on proving the remedy, not guessing it.** On
+`v3c`'s own saved database, geometry only, writing nothing the flow reads: the
+marker names exactly **one** VDD special via in its box inflated by 0.25 um
+(`via1Array_35`), the strap column keeps 9 same-net M1 wires, 1 on M2 and 5 other
+same-net vias within 6 um, and deleting it takes verifyGeometry non-antenna from
+**5 to 4** -- exactly `v2g`'s accepted residual, `Short 0`, `Wiring 0`. That is
+now in the flow as `TILE_PT_PGVIA_SHORT_FIX=spacing`, driven from the report and
+refusing unless the marker names exactly one same-net special via **and** the
+local same-net population survives it, with the G0 gate as the measurement. One
+17-minute harden closes v3 (Y32-A); the prevention is a hard place blockage over
+each strap column's VIA1 M1 pad inflated by `M1_S_1` = 0.09, about 1,300 pads at
+0.24 um2 = ~312 um2, 0.5 % of the row area (Y32-B).
+
+**No collateral exists and none is claimed.** G0 suppresses the LEF/GDS/ETM/SDF
+emission by design, so there is no ingest, no `blockdrc`, no `ant25`, no Pegasus
+LVS, no gate harness, no per-cut OA library and no headless-Virtuoso bBox proof.
+The parked state is `innovus/common/hart_tile_pt/out/Y32_PARKED` in the
+`Y1_READY` format, which says so in its own header. Offline suites:
+`tcl/feedthrough_pt_test.tcl` **45 PASS / 0 FAIL** (10 negative controls,
+including Y29's own naive-form 34/25 control), `tcl/y32_via_marker_test.tcl`
+**8 / 0** (3 negative controls), `tcl/pin_pg_dodge_test.tcl` still **30 / 0**.
+`MCU_castalia_penta_pt/feedthrough_census.py` now takes its abstract as an
+argument and scores each sub-channel by how many tracks it holds; it **still
+fails on the v2g abstract** (2 corridors of the 4 wanted), so Y31's verdict and
+its negative control are unchanged.
+
+Also recorded, because the class recurs: `dbGet <sVia>.box` returns `0x0` and
+`.x`/`.y` are not sVia attributes, so a special via is addressed by a tight
+`dbQuery` window and never by coordinate; and `deleteSelectedFromFloorplan` does
+not exist in IC20.1 -- `dbDeleteObj` is this flow's own idiom. And T5b's `> 0`
+predicate passed a VDD same-net via count of **2** on `v3n` where `v2g` reads 34:
+"the supply port is inside a 5 um riser column" is necessary and not sufficient,
+and T5b should be re-keyed to a ratio against the parent cut (Y32-F).
