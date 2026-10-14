@@ -3758,3 +3758,111 @@ it is checked against; the override exists and the gate names it, but the check 
 better written against the layout's timestamp. And the step that builds a cut's library
 deletes everything in it first, including the status note that the promotion step then
 demands -- so the note has to be written after the build, which nothing in the flow says.
+
+### Y34, 2026-10-14: the shared bias block's reserved area, measured rather than assumed
+
+Owner decision O15(c) asks for the placeholder that reserves die area for the shared bias
+generator to be shrunk to a realistic size, with one hundred and fifty microns square
+assumed until the analog layout exists, and with an explicit instruction to report what
+the real cell areas say instead if they say something better. They do, and what they say
+is that one hundred and fifty microns square is not reachable.
+
+**One of the block's two levels already has a drawn layout, and it is larger on its own
+than the whole assumption.** The inner level of the bias block -- the generator core, its
+four output buffers, their four compensation capacitors, the supply for the trim
+converters, four fourteen-bit converters, the level shifters that carry their fifty-six
+control bits across the voltage boundary, and the switches and multiplexers that select
+between the converter and the trim -- is, cell for cell, the same thirty-three pieces as
+the previous chip's global bias block, whose layout exists and which the physical plan of
+record is simply to copy. Measured this wave: one hundred and forty-nine by four hundred
+and twenty-five microns, **sixty-three thousand two hundred and ninety square microns**.
+The assumption reserves twenty-two and a half thousand. It is also smaller than the four
+output buffers plus their four compensation capacitors taken alone, thirty thousand square
+microns, and neither of those can be removed by any decision about the trim converters.
+
+**The previous derivation of three hundred and forty microns square carried two errors
+that happen to partly cancel.** It took the sum of the contents and multiplied it by one
+point four five for guard rings, routing and pin access -- but the largest term in that sum
+is a complete, routed, guard-ringed block measured from its own outline, so the allowance
+was applied to a number that already contained it. In the other direction it counted the
+eight small compensation capacitors at their plate area, where the drawn cell is about six
+times larger: the capacitor generator adds a fixed ring about twenty by twenty-five microns
+around whatever plate it is given, which is measurable from the four larger capacitors in
+the same block. Replacing the guessed allowance with the **measured** figure -- the drawn
+rev-1 block is eighty-five per cent cells, and that is the density this content will reach
+because it is largely the same content -- gives ninety-four and a half thousand square
+microns, three hundred and seven microns square. **The new reserve is three hundred and ten
+microns square**, one and seven tenths per cent of headroom over the derivation.
+
+**Two levers would take it meaningfully smaller and both are design decisions, so both are
+reported rather than taken.** A quarter of the block's area is capacitor, and in this
+process the capacitor is built between the topmost metal layers -- which is precisely why
+the placeholder deliberately leaves those layers unobstructed. The previous chip placed its
+capacitors beside the circuit because it had room to; stacking them over it would give two
+hundred and fifty-five microns square. Separately, the earlier analysis of this block
+recommended keeping one trim converter instead of four if area ever became tight, since the
+six-bit trim already covers the range the converters buy; that would give two hundred and
+sixty-five microns square, but it also removes fifty-six of the block's sixty-six control
+pins, which is a larger change than a resize. A placeholder exists to reserve what the
+block will need, and under-reserving is the expensive mistake, so neither was assumed.
+
+**The reserve was a number written in two places with nothing comparing them.** The
+placeholder's own description file said three hundred and forty, and the chip assembly
+script said three hundred and forty, in two files with no check between them -- so a resize
+done in the description alone would have placed a three-hundred-and-ten-micron block while
+keeping three hundred and forty microns of the control band empty, and nothing would have
+said so. Everything else downstream was already derived from the description: where the
+block is placed, the clearance test that refuses a placement outside the band, the two
+narrow strips of standard-cell row the block strands and which the flow deliberately
+removes, the power-connection stage's working area and the position of the supply port it
+connects to, the gate that blanks the forbidden via windows between supplies, the
+acceptance that proves each analog supply reaches a bond pad, and the clamp that keeps the
+east supply arm out of the nearest memory. All of those were verified one by one. So was
+the fact that the ring is **independent** of the block's size: the bias bond-pad island is
+centred on the control band, not on the block, so it does not move.
+
+**A new check closes both halves.** It reads the size out of the description file, refuses
+any attempt to override it with a different number, and -- the part that matters at
+signoff -- refuses to run when the reference library that the physical verification tools
+resolve this black box through holds the *other* size. That library can hold exactly one
+geometry at a time, and three earlier waves recorded the same hazard for the per-tile analog
+block: a verification run against the wrong one of two footprints is silent, because the
+tools compare whatever is in the library against whatever the chip placed. The library build
+now stamps which footprint it holds and the check reads the stamp nine minutes into a run
+rather than four hours later. Both footprints stay fully rebuildable from one generator,
+each with its own complete set of description, netlist and geometry files, and the generator
+is gated on reproducing the old one byte for byte so that the chip of record can still be
+cut. A new standalone check proves, for every footprint on disk, that the description file,
+the geometry and the netlist agree: the outline is the declared size, every declared pin
+rectangle is present in the geometry, every piece of metal in the geometry belongs to
+exactly one pin, and no connection via sits in one of the forbidden windows between two
+different supplies -- which is the defect that shorted two supplies together three cuts ago.
+
+**The floorplan probe.** One variable different from the chip of record -- the footprint
+knob -- run through the floorplan and power-grid stage on the same tile and the same ring
+plan. The tool exits clean, with no fatal messages, the same twenty-four pre-existing
+error lines in the same three classes, and the same fourteen warnings. Every gate
+reproduces the previous cut: the forbidden-via-window gate finds the same twelve supply
+pin rows, four internal windows and six cross-pin windows and blanks them all at their new
+coordinates with nothing left behind and no via in any of them; the analog island
+acceptance closes all ten island rails from their block pin to a bond pad; every ring arc
+is supplied; the upper-metal spacing gate passes on both layers; and the geometry checker
+reports **counts identical to the previous cut at all three points in the stage**, so no
+class of violation is new and none grew. The block's north-east corner moves by three
+tenths of a micron of grid snap and its south-west corner is what gives way, so the bias
+bond-pad island, its two supply pads and their straps are untouched.
+
+**The band gains twenty-one thousand square microns of placeable standard-cell row**, one
+and seven tenths per cent more than the previous cut, measured by summing every row in both
+floorplans at the library's site size. The block itself gives back nineteen and a half
+thousand square microns and the keep-out around it -- the block, its halo counted twice on
+each axis, the gap to the orchestrator column and the two strips of row too narrow to
+supply, which the flow removes deliberately -- gives back twenty-one thousand three hundred,
+of which twenty-one thousand two hundred lands as row after the row and site quantisation.
+The row *count* falls from seven hundred and forty to seven hundred and twenty-five while
+the row *area* rises, and that is arithmetic rather than a regression: the keep-out is a
+hole in the middle of a row, so every row it covers is split in two, and a keep-out thirty
+microns shorter splits fifteen fewer rows.
+
+The reserve is a knob, its proof is a floorplan probe, and the chip cut that takes all three
+of this decision's reductions together inherits both.
