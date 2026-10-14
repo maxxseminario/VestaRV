@@ -37,6 +37,8 @@ Both 64-byte windows are reached through one index/data pair: \bitfield{NFCIDXSE
 
 \register{NFCxTIM} carries the bit period (\bitfield{NFCETU}), the subcarrier half period (\bitfield{NFCSUBCDIV}) and the frame delay time (\bitfield{NFCFDT}), all counted in \texttt{rf\_clk} ticks. The reset values follow the 13.56 MHz grid; a simulation bench writes them small to compress protocol time.
 
+The reply leaves \bitfield{NFCFDT} plus a fixed overhead after the end of the reader's frame. The overhead is one tick to accept the frame, one to decide on it, one per reply source byte plus one to finalise the frame, and one to launch the encoder, so a five-byte reply with no appended CRC\_A adds nine ticks and a sixteen-byte read reply adds twenty-two. It does not depend on the length of the frame received: the received bytes are de-framed, parity-checked and CRC-checked as the bits arrive, so nothing is counted or re-read after the frame closes. Program \bitfield{NFCFDT} short by the overhead if a reader demands the exact ISO grid. An \bitfield{NFCAUTOREAD} answer also copies the sixteen payload bytes one per tick, which runs underneath the delay and costs nothing unless \bitfield{NFCFDT} is programmed below sixteen.
+
 \section{Interrupts and events}
 
 The four flags in \register{NFCxSR} are write-1-to-clear and each has an enable in \register{NFCxCR}. Table \ref{t:nfc-irq} lists them. The field-detect level is also available to the boot gate in \peripheral{PWRCTRL} as a wake source, which does not use a vector.

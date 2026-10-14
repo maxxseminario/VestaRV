@@ -681,7 +681,7 @@
             "sr_sync_d"
           ],
           "depth": "2",
-          "line": 350,
+          "line": 440,
           "name": "u_sync_NFCxSR",
           "q": [
             "sr_sync_q"
@@ -696,7 +696,7 @@
             "field_detect"
           ],
           "depth": "2",
-          "line": 611,
+          "line": 701,
           "name": "u_sync_field_detect",
           "q": [
             "field_s2"
@@ -711,7 +711,7 @@
             "pay_wr_tgl"
           ],
           "depth": "2",
-          "line": 760,
+          "line": 859,
           "name": "u_sync_pay_wr_tgl",
           "q": [
             "pay_wr_s2"
@@ -726,7 +726,7 @@
             "evt_lvl_d"
           ],
           "depth": "2",
-          "line": 617,
+          "line": 707,
           "name": "u_sync_rf_evt_lvl",
           "q": [
             "evt_lvl_q"
@@ -741,7 +741,7 @@
             "pub_tgl_d"
           ],
           "depth": "2",
-          "line": 357,
+          "line": 447,
           "name": "u_sync_rf_pub",
           "q": [
             "pub_tgl_q"
@@ -756,7 +756,7 @@
             "rf_rx"
           ],
           "depth": "2",
-          "line": 799,
+          "line": 899,
           "name": "u_sync_rf_rx",
           "q": [
             "rx_s2"
@@ -771,7 +771,7 @@
             "stat_lvl_d"
           ],
           "depth": "2",
-          "line": 628,
+          "line": 718,
           "name": "u_sync_rf_status",
           "q": [
             "stat_lvl_q"
@@ -786,7 +786,7 @@
             "state_ack"
           ],
           "depth": "2",
-          "line": 687,
+          "line": 777,
           "name": "u_sync_state_ack",
           "q": [
             "state_ack_q"
@@ -801,7 +801,7 @@
             "state_mack"
           ],
           "depth": "2",
-          "line": 400,
+          "line": 490,
           "name": "u_sync_state_mack",
           "q": [
             "state_mack_q"
@@ -816,7 +816,7 @@
             "state_mreq"
           ],
           "depth": "2",
-          "line": 396,
+          "line": 486,
           "name": "u_sync_state_mreq",
           "q": [
             "state_mreq_q"
@@ -831,7 +831,7 @@
             "state_req"
           ],
           "depth": "2",
-          "line": 683,
+          "line": 773,
           "name": "u_sync_state_req",
           "q": [
             "state_req_q"

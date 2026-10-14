@@ -29,6 +29,13 @@ architecture sim of NFC_tb is
     constant C_SUBCDIV : natural := 2;
     constant C_PAUSE   : natural := 3;
     constant C_FDT     : natural := 20;
+    /* Reply latency, EOC to rf_tx_en, over and above the programmed FDT, in rf_clk ticks:
+       one parse step, one decide step, the composer's one-byte-per-tick pass plus its
+       finalise step, and the launch step. For a five-byte reply with no appended CRC_A
+       that is 1 + 1 + (5 + 1) + 1 = 9, and the reader starts counting two ETUs after the
+       last pause, which is where the decoder's own EOC falls. It does NOT depend on the
+       received frame's length; see GROUP 8b. */
+    constant C_RESP_LAT : natural := 9;
 
     -- provisioned identity: uid0 goes first on air
     constant UID0 : std_logic_vector(7 downto 0) := x"11";
@@ -765,6 +772,33 @@ begin
                    "expected until a real DUT is connected)" severity note;
         end if;
         bus_write(clk, pbus, SlotNFCxTIM, nfc_mk_tim(C_FDT, C_ETU, C_SUBCDIV));   -- restore
+
+        /* GROUP 8b: the REPLY LATENCY, pinned to a number.
+           Y33 moved the byte de-frame, the per-byte parity check and the receive CRC_A
+           into the decoder, so the parse step is one rf_clk whatever the frame is and the
+           serial /9 byte-count divide and the CRC pass over the stored frame are gone.
+           Those two cost 2n rf_clk for an n-byte frame, so the reply left 2n ticks late
+           and the delay grew with the frame -- a frame-length-dependent frame delay time,
+           which is not what ISO 14443-3 specifies.
+           The check is absolute, not relative, because the measured offset also carries
+           the half-ETU adjust the FSM applies when the reader's last bit was a 1, which
+           depends on the frame's CONTENT and not its length. One frame, one number: a
+           two-byte anticollision (NVB=0x20 asks for the whole UID, so the match is
+           trivial) answered with UID+BCC and no appended CRC_A, at the compressed FDT.
+           Measured 29 here and 33 on the pre-Y33 RTL, the four being this frame's 2n. */
+        report "=== GROUP 8b: reply latency, EOC to rf_tx_en ===" severity note;
+        fr := (others => (others => '0'));
+        fr(0) := x"93"; fr(1) := x"20";
+        cfg_bytes <= fr;
+        do_frame(false, 2, false, true, 0, false, false);
+        fdt1 := obs_fdt_ticks;
+        sb.check_bit("GROUP8b: two-byte anticollision answered", obs_saw_response, '1');
+        sb.check_true("GROUP8b: the reply lands at the programmed FDT + "
+                      & integer'image(C_RESP_LAT) & " = "
+                      & integer'image(C_FDT + C_RESP_LAT)
+                      & " rf_clk ticks for a five-byte CRC-less reply, measured "
+                      & integer'image(fdt1), fdt1 = C_FDT + C_RESP_LAT);
+        w1c(x"0000003E");
 
         -- GROUP 9: IRQ lines (rxf/txdone) + NFCEN/LISTEN launch guards
         report "=== GROUP 9: IRQ + launch guards ===" severity note;
