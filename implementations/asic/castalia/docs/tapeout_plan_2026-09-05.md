@@ -3669,3 +3669,92 @@ launched detached outlives the agent that launched it. The previous wave's cut w
 having died with its agent; it had not, it ran to completion with every gate green, and the
 only reason nothing was lost is that the flow refuses to start a second job while one of
 this user's is running.
+
+### Y31, 2026-10-14: the even pad spread is measured, refused, and costed
+
+Owner decision O14 asks for the digital signal pads spread nearly evenly around the
+digital part of the ring, at the pad count the chip already has. The wave answers the
+question the decision itself raises -- whether upper-metal feedthroughs over the hart
+tiles can carry a north or south pad's net into the core -- and the answer is no, on
+three independent measurements rather than on judgement.
+
+**The feedthrough is refused, and no probe was spent on it.** A north or south pad sits
+directly above a tile, so its net has to cross the full three hundred microns of that
+tile in one go. Of the two layers above the ones the tile blocks outright, the one whose
+preferred direction is vertical is **one hundred per cent obstructed**: there is no
+position along the tile at which a wire could cross. The other leaves sixteen per cent of
+the tile's width clear, and every micron of that is inside the windows the tile deliberately
+opens so the chip's power grid can land on its own supply columns. Subtract those
+columns, which run the full height of the tile and are five microns wide, and the
+residual channels are between a third of a micron and two and a half microns, against a
+spacing rule that wants one and a half microns either side of a column that wide. Four of
+thirty-eight channels pass a router-visible check at minimum width; one bidirectional pad
+needs **four** such tracks, and those four lie three hundred and sixty microns apart, so
+they cannot serve one pad. The whole measurement reads the tile's own abstract and the
+foundry rule file, costs no licence and runs in under a second.
+
+**And the supply rule closes it a second time, independently of any route.** Every ring
+section is its own supply arc by owner decision. The north and south middle runs are
+bounded by analog sections on both sides, so they form arcs that carry no supply and
+cannot be given one: the pad that would energise an arc's core rails needs standard-cell
+rows behind it and there is only tile there, and merging the run with a supplied arc would
+put analog and digital pads on the same rail, which the ring audit refuses by design. A
+signal pad in the middle run would therefore be unpowered even if it could be routed.
+
+**What the spread is actually bounded by is the package, not the die.** The north and
+south rows each carry twenty-four analog island pads and seven supply pads that have
+nowhere else to go, inside a side that the chosen package gives forty-four fingers. So
+those rows can never hold more than thirteen signal pads each whatever the die does, and
+the per-side spread can never close below about eleven pads. At the die as it stands the
+two routing channels at the east and west ends of the core hold seven signal slots per
+row, and the ring was using six: the wave moves two pads into the two that were free,
+taking the per-side counts from thirty-six / twenty-five / six / six to **thirty-four /
+twenty-five / seven / seven**. That is the whole of what this die allows, measured by a
+new check in the ring plan that walks every free slot on both rows and reports which are
+legal.
+
+**The lever, costed, is the width of those two channels, and it is left to the owner.**
+Widening them from one hundred microns to one hundred and fifty takes the north and south
+rows to eleven signal pads each and the die to 2580 by 2000 microns, four per cent more
+area; two hundred microns reaches the package floor of thirteen each at eight per cent
+more area. Both of those values keep the power mesh in phase with the tiles' supply
+columns, which matters: the intermediate values do not, and cost a re-solve of the mesh
+and of the one macro offset that is pinned to it. The ring plan now carries the channel as
+a knob with a gate that refuses the off-phase values and prints the menu. **The die was
+not grown.** The decision granted a pad redistribution, and a reticle is a larger
+commitment than that; going below the package floor is a different lever again -- a
+package with more fingers a side, or shorter analog sections.
+
+**The cut.** `chip_spread_a` carries the redistribution on the first of two attempts,
+with the die, the core box, the tiles, the mesh and every timing setting unchanged from
+the previous chip of record. The pad move is arithmetically free on the supply side: one
+pad leaves the forty-four-pad arc and one enters each of the other two, and no arc changes
+its required supply-pair count. It is free on the design side too -- the synthesised
+netlist and both timing constraint files come back bit for bit identical, because the
+nineteen pin-mux pads keep their indices and therefore their register fields, their
+function menus and their documentation rows. What moves is which package finger each pad
+bonds to, and the twenty-four signal pads on the west row shift by one finger.
+
+Every floorplan and power-grid gate reproduces the previous cut number for number, which
+is what a two-pad move should do and is the reason the cut was worth spending on it.
+Timing closed at four views with coupled interconnect: setup positive by 0.189 ns and hold
+at zero with no violating endpoint of 37,439, the hold fix-up closing in its budgeted two
+passes while disturbing nothing. Physical verification returned 1714 results of which 1506
+are inside purchased pad cells, 88 are vendor-cell geometry, 96 are the deferred fill
+classes and twenty-four are real flow-drawn metal -- **none of them inside a tile, none
+whose marker box even touches a tile, and none at an analog strap**. The antenna deck is
+clean apart from two warnings inside a vendor capacitor. Layout-versus-schematic matches
+device for device in every class, including all eleven pad types and both analog
+placeholders, with 99 pins matching 99 and the single remaining mismatch the same named
+black-box class the previous four cuts carried; a live fault-injection control on one
+deleted gate still discriminates. The cut is ingested, promoted, and proven open-able from
+the owner's own library path, where the stable and per-cut libraries agree instance for
+instance and the previous cut is still distinguishable from both.
+
+Two small process defects were found by running the chain and are worth a line each,
+because both will recur. The fault-injection control trips a freshness gate by
+construction, since the deliberately doctored netlist is always newer than the label file
+it is checked against; the override exists and the gate names it, but the check would be
+better written against the layout's timestamp. And the step that builds a cut's library
+deletes everything in it first, including the status note that the promotion step then
+demands -- so the note has to be written after the build, which nothing in the flow says.
