@@ -4070,3 +4070,92 @@ not exist in IC20.1 -- `dbDeleteObj` is this flow's own idiom. And T5b's `> 0`
 predicate passed a VDD same-net via count of **2** on `v3n` where `v2g` reads 34:
 "the supply port is inside a 5 um riser column" is necessary and not sufficient,
 and T5b should be re-keyed to a ratio against the parent cut (Y32-F).
+
+## Y36 -- the NFC netlist of record, and the feedthrough corridors spent on the pad spread
+
+Agent Y36, 2026-10-14. The RTL of record is `origin/main` at `9180b4be` (the PINMUX fix
+plus Y33's NFC rewrite), staged into Genus from a detached worktree of that commit through
+`genus/common/in/y36_frozen`.
+
+**The armed CDC census grades Y33's renamed waiver, and it is 0 NOT waived.** Y33 could not
+run `cdc_census.tcl` -- another session owns the genus tree -- so the rename
+`nfc0/resp_bytes_reg[*][*]` to `nfc0/paybuf_reg[*][*]` was graded only by the RTL. Cut
+`out.y36b_20261014` is the structural census: **998 cross-domain endpoints, 109 on sync
+`stage_reg[0]`, 889 waived, 0 NOT waived**, with `GENUS_CDC_STRICT=1`. The gate is not a
+tautology -- `cdc_waiver_list` is globs, and a glob naming an instance that no longer
+exists matches nothing, so a rename that had missed would leave its endpoints unwaived and
+fail the run. Everything else strict and passed: dead-clock 0 of 29 declared, clock-pin 0
+without a waveform, latch 0, pmk 0 in soft logic over 1,479, design-rule 0 in soft logic,
+unresolved references 7 (the intended analog set), source drift 0 of 77. Runtime 00:33:16
+against Y28's 00:51:25.
+
+**That NFC is the only variable is measured.** `diff -rq` against `y28_frozen/hdl` names
+exactly four files: `NFC.vhd`, `NFC_tb.vhd`, `cdc_waivers.tcl`, `cdc_manifest.json`. And
+regenerating the B AFE configuration from `9180b4be`'s own generator reproduces
+`y28_frozen`'s `MCU.vhd` and `MemoryMap.vhd` **byte for byte except their generation-date
+line**, with `ChipConfig.resolved.json` md5-equal -- which is the independent confirmation
+of Y33's central claim that the register interface, the entity ports and the memory map did
+not move: the chip assembly RTL cannot tell the two implementations apart.
+
+**Two of the brief's expected numbers were wrong in instructive ways.** O15(b)'s
+"31,761 cells / 92,032 um2", which Y33 reported as irreproducible from the tree, is the
+CHIP-LEVEL `nfc0` figure and this cut carries it to the digit; it goes to **5,259 cells /
+25,416.8 um2**. And the expected "-1.5 k flops" is GHDL's count of flop BITS in elaborated
+RTL (3,150 to 1,632); counting flop instances inside `module NFC` in the two netlists gives
+**1,856 to 1,344, i.e. -512**, because Genus had already removed 1,294 of those bits as
+unused registers before Y33 touched the file. What the rewrite deletes from the mapped
+netlist is 512 flops and **26,502 combinational cells** -- and that ratio is the
+confirmation of Y33's diagnosis, since all four causes it names are mux banks rather than
+storage. Chip-wide: cells 132,639 to 106,130, soft-logic area -66,630.4 um2, timing-model
+area unchanged to the micron, worst setup +3,262 to +3,265 ps on the same endpoint.
+Regression on the promoted netlist: **13/14 zero delay** with `shtcm` at
+`20089645511899 FS` (the reference femtosecond since T1) and the D32 pmx reset contract
+silent on all fourteen rows -- measured, not inferred, since all 125 assertion reports come
+from `:uut:test_sequence` and none from `ProcPmxResetContract`.
+
+**The chip side: a supplied middle run costs five pads, not two, and that is the whole
+design.** RINGSUP requires a `PVDD1DGZ_G`, a `PVSS1DGZ_G`, a `PVDD2POC_G` and a
+VDDPST/VSSPST pair in any arc that carries an I/O pad. A north or south row has 44 bond
+fingers and 24 are analog island pads, so `44 - 24 - 5 = 15` signal pads a row, of which
+the two edge channels already hold 7 -- **eight on the middle run, four per tile, exactly
+what O15(a)(i) asks for and exactly what four corridors per tile carry**. The 44th finger
+is then spent, so the seven pinless 2.5 V pads Y26 parked on each of those rows move to the
+west and east ones, which is free because RINGSUP is a per-arc audit. The result is
+per-side signal **W 26 / E 17 / N 15 / S 15, range 11** -- the package floor Y31 computed
+and could only reach by widening the edge channel to 200 um at **+8.06 % of die**; the
+corridors reach it at **-8.06 %**, because the tile got narrower in the same wave. Two whole
+GPIO ports move (P5 west to north, P4 east to south), so Y11's G2 rule holds and no
+pin-mux pad is renumbered.
+
+**And the second half of Y31's refusal is answered by the same corridor.** Y31 closed the
+middle runs twice: the route did not exist, and a core supply pad there has no
+standard-cell row behind its M1 stubs. New in-tool stage **C-G24** drops a 5 um M7 strap
+from the pad's own core-edge pins, along the pad band, down the full tile height inside a
+published corridor, onto the control band's own horizontal M8 closure rail -- which it
+SEARCHES FOR in the database rather than assuming. The strap x slides inside its corridor
+rather than being centred, because the band's vertical M7 mesh columns run on a 50 um
+lattice and a 5 um column of the other net can overlap an 11.6 um corridor; the slide takes
+the first position clear of every foreign M7 shape the drop meets and FATALs naming the
+floorplan levers if none exists. `WQ22` is re-keyed rather than waived -- row-fed and
+corridor-fed are now two classes, the `>= 4` M1 stub test keys to the first, and the second
+is cross-checked against both the ring plan and C-G24's own drop count. `C13` gives up M7
+over the two middle-run windows and keeps M8 on every edge.
+
+**Everything new carries its own negative control.** On the v2g abstract the mechanism
+turns itself OFF -- `PT_FT_MINW` 4.00 um refuses v2g's two 1.20 and 2.55 um survivors --
+and the emitted ring is Y31's, with the padlists, the wrapper and `pmx_pads.json`
+byte-identical and only an additive, all-empty `PT_FT_*` knob block and `feedthrough` JSON
+object. `band_need.py`, O15's core-width model made executable, reproduces the die of
+record at `+0.00 %`. `gen_lqfp176_ballmap.py` replays the centred-block rule against Y31's
+162-pad ring and reproduces the frozen bonding diagram exactly: 162 entries, 14 NC, 48 GPIO
+rows, 0 disagreements. And the positive path was proved on a fixture -- the v2g abstract
+with the four published corridor windows cut out of its M7 OBS -- at **0 self-check
+problems, bond fingers 44/44/40/44, five supplied digital arcs and a worst run of 8
+consecutive I/O pads against a limit of 8**.
+
+At the v3d tile the derivation reads: band content 1,120,248.8 um2, tile term 1970.0 um,
+band term 1027.8 um, so the tile binds; core **1970 x 1690**, die **2280 x 2000 = 4.560
+mm2**, **-8.06 %** against the 4.960 mm2 of record, with `PT_EDGE_CHANNEL` and both M7
+column phases unchanged. The band is then 52.2 % occupied against the 51.0 % Y32 measured
+for the pre-NFC content at the width the chip of record closed on -- so O15(b) is what pays
+for the narrower tile: the same geometry without the rewrite sits at 55.3 %.
