@@ -3609,3 +3609,63 @@ only because that supply's jogged pad happens to run its lateral on that layer a
 over it. The repair is one added rectangle, and it was deliberately NOT attempted on the
 last of two chip attempts: changing two things at once on a final attempt is how a wave
 loses both.
+
+### Y30, 2026-10-13: the symmetric die becomes the chip of record, and a handed-over repair is refused before it is tried
+
+Cut `chip_sym_b` carries owner decision O13 into signoff and promotion: the four analog
+cutouts in the four die corners, the power mesh serving all four tiles, the 162-pad ring in
+ten supply arcs, and -- for the first time in the compare -- the nineteen pin-mux pads.
+The die, the core box, the tile and every timing setting are unchanged from the previous
+chip of record.
+
+**The handed-over repair would have shorted supply to ground on all four channels, and the
+written acceptance for it would have passed.** The previous wave left an unapplied
+candidate for a year-old item: one supply leg per analog channel has never reached its pad,
+because the metal stack from the strap down to the pad needs a landing on an intermediate
+layer and there is none. The candidate adds that landing. Measured against the previous
+cut's own layout database -- every intermediate-layer shape on an analog supply net against
+every proposed landing box -- four of sixteen boxes land **wholly inside the other
+polarity's metal**, and those four are precisely the four legs the candidate exists to
+repair. The overlap is structural rather than a near miss: the ground rail's lateral run
+crosses from its own core column to its own pad column, and the supply rail's leg sits
+between them by construction, because both take their core-side position from the same
+tile's two adjacent ports. Drawing the landing merges the two polygons.
+
+What makes this worth stating in the plan is the second half. The acceptance written for
+the candidate was three green gates on a seventeen-minute probe, and **all three would have
+been green**: the via builds as soon as there is same-polarity metal to land on, so the
+chain gate reports every pad strapped, and no gate at that stage compares a shape the flow
+draws against a different net's shape. The probe would have reported success on a chip with
+four supply-to-ground shorts, and the physical-verification run hours later would have been
+the first thing to notice. The measurement that refused it costs no licence and runs in
+under a second; it is now the standing precondition for any candidate that adds power
+metal, and the open item is re-stated as what it is -- a floorplan question, since the
+free band between the tile edge and the pad row is one micron wide and the two rails need
+0.9 of it. The flow's own source has carried that arithmetic since the item was opened; the
+candidate was written without reading it.
+
+**The cut.** `chip_sym_b` closed on the first of two attempts: timing closed at four views
+with coupled interconnect, setup +0.162 ns and hold at zero with no violating endpoint of
+37,439; the power-grid, ring, analog-island and verification gates all green, including the
+island chain check that every supply island is one conductor from the block pin to every
+pad the flow claims; physical verification 1707 results of which 1506 are inside purchased
+pad cells, 90 are vendor-cell geometry, 89 are the deferred fill classes and twenty-two are
+real flow-drawn metal, **none of them inside a tile and none at an analog strap**; the
+antenna deck clean apart from two warnings inside a vendor capacitor; and layout-versus-
+schematic matching device for device in every class, with the pin count moving from 80 to
+99 as the pin-mux pads enter the compare and matching 99 : 99. The one remaining mismatch
+is the same named black-box class the previous three cuts carried, and a live negative
+control on one deleted gate still discriminates. The cut is ingested, promoted and proven
+open-able from the owner's own library path.
+
+**The power mesh item that has been open since the core cuts is closed.** Both tile columns'
+power risers are now served, which the per-tile grid census shows as twenty-seven and
+twenty-eight stripes on all four tiles where the previous chip read as low as twelve on one
+of them. The cost is a hundred-micron gap over the tile boundary that the horizontal mesh
+crosses unbroken.
+
+Also recorded, because it cost the wave an hour and would cost the next one more: a cut
+launched detached outlives the agent that launched it. The previous wave's cut was logged as
+having died with its agent; it had not, it ran to completion with every gate green, and the
+only reason nothing was lost is that the flow refuses to start a second job while one of
+this user's is running.
