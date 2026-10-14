@@ -3866,3 +3866,86 @@ microns shorter splits fifteen fewer rows.
 
 The reserve is a knob, its proof is a floorplan probe, and the chip cut that takes all three
 of this decision's reductions together inherits both.
+## Y33 -- the NFC controller rewritten to serial shift registers and a byte pointer (owner decision O15(b), 2026-10-14)
+
+Owner decision O15(b) asks for the NFC controller rewritten to a compact form with the
+register interface, the air-interface behaviour and the clock-domain-crossing structure
+unchanged, from the thirty-one thousand eight hundred synthesised cells the brief quotes
+down toward about six thousand. The decision also names the four measured causes, which is
+what made the wave cheap: the receive and transmit bit buffers were written at a variable
+bit index, the sixty-four-byte receive array was read at three different computed indices,
+and the reply composer read sixteen bytes of the payload window on one clock edge through
+sixteen separate sixty-four-way byte multiplexers.
+
+**The block is now under the target. Synthesis reads 5,185 cells against 30,165 on the
+same tool, the same library, the same constraints and the same script, which is a
+reduction of eighty-three per cent; cell area falls from 90,372 to 25,374 square microns.
+The lightweight open-source census the regression suite freezes agrees independently: the
+block drops from 58,928 cells to 2,760, and the whole-microcontroller row in that census
+falls by exactly the same number, which is how it is known that nothing moved anywhere
+else. Both synthesis runs report the same worst setup slack on the same path, which lies
+in the register interface and in neither rewritten datapath, and both pass the flow's
+mandatory negative control that the radio domain is timed rather than cut.** The figure
+the decision quotes, thirty-one thousand eight hundred, is not reproducible from anything
+in the tree -- the on-disk report of record from July says 29,730 and this wave's own
+before run says 30,165, a one-and-a-half per cent spread -- so the before number was
+re-measured here through the same script rather than taken from memory. Flop count falls by about a half, from 3,150 bits to 1,632, because the deleted
+bit buffers were themselves registers: seven hundred and sixty-eight bits of them, plus a
+further five hundred and sixty in the reply scratch and the oversized receive array.
+
+The four causes were each replaced by the serial form the decision asked for. The receive
+path now inserts each decoded bit into a nine-bit framing window and de-frames, checks
+parity and folds the receive checksum byte by byte as the bits arrive, so nothing is
+counted or re-read after the frame closes; the checksum verdict needs no array read at all,
+because the chain carries two extra stages and a two-byte delay line and the trailing pair
+a frame ends with therefore falls out of registers rather than out of an address
+calculation. The receive array shrinks to the nine bytes it always held and is read only
+at fixed indices. The transmit path is a nine-bit shift register holding one framed group,
+refilled from the reply source as it empties, and a group lasts nine symbols, which is
+hundreds of clock cycles, so the refill has enormous slack. The reply is no longer copied
+into a scratch array at all: its source is selected and walked one byte per clock through
+a single byte multiplexer that the composer and the transmitter share, since they never
+run at the same time. The automatic read answer copies its sixteen payload bytes one per
+clock through the block's single pointer into the window, underneath the frame delay
+countdown, where it costs nothing.
+
+**The reply now leaves at a fixed offset from the end of the reader's frame, where it used
+to leave two clocks later per received byte.** The serial divide that counted the frame's
+bytes and the second pass that checksummed the stored frame are both gone, and those two
+were the frame-length-dependent part of the delay -- which the contactless standard does
+not have, so the rewrite is nearer the standard than what it replaces, not further. The
+overhead is nine clocks for a five-byte reply and twenty-two for a sixteen-byte read
+reply, and the technical reference manual's protocol-timing section now states both
+numbers and the fact that neither depends on the received frame. The bench measures it
+and the new check fails on the old design, which makes it its own control.
+
+**A real defect was found by moving the sampling phase, and it had been live since the
+interlock was written.** The automatic-read copy is protected by an interlock that
+snapshots a payload-write toggle at the copy and compares it again before the reply is
+composed, so that a reply assembled across a firmware write is dropped rather than
+checksummed onto the air. A toggle compared end to end reports only an ODD number of
+writes. The span is the whole frame-delay countdown, tens of clocks, and a firmware burst
+writes a byte every couple of bus cycles, so whether the interlock fires at all was
+decided by the parity of an arbitrary count -- and the old design passed its own bench
+check on the parity its own deleted delay happened to produce. The rewrite shifted that
+phase by eight clocks, the parity flipped, and the bench caught a reply the reader
+actually received. The sensor now watches the toggle for a change on every clock of the
+span and keeps the verdict, so any write in the span is caught whatever the count. Nothing
+new crosses a domain: the detection sits in the radio domain on the synchroniser's own
+output, and the fix is strictly stronger than the comparison it replaces.
+
+Everything else is bit-identical. Every register bit, address, reset value and documented
+behaviour is preserved, the state encoding the bus reads and both debug counters are
+untouched, and all eleven synchroniser instances keep their name, width, depth, clock,
+reset and connections -- the frozen crossing manifest's only change is line numbers. One
+waiver glob is renamed because its register bank is, with its justification rewritten for
+the serial copy and the new sensor; the three toggle-qualified payload globs the previous
+wave wrote still match their registers unchanged. Three edge cases on MALFORMED frames
+read differently and are written down rather than smoothed over, all three of the same
+kind: the old bit buffer was never cleared between frames, so a frame shorter than its own
+header claims used to be compared against the PREVIOUS frame's bits and is now compared
+against zero, which rejects it instead of possibly matching it on stale data.
+
+The whole regression suite passes, three hundred and fifty tests including the instruction
+set regression, and the block's bench reports every one of its pre-existing checks green
+plus the two the wave added and the one deliberate failure it has always carried.
