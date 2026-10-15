@@ -4160,6 +4160,76 @@ column phases unchanged. The band is then 52.2 % occupied against the 51.0 % Y32
 for the pre-NFC content at the width the chip of record closed on -- so O15(b) is what pays
 for the narrower tile: the same geometry without the rewrite sits at 55.3 %.
 
+### Y36 part 2 -- cut `chip_v3_a`: timing-closed at 4.560 mm2, and deliberately not promoted
+
+Attempt **1 of 2** on tile `v3j` (`TILE_OUT=../hart_tile_pt/out.v3j_ref`, LEF md5 verified
+against Y35's own hand-over line; its `PINNED` line names `out.v3d_ref`, which is not on
+disk), `BIASGEN_PLACEHOLDER=v2`, `PT_FT_PADS=0`. Innovus exit 0 in 2:14:53.
+
+| | `chip_spread_a` | **`chip_v3_a`** |
+|---|---|---|
+| die / core | 2480 x 2000 / 2170 x 1690 | **2280 x 2000 / 1970 x 1690, -8.06 %** |
+| signoff setup / hold WNS | +0.189 / 0.000 ns | **+0.041 / +0.002 ns**, 0 violating of 36,821 paths at four views, coupled SI |
+| WQ19 / WQ26 / WQ27 | PASSED | **PASSED** (Wiring 0, real SameNet 0 of 1051, Short 0 of 65, dangling 0 of 34, antenna 0 of 46) |
+| chipdrc real geometry | 24 | **22**, 0 in or touching a tile, 0 at an analog strap column, `M7.S.4` 0 |
+| ant25 | CLEAN | **CLEAN** (2 `MIM_SWITCH.WARN.1` in the Cadence mimcap) |
+| LVS nets unmatched | *0 : 1 (W-PT1-1) | ***0 : 2** -- W-PT1-1 plus one NEW entry |
+| placement density | 32.37 % | **29.3 % at a smaller die** |
+| instances / GDS | 362,817 / 185.3 MB | **285,743 / 135,056,964 B `afe8ae51...`** |
+
+**The die is derived, and D38(i)'s 83 um is not owed.** New `band_need.py` runs O15's model
+on the real abstract and the two Genus area reports: tile term 1970.0 um, band term 1027.8
+um, so **the tile binds by 942 um**. D38(i) read the band as binding because it priced the
+band against the 51.0 % occupancy the chip of record *closed at* rather than against the
+core height the band actually has. At 1970 the band is 52.2 % occupied and the chip closes
+with 3 points of density to spare. The script reproduces the die of record at +0.00 % as
+its own negative control.
+
+**The chip is not promoted, and the reason is one LVS entry we will not self-waive.**
+Devices **0 : 0** in every class, pins **99 : 99**, `lvs.rep.shorts` **empty**, WELLBIND
+0 unbound -- but the SHORTS AND OPENS section carries two entries where every cut back to
+`chip_2mm_n4` carried one. The first is **W-PT1-1 verbatim**, on the same layout net 167.
+The second, layout pin `VSS` against schematic net `Xmcu0/tile3_afe_d_raw<0>`, is new, and
+W-PT1-1's wording does not reach it. No independent checker sees a conductive short:
+Pegasus's own `LVS_FIND_SHORTS` is 0 lines, Innovus signoff `verifyGeometry` read Short 0
+and real SameNet 0 on the database this GDS came from, and not one chipdrc result is a
+short rule. The tile pin it names -- hart3's `afe_sar_d[0]`, M6 at chip
+x[216.850, 216.950] y[300.480, 301.000] -- is an **isolated 0.0520 um2 rectangle, identical
+at all four tiles**, so the merge is not at the pin. The negative control is live (one
+`BUFX2BA10TH` deleted gives unmatched devices **4 : 0**, pins 0 : 0, shorts still empty)
+and **both** entries survive that edit, which is what says they are properties of the
+layout. The next instrument is a net-aware trace on the routed database, not another cut
+and not another identical comparison -- so LVS run 3 of 3 is unspent and chip attempt 2 of
+2 is unspent.
+
+`castalia_B_chip_v3_a` is ingested with a status README that says TIMING-CLOSED and **NOT
+ELECTRICALLY COMPLETE**. `make promote` was not run, the Makefile default stays at
+`chip_spread_a`, `hart_tile_pt_signoff` stays at v2g and `out/Y1_READY` is untouched -- all
+four proved, not assumed, by a headless OA read through a one-`INCLUDE` `cds.lib`:
+`castalia_B_chip_v3_a` at bBox ((-135, -135)-(2105, 1825)) and 285,743 instances against
+`castalia_B` still at 2305 and 362,817.
+
+**The feedthrough pad spread is parked on measurement.** The tile side of O15(a)(i) is
+real -- v3j publishes four 11.48 um M7 corridors of 56 tracks each and the census passes on
+its abstract. The chip side refuses: new gate C-G24 found no 5.0 um M7 strap position
+inside corridor x[1311.010, 1321.490] clearing 1.50 um of the 32 foreign M7 shapes there
+(one plate spans 37.6 um of it), and ViaGen built 0 of 20 vias at the pad end. An I/O pad
+on an arc whose core rail never reaches the core is the W-L-6 defect and RINGSUP counts
+pads, so the ring stays at Y31's 162 and per-side digital signal pads land at W 35 / E 25 /
+N 6 / S 7 -- *worse* than chip_spread_a's W 34 / E 25 / N 7 / S 7, because the N/S rows
+lose 8 of their 86 physical slots at the narrower core. Only a corridor pad reverses that.
+The 172-pad ring was built and proved offline first (`ft_ring_test.py` 38 pass / 0 fail with
+five negative controls) and is kept with the `.y36_ft_on` suffix.
+
+**Two of our own gates were reporting passes they had not earned.** The signoff driver put
+`$(date)` ahead of `$?`, so every stage reported `date`'s status -- two collateral runs
+FATALed on the Stage-J sentinel and both printed `exit 0`. And those sentinels were
+hard-coded to the 2170-core row grid, so they refused legal geometry at 1970; they now try
+the historical pair first and **derive** the nearest legal VDD/VSS M1 follow-pin rail pair
+from the DB's own rails when it misses, re-asserting on-rail afterwards, with an offline
+suite at **14 PASS / 0 FAIL** including a no-VSS-rail negative control. On this cut the
+derivation landed at (1316.200, 1049.000) / (1316.200, 1047.000).
+
 ## Y35 -- the 885 um tile is built and signed off, and the gap between 885 and 935 was six separate defects (decision D37, 2026-10-14)
 
 D37 set the tile at **885 x 300** (`TILE_PT_FLOORPLAN=v3n`). Cut **`v3j`** is
