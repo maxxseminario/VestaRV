@@ -4449,3 +4449,103 @@ pad dropped, and a tile at 55.5 % density against the 78.4 % that cost Y35 seven
 Do not take the column arrangement for this tapeout. If it is wanted for a second chip,
 **Y36-G is its entry condition, not its follow-up**, because without the corridor PG drop
 the package pin-out loses 17 pmx pads.
+
+## Y38 -- the column chip as a separate block: die Y 1 mm refused by the SRAM, and the row chip proven untouched (owner decision O17, 2026-10-15)
+
+Owner decision **O17**: build the column arrangement as a SEPARATE block
+`MCU_castalia_penta_pt_c` so the row chip of record (`MCU_castalia_penta_pt`, cut
+`chip_v3_a`, library `castalia_B`) is never overwritten. Per-cut libraries
+`castalia_C_<cut>`, stable `castalia_C`. Target about 3.5 mm2. Evaluate 4 SRAM banks
+against 5 and die Y 1 mm against 2 mm, and take the smaller legal die.
+
+**Die Y = 1 mm is REFUSED by the SRAM, not by area, and 2 mm wins by a factor of 1.62.**
+`column_model.py` gains a `--die-y` mode that runs five arrangements at each candidate die
+Y with three legality tests that are not about width at all: STACK (2 x tile LENGTH + 2 x
+edge gap must fit the core height), STAND (one rotated tile must fit it) and **SRAMFIT (a
+HORIZONTAL band row must clear 383.085 + 2 x 4 halo + 2 x 8 margin = 407.085 um)**. At a
+690 um core, four of the five arrangements are refused by geometry: columns two deep by
+STACK (1672 > 690), rotated singles by STAND (837 > 690), rows 2x2 by SRAMFIT at 88.0 um,
+and **rows 1x4 with the band above by SRAMFIT at 388.0 um against 407.085 -- short by
+19.1 um, and by 3.1 um even with the band's two margins deleted**, so no density target,
+bank count or band width recovers it. The only legal 1 mm arrangement is one row of four
+tiles with the band BESIDE them at **5.875 mm2** (4 banks) or 6.148 (5), penalised twice
+because its band's macro plan degrades from 2 columns / 679.3 um to 5-6 columns /
+1676.6-2012.2 um once an SRAM no longer stacks two deep. **At die Y 2 mm the column
+arrangement gives 1930 x 2000 = 3.860 mm2 at 5 banks and 1818 x 2000 = 3.637 mm2 at 4**,
+both at O17's 65 % band target. O17's "SRAMs in 3 + 2 columns" is the 5-bank split, so the
+block is built at 3.860; 4 banks is -0.223 mm2 and is a bank decision, with the asymmetry
+Y37-F named now measured on the real procs -- in COLUMN mode the bank count is a die term,
+in row mode it buys no die at all and is only a legality gate. `--control` still reproduces
+chip_v3_a's 2280 x 2000 at +0.00 %.
+
+**The column mode landed in the shared `core_floorplan_lib.tcl` (665 -> 1177 lines) and
+Y37's orientation table is wrong.** Two in-place edits -- `fp::tile_places` gains a
+`columns` branch and **Y37-B's missing default**, `fp::tile_xy` gains the four 90 degree
+orientations -- plus eleven new procs (`is_rot`, `rev_long`, `rev_short`, `notch_box`,
+`riser_sets_c`, `mesh_c`, `mesh_gaps_c`, `solve_inset_c`, `core_width_c`, `band_plan_c`,
+`pin_edges_c`). **Y38-A: Y37 section 2.1 SWAPPED MX90 and MY90.** The LEF/DEF
+transformation matrices put MX90's analog face EAST with the notch in the TOP half and
+MY90's WEST with it in the BOTTOM half; Y37 reads both the other way round. The geometric
+conclusion survives -- the labels swap in a pair, the set is still the single two-axis
+symmetric one, the notches are still 776.0 um apart -- but a flow built on the table would
+have put a 447 um analog window over solid tile body on all four tiles. The legal set is
+**W top R90 / W bot MY90 / E top MX90 / E bot R270**, asserted against Y37's table as an
+explicit negative control. **Y38-C: `fp::riser_sets` sorts the two PG nets by PHASE**,
+which is their die-x order only while the set does not straddle a pitch boundary; rotated,
+the v3j lattice does, and the phase sort reports a 36 um set spacing where the geometry is
+4 um -- the number the mesh pass matches `POWER_STRIPE_PATH_SPACING` against. The column
+proc sorts on absolute position; the row proc is masked on every tile this flow has built
+and was deliberately not changed.
+
+**Measured geometry, offline, at the 835 outline:** core **1620 x 1690**, die **1930 x 2000
+= 3.860 mm2** (-15.4 % of chip_v3_a), tiles at (0,845) R90 / (1320,845) MX90 / (0,10) MY90
+/ (1320,10) R270 with a 10.0 um edge gap, notch boxes x[0,240] and x[1380,1620] at
+y[10,457] and y[1233,1680], **776.0 um of column notch separation** and the first section
+10.0 um off the south core edge. Band **1002.6 x 1673.1**, SRAMs in 3 + 2 columns,
+macro-column floor **679.3 um** -- the same number `column_model.py`'s `col_stack()` prices,
+which is the cross-check -- cells 323.3 um wide and **37.2 % placement density against
+chip_v3_a's 23.8 %**, which is the bet O17's 65 % target takes and is stated in `rowden`
+rather than occupancy (Y37-D). **Y38-F: Y37 2.3 was optimistic about the mesh.** The
+horizontal M7 welds are answered by construction as it said; the VERTICAL M8 band is
+phased off the WEST wall while the EAST pad column rides on the core width, so at the 39 um
+C0 inset the legal widths are only `W = 558 + 50k .. 561.5 + 50k`, a 3.5 um window every
+50 um. `fp::core_width_c` therefore solves width and inset together: **1620 at inset 19.2
+um with a 15.1 um worst pad-column gap, and `W mod 50 = 20`, the same core-wall phase the
+row chip of record carries at 2170 and 1970**, arrived at independently. Riser phases 46.0
+and 30.0 against a 5 um pad confirm Y37 2.2's **two addStripe passes**.
+
+**The block exists, its driver is GENERATED, and the row block is byte-identical -- proven,
+not asserted.** `gen_chip_geometry.py` gains `--block {pt,c}`. The column block has no core
+sibling at its geometry, so there is nothing to transplant from; but it IS the row driver
+everywhere the arrangement does not reach, which is most of 13,562 lines, and a fork would
+re-create exactly the Y5-C drift that generator exists to delete. So the column block is
+declared as the **DIFFERENCE**: ten FIND/REPLACE transforms in
+`MCU_castalia_penta_pt_c.chipbase_c.tcl` (NAME, BASENAME, ARRANGE, COREBOX, PLACES,
+NOTCHPUB, MESH, CORERING, BAND, RISER), each of which must match a stated number of times
+or the generator FATALs, with `--block c` running the row `--check` first so a stale row
+driver cannot be transformed. The driver is 13,714 lines and `info complete` clean;
+**CORERING flips `addRing -skip_side {top bottom}` to `{left right}`** because the W/E core
+edges are hard macro for their whole height, and NOTCHPUB adds **new gate C-G25** on the
+column notch separation so Y37 2.1's one-legal-set result is a check rather than a property
+of a hand-written list. Three negative controls fire: a wrong declared count, one appended
+comment in the `_c` block's shared tcl (one file, three homes), and a bad block name. The
+row block is identical on five instruments: `--check` md5 `37929957f9c5cf38c90e051931f329bd`
+unchanged, `make -n` byte-identical for `_pt`, `_b`, `_core` and `hart_tile_pt`, and the row
+half of the floorplan suite 91 PASS / 0 FAIL before and after. The column suite adds **86
+assertions with 12 negative controls**, total **177 PASS / 0 FAIL**.
+
+**Y38-D: the column band's macro PLACEMENT is not written and the flow FATALs rather than
+mis-placing.** `fp::band_plan_c` solves the plan and publishes its numbers; the
+`placeInstance` / `addStripe` code that consumes it is still the row band's and is indexed
+on die x, as are the ANATOP straps, C13's pad-band layer blocks and the emission of the two
+horizontal M7 riser passes. The FATAL names all seven remaining stages, because a silently
+wrong SRAM row is the c5 failure mode with 139 SameNet violations at a single y. Y37
+section 4 prices that at 5 to 8 days of chipbase PG and 3 to 5 chip waves.
+
+**0 of 4 probes and 0 of 1 chip cuts, and the binding reason is the tile. Y38-B: the 885 um
+tile of record overflows the 1690 um core by 80.0 um**, so `fp::tile_places columns` refuses
+it and there is no legal column floorplan to probe until Y39's 835 x 300 outline exists;
+part C.0 asserts that refusal both ways for free, which is Y37 5.2's argument with the tile
+substituted for the axis. `run_chip_c.sh` then refused to start on its own licence guard,
+naming Y39's v3k harden -- the very tile this block needs -- and killing it would have cost
+more than the probe could buy.
