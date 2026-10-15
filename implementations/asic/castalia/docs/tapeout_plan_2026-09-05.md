@@ -4584,3 +4584,44 @@ grows +0.41 to +0.43 mm a side on N/S, against Y37 3.4's ~105-210 um estimate. `
 gains `mcu_castalia_penta_pt_c` and a fifth stable library `castalia_C` (it had four, not the
 three recorded), 77 PASS / 0 FAIL, with the `_pt` `make -n` command-line diff EMPTY at 718
 lines and the same md5 on both sides.
+
+### Y38 -- the remaining path for the `_c` block, in the order it must be cleared
+
+| | |
+|---|---|
+| die, 5 banks / 65 % band | **1930 x 2000 = 3.860 mm2** (-15.4 % of `chip_v3_a`'s 4.560) |
+| die, 4 banks / 65 % band | 1818 x 2000 = 3.637 mm2 (-20.3 %) |
+| die Y = 1 mm | **REFUSED by the SRAM**, not by area. Smallest legal 1 mm die 5.875 mm2 |
+| tile | 835 x 300, Y39's v3k. The 885 of record overflows the 1690 core by 80.0 um |
+| probes / cuts | **4 of 4 spent, all productive; 0 of 1 cuts** |
+
+1. **Y39's v3k tile with its GDS.** Probe `y38fp4` refuses at `FATAL (CPR9 tile pin):
+   .../tile.stub_c835/hart_tile_pt.gds2 does not exist`. The stub is a floorplan stand-in
+   and must never be streamed, so nothing downstream can be probed until the real abstract,
+   GDS, `.lib` and `.xsim.v` exist. Then drop `PENTA_CORE_NOTCH_X0=194` so the flush-east
+   388 default applies, re-run `y38fp*`, and delete `in/tile.stub_c835`.
+2. **Y38-D, the column band's macro PLACEMENT and the analog WINDOW stage.**
+   `fp::band_plan_c` solves the plan and publishes every coordinate; the `placeInstance`
+   loop and the two `addStripe` passes that consume it are still the row band's and are
+   indexed on die x. The driver FATALs at two named stages with the full remaining list
+   rather than placing a row band in a column core. Y37 section 4 prices it at 5-8 days of
+   chipbase PG and 3-5 chip waves.
+3. **The column ring's in-Innovus placement Tcl.** The plan, the knob header, the ball map
+   and the pmx census all exist and are tested; the Tcl that places pads from them is not.
+4. **Owner decision on Y38-E, the band density.** O17's 65 % band target is a **37.2 %
+   placement density against the 23.8 % `chip_v3_a` cut at**, and no cut of this design has
+   placed a band above 25.1 %. That is the single largest risk in the block. If the first
+   routed cut is congested the lever is the bank count -- 5 to 4 is -0.223 mm2 of die AND a
+   looser band -- not a wider die.
+5. **Owner decision on Y38-J, the TAP split**, before the ball map is frozen.
+6. Then the ANATOP strap axis, C13's pad-band blockages and the WQ5 / WQ21 / WQ22 axis, in
+   that order, because each is gated on the one before.
+
+**Three defects found in EXISTING code, none of them in the column work.** Y38-A (Y37 2.1's
+orientation table swaps MX90 and MY90). Y38-C (`fp::riser_sets` sorts the two PG nets by
+phase, which is their die-x order only while the set does not straddle a pitch boundary;
+masked on every tile built so far and deliberately not changed, because the premise of this
+block is that the row chip of record does not move). Y38-H (the row ring's per-side capacity
+gate counts `spent` into the capacity it measures against, so it is vacuous and has never
+fired). Plus Y38-I: `make -n promote` is not read-only in `signoff_mp`, because it executes
+recipe lines that reference `$(MAKE)`.
