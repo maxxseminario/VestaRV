@@ -4251,3 +4251,131 @@ before `v3j` would have left Y36 with no tile. Offline suites:
 `tcl/y35_pt_test.tcl` **56 PASS / 0 FAIL** (new, the arithmetic of all four
 remedies plus 14 negative controls), `tcl/feedthrough_pt_test.tcl` 45 / 0,
 `tcl/y32_via_marker_test.tcl` 8 / 0, `tcl/pin_pg_dodge_test.tcl` 30 / 0.
+
+## Y37 -- the column arrangement, measured: it is worth 2 % of die, and the row arrangement has an untaken 7 % (owner decision O16, 2026-10-15)
+
+O16 asked for a study of the column arrangement: the four tiles rotated and stacked
+two per column against the west and east core edges, the control plane between them
+spanning the full core height, the north and south pad rows entirely over that plane,
+and the four analog ring sections two per side on west and east. Offline models and
+floorplan probes only, no cut. Report `tapeout_review/reports/Y37_column_study.md`.
+
+**The model, and its control.** `innovus/common/MCU_castalia_penta_pt/column_model.py`
+expresses the arrangement as `core W = 2 x tile HEIGHT + band W` with
+`band W = content / (1690 x density)`, and DECOMPOSES the band macro total into
+`fp::band_plan`'s own five footprints plus a residual, so the SRAM bank count is varied
+as a measurement and not as a guess. `--control` reproduces chip_v3_a's **2280 x 2000**
+exactly and Y36's `band_need.py` content (1,120,248.8 um2) to the digit.
+
+**The tile length does not appear in the column die at all.** 835, 800 and 750 give the
+identical die at every density and bank count, because the tile's long side is a height
+term and die Y is fixed at 2000 by O10; what enters the die is the tile's SHORT side,
+twice. The column tile therefore wants to be as LONG as 1690 allows and as THIN as its
+own density wall allows -- the opposite of the direction Y32 and Y35 optimised in, where
+`core W = 2 x TILE_W` made the length the expensive dimension. Shortening the tile below
+835 buys nothing in die; it buys only west/east pad-row core entry.
+
+**Band occupancy is the wrong invariant and it mis-signs.** D35(i), Y32 2.5 and Y35 6
+all quote `content / band area` -- 51.0 % on the chip of record, 52.2 % at core 1970,
+read as "+2.2 points worse". Computed the same way on both chips, the PLACEMENT density
+(standard cell over band area less macro and halo) went **25.1 % -> 23.8 %**: the band got
+LOOSER while the occupancy rose, because O15(b) deleted 66,615 um2 of cells and no macro
+moved. Y36 10 has this right at the tool level (32.37 % -> 29.3 %). Every band decision
+taken on the occupancy number should be re-read on the placement density.
+
+**What the arrangement is worth.** At equal tile density and equal band placement
+density -- the only honest comparison -- a column chip is **4.137 mm2** against a row
+chip's **4.228**: **-2.2 %**. The arrangement's own structural win, measured by the model's
+equal-density control, is **95.4 um of core width**: the two 100 um edge channels
+(120,000 um2, which a column chip does not need because its west and east core edges are
+tile) plus whatever the tile length changes by. The -11 % to -18 % of the density table is
+the band being planned two to three times denser than any cut this design has taken.
+
+**What it does buy is the floor.** The row die is `2 x tile_L + 510` and band density
+cannot move it, because the tile term binds at every tile this flow has built. The column
+die is `2 x tile_H + band_W + 310`, so every point of band density converts. Row floor
+**4.02-4.23 mm2**; column floor **3.19-3.34**, reachable only at 45-55 % band placement.
+
+**The row arrangement's untaken -7.3 %, and the bank count that unlocks it.** Y32 2.3
+rejected a taller tile ("H does not buy density") by measuring H = 340 at a FIXED width.
+H costs nothing in the row die and is paid for in band height, which is not binding.
+**`802 x 340` with 4 SRAM banks: core 1804, die 2114 x 2000 = 4.228 mm2, -7.28 % against
+chip_v3_a**, tile at **55.5 %** density against v3j's 78.4 %, `NOTCH_W` 447 and `anatop_ch`
+417 x 180 UNCHANGED (802 = 355 + 447, the notch wall floor being ram0's east edge 349.65
+plus the 5.35 um minimum east halo), SRAM row gap +57.6 um, and `H = 340` phase-legal on
+both axes. `835 x 340` is -4.39 % and keeps every wall on a v2d phase; `750 x 352` is
+-11.84 % and costs an `anatop_ch` re-layout to 365 um wide.
+
+**The bank count buys no die in row mode -- it buys legality.** Measured on the real
+proc: `fp::band_plan`'s five-macro row gives `sram_gap` +4.812 at core 1970, **-20.387
+(REFUSED) at 1870**, and +79.367 at 1870 with four banks. So every tile under 875 um needs
+4 banks or a two-row SRAM band. In the COLUMN arrangement the same decision IS die:
+5 -> 4 banks is -142.0 um of band width (-0.284 mm2) at 51 % density. The arrangement must
+therefore be decided before the bank count, not alongside it.
+
+**The geometry, computed.** Of the eight LEF orientations exactly four are 90 degree
+rotations, and they split cleanly: west `{R90, MX90}`, east `{R270, MY90}`. Enumerating
+all sixteen combinations for two-axis symmetry leaves **exactly two sets**, and one abuts
+the two notches of a column into a single 894 um window and leaves the digital arc between
+their brackets EMPTY, which `RINGSUP/8` refuses. So there is **one** legal set
+(`W bot MX90 / W top R90 / E bot R270 / E top MY90`) and it puts all four analog sections
+in the die CORNERS, notches at y[10,457] and y[1233,1680]. The riser lattice becomes
+horizontal and the phase is **per ROW**, Y29's mechanism with the axes swapped -- and one
+pass is arithmetically impossible, because a shared phase needs `2 x edge_gap == 33 mod 50`
+and 33 is odd. `PENTA_CORE_NOTCH_Y0` becomes an X depth (the west tiles' notch floor at
+placed x 240, their band-facing PG pad row at x[240,245]) and the chip stripes that weld
+onto it are horizontal and CROSS it, with a same-net set every 50 um across the full core
+width -- so `fp::mesh_gaps`'s question is answered by construction rather than by a solve.
+The macro column plan is comfortable: **2 columns, 679.3 um of band width, tallest column
+1600.3 of 1674 usable**, and the columns never bind. But `addRing -skip_side {top bottom}`
+must become `{left right}`, which moves every `-extend_to_closest_target ring` target in
+the flow.
+
+**Two defects found offline.** `fp::band_plan` refuses every column band loudly
+(`sram_gap` -162.8 to -318.1, because it still lays five SRAMs in one horizontal row).
+`fp::tile_places` has **no default branch and silently returns the QUAD placement** for an
+unrecognised arrangement name -- harmless today because the chip flow guards
+`FP_ARRANGE ni {flat quad}`, and its sibling `fp::tile_xy` carries the error branch.
+
+**The pad ring is the hard part, and it is blocked on Y36-G.** In a column chip the four
+sections move to the west and east rows and the bias island to a north or south row -- the
+east `AVDD_B` core arm and the `EBCORE` clamp that FATALed Y36's probe 1 disappear
+entirely -- and the west and east rows then stand ENTIRELY over hard macro, which is the
+Y8 edge-channel problem at its limit. Against the 44-finger cap, RINGSUP's five pads per
+supplied arc and D22's `ceil(io/8)` pairs: **without the feedthrough corridors the ring
+places 56 of the 73 signal pads and 17 of the 19 pmx spares drop** (133 pads, 43 NC, 20 on
+each of west and east); **with them armed it is 73 of 73**, 162 pads and 14 NC. An
+inter-tile channel is the only other lever and the 802 um tile content floor refuses it.
+The per-side signal range is **28 at best and 32 as planned**, against the 11 that Y31 and
+Y36 spent two waves reaching, because two of four sides carry no signal pad at all. Two of
+Y36's three objections weaken in this axis -- the corridor run direction becomes x, which
+is M7's preferred direction, and the PG strap now stops at the band edge with a same-net
+horizontal set within 50 um -- but the `M1 -> M7` stitch inside a `tphn` pad footprint is
+pad-cell physics and is untouched by any arrangement.
+
+**No probe was spent, and the reason is measured.** The transposed stub abstract is exact
+(1557 RECT rotated, SIZE 885 x 300 -> 300 x 885; v3j carries 0 POLYGON), and
+`hart_tile_pt.lef` already declares **`SYMMETRY X Y R90`**, so the rotation needs no new
+tile collateral and no re-harden. All three of the flow's licence-free instruments then
+refuse the stub, each at a different axis assumption: `fp::lef_probe` -- the same proc the
+flow runs inside Innovus -- with *"no M7 PG column stripe rooted at y=0; the notch floor
+cannot be derived"*; `feedthrough_census.py` with **4 corridors -> 0**, because it scans
+for full-height windows in x and the corridors are now full-width windows in y; and the
+ring plan with *"the tile's analog ports are not a 25 um block"*, all six being at x = 1.0.
+An `FPLAN=1` probe would have FATALed at the identical line a `tclsh` printed for free.
+
+**Work estimate: 4-6 agent waves and 10-20 Innovus cuts.** ~325 new lines in the 665-line
+`core_floorplan_lib.tcl` plus ~150 of unit test; 3-4 days on the two `innovus.tcl` flows
+and `gen_chip_geometry.py`'s decision rows; **5-8 days on `chipbase.tcl`'s PG**, which is
+where the cuts go; 4-5 days on the ring, package and overlay. The ring generator cannot
+express a column mode as a flag -- `DIGITAL_RUNS` is 17 hand-authored entries with 10
+absolute starts, `ring_arcs` is 307 lines of arc topology with two corner wraps against the
+four a column ring needs, `PMX_GROUPS` IS the package pin-out, and gate Y11-4 inverts
+outright -- so the deliverable is a plan table and no flag was added.
+
+**Recommendation.** Take `802 x 340` with 4 SRAM banks in the ROW arrangement now: -7.3 %
+of die for one tile harden and one owner decision, no chip restructure, no ring rework, no
+pad dropped, and a tile at 55.5 % density against the 78.4 % that cost Y35 seven attempts.
+Do not take the column arrangement for this tapeout. If it is wanted for a second chip,
+**Y36-G is its entry condition, not its follow-up**, because without the corridor PG drop
+the package pin-out loses 17 pmx pads.
