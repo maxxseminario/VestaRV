@@ -4230,6 +4230,19 @@ from the DB's own rails when it misses, re-asserting on-rail afterwards, with an
 suite at **14 PASS / 0 FAIL** including a no-VSS-rail negative control. On this cut the
 derivation landed at (1316.200, 1049.000) / (1316.200, 1047.000).
 
+**The five-scope P&R SDF regression is 14 / 14 at both views**, and getting there found a
+harness defect worth more than the result. The first attempt scored **4 / 14**:
+`hart_tile_pt.pnr_sim.v` -- the only place the tile module enters the simulation -- was
+still built from the **v2g** tile while the chip netlist and all five SDFs were v3j's, and
+nothing in `harness.conf` ties that file to `TILE_OUT`. The four rows that passed are
+exactly the four that never need a hart tile to reach its grading write; the ten that
+failed each reported `pass=false fail=false` on all four harts. Same chip, same SDFs, same
+harness -- rebuilding the tile module from `out.v3j_ref` takes it to 14 / 14 with every
+hart reporting `pass=true`. The driver now rebuilds it every run from the same `TILE_OUT`
+the SDFs come from, echoes the md5, and refuses to start unless the installed `.sdfcmd`
+names this cut and this view; `harness.conf`'s header carries the warning. A regression
+that reads 4 / 14 for this reason is indistinguishable from a chip that does not work.
+
 ## Y35 -- the 885 um tile is built and signed off, and the gap between 885 and 935 was six separate defects (decision D37, 2026-10-14)
 
 D37 set the tile at **885 x 300** (`TILE_PT_FLOORPLAN=v3n`). Cut **`v3j`** is
