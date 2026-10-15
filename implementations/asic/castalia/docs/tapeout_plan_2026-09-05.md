@@ -4542,10 +4542,45 @@ horizontal M7 riser passes. The FATAL names all seven remaining stages, because 
 wrong SRAM row is the c5 failure mode with 139 SameNet violations at a single y. Y37
 section 4 prices that at 5 to 8 days of chipbase PG and 3 to 5 chip waves.
 
-**0 of 4 probes and 0 of 1 chip cuts, and the binding reason is the tile. Y38-B: the 885 um
-tile of record overflows the 1690 um core by 80.0 um**, so `fp::tile_places columns` refuses
-it and there is no legal column floorplan to probe until Y39's 835 x 300 outline exists;
-part C.0 asserts that refusal both ways for free, which is Y37 5.2's argument with the tile
-substituted for the axis. `run_chip_c.sh` then refused to start on its own licence guard,
-naming Y39's v3k harden -- the very tile this block needs -- and killing it would have cost
-more than the probe could buy.
+**4 of 4 probes spent, 10-11 s each, and the column floorplan solves inside Innovus.** Probe
+`y38fp4` reaches `### UNL STATUS ### : Y8 frame -- solver and ring plan agree on the core box
+1620.0 x 1690.0 um` with the full mesh-gap census inside budget -- the two band-facing pad
+columns at -39.90 / -40.10 um (inside the band) and the two notch-floor rows at **+15.10 west
+and +14.90 east against a 37.5 um budget**, the same numbers `fp::core_width_c` solved offline
+-- and gate C-G25 at 388.0 um on both columns. Each of the four refused at a different place
+and each refusal was real. `y38fp1`: the flow's notch / analog-pin consistency guard catching
+a stub-vs-knob mismatch in 11 s, naming the pin and the distance. `y38fp2`: **a stray closing
+brace from the NOTCHPUB transform, which `info complete` cannot see** -- the span was captured
+from a `foreach` header to a `logPuts` inside it, so the loop's own brace survived the
+replacement and landed at top level while the file's braces still balanced. BRACE BALANCE IS
+NOT BLOCK STRUCTURE (Y38-G); the builder now gates on brace-DEPTH EQUALITY between find and
+replace and auto-extends each span until it closes its own command. `y38fp3`: the Y8
+cross-language frame gate firing on exactly the condition it was built for, the block having
+still carried the row ring's 1970 x 1690. `y38fp4`: `FATAL (CPR9 tile pin):
+.../tile.stub_c835/hart_tile_pt.gds2 does not exist` -- the stub being a stub, and symlinking
+the v3j GDS would put 885 geometry under an 835 abstract, which is the lie that gate exists to
+prevent.
+
+**No chip cut, and the reason is the tile plus Y38-D rather than the budget. Y38-B: the 885 um
+tile of record overflows the 1690 um core by 80.0 um**, so there is no legal column floorplan
+until Y39's v3k publishes an 835 x 300 abstract with a GDS; part C.0 asserts that refusal both
+ways for free, which is Y37 5.2's argument with the tile substituted for the axis.
+
+**The ring and the signoff plumbing are PLANS, tested offline.** `gen_padring_pt2mm_c.py`
+imports the row generator's role tables rather than copying them and places the four analog
+sections on the W/E rows over the rotated notches with the digital runs on N/S over the band:
+**139 pads of 176, 57 island / 57 signal / 25 supply, 37 NC, and 23 of the 162 pads of record
+drop** -- 16 pmx, 5 PST and 2 core supply, with no GPIO bit, no RESETN and no TAP pad lost and
+no pad invented. The pmx census is **N = 3** and the survivors are a prefix of the row chip's
+19, so Y27's PINMUX binding for `pmx0..2` is unchanged. Eight of ten arcs carry a pad (O17's
+eight) with four corner wraps against the row ring's two, and the EB bias island moves to the
+north row where its `BIAS_DX = 10` offset is load-bearing: centred it would put
+`PAD_AVDD_B_0`'s plate 2.4 um from the core's vertical M8 lattice against the 8.0 um an 8 um
+rail needs. **Per-side signal range 34, worse than Y37-C's predicted 32**, two of four sides
+carrying no signal pad at all. 74 PASS / 0 FAIL with nine negative controls, including Y37
+5.2's third refusal closed. On the LQFP-176 the worst wire angle is 43.6 deg against the row
+chip's 43.9, so on the metric the package model checks there is no regression; the wire LENGTH
+grows +0.41 to +0.43 mm a side on N/S, against Y37 3.4's ~105-210 um estimate. `signoff_mp`
+gains `mcu_castalia_penta_pt_c` and a fifth stable library `castalia_C` (it had four, not the
+three recorded), 77 PASS / 0 FAIL, with the `_pt` `make -n` command-line diff EMPTY at 718
+lines and the same md5 on both sides.
