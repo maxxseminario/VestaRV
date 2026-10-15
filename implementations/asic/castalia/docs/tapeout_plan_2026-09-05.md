@@ -4625,3 +4625,82 @@ block is that the row chip of record does not move). Y38-H (the row ring's per-s
 gate counts `spent` into the capacity it measures against, so it is vacuous and has never
 fired). Plus Y38-I: `make -n promote` is not read-only in `signoff_mp`, because it executes
 recipe lines that reference `$(MAKE)`.
+
+## Y39 -- the 835 um tile for the column chip, and the two defects between 885 and 835 are the same via-pad ladder in a different phase (owner decision O17, 2026-10-15)
+
+O17 stacks two tiles per column in a 1690 um core, so the tile may be at most **845 um**
+long. `TILE_PT_FLOORPLAN=v3k` is **835 x 300** and cut **`v3k3`** is clean through every
+gate the flow has: G0 `SameNet 4 / Short 0 / Wiring 0 / MINCUT 0` with the four being
+v2g's accepted `anatop_ch` M6 OBS class, Y32-FT four published corridors with 0
+intrusions, T-G5 356 PIN records, Calibre `blockdrc` **14 results / 0 real**, `ant25`
+**0**, Pegasus LVS **MATCH** (devices 549,977 : 549,977, pins 356 : 356, W-PT1-1 not
+needed) with a live negative control at 4 : 0, gate harness **41/41 at both SDF corners**,
+`feedthrough_census.py` **GATE PASS**. Tile **250,500 um2, -15.23 % against v2g**; row
+area 55,838 um2 (**-51.8 %**); placement density **81.0 %** against 40.6 %; setup
+**+0.430 ns**, hold **+0.037 ns**, 0 violating of 4,642 paths. `out/Y1_READY_v3k` (410
+lines) carries it; nothing is promoted, `hart_tile_pt_signoff` still holds v2g proved
+bit-identical from a fresh headless Virtuoso, and `run_chip.sh` still defaults
+`TILE_OUT=out.v2g_ref`.
+
+**835 fits the column with 20.0 um of slack and 885 does not fit at any gutter**:
+`2 x 835 = 1670` against `2 x 885 = 1770` in a 1690 um core. So `v3j` cannot be the
+column chip's tile -- arithmetic, not a preference. In column mode the tile's **height**
+is the x dimension, so the two tile columns take `2 x 300 = 600` um of core width and the
+band gets the rest, which **inverts** the row chip's arithmetic where D39(a) measured the
+tile binding by 942 um. The abstract already declares `SYMMETRY X Y R90` and carries
+**0 POLYGON**, so Y37-A's one legal orientation set needs no new tile collateral.
+
+**The probe found nothing, because two `tclsh` scripts had already found it.** The
+corridor arithmetic and the pin solver are pure functions factored out of the database, so
+`y39_ft.tcl` predicted the four 835 corridors to the nanometre (only the fourth moves,
+`325.510 -> 277.510`, because the search window shrinks from 378 to 328 um) and
+`y39_dig.tcl` proved `PIN_DIGX1 710` feasible -- answering **Y32-G** for this generation
+while reproducing Y32's own 935 knife-edge (790 ok, 810 infeasible, 830 ok) as a negative
+control. One 49 s probe where Y32 and Y35 each spent three or four. Y35-F was also applied
+at source: the three per-generation defaults now key on a named list `PT_FP_V3`, not on
+`{v3 v3n}`.
+
+**Defect 1, and it is the load-bearing result: an overlap is not a gap.** Cut `v3k` was
+refused at G0 with five `MINCUT ( M6 VIA5 ) Actual 2 Min 4` on the analog VSS supply
+strap. At 835 the VSS riser column is at x 610 instead of 660, so with `gcd(50,12) = 2`
+the 12 um via-pad ladder lands at column offset **2.890..3.410** instead of 0.890..1.410
+-- **inside** the 2.0 um strap instead of 0.090 um beside it. Y35's `y35_gap_viol` refuses
+only the open interval (0, clr), deliberately, so it returned the empty list and printed
+nothing; what the overlap does is merge each 0.52 um pad into the strap's 81.5 um long
+line and bring `MINIMUMCUT 2 WIDTH 0.3` into scope on the two-cut VIA5 the pad is the
+landing of -- the identical class the MERGE remedy produced at 885 (cut `v3h`), reached by
+accident. The remedy is Y35's from the other side and it was **proved on v3k's own refused
+database** in the wave's one geometry-ECO cycle before harden 2 was spent: strap
+`x[611.500,613.500] -> x[611.500,612.780]` (2.000 -> 1.280 um) takes `verifyGeometry`
+non-antenna from 9 to 4. The west pull is refused by arithmetic (-0.020 um), so the shrink
+must **choose a side**; the 16 shapes that *span* the strap are excluded by construction,
+because merging with the ring bar and the column's own landings is the connection T5b-3
+exists to make.
+
+**Defect 2: a clearance test's scope is as load-bearing as its predicate, and this wave
+hit that twice.** Cut `v3k2` is clean through every in-flow gate and Calibre returned one
+real `M7.S.3 x[373.510,374.000] 0.490 against 0.500` -- a VDD M6-M7-M8 stack 0.490 um west
+of the notch-wall VDD M7 ring leg. It is a **phase coincidence**: the gap is
+`(NOTCH_X0 - 14) - (0.99 + 12k + 0.52)`, which is 6.490 um at `NOTCH_X0` 538, 4.490 at
+488, 2.490 at 438 and **0.490 at 388**, so 835 is the only member of Y32's menu inside the
+rule and it misses by 0.010 um. `verifyGeometry` books nothing (same-net, above the
+SameNetGap minimum) and the shipped-state PGCLEAR census, the instrument that exists for
+exactly this class, is scoped to `{M1 M2}` and read 0. New `TILE_PT_M7RING_SCRUB` measures
+**989 narrow M7 landings against 37 vertical ring legs** and found **1 breach with 0 false
+positives** on a read-only probe before harden 3; the guarded deletion (the leg must carry
+its own same-net M7-M8 via over the band, and 60 other landings must serve it) closes it
+and `blockdrc` reads 14 / 0 real.
+
+**The attempt bound was met exactly -- three hardens, one ECO cycle -- and one attempt was
+wasted by my own script.** Cut `v3k3` passed every gate and wrote its LEF, GDS, both SDFs
+and `xsim.v`, then died in the T-G5 PIN parser on `can't array set "__lay"`: the new pass
+set a **scalar** of that name at global scope and the parser 3,000 lines down does
+`array set` on it. In a 10,000-line script whose locals are all globals, a new pass needs
+its own scope -- it is a proc now. The abort is after every gate and every emitted file but
+the two ETMs, so the cut was completed from its own signoff database with an ETM run, the
+Y35 `v3e` precedent, not a fourth harden. Had the collision landed one stage earlier it
+would have cost a cut for nothing.
+
+Report `tapeout_review/reports/Y39_tile_v3k.md`; open items **Y39-A..G**, of which Y39-E
+is not ours: the shared `pvs/hart_tile_pt.lvs.v` and `.lvslabels` hold **v3j's**, not
+v2g's, and were already in that state when this wave found them.
