@@ -4717,3 +4717,69 @@ would have cost a cut for nothing.
 Report `tapeout_review/reports/Y39_tile_v3k.md`; open items **Y39-A..G**, of which Y39-E
 is not ours: the shared `pvs/hart_tile_pt.lvs.v` and `.lvslabels` hold **v3j's**, not
 v2g's, and were already in that state when this wave found them.
+
+### Y40 -- the column chip's flow is closed to the analog pad straps, and the cut is not taken
+
+Owner decision O17 asked for cut `chip_c_a` of block `MCU_castalia_penta_pt_c` on Y39's
+835 x 300 tile. **The cut is not taken, and the reason is one named stage.**
+
+**Y38-D is closed in both halves, plus its ring item.** 24 transforms where Y38 had 13:
+the band's macro placement, hart 0's region, the bias placeholder's position and
+containment, the analog windows, gate C-G9, the contract table, and the whole PG axis.
+All of it was exercised in tool, and everything it reached is clean -- the Y8
+cross-language frame gate agreeing on core 1620 x 1690, **C-G25 notch separation 776.0 um
+on both columns**, the M8 band inset solved to 19.2 um with the pad-column census inside
+budget, the whole ring stage (139 pads, **C-G1 10 of 10** island faces, **RINGSUP 0
+unsupplied arcs of 5**, five distinct analog domains, 40 pad terminals), and the band with
+hart 0's region holding its subtree at **66.8 %** -- the row chip's own 67.5 % to within a
+point.
+
+**C-G9 on a rotated tile reads 0.000 um on all four sites.** Its row form is axis-bound in
+four load-bearing places, so there is a second gate selected on the column ring's own
+knob, and its four inputs are *emitted* by the ring generator so the gate and the plan
+cannot drift into agreeing about a wrong number -- which is exactly what the first version
+of C-G9 did, at 177.5 um.
+
+**What stops the cut is Y40-3B.** `pt_apg_m2_leg` draws the analog pad straps
+north/south -- a wide M2 plate, a 1.0 um M2 neck, an M4 tab and an `editPowerVia` window
+as y intervals about a horizontal pad-row edge -- and four of the five islands are on the
+WEST and EAST rows in this arrangement. That is a geometry, not a coordinate list, and
+every number in it was measured against that axis on a real cut. The flow FATALs with the
+remaining stage list rather than mis-drawing, because a strap on the wrong axis lands its
+plate over the tile instead of over the pad and the first instrument that would notice is
+Pegasus, forty minutes and one full cut later. The row chip's own history is the evidence:
+the AVSS straight straps were open there on every cut, and the AVDD ones were saved by
+accident.
+
+**Two shared files gained knobs rather than being forked, and the row chip's output is
+byte-identical.** The chip SDC generator took three (`PENTA_SDC_TOP`, `_WRAPPER`,
+`_PMX_N`) and the SDF-command generator two; the row SDC's md5 is the same before and
+after, and the gate suite re-checks it every run. The pin-mux narrowing to three ports is
+not tidiness: `get_ports -quiet` returns an empty collection for a port the chip does not
+have, so four delay lines would constrain nothing and in the log that reads exactly like a
+pass.
+
+**Five existing gates were vacuous rather than wrong, and they have one thing in common.**
+A floorplan gate that tested `tail`'s exit status; a branch gate keyed to the line number
+of a FATAL that had been deleted, which after a positional re-key still missed a branch
+900 lines downstream whose `else` was another floorplan's literals; a brace-depth gate
+that had been described and never written, plus the same class on a line continuation,
+where the braces balanced because they sat inside a format string; a row-mode assertion
+run against a column tile; and four plumbing assertions that restated a cut tag instead of
+reading its knob. **Each was keyed to a symptom -- a line number, a literal, an exit
+status, a brace count -- rather than to the property.** The two that survived contact with
+this wave are the mesh-gap census and C-G9, both keyed to a measurement.
+
+**The band density and the timing margin at it are not reported, and that is deliberate.**
+The band plan's 868,261 um2 of row is a solver number; the density the placer sees is
+measured after placement on a floorplan whose rows every keep-out has cut, and this wave
+never reached placement. Quoting the solver's figure as the achieved density would be the
+mistake `row_area` was introduced to avoid.
+
+Bound met: three floorplan probes, two chip attempts, no LVS runs -- there is no GDS to
+compare. Report `tapeout_review/reports/Y40_chip_c_a.md`; open items **Y40-A..G, Y40-3B,
+Y40-WQ5**, and **Y36-A stays open and is not self-waived**: the `afe_sar_d[0]` pin shape
+is the tile family's norm (172 band-facing pins share it), the tile's own LVS matches with
+no missing connection, and all ten bits are identical in the netlist -- so the unmatched
+pair is a chip-level extraction or labelling artefact and the routed database is where to
+trace it.
