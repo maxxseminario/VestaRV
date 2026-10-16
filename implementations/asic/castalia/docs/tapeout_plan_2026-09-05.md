@@ -4911,3 +4911,56 @@ Bound fully spent: two probes, two chip attempts, no layout and therefore no LVS
 block's gate suite 78 of 78, the shared floorplan suite 270 of 270 in all three homes, the
 ring plan 96 of 96, the signoff plumbing 78 of 78, and four new offline suites. The row chip
 of record is proved untouched on four instruments.
+
+### Y43 -- the mesh repair works, and what stops the second chip now is one via
+
+**The orientation defect the last wave found is fixed and the tool confirms it.** Two of the
+four processor tiles had been placed with their analog edges facing inward; the correction was
+made on faith last wave because the runs had been spent before it existed. The placement
+database now carries the corrected pair on both sites and all four analog edges face outward,
+and the check that reads the database -- rather than the plan that computes it -- asserts this
+instead of reporting the old evidence.
+
+**The power-mesh blocker is closed.** Seventy-six of the chip's standard-cell supply rails had
+no connection to the mesh at all, because in this arrangement the welding mesh runs parallel to
+them and the other supply's stripe blocks the stack. Each is now welded to a neighbouring rail
+that is connected -- four microns of metal and one via window apiece, with the position
+computed per rail against every obstruction in the database rather than chosen. After the
+repair the count of unconnected rails is **zero**, measured from the database the repair wrote,
+and the power-stage connectivity check **passes at the same budget the first chip uses, with
+nothing relaxed**. The decision to weld rather than to delete the affected rows was taken on
+the owner's area objective and is recorded as reversible.
+
+**Two thirds of that blocker turned out not to be a fault.** The remaining reported
+disconnections are short routes leaving the memory macros' own supply pins, and they exist
+because a pin that narrow cannot physically carry a via to the top mesh layer -- the via's
+cut is wider than the pin. They are redundant taps at the macro's own supply potential, not
+open circuits, and the proof is in the same report: every macro supply terminal is listed as
+connected, and the nine that are not are all analog ground *pads*. They are now classified and
+counted rather than gated, and the cost -- fewer contact points per memory -- is handed to a
+power analysis, which is where it belongs.
+
+**The shared bias block's supply now reaches its pads, and that was two faults.** The first is
+that no connection drawn against the block's edge could ever have worked: the placeholder
+obstructs the two layers a via stack has to pass through, across its whole area. The
+connection is therefore carried out of the block and completed in the free strip beyond it.
+The second is that the checker itself was splitting the block's own supply pin into separate
+pieces, because the pin is published as two abutting rectangles and the checker joins only
+overlapping ones -- so the connection was being built and then not seen. Both are fixed, and
+the first chip's own verdict is unchanged to the character either way.
+
+**What stops the cut is now a single, precisely located refusal.** On the two eastern analog
+islands the router declines to build the via stack that joins the strap to the tile, and on the
+two western islands it builds the same stack from the same geometry. The metal is otherwise
+continuous -- the strap and the tile's pin overlap by two microns square -- and in the tile's
+own coordinates the two sides are identical. What differs is that the via array the router
+chooses is two microns wide and the gap between tile and die edge is one. Three remedies are
+priced; the cheapest in engineering time widens that gap and costs about three microns of the
+control band, so it is an owner decision rather than this session's.
+
+Two of three chip attempts were deliberately left unspent: there is no remaining change that
+could be tested offline first, and spending a licence to prove a guess is what the budget
+exists to prevent. The second chip still has no layout, so nothing downstream of the cut has
+run -- no design-rule or connectivity signoff, no library ingest and therefore no promotion,
+no gate-level timing regression and no band-density measurement. The first chip of record is
+proved untouched on four instruments.
