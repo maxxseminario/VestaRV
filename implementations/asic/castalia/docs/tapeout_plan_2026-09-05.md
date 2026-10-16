@@ -4837,3 +4837,77 @@ next wave needs one fifteen-minute floorplan and power probe and two lines out o
 Suites: the block's gate suite 49 of 49, the shared floorplan suite 263 of 263, the ring
 plan 91 of 91, and three new offline suites at 8, 9 and 15 of each. The row chip of record
 is proved untouched on five instruments.
+
+### Y42 -- two of the four tiles had their analog faces pointing into the band, and the only authority that could say so was the DEF
+
+**Y41-WQ21 is verified in tool, the whole-die metal-spacing censuses are clean, and the cut
+is still not taken -- because the first run of the island acceptance found that two of the
+four analog channels' electrode ports were facing the control plane.**
+
+**What Y41 asked for came out right on the first probe.** The weld matcher reports
+`60 tile-column mesh stripe(s) examined, 0 weld shape(s) added` -- non-zero, which was the
+acceptance -- and 0 welds is the correct answer rather than a vacuous one, because every
+horizontal welding stripe spans the full core width so neither end falls short of a tile.
+The whole-die spacing census after it is **clean on both layers**: M7 at 0 of a budget of 0
+and 0 of 2, over 12,197 rectangles, and M8 at 0 and 0 over 5,918.
+
+**Then the island acceptance ran for the first time on this block and refused: six of the
+ten analog island nets are not one conductor from their block pin to a pad.** Four of them
+are the two mirrored tile sites, and the chip's own placement database says why. The flow
+asks for one mirrored 90-degree orientation and the tool writes the *other* one: the
+transformation matrices in the shared floorplan library had their two mirrored rows swapped
+relative to what the place-and-route tool actually does, because the tool's "mirror then
+rotate" name composes in the opposite order. The consequence on the die is that two of the
+four tiles present their analog edge to the band instead of to their own pad row -- one
+channel's electrode ports 300 um inboard of where the straps are drawn, twice.
+
+**Nothing upstream could see it, and the reason is the lesson.** Three implementations of
+that transform -- the chip driver's, the shared library's and the ring generator's -- all
+carried the same swap, so a unit test asserting one against another was comparing a copy
+with its original; the pad-to-port alignment gate measured twenty-four alignments at zero
+error and was right about every one, because it reads the same matrices and so checked the
+pads against port coordinates no tile was ever placed at; and the assertion that *corrected*
+an earlier table derived its correction from the very formulae it was correcting. **A
+correction derived from the thing it is correcting cannot be checked by it.** The one
+authority outside that circle is the orientation token the tool writes into the database,
+and the fix adds a gate that reads it.
+
+**The repair is a pair, and that is what makes it safe.** Swapping the matrices alone would
+move every number the plan computes; swapping the names in the orientation set alone would
+fix the silicon and leave the plan describing the mirror image. Both are swapped together, so
+the notch separation, the twenty-four alignments, the strap positions and the analog windows
+are all unchanged, and the only thing that changes is the token the tool receives. It is
+**not yet verified in tool** -- both chip attempts were spent before the fix existed -- and
+the new gate states that itself: it reads the newest placement database, reports each site's
+token and face, and says "this is a pre-fix database and it is the evidence" until a run
+produces the corrected pair.
+
+**The other blocker is the power mesh, and it is measured.** In this arrangement the welding
+mesh runs *parallel* to the standard-cell supply rails while the distributing mesh runs
+across them, so a rail's via stack has to cross the parallel layer -- and where that layer
+carries the other supply, it cannot. 163 power-stage opens against the row chip's 1; 103
+rails with no via at all, 97 of them within two microns of a foreign-supply stripe while the
+nearest same-supply one is four to ten microns away. The general form: transposing a
+two-layer mesh swaps which layer runs parallel to the rails, and if the parallel layer ends
+up *below* the perpendicular one the rail stack is blocked wherever it is foreign. Two fixes
+are priced -- stitch the blocked rails to their neighbours, or cut the rows they power -- and
+the choice trades engineering time against band area, so it is an owner call.
+
+**Four smaller defects closed at source, two of which would each have cost a cut.** Every
+artefact the block wrote under a cut tag carried the *row* chip's file name, so the first cut
+would have produced a layout the ingest step could not find -- and the seventy-eight
+assertion plumbing suite passes on that, because it checks that three files name the same
+cut and never asks what the flow writes. The island prober's own transform carried six of
+the eight orientations, so the acceptance gate would have aborted rather than graded. The
+post-run power-hookup gate was matching the sentence the previous wave wrote to document its
+own repair, so it refused every clean run of this chip. And the layout render script,
+re-authored a wave earlier and never executed, was broken in two places.
+
+Also delivered: a band-density instrument calibrated against the tool's own density report to
+within a point, and both pad-census sidecars filled with measured rows after two waves of
+being deliberately empty.
+
+Bound fully spent: two probes, two chip attempts, no layout and therefore no LVS. Suites: the
+block's gate suite 78 of 78, the shared floorplan suite 270 of 270 in all three homes, the
+ring plan 96 of 96, the signoff plumbing 78 of 78, and four new offline suites. The row chip
+of record is proved untouched on four instruments.
