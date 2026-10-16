@@ -4783,3 +4783,57 @@ is the tile family's norm (172 band-facing pins share it), the tile's own LVS ma
 no missing connection, and all ten bits are identical in the netlist -- so the unmatched
 pair is a chip-level extraction or labelling artefact and the routed database is where to
 trace it.
+
+### Y41 -- the analog pad straps are drawn on the island's own axis, and the die-facing gap they need was not there
+
+**Y40-3B is closed. All twenty straps are drawn, every gate in Y40's stage list passes in
+tool, and the cut is still not taken because one more stage is axis-bound.**
+
+**The strap is one geometry in one place, and the transposition is proved against the row
+chip itself.** `fp::apg_leg_boxes` is new in the shared floorplan library: every box is
+built in (leg, across-row) coordinates and emitted into chip x/y by one swap. A gate pulls
+the ROW driver's own `pt_apg_m2_leg` out of its file, stubs `add_shape`, and compares the
+two **box for box by exact equality over a seven-point grid -- 0 of 35 differ** -- then
+asserts the x-axis boxes are those row boxes **transposed, 0 of 35 differ**. The library's
+arithmetic is the row driver's character for character so that the comparison can be exact
+rather than tolerant: `edge - 2.0*clr - 0.1` and `edge - (2.0*clr + 0.1)` differ in the
+last bit of a double, and an exact comparison is the stronger instrument.
+
+**The per-island axis comes from the ring plan's own side field and is confirmed against
+the placed pad.** The row flow asks the pad port's aspect ratio instead, which is a
+symptom rather than a property: it reports "this pad cell is rotated", which was true of
+exactly one island there and is true of four here. The dispatch is additive, so the bias
+island's four straps take the north/south code unchanged.
+
+**The blocker under the blocker was that the column arrangement placed its tiles flush,
+and a flush tile cannot be strapped at all.** The minimum die-facing gap is an *output* of
+the strap geometry, `3 clr + 0.1 = 1.0 um`: the M2 neck reaches 0.7 um onto the core side
+of the boundary and must clear the tile by 0.3, the M4 tab cannot cross the boundary at all
+because the pad cells carry a full-cell M4 obstruction, and the M2 neck cannot enter the
+tile because its M2 obstruction is a solid blanket at the analog ports. Flush, the two
+intervals are **disjoint by 0.6 um**, there is no overlap to via through, and the via
+generator places nothing and says nothing about it -- which is the same eight blockage
+shorts an earlier cut scored on the other axis. `PENTA_CORE_TILE_X0` is a band-facing
+routing channel in the row arrangement and the die-facing standoff in the column one, and
+it was 0.0. At 1.0 um the band loses 2.0 um, the free core boundary moves to x[301,1319]
+(still 40 pad slots), the vertical M8 band loses one of 23 sets, and **the die, the core
+box and the 24 electrode-pad alignments at 0.000 um do not move.**
+
+**Four more stages were axis-bound or vacuous, each found in tool and fixed at source.** A
+dict re-keyed from the tile columns to the tile rows with one consumer left behind; a
+row-coverage census counting the wrong vertical layer, which refused on its own zero-list
+guard and so cost one probe instead of three; a coordinate transform carrying six of the
+eight orientations, where the column tile set is half mirrored 90-degree placements; and a
+speculative power binding whose unmatched pin printed the exact error class the Makefile's
+post-run gate greps for -- **so that gate had been refusing every run of both chips**,
+measured in four of the row chip's own logs. A gate that fires on every run is a gate
+nobody reads.
+
+**What stops the cut is the weld matcher's axis.** It is written with the axis as an
+argument defaulting to the row form, unit-tested on both axes against a stubbed database
+with every weld box transposed, and **not verified in tool** -- the bound was met. The
+next wave needs one fifteen-minute floorplan and power probe and two lines out of it.
+
+Suites: the block's gate suite 49 of 49, the shared floorplan suite 263 of 263, the ring
+plan 91 of 91, and three new offline suites at 8, 9 and 15 of each. The row chip of record
+is proved untouched on five instruments.
