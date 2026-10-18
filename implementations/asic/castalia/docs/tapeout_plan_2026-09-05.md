@@ -4964,3 +4964,84 @@ exists to prevent. The second chip still has no layout, so nothing downstream of
 run -- no design-rule or connectivity signoff, no library ingest and therefore no promotion,
 no gate-level timing regression and no band-density measurement. The first chip of record is
 proved untouched on four instruments.
+
+### Y45 -- the shared memory shrinks to 48 KiB, and the boot ROM has to be recut with it
+
+**The owner's area decision is now in the design, not just in the plan.** The chip's shared
+scratchpad memory goes from 64 to 48 KiB: three memory blocks behind the arbiter instead of
+four, with the neural accelerator and its own staging memory kept untouched. That removes one
+of the five large memory macros from the second chip's layout, which the earlier area study
+priced at about a fifth of a square millimetre.
+
+**It was one number, in the one place that actually builds the chip.** The configuration file
+for this chip states only its name: everything else comes from the generator's built-in
+defaults, and the committed hardware description is what a no-configuration build produces.
+Changing the configuration file alone would therefore have changed nothing that gets built.
+The default moved instead, and the four sibling configurations that state no memory of their
+own followed it with no edit; the eighteen-core variant, which states its own 128 KiB
+explicitly, did not move.
+
+**The address map did not move, and that was checked against the emitted files rather than
+the arithmetic.** The window the processors address, the read-only views each core has of the
+others' private memory, and the address at which external flash begins are all unchanged --
+the generated memory-map package is identical to the previous one apart from its date stamp,
+and the firmware headers and peripheral linker fragments do not change at all. Only the
+length of one memory region and the bank count move. A comment in the generator claiming
+otherwise turned out to have been wrong about this chip since the fifth core was added, and
+has been corrected.
+
+**Dropping a bank exposed two things the generator had been saying wrongly, both silent.**
+The hardware description contains a map of its own address decode, and that map listed the
+memory banks and then jumped straight to the processor-memory views -- so with three banks,
+the 16 KiB region above the last bank appeared in no line of it at all. It now has an
+explicit entry saying it is unmapped and reads as zero. Separately, the power-control
+register has four bits for switching banks off individually; with three banks the fourth bit
+switches nothing, while still being writable by software. Both the hardware description and
+the register documentation now say so, which is what stops firmware trusting a control that
+does nothing.
+
+**The boot ROM had to be recut, and that is the real cost of this change.** The boot loader
+carries one bounds check on where it is allowed to place a program it reads out of flash, and
+that bound is the top of the shared memory. Left alone it would have accepted a program
+ending inside the bank that no longer exists -- where the write disappears and the read
+returns zero, silently, instead of refusing to boot. Correcting it changed one instruction's
+encoding, which shortened the image by four bytes and shifted everything after it: two thirds
+of the ROM's contents differ, starting from its second word. This was confirmed from both
+directions -- the pre-change tree still produces the old image exactly. Two consequences
+follow and are recorded wherever the ROM's fingerprint appears: the two hand-measured
+reference points used by the co-simulation lockstep gate are now stale and must be
+re-measured (the tool refuses to guess, which is the safeguard working), and the physical ROM
+plate, already two revisions behind, is now three.
+
+**Everything the repository checks on every commit passes, and the first attempt did not.**
+The one failure was a frozen census of how much logic the design elaborates to -- nine cells
+and one storage bit smaller, which is precisely the decode for the bank that left. That table
+is required to be re-blessed in the same commit as the change that moves it, so the commit
+was rebuilt rather than patched afterwards. The eighteen checks then pass, including the full
+simulation regression at 196 tests.
+
+**The second chip's netlist is rebuilt and measured, and the first chip's is untouched.** The
+new netlist carries four of the large memory macros where the old one carried five, named so
+that it is visible which went: the accelerator's staging memory and three shared banks. Every
+synthesis gate passes at full strictness, the clock-domain-crossing census is identical to the
+previous netlist to the digit, and the total area falls by exactly one macro. Timing does not
+move: the critical path is the same pin as before, with a picosecond more margin on a path
+that already had more than three nanoseconds of it. The processor-tile netlists did not need
+rebuilding and were not rebuilt, because the address width they are synthesised against did
+not change.
+
+**It is deliberately a side build.** The previous netlist and its hand-over note are left in
+place, because the first chip and the layout attempt currently running both read them. Getting
+there needed one small change to the synthesis flow: the file naming the generated chip
+description was a fixed path into a directory shared by every build, so a new build could not
+read a different version of it without changing what the others see. That path is now
+selectable, exactly as the two processor-tile netlists were made selectable a month ago and for
+the same reason, and the shared directory still holds the four-bank version.
+
+**One documentation artefact is out of step with its own gate, and it predates this work.**
+The technical reference manual published in this repository is the second chip's, not the
+default chip's, while the commit check that guards it rebuilds the default chip's and compares.
+Those are two different documents -- 336 pages against 412 -- so that check cannot pass here
+whatever any commit does. The second chip's manual was rebuilt and republished with the new
+memory map; whether the default chip's manual should get a path of its own, or the check should
+build the same configuration it compares against, is an owner decision.
