@@ -51,6 +51,12 @@
 #   HELD at 0x0000005a through the 2026-09-13 ROM re-cut (rom.rcf md5
 #   cea7e60f4723f63acfd92c5883716f1e): that cut moved the data map, first
 #   changed word at 0x39a, so every instruction below it kept its address.
+#   STALE SINCE the 2026-10-17 Y45 re-cut (rom.rcf md5
+#   37e0cb664a004eba3411dcc0166441b4): O18 took the shared bulk RAM to 48 KiB,
+#   RAM_SIZE 0x18000 -> 0x14000 followed, .text 7,532 -> 7,528, and 1,376 of
+#   2,048 words moved with THE FIRST CHANGED WORD AT 0x4. Neither entry below
+#   has been re-measured against that image; mk_inject will refuse rather than
+#   fabricate, and that refusal is the measurement.
 #   RE-MEASURED (W8), not assumed: 8 of 8 COSIM_BOOT=1 traces at
 #   RUN_KEY=w8_boot8b, COSIM_RCF_LINK=w80, applied this entry exactly once
 #   each; the kept trace (RUN_KEY=w8_keep1) carries `R 00 0000005a 4198 0e

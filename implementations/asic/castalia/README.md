@@ -17,7 +17,7 @@ in the gitignored `private/analog/` tree. The measured analog chapter
 | Harts 1–4 (`hart_tile`, hardened ×4) | `rv32iac` (`isa.minimalTiles = true`). MTCMOS-gated with isolation clamps; `pwr_ctrl` rows 1–4. |
 | Boot ROM | 8 KiB, shared. Every hart resets to 0x0; the ROM dispatches on `mhartid`. |
 | Private memory | 8 KiB TCM per hart. Hart 0 alone can read any hart's TCM through read-only apertures. |
-| Shared memory | 64 KiB bulk RAM (4 × 16 KiB) + 16 KiB NPU staging RAM, round-robin arbitrated |
+| Shared memory | 48 KiB bulk RAM (3 × 16 KiB, 0x10000–0x1BFFF) + 16 KiB NPU staging RAM, round-robin arbitrated |
 | Synchronization | CLINT (IPI and per-hart timers), 16 hardware mutexes, per-hart interrupt router |
 | Peripherals | 6× GPIO (48 pins), 2× SPI (SPI0 maps external flash), 2× UART, 2× I²C, 2× timer, NPU, NFC, CRC16, 2× DCO, watchdog, power controller |
 | Debug | RISC-V debug module with JTAG DTM |
@@ -70,7 +70,7 @@ Cadence flows (Genus, Innovus, Pegasus, Xcelium) run outside Bazel after
 generator's built-in default. The resolved form is tracked as
 `platform/common/config/ChipConfig.resolved.json`. Key knobs: `numHarts = 5`,
 `orchestrator = true`, `isa.minimalTiles = true`, `numMutexes = 16`,
-`memory.tcmSizePerHart = 8 KiB`, `memory.sharedBulkRamSize = 64 KiB`,
+`memory.tcmSizePerHart = 8 KiB`, `memory.sharedBulkRamSize = 48 KiB`,
 `memory.npuStagingRamSize = 16 KiB`, `peripherals.npu = true`,
 `package.model = castalia-lqfp100`.
 

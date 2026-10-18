@@ -20,7 +20,9 @@
 //     MP_LAUNCH_HART(1, tile_entry, 4096)
 //     ...bounded-wait on the test's own DONE mailbox...
 //
-// MP_STAGE_BASE is shared bulk RAM bank 2 (0x18000-0x1BFFF) — clear of the
+// MP_STAGE_BASE is shared bulk RAM bank 2 (0x18000-0x1BFFF), the TOP bank since
+// O18 cut the bulk RAM to 48 KiB: the 4096-word stage fills it exactly, with no
+// headroom above 0x1BFFF (0x1C000 has no bank and reads zero). It is clear of the
 // whole test/mailbox ledger at 0x100xx-0x106xx (loader rows 0x10500-0x1061F at
 // N=18, still inside the bootrom zero range). A full-TCM stage/copy (4096
 // words) is the uniform safe choice: it carries the IVT, the ISR bank

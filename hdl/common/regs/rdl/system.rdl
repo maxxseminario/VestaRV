@@ -203,13 +203,13 @@ reg CLKDIVCR_t {
 // Lane-0 write; the storage is 7 bits (SYS_BLOCK_PWR 6 downto 0).
 reg BLOCKPWR_t {
     regwidth = 8;
-    desc = "Block power control register. Controls power gating for the on-chip memory blocks; all bits reset to 0 (every block powered). Bits 6:3 gate the four low shared bulk-RAM banks individually: a gated bank loses its contents and stops responding, so software must keep the bank holding its stack, mailboxes or live data powered and must treat a re-powered bank as uninitialized. In configurations with more than four banks, banks 4 and up are always on.";
+    desc = "Block power control register. Controls power gating for the on-chip memory blocks; all bits reset to 0 (every block powered). Bits 6:3 gate the four low shared bulk-RAM banks individually: a gated bank loses its contents and stops responding, so software must keep the bank holding its stack, mailboxes or live data powered and must treat a re-powered bank as uninitialized. In configurations with more than four banks, banks 4 and up are always on; in configurations with FEWER than four, the surplus bits are writable and gate nothing (Castalia carries three banks since O18, so SYSSHB3OFF has no consumer).";
     field {
         sw = rw; hw = r;
         reset = 1'h0;
         vesta_access = "rw";
         encode = blockpwr_sysshb3off_e;
-        desc = "Shared bulk-RAM bank 3 (0x1C000-0x1FFFF) power control. When set, the bank is powered off: contents are LOST and accesses no longer respond. Reduces static power (a gated sram1p16k halves its leakage).";
+        desc = "Shared bulk-RAM bank 3 (0x1C000-0x1FFFF) power control, in configurations that carry a fourth bank. When set, the bank is powered off: contents are LOST and accesses no longer respond. Reduces static power (a gated sram1p16k halves its leakage). Castalia carries three banks (memory.sharedBulkRamSize = 48 KiB, O18), so this bit reaches no macro there and 0x1C000-0x1FFFF reads zero.";
     } SYSSHB3OFF[6:6];
     field {
         sw = rw; hw = r;

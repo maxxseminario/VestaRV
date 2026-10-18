@@ -48,7 +48,7 @@
   "memory": {
     "romSize": 8192,
     "tcmSizePerHart": 8192,
-    "sharedBulkRamSize": 65536,
+    "sharedBulkRamSize": 49152,
     "npuStagingRamSize": 16384
   },
   "peripherals": {
@@ -178,9 +178,9 @@
       }
     ],
     "sharedWindowAddrWidth": 16,
-    "sharedRamBanks": 4,
+    "sharedRamBanks": 3,
     "flashBaseAddress": "0x40000",
-    "sharedRamEndAddress": "0x1FFFF",
+    "sharedRamEndAddress": "0x1BFFF",
     "tcmWindowAddresses": [
       "0x20000",
       "0x24000",

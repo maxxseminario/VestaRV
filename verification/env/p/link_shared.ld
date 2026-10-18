@@ -8,7 +8,8 @@
  * flags exactly one, rvc, colliding .text.init<->.text.init.)
  *
  * THE FIX IS NOT A SMALLER TEST, IT IS A DIFFERENT MEMORY. The shared bulk RAM
- * at 0x10000-0x1FFFF is 64 KiB behind the arbiter, and executing from it is
+ * at 0x10000-0x1BFFF is 48 KiB behind the arbiter (three sram1p16k banks since
+ * O18; 0x1C000-0x1FFFF has no bank and reads zero), and executing from it is
  * proven silicon, not a hope: M10 made instruction fetch through the arbiter
  * work (addr-qualified ack + the clk_cpu-staged sh_rdata_cpu) and shexec.S is
  * its standing test. The M12 boot itself fetches through the same path.
@@ -74,7 +75,9 @@ SECTIONS
    * 0x10900 CLEARS THE DEBUG MODULE PROGRAM PAGE (0x10680-0x1087F), which is
    * live on this chip since debug.enable became a shipped default -- an earlier
    * draft put this at 0x10800, inside that page. Also clear of the mailbox zero
-   * range below and of MP_STAGE_BASE 0x18000 above, leaving ~29 KiB.
+   * range below and of MP_STAGE_BASE 0x18000 above, leaving ~29 KiB. The 48 KiB
+   * bulk RAM does not narrow that: MP_STAGE_BASE is the floor here, and it is
+   * unchanged at 0x18000, now the top bank rather than the third of four.
    * SUBALIGN(4) is kept for the reason link.ld gives: rvc.S has an internal
    * `.align 12` for its cross-page fetch test which would otherwise propagate
    * to the whole section and move _start. */

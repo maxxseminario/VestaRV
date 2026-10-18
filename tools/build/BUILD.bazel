@@ -30,8 +30,12 @@ py_binary(
 # so the recorded divergence is empty. The two sets are allowed to diverge again
 # when the chip map moves; :rom_plate_link_env_test is what makes that visible.
 # The boot image and its two recorded goldens share one md5,
-# cea7e60f4723f63acfd92c5883716f1e; the physical rom2k_hvt_pg plate is TWO cuts
+# 37e0cb664a004eba3411dcc0166441b4; the physical rom2k_hvt_pg plate is THREE cuts
 # behind them and stays stale until signoff_mp recompiles it.
+# Y45 (2026-10-17, O18) re-cut both sides together: memory.x's SHARED_RAM length
+# 0x10000 -> 0xC000 and RAM_SIZE in software/commune/include/myshkin_s.h
+# 0x18000 -> 0x14000, so the frozen copy here and the chip generator's output are
+# still IDENTICAL on memory.x and the recorded divergence is unchanged.
 #
 # A stale script here is not a packaging problem. While memory.x described a
 # 16 KiB TCM against a real 8 KiB one, rv4th.c linked 0x5D70 bytes of .noinit
