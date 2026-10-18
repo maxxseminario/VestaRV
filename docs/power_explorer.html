@@ -448,11 +448,12 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
           <input id="cAwake" type="number" min="1" max="32" step="1" value="4"></div>
         <div class="px-ctl"><label for="cRam">Shared RAM</label>
           <select id="cRam">
-            <option value="4" selected>64 KiB &mdash; 4 banks</option>
-            <option value="8">128 KiB &mdash; 8 banks</option>
+            <option value="3" selected>48 KiB &mdash; 3 banks (Castalia)</option>
+            <option value="4">64 KiB &mdash; 4 banks</option>
+            <option value="8">128 KiB &mdash; 8 banks (Argus)</option>
           </select></div>
         <div class="px-ctl"><label for="cBankOn">Banks powered</label>
-          <input id="cBankOn" type="number" min="1" max="8" step="1" value="4"></div>
+          <input id="cBankOn" type="number" min="1" max="8" step="1" value="3"></div>
         <div class="px-ctl"><label for="cNpu">NPU</label>
           <select id="cNpu">
             <option value="on" selected>Present</option>

@@ -93,10 +93,20 @@ rv32_firmware(
 # The pinned bench copy of the ROM image, tracked under a name that does not
 # collide with the global *.rcf gitignore.
 # tools/cosim/gate/bootrom_mp_rom.rcf and software/bootrom_mp/bin/rom.rcf are
-# mirrors of it; the three are one md5, currently cea7e60f4723f63acfd92c5883716f1e.
-# The image is 7,532 bytes of 8,192. The cosim boot-mode X pins in xrun_cosim.sh
-# sit at pc 0x5c and 0x15c, so a cut that moves any word below 0x39C makes them
-# stale and they must be re-measured against the new image.
+# mirrors of it; the three are one md5, currently 37e0cb664a004eba3411dcc0166441b4.
+# The image is 7,528 bytes of 8,192. The cosim boot-mode X pins in xrun_cosim.sh
+# sit at pc 0x5a and 0x1b6 (the F11/W8 re-pinning), so a cut that moves any word
+# below 0x39C makes them stale and they must be re-measured against the new image.
+# Y45 CUT (2026-10-17, O18): THEY ARE STALE. RAM_SIZE 0x18000 -> 0x14000 in
+# software/commune/include/myshkin_s.h -- the loader's only bound, following the
+# shared bulk RAM from 64 to 48 KiB -- turned one word of the bound into a
+# compressed form, took .text 7,532 -> 7,528 and shifted everything after it:
+# 1,376 of 2,048 words differ and THE FIRST CHANGED WORD IS AT 0x4. The edit is
+# the sole cause (the pre-edit tree still builds cea7e60f exactly). mk_inject
+# will REFUSE rather than fabricate on the first COSIM_BOOT=1 run, which is the
+# guard working; re-read the driven bits off that refusal and re-pin both reads.
+# The rom2k_hvt_pg plate was already behind this image and is one cut further
+# behind now.
 # ~/chips/myshkin/ip/rom2k_hvt_pg IS TWO CUTS BEHIND THIS IMAGE. Recompiling it
 # is a signoff_mp job and the plate is stale until it is done.
 filegroup(

@@ -980,7 +980,7 @@ const VESTA_DATA = {
     "memory.sharedBulkRamSize": {
       "description": "int bytes, multiple of 0x4000: shared bulk RAM from 0x10000, one bank per 16 KiB",
       "type": "int",
-      "default": 65536,
+      "default": 49152,
       "min": 16384,
       "step": 16384,
       "group": "basic"
@@ -1186,7 +1186,7 @@ const VESTA_DATA = {
     "debug.enable": true,
     "memory.romSize": 8192,
     "memory.tcmSizePerHart": 8192,
-    "memory.sharedBulkRamSize": 65536,
+    "memory.sharedBulkRamSize": 49152,
     "memory.npuStagingRamSize": 16384,
     "peripherals.npu": true,
     "peripherals.i2c1": true,
@@ -4100,9 +4100,9 @@ const VESTA_DATA = {
         }
       ],
       "sharedWindowAddrWidth": 16,
-      "sharedRamBanks": 4,
+      "sharedRamBanks": 3,
       "flashBaseAddress": "0x40000",
-      "sharedRamEndAddress": "0x1FFFF",
+      "sharedRamEndAddress": "0x1BFFF",
       "tcmWindowAddresses": [
         "0x20000",
         "0x24000",
@@ -4234,9 +4234,9 @@ const VESTA_DATA = {
     {
       "name": "Shared RAM",
       "start": "0x10000",
-      "end": "0x1FFFF",
+      "end": "0x1BFFF",
       "kind": "shared",
-      "description": "Arbitrated shared bulk RAM, 4 banks (locks, mailboxes, inter-hart data)"
+      "description": "Arbitrated shared bulk RAM, 3 banks (locks, mailboxes, inter-hart data)"
     },
     {
       "name": "TCM aperture 0",
@@ -4630,7 +4630,7 @@ function render(){
   const memBox = $("#memFields"); memBox.innerHTML="";
   memField(memBox, "Boot ROM <code>romSize</code>", "Shared boot ROM at 0x0 — all harts reset here. Region ceiling 0x4000.", "memory.romSize", "romSize");
   memField(memBox, "Private TCM / hart <code>tcmSizePerHart</code>", "Tightly-coupled memory, one per tile at 0x8000 (the only private RAM). Region ceiling 0x4000.", "memory.tcmSizePerHart", "tcmSize");
-  memField(memBox, "Shared bulk RAM <code>sharedBulkRamSize</code>", "Arbitrated shared RAM at 0x10000, in 16 KiB banks. 64 KiB = Castalia, 128 KiB = Argus. Extended flash lands at the next power of two: currently "+hex(d.flashBase)+".", "memory.sharedBulkRamSize", "sharedRamSize");
+  memField(memBox, "Shared bulk RAM <code>sharedBulkRamSize</code>", "Arbitrated shared RAM at 0x10000, in 16 KiB banks. 48 KiB = Castalia, 128 KiB = Argus. Extended flash lands at the next power of two: currently "+hex(d.flashBase)+".", "memory.sharedBulkRamSize", "sharedRamSize");
   if(cfg.npu)
     memField(memBox, "NPU staging RAM <code>npuStagingRamSize</code>", "NPU vector staging RAM at 0xC000. Region ceiling 0x4000. (Disappears when the NPU is disabled.)", "memory.npuStagingRamSize", "npuRamSize");
 

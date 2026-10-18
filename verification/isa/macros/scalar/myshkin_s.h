@@ -47,7 +47,8 @@ extern "C" {
 // M11 memory-map rework: the private RAM is the single 16 KiB TCM at
 // 0x8000-0xBFFF. RAM1 is GONE -- 0xC000-0xFFFF is the SHARED NPU staging
 // RAM behind the arbiter (same addresses, reachable by every hart), and
-// 0x10000-0x1FFFF is the 64 KiB shared bulk RAM. Stack, ISR bank
+// 0x10000-0x1BFFF is the 48 KiB shared bulk RAM (three banks since O18;
+// 0x1C000-0x1FFFF has no bank and reads zero). Stack, ISR bank
 // (0xB200-0xBAFF) and all private test data live in the TCM.
 #define ROM_BASE_ADDR           0x00000
 #define IVT_BASE_ADDR           0x08000

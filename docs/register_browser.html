@@ -5429,7 +5429,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 					"RegisterMemorySlot": 2,
 					"Size": 8,
 					"ResetValue": 0,
-					"Description": "Block power control register. Controls power gating for the on-chip memory blocks; all bits reset to 0 (every block powered). Bits 6:3 gate the four low shared bulk-RAM banks individually: a gated bank loses its contents and stops responding, so software must keep the bank holding its stack, mailboxes or live data powered and must treat a re-powered bank as uninitialized. In configurations with more than four banks, banks 4 and up are always on.",
+					"Description": "Block power control register. Controls power gating for the on-chip memory blocks; all bits reset to 0 (every block powered). Bits 6:3 gate the four low shared bulk-RAM banks individually: a gated bank loses its contents and stops responding, so software must keep the bank holding its stack, mailboxes or live data powered and must treat a re-powered bank as uninitialized. In configurations with more than four banks, banks 4 and up are always on; in configurations with FEWER than four, the surplus bits are writable and gate nothing (Castalia carries three banks since O18, so SYSSHB3OFF has no consumer).",
 					"BitFields": [
 						{
 							"BitFieldName": "Unused",
@@ -5448,7 +5448,7 @@ hr{border:0; border-top:1px solid var(--border); margin:var(--sp-8) 0}
 							"Accessibility": "rw",
 							"ResetValue": 0,
 							"Unused": false,
-							"Description": "Shared bulk-RAM bank 3 (0x1C000-0x1FFFF) power control. When set, the bank is powered off: contents are LOST and accesses no longer respond. Reduces static power (a gated sram1p16k halves its leakage).",
+							"Description": "Shared bulk-RAM bank 3 (0x1C000-0x1FFFF) power control, in configurations that carry a fourth bank. When set, the bank is powered off: contents are LOST and accesses no longer respond. Reduces static power (a gated sram1p16k halves its leakage). Castalia carries three banks (memory.sharedBulkRamSize = 48 KiB, O18), so this bit reaches no macro there and 0x1C000-0x1FFFF reads zero.",
 							"ValueDescriptions": [
 								[
 									0,

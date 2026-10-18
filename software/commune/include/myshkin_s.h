@@ -53,8 +53,10 @@ extern "C" {
 // hart's private RAM is only its own TCM. THE TCM ARRAY IS 8 KiB (0x8000-0x9FFF)
 // BUT THE DECODE WINDOW IS 16 KiB, so 0xA000-0xBFFF is the SAME ARRAY MIRRORED, not
 // extra memory; MemoryMap.vhd RamSize = 0x2000 is the one authority. 0xC000-0xFFFF is
-// the shared NPU staging RAM and 0x10000-0x1FFFF the shared bulk RAM, both behind the
-// arbiter.
+// the shared NPU staging RAM and 0x10000-0x1BFFF the shared bulk RAM, both behind the
+// arbiter. THE BULK RAM IS 48 KiB, THREE sram1p16k BANKS (memory.sharedBulkRamSize =
+// 0xC000, owner decision O18): 0x1C000-0x1FFFF has no bank, so it reads zero and absorbs
+// writes. SH_AW stays 16 and extended flash stays at 0x40000; only the bulk-RAM top moved.
 #define ROM_BASE_ADDR           0x00000
 #define IVT_BASE_ADDR           0x08000
 #define RAM0_BASE_ADDR          0x08000
@@ -67,8 +69,8 @@ extern "C" {
 // force_trap` in start.S): a segment ending past RAM0_BASE_ADDR + RAM_SIZE - 4 traps
 // the boot. It must reach the shared bulk RAM, where an image too big for the TCM has
 // to live and where the boot entry vector is published.
-#define RAM_END_ADDR            0x1FFFF  // end of the boot LOAD WINDOW (shared bulk RAM top)
-#define RAM_SIZE                0x18000  // load-window size (TCM + staging RAM + shared bulk RAM)
+#define RAM_END_ADDR            0x1BFFF  // end of the boot LOAD WINDOW (shared bulk RAM top)
+#define RAM_SIZE                0x14000  // load-window size (TCM + staging RAM + shared bulk RAM)
 // BOOT ENTRY VECTOR. A published entry point for images whose _start cannot live at
 // PROG_BASE_ADDR, because they are bigger than the 8 KiB TCM and must run from the
 // shared bulk RAM instead.
@@ -85,7 +87,7 @@ extern "C" {
 // flash work. Shares the BOOT_ENTRY_VEC gap between the loader rows and the Debug
 // Module program page.
 #define BOOT_STATUS_VEC         0x10644  // 0 = flash boot completed or was not taken
-#define SHARED_RAM_BASE_ADDR    0x10000  // 64 KB shared bulk RAM (mailboxes at 0x10000+)
+#define SHARED_RAM_BASE_ADDR    0x10000  // 48 KB shared bulk RAM (mailboxes at 0x10000+)
 // Stack pointer reset value. The RISC-V push convention, and vesta's IRQ_SV which
 // stores the return PC at sp-4 and then decrements sp, make sp a ONE-PAST-THE-TOP
 // pointer, so the value is the TCM array's top + 1 and not its top word. It must match

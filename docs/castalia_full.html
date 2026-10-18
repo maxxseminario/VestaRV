@@ -570,7 +570,7 @@ push({id:"arb",x:X0,y:ARBY,w:X1-X0,h:ARBH,cls:"arb",
 const shRow = packRow(X0, X1, 26, [
   {id:"rom",    wgt:1.05, cls:"smem", t:"Shared boot ROM",         s:"8 KB · rom2k_hvt_pg",                    a:"0x0000–0x1FFF"},
   {id:"npuram", wgt:1.05, cls:"smem", t:"NPU staging RAM",         s:"16 KB · NPU-muxed",                      a:"0xC000–0xFFFF"},
-  {id:"bulk",   wgt:1.30, cls:"smem", t:"Shared bulk RAM — 64 KB", s:"4 × 16 KB banks",                        a:"0x10000–0x1FFFF"},
+  {id:"bulk",   wgt:1.30, cls:"smem", t:"Shared bulk RAM — 48 KB", s:"3 × 16 KB banks",                        a:"0x10000–0x1BFFF"},
   {id:"tcmwin", wgt:1.55, cls:"pmem", t:"TCM read-only apertures", s:NHARTS+" × 16 KB · management hart only", a:hx(TCMWIN(0))+"–"+hx(TCMWIN(NHARTS-1)+0x3FFF)},
   {id:"clint",  wgt:0.95, cls:"sync", t:"CLINT",                   s:NHARTS+" harts · msip / mtime / mtimecmp", a:"0x5000 · mtime 0x5020"},
   {id:"mutex",  wgt:0.95, cls:"sync", t:"HW mutex bank",           s:"16 × 1-insn mutex",                      a:"0x6000"},

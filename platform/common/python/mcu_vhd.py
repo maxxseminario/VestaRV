@@ -3892,7 +3892,15 @@ class McuVhdEmitter():
 		apx = self.apertures()
 		if apx:
 			# The aperture pages sit in what used to be the round-up gap; the rest of that gap stays
-			# unmapped.
+			# unmapped. A configuration with fewer than four banks also leaves pages between the top
+			# bank and the first aperture page, and they are unmapped for the same reason: the bank
+			# decode is exact, so a page no bank claims reads zero through the no-slave arm rather
+			# than mirroring the top bank. Castalia at 48 KiB (O18) leaves exactly page 0111.
+			if 4 + self.banks < 8:
+				lines.append(ind + '     ' + self.pageBits(4 + self.banks)
+					+ ('-' + self.pageBits(7) if 4 + self.banks < 7 else '')
+					+ ' = unmapped (0x%05X-0x1FFFF; fewer bulk-RAM banks than the four the page field holds, so this page has no slave and reads zero)'
+					% (self.banksTop() + 1))
 			lines.append(ind + '     ' + self.pageBits(8) + '-' + self.pageBits(8 + len(apx) - 1)
 				+ ' = READ-ONLY TCM APERTURES 0x%05X-0x%05X (one 16 KiB window per hart at 0x20000 + 0x4000*h; management hart 0 only, read-only, a gated tile completes with zeros)'
 				% (apx[0], apx[-1] + 0x3FFF))
@@ -4013,9 +4021,23 @@ class McuVhdEmitter():
 			lines.append(ind + "-- SYSTEM0's BLOCKPWR gates rom0 (bit 0), hart 0's TCM through the tile's tcm_pgen port (bit 1) and npuram0 (bit 2).")
 		else:
 			lines.append(ind + "-- SYSTEM0's BLOCKPWR gates rom0 (bit 0) and hart 0's TCM through the tile's tcm_pgen port (bit 1); bit 2 has no consumer in this configuration, because the NPU and its staging RAM are dropped.")
-		lines.append(ind + '-- Bits 6:3 gate the shared bulk-RAM banks shbank0-3 (per-bank, reset ON; contents LOST on gate, see SYSTEM.vhd).')
+		# BLOCKPWR is seven bits wide in every configuration (SYSTEM.vhd's PGEN_mem port), and its
+		# bits 6:3 are the four SYSSHBnOFF fields. The bank count is a configuration knob, so the
+		# two can disagree in either direction and the comment must say which bits actually reach a
+		# macro: a bit with no consumer is still writable from software and would otherwise read as
+		# a gate that silently does nothing.
+		nGated = min(self.banks, 4)
+		lines.append(ind + '-- Bits ' + str(2 + nGated) + ':3 gate the shared bulk-RAM banks shbank0'
+			+ ('-' + str(nGated - 1) if nGated > 1 else '')
+			+ ' (per-bank, reset ON; contents LOST on gate, see SYSTEM.vhd).')
 		if self.banks > 4:
 			lines.append(ind + '-- Banks 4-' + str(self.banks - 1) + " of this configuration stay hardwired ON (PGEN => '0').")
+		elif self.banks < 4:
+			lines.append(ind + '-- BLOCKPWR bit' + ('s 6:' + str(3 + nGated) if nGated < 3 else ' 6')
+				+ ' (SYSSHB' + str(nGated) + 'OFF' + ('..SYSSHB3OFF' if nGated < 3 else '')
+				+ ') has no consumer in this configuration, because it carries only '
+				+ str(self.banks) + ' bulk-RAM bank' + ('s' if self.banks != 1 else '')
+				+ '; the field is writable and gates nothing.')
 		lines.append(ind + 'signal ' + 'RAM_Dout'.ljust(17) + ': std_logic_vector(31 downto 0);')
 		lines.append(ind + 'signal ' + 'pgen_mem'.ljust(17) + ': std_logic_vector(6 downto 0);')
 		return lines

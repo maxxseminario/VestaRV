@@ -534,7 +534,11 @@ _CONFIG_META = {
 	# sub-decode off its 16 KiB s_addr(15:12) granularity, so the upper half of each aperture
 	# simply reads unmapped. The operative default is the _cfg() fallback at _tcmSize.
 	'memory.tcmSizePerHart':     {'type': 'int', 'default': 8192, 'min': 0x400, 'max': 0x4000, 'step': 0x400},
-	'memory.sharedBulkRamSize':  {'type': 'int', 'default': 0x10000, 'min': 0x4000, 'step': 0x4000},
+	# O18 (owner, 2026-10-17): 48 KiB, three sram1p16k banks. The fourth bank was dropped to
+	# take 0.223 mm2 off the column-chip die (Y38: `fp::band_plan_c -sram_n 4`, 3.860 -> 3.637 mm2);
+	# the NPU and its 16 KiB staging RAM at 0xC000 stay. shAw and the flash base do NOT move:
+	# _clog2(0x10000 + 0xC000) is still 17, and an orchestrator config floors shAw at 16 anyway.
+	'memory.sharedBulkRamSize':  {'type': 'int', 'default': 0xC000, 'min': 0x4000, 'step': 0x4000},
 	'memory.npuStagingRamSize':  {'type': 'int', 'default': 0x4000, 'min': 0x400, 'max': 0x4000, 'step': 0x400},
 	'peripherals.npu':      {'type': 'bool', 'default': True},
 	'peripherals.i2c1':     {'type': 'bool', 'default': True},
@@ -1377,7 +1381,7 @@ m.MeipVector = 85
 
 # Extra memory sections: the shared regions behind the mp_arbiter, reachable by all harts
 _npuRamLen = _cfg('memory.npuStagingRamSize', 0x4000)   # region 0xC000-0xFFFF; do not exceed 0x4000
-_sharedRamLen = _cfg('memory.sharedBulkRamSize', 0x10000)  # bulk RAM bytes from 0x10000; extended flash begins at the next power of two above the window
+_sharedRamLen = _cfg('memory.sharedBulkRamSize', 0xC000)  # bulk RAM bytes from 0x10000; extended flash begins at the next power of two above the window
 if _sharedRamLen % 0x4000 != 0 or _sharedRamLen < 0x4000:
 	raise Exception('memory.sharedBulkRamSize must be a positive multiple of 0x4000 (one sram1p16k bank)')
 
@@ -1387,7 +1391,10 @@ if _sharedRamLen % 0x4000 != 0 or _sharedRamLen < 0x4000:
 #   shAw  : arbiter and tile word-address width. The window is 0x0..2^(shAw+2)-1, the bulk
 #           RAM end rounded up to a power of two, and the round-up gap reads zero.
 #           Extended flash decodes at exactly 2^(shAw+2), the strict sh_sel complement.
-# Castalia at 64 KiB: banks=4, shAw=15, flash at 0x20000.
+# Castalia at 48 KiB (O18): banks=3, derived shAw=15, floored to 16 by the orchestrator
+# branch below, so extended flash is at 0x40000. Without an orchestrator the same 48 KiB
+# gives shAw=15 and flash at 0x20000, exactly as 64 KiB did: _clog2(0x10000 + len) rounds
+# both 0x1C000 and 0x20000 up to 2^17, so dropping the fourth bank moves no boundary.
 _sharedRamBanks = _sharedRamLen // 0x4000
 shAw = _clog2(0x10000 + _sharedRamLen) - 2
 # Memory map v2 gives shAw a second input. An orchestrator config carries the read-only TCM
