@@ -4965,6 +4965,80 @@ run -- no design-rule or connectivity signoff, no library ingest and therefore n
 no gate-level timing regression and no band-density measurement. The first chip of record is
 proved untouched on four instruments.
 
+### Y44 -- four attempts at routing the second chip, and the useful result is which repair mattered
+
+**The blocker the previous wave left is closed, and its explanation was wrong.** The router had
+refused to build one via stack on two of the four analog islands while building the same stack
+on the other two, and that had been put down to a one-micron gap between each processor tile
+and the die edge. Measured on that cut's own database, the two sites are mirror images of each
+other to the last digit -- every piece of metal, every blockage and every placed cell within
+thirty microns of either die edge maps onto the other side, and the only difference is the pair
+of vias one side built. So widening the gap is a margin change, not a fix for an identified
+fault, and it is recorded that way. Widened to two and a half microns it works: every refusal
+on the three layers concerned is gone, all twenty-four via sites build, and **the analog-island
+check passes for the first time on this chip, with the same verdict the first chip gets.** The
+cost is three microns of the control band and no die area.
+
+**A second defect was found in the repair the previous wave shipped.** The power-mesh weld
+writes its patch using coordinates it reads back out of its own printed report, rounded to a
+thousandth of a micron, so a gap whose true edge falls between two of those steps gets a patch
+that stops a fraction of a step short -- and the check that runs next books that hairline as a
+fresh design-rule result against a budget of zero. It is closed by a second pass that overlaps
+the patch into the metal either side instead of abutting it, written as a file this chip owns
+rather than as an edit to the shared one the first chip also uses, and proved on the database
+that produced the defect before any licence was spent.
+
+**Then the chip failed to route, four times, and the fourth attempt is where the wave ends.**
+Two candidate repairs were in play. The first restores twenty-six routing keep-outs that a
+cleanup step had been silently deleting and never putting back, so that placement, clock-tree
+building and all of routing had been running without them. The second opens the four
+feedthrough channels the processor tile publishes in its top metal layer, which the chip had
+been sealing shut across the whole die -- and which a check had been reporting as absent
+because it read a configuration switch instead of the tile's own geometry.
+
+**Running both together improved the first routing stage threefold. Running only the first
+reproduced the baseline exactly.** That third run is the control, and it says the gain belongs
+entirely to the channel openings: on the two layers that dominate, the restored keep-outs land
+within two results of doing nothing at all. An earlier report in this wave credited them with
+the improvement on the strength of the combined run, which cannot separate two simultaneous
+changes; the control corrects it. The keep-outs are still correct and still restored -- every
+analog pad terminal keeps a legal path, which was checked exhaustively -- they are simply not
+where the routing problem is.
+
+**But the channel openings cannot be used as written.** With them open, the second routing
+stage starts about a quarter higher and then stops improving, where without them it descends
+steadily; both runs with them open had to be killed. The damage is not in the channels
+themselves -- results on that layer are under a thousand out of fifty thousand -- it is on the
+layer immediately below, which doubles. The channels cross a macro whose six lower layers are
+fully obstructed for their entire depth, so a net that takes one has no legal place to change
+layer anywhere along it; the only exits are the two ends. The router takes the channels
+opportunistically and then cannot land. A fourth attempt added via blockages to stop nets
+coming down inside a channel and made the layer below slightly worse, because those blockages
+covered the two ends as well as the middle -- the one place the change has to happen. One
+candidate for the failure was tested and ruled out: no power stripe passes through any opening,
+because in this arrangement the stripes and the channels run in the same direction and never
+cross.
+
+**So the channel question is parked rather than closed, and the next cut changes the floorplan
+instead.** The strongest single finding is a placement one: all six memory macros sit in two
+western columns, leaving the eastern half of the control band empty, and one column stands
+seven microns off one processor tile's pin face for that tile's entire length. Nothing can be
+placed against its three hundred and forty-eight pins, so the logic driving them lands half a
+millimetre away and those long nets then cross the macro -- which accounts for the largest
+single class of violations. The next cut moves the macro columns away from the tile faces or
+makes them symmetric, drops to four memory banks, and re-solves the core width against the
+measured band density rather than the target: the band reaches 54.65 % against a 65 %
+assumption, so this die is larger than this design needs. One class of violations on a second
+tile remains unexplained and is carried forward.
+
+**Two process results worth keeping.** The band density instrument now has its first real
+answer, and it shows the column arrangement placing the same design at **twice** the first
+chip's density, which is the area argument this topology exists for, measured rather than
+asserted. And one run sat for twelve hours making no progress because the thing watching it was
+a session-scoped background job that got cleaned up; a detached progress watchdog caught the
+next one in an hour, and it is now a permanent part of the chip's run script rather than
+something each wave has to remember.
+
 ### Y45 -- the shared memory shrinks to 48 KiB, and the boot ROM has to be recut with it
 
 **The owner's area decision is now in the design, not just in the plan.** The chip's shared
