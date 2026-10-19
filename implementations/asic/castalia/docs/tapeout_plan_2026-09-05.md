@@ -5119,3 +5119,91 @@ Those are two different documents -- 336 pages against 412 -- so that check cann
 whatever any commit does. The second chip's manual was rebuilt and republished with the new
 memory map; whether the default chip's manual should get a path of its own, or the check should
 build the same configuration it compares against, is an owner decision.
+
+### Y46 -- the second chip's macro columns come off the processor faces, and its area turns out to be set by the pad ring
+
+**The one thing the previous wave asked for is done, and it is measurable before any routing
+is attempted.** Six memory blocks had been standing in two columns hard against one side of
+the chip's central control band, which left the processor tile on that side with nowhere at all
+to put the logic that drives its three hundred and forty-eight interface connections. The new
+instrument reads that off the floorplan directly: inside two hundred microns of that tile's
+interface edge, across its whole eight-hundred-micron length, **there is exactly zero placeable
+area**. The tile on the opposite side, looking onto three hundred and fifty microns of open
+floor, has ninety-five thousand square microns of it. Those two tiles took seven hundred and
+five and four hundred and fifty-seven of the eleven hundred and sixty-two short circuits that
+stopped the previous four routing attempts, and the two that scored nearly none are the two
+whose own geometry gives them room. The memory columns are now centred, so both sides get an
+equal hundred-and-seventy-micron channel, and the floorplan stage refuses outright if either
+channel falls below a hundred microns -- five times the distance that demonstrably worked.
+
+**The owner's bank decision is in, and its area saving is not available as die area.** Taking
+the shared memory from sixty-four to forty-eight kilobytes removes one memory block, which an
+earlier wave priced at a fifth of a square millimetre of die. That price came from dividing the
+band's contents by a target density. Measured, the band's width is not set by its contents at
+all: it is the only part of the chip edge where a signal pad can legally sit, because the other
+two edges are solid memory and processor, and **the pad plan already uses every one of the
+forty slots it has**. A narrower band is a dropped signal pad, one for one, and the pad
+generator refuses every narrower chip by name. So the die stays as it was, at 1.93 by 2.00
+millimetres, and the freed memory area goes back into the band as placeable floor instead --
+which is exactly where the routing failure is. Reaching the three-and-a-half-square-millimetre
+target would mean giving up functional pins: the whole negotiable margin is three
+general-purpose mux pads, worth about a tenth of a square millimetre, and anything beyond that
+costs a complete eight-bit port. That is an owner decision and it is priced in the report.
+
+**Four places in the flow named a memory block that the new netlist does not have, and three of
+them had to be paid for with a run.** The placement loop would have placed the deleted block
+and left the surviving one on the floor; the floorplan's own invariance check named the deleted
+block as a reference and refused in twenty-four seconds; and the netlist itself could not be
+staged where the flow was reading it from, because that directory belongs to the first chip.
+Each is now derived from what the netlist actually contains rather than written down, the
+staging goes into this chip's own directory through a two-line copy of the preparation script,
+and the runner refuses before taking a licence if the netlist and the bank count disagree or if
+the first chip's own input has moved.
+
+**And a rounding defect that had been harmless for four waves became fatal when the floor plan
+got tighter.** Sizing the orchestrator's region divides an area by a width, rounds the result up
+to the grid, adds it to a grid-aligned origin, and rounds that down again. The two roundings
+cancel in exact arithmetic; in machine arithmetic the last one occasionally steps down a whole
+grid pitch. With the old wide strip that cost a fifth of the available margin and was invisible.
+With the strip halved it cost twice the margin, and the floorplan refused by sixty square
+microns out of ninety-six thousand. It is fixed where it happens, with the old answer asserted
+unchanged as the control.
+
+**But the repair is not free, and the new obstacle is one missing connection repeated two hundred
+times.** Giving both processor tiles a channel splits the central band's logic area into two
+separate strips, one either side of the memory. The power grid was solved when there was only
+one. In the new west strip, every power rail under the cell rows gets its full stack of
+connections up through the metal layers and then **stops one layer short of the top mesh** --
+and in this chip's rotated arrangement the top mesh is the only one a horizontal rail can reach,
+because the layer below it runs parallel. Two hundred and twenty-one rails are left as isolated
+islands, the power-grid check counts two hundred and eighty-six faults against a budget of
+twenty, and the floorplan stage refuses -- correctly, five minutes in rather than four hours in.
+The same stacks in the east strip, and in the previous floorplan, are built complete and
+identical in every other respect, which is measured side by side on the two databases. Three
+explanations are ruled out by measurement: it is not where the memory sits relative to the grid
+(both strips sit at the same offset on the same grid), it is not missing metal (both pieces the
+connection needs are present and were measured), and the tool reports no refusal of any kind --
+it simply declined. One short diagnostic inside the flow will settle it, and that is the first
+thing the next wave should run.
+
+**A control run then split that obstacle in two, and found a second one that belongs to the
+memory decision itself.** Two things changed at once -- the bank count and the channel -- so one
+run put the memory back where it was and kept the new bank count. It reproduces the old rail
+population exactly, to every digit, which attributes all of the isolated rails to the channel and
+none of them to the bank count. But it fails too, on something smaller and quite separate: with
+one memory block gone, the remaining blocks in that column shift down, and the block above them
+loses a single one of its own power connections. The check that forgives this class of
+connection is deliberately all-or-nothing -- one unforgiven connection anywhere and the whole
+class is counted -- so one connection costs fifty, and that check refuses as well. **Dropping a
+memory block therefore has a power-grid cost that none of the earlier pricing anticipated**, and
+it is independent of the channel work.
+
+**So no layout attempt was started, and by the end of the wave that is a measurement rather than
+a judgement: neither candidate floorplan reaches the router.** The repaired one is refused on two
+hundred and eighty-six power-grid faults, the unrepaired one on sixty-three. Had the unrepaired
+one passed it still would not have been run, because it is the floorplan the previous wave
+already took twice to the same plateau and this wave now explains why to a number. So there is
+still no manufacturable layout for the second chip, still no verification of the
+layout-versus-schematic question that has been open for six waves, and the second chip's library
+remains unpublished. The next wave has two short, well-aimed jobs in front of it, and both are
+diagnostics rather than redesigns.
