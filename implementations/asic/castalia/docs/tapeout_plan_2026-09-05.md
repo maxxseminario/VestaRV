@@ -5412,3 +5412,28 @@ the worst tile went from no free floor at all beside its inner edge to five thou
 microns. Room beside the band is therefore not what the router was short of. It does clear further
 than before, and **what is left is almost half on one wiring layer** -- the one layer on which the
 tile's own description blocks everything with no opening at all.
+
+**And the decisive test was done in seven minutes rather than another chip run, and it clears the
+mirror.** A unit block was built: one processor-tile description on its own in a small empty chip,
+four copies, one per placement orientation, each with all three hundred and forty-eight inward
+pins driven by its own small buffer placed beside it, and nothing else at all -- no memories, no
+pad ring, no analog, no channels. **All four orientations route cleanly.** Every one of the one
+thousand three hundred and ninety-two wires connects, and there is not a single violation on
+either of the two layers the inward pins use, in any orientation. The only large class of
+findings is the tile's own top-layer pins against the chip-wide top-layer reservation, and it
+comes out **identical to the unit on all four** -- which is itself proof that the tool is handed
+the same pin shapes whichever way the tile is turned.
+
+So the mirrored placement is not, by itself, what breaks the wiring. The failure needs something
+else in the real chip to be present as well, and the same unit block is now the instrument for
+finding out which: the pieces of the real floorplan can be added back one at a time -- the
+top-layer reservation, the keep-out ring around each tile, the memory wall seven microns from one
+tile's face, the narrow strip against the chip edge -- until it breaks. That is minutes per test
+instead of hours.
+
+**One long-standing question closed on the way.** For three waves the flow has tried and failed to
+read the tile's own blocked-area description out of the tool's database. Asking the tool first
+what it can answer, rather than guessing the question, shows plainly that it cannot answer this
+one at all: every path returns nothing and the attribute is simply not recognised, at every
+orientation. The geometry has to be read from the file on disk, which the offline checks already
+do, and the guessing can stop.
