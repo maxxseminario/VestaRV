@@ -5207,3 +5207,117 @@ still no manufacturable layout for the second chip, still no verification of the
 layout-versus-schematic question that has been open for six waves, and the second chip's library
 remains unpublished. The next wave has two short, well-aimed jobs in front of it, and both are
 diagnostics rather than redesigns.
+
+### Y47 -- the second chip's power-grid obstacle was the flow deleting its own connections, and both blockers in front of the router are closed
+
+**The obstacle the previous wave could not explain was not the tool declining a connection. It
+was this flow deleting it afterwards, two hundred times over, through one arithmetic mistake.**
+A clean-up step exists to remove redundant power connections that land on top of a processor
+tile, where the tile already makes the same connection internally; left in place they merge with
+the tile's own and break a spacing rule. The step works out where each tile is by adding the
+tile's width to its position in one direction and its height in the other. In this chip all four
+tiles are **turned on their side**, so width and height are the wrong way round -- the step was
+looking for the tiles in a box eight hundred microns wide and three hundred tall where each tile
+is three hundred wide and eight hundred tall. The two tiles on the west side of the chip
+therefore had their boxes reach five hundred and thirty-five microns **into the central band**,
+across the whole logic channel the previous wave had just opened and both memory columns, while
+the two on the east had theirs run off the edge of the chip into the pad ring, where there is
+nothing at all. The clean-up then deleted every power connection it found inside them.
+
+**The flow's own log has been saying so since the fifth wave back, and nobody read it.** The
+step prints what it deleted, per tile, on every run: three hundred and eighty-three, three
+hundred and ninety, nine hundred and thirty-eight, and finally one thousand six hundred and
+forty-one -- and **zero for the east tile, every single time**, because its box is off the chip.
+The count grows exactly as the amount of free floor inside the bogus boxes grows, which is why
+centring the memory columns made it four times worse: it put a six-hundred-row strip of logic
+directly underneath two of them. The previous wave measured the symptom precisely -- a sharp
+boundary partway up the west strip, with complete connections above it and none below -- and read
+it as a question about the grid; it is a box edge.
+
+**The fix is to stop calculating the box and ask the database where the tile actually is**, which
+is correct at any rotation in any arrangement and cannot be got wrong by hand again. The flow now
+prints the measured box beside the one the old arithmetic would have used, and a new check refuses
+outright if any clean-up box is not the tile's own shape or reaches into the central band at all.
+
+**It is a much larger repair than the obstacle it removes.** Deletions drop from one thousand six
+hundred and forty-one to ninety-two, and symmetric across all four tiles for the first time in
+this chip's history. Power-grid faults drop from **two hundred and eighty-six to two**, against a
+budget of twenty, and the check that had refused every attempt since the band was split now passes
+with the flow raising its own note that the result is better than the reference chip's. On the
+layout file itself: the chip now carries one thousand five hundred and fifty-six more power
+connections on the same floor plan, the four correctly-shaped boxes are empty -- the clean-up did
+its job -- and the four wrongly-shaped ones hold exactly the connections the old code had been
+removing.
+
+**And the whole forgiveness class the previous waves had been arguing about turns out to have been
+this same mistake's wreckage.** Between forty-nine and sixty-six power faults per attempt had been
+classified as harmless redundant memory connections on the grounds that a two-hundred-nanometre
+contact row is physically too narrow to connect upward. With the clean-up box right there are
+**none of them left**. The physics is still true and is not withdrawn; what is withdrawn is the
+claim that it explained sixty-five real faults.
+
+**The second blocker is closed too, and it was a check that could not name its own subject.** One
+unforgiven memory connection had been costing the whole fifty-fault class, because the rule was
+all-or-nothing. It is now measured one connection at a time: each is classified from its own
+reported dimensions into a pad connection, a genuinely-too-narrow memory connection, or neither,
+the counts are reported either way, and it refuses only on the third kind. Replayed against the
+three real reports from the previous wave, the one that had refused now passes. The old rule also
+could not have been narrowed: it read the offending part's name only as far as the first slash, so
+the previous wave's log names the whole chip as the culprit.
+
+**Two full diagnostic runs were then spent dying inside a diagnostic, and that is now impossible
+by construction.** A report-writing step added last wave had never once executed, because the
+power-grid check had refused in front of it for five waves. The first two runs to reach it died in
+it: a line of its own explanatory comment had lost the character that makes it a comment, so the
+tool tried to run the prose as a command, and a second line read a setting as the wrong kind of
+variable. Each cost a quarter-hour licence run, after every check that matters had already passed,
+for two defects that cannot change a single shape on the chip. Both are fixed, the first one's
+signature is now checked automatically, and -- the part that matters -- **the whole report-writing
+step is now wrapped so that it reports its own failure and the run continues.** A step that writes
+a text file and draws nothing must never stop a chip.
+
+**The report it finally wrote answers its own question in the negative, which saves the next wave
+the trouble.** It produced one thousand four hundred and eight interface-connection rectangles
+across the four tiles, each correctly rotated -- but no obstruction data at all, because this
+version of the tool simply does not expose it through the path three waves have been guessing at.
+The obstruction question has to be answered from the tile's own abstract file, which another
+instrument in this flow already reads.
+
+**With both blockers gone the chip reached two checks no attempt had ever reached, and the whole
+power-grid stage now passes.** The first attempt stopped at a limit on how many same-metal gaps a
+welding repair is allowed to close -- a sanity bound, not a defect. The number is a direct
+consequence of the repair above: the gaps are between the horizontal mesh and the connection pads
+the vertical mesh drops through it, so restoring fifteen hundred connections creates more of them.
+It scales **less than proportionally**, which is what distinguishes a population from an
+explosion, and the only class that is actually a design-rule error stayed at zero, so the bound was
+raised to its own measured value and the run repeated. The repair then welded all two hundred and
+seventy-six, the chip-wide check after it reports **no violations created**, and the ten analog
+supply islands come back fully connected with the same verdict as the first chip.
+
+**Three layout attempts were spent and there is still no manufacturable layout, and the
+reason is now the only reason left.** The first stopped at the welding limit above. The
+second passed everything, placed the chip at forty-five per cent band occupancy -- against
+the fifty-five of the previous floorplan, exactly as the bank decision was priced to do --
+and was routing when **the progress watchdog from the first attempt killed it an hour in.**
+That watchdog matches running jobs by the layout's name; the second attempt's name extended
+the first's, so the first attempt's watchdog thought the second was its own job. Worse, its
+liveness test asked the operating system for a list of processes and searched that list for
+its own search pattern, which is always present in the list -- so **no watchdog this chip has
+ever started has stood down, and six of the seven have ended by killing something.** Both are
+fixed and both are now tested by running the real thing against a decoy process. The limit
+itself is deliberately unchanged: an earlier attempt sat twelve hours at three hundred and
+sixty per cent processor with nothing in its log, so processor activity is not evidence of
+progress and the log is.
+
+**The third attempt reached the router cleanly and the router did not converge.** Roughly
+thirty-eight thousand geometry violations, descending slowly -- the same regime as the two
+attempts two waves back, and not the runaway of the other two. It then stopped writing to its
+log while still consuming two hundred per cent processor, and its own watchdog stopped it at
+the hour as designed. So the honest summary of this wave is: **the two things standing between
+this chip and its router are gone, measured and permanently checked, and the routing problem
+itself is exactly the size it was.** The floorplan repair gave the worst-placed processor five
+thousand square microns of usable floor next to its interface where it had none, and the
+power-grid repair gave the chip fifteen hundred connections it was being denied; neither was
+the routing fix and neither was offered as one. There is still no verification of the
+layout-versus-schematic question, open now for seven waves, and the second chip's library
+remains unpublished.
