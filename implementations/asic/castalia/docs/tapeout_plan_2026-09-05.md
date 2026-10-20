@@ -5725,3 +5725,102 @@ look at.** That is now fixed and refuses the pairing, and the remaining comparis
 unused rather than spent on a result that cannot mean anything. **Regenerating the processor
 block's circuit description from the version this chip actually contains is the next thing that
 has to happen, and it belongs to the processor block's own flow rather than this one.**
+
+### Y50 -- the comparison that could have matched was already on disk, and twenty-nine of the fifty remaining geometry problems are one line of the foundry's own library file
+
+**The second chip's electrical comparison was reading the wrong version of the processor tile, and
+the right version was already there.** Last wave found that the comparison had put this chip's
+layout against a *different cut* of the processor tile's circuit description -- two different
+versions of the same block, which cannot agree by construction -- and recorded the fix as a job for
+the tile team: re-export the circuit description from the matching version. That turned out to be
+unnecessary. Both halves of the matching pair have been sitting beside the mismatched ones since the
+tile was cut, and the tile's **own** electrical comparison for that version used them and came out
+clean. What was missing was not the files but a way to ask for them together.
+
+**They came apart because one half could be chosen and the other was written in.** The circuit
+description had been a settable option for weeks; the file of connection labels that goes with it
+was a fixed path, written out four times across two scripts. So choosing a matching circuit
+description could never bring its labels along. There is now **one setting that names the tile
+version and resolves all three files from it** -- circuit description, labels, and the deliberately
+broken control copy used to prove the comparison can fail -- and it overrides anything inherited
+rather than deferring to it, because setting them separately is exactly how they came apart.
+
+**And the labels are version-specific, which a comment copied from the first chip's script denied.**
+That comment said the label coordinates do not change between versions. True of the first chip's
+tile; false of this one. The version on disk carries 75 labels for an 885-micron-wide tile; the one
+this chip actually contains carries 22, for an 835-micron one. Multiplied across the four
+processors, the chip's own label file holds 302 labels at the wrong version's coordinates, stamped
+onto this version's layout -- and a connection label at a coordinate from another version lands on
+whatever conductor happens to be there, which the comparison then reports as a short that no
+geometry check agrees with. The chip's existing comparison reports its first short at exactly the
+first stamped label's coordinate, and the tile's own clean comparison reports none at all.
+
+**The check that should have caught the version mismatch now measures the layout instead of a
+date.** Last wave's version check compared file dates against a directory that deliberately holds a
+much older version of the tile, so it passed while the mismatch was in front of it. The new check
+takes the tile layout the chip actually merged and the tile layout of the named version and requires
+them to be **byte-for-byte identical** -- which is the statement "this circuit description's version
+is this layout's version" rather than a stand-in for it. The same wrong-date comparison was also in
+the script that does the label stamping, and is fixed there too. The whole thing is tested without
+taking a licence, using last wave's own mismatched comparison as the case that must be refused.
+
+**The guard over the analog supply straps is back, as a pair rather than as a restoration.** Last
+wave put that guard back permanently and it cost a chip attempt: the strap keep-outs extend past the
+edge of the digital area by design, so leaving them in place when the geometry is checked means they
+*are* geometry, and sixty extra overlap problems were booked against them. The fix is the shape this
+flow already uses for the equivalent problem on the top two metal layers -- create the keep-out for
+the one optimisation pass that needs it and delete it again before anything is measured. It is now
+in place at the three passes that run after the keep-outs are swept, each one closing its own pair,
+and **the deletion is confirmed by reading the database back**: a pair whose deletion silently
+misses is the permanent restoration that cost the attempt. Tested in sixty-two separate assertions
+without a licence, including that failure mode as a deliberate control.
+
+**The gate-level timing regression's pin-mux problem was the test bench, and the count in last
+wave's note was wrong too.** The bench applies a reset contract to nineteen configurable pins
+because that is what the first chip has; this chip has **three**, not the four last wave recorded --
+the fourth came from a comment in the file being counted, which was the file saying there are three.
+The bench now takes the number from the netlist it is grading and refuses a pin set it cannot model.
+Two further bench problems were behind that one: a check whose own comment said it was *"reported
+rather than fatal"* was written at a severity the simulator treats as fatal, and the check sampled
+the pin's external node in the same instant the driver changed -- before the pad model's delay had
+propagated -- so it reported a race rather than a violation. One such report stopped the whole run
+and moved the bench's memory preload off its intended time.
+
+**With all three fixed, the regression runs past the contract and stops on something that is not the
+bench.** All fourteen programs time out at both timing corners, uniformly: the clock runs, reset
+releases, and the result register stays undefined. That is one problem, not fourteen, and it is
+in front of the regression's verdict. The cause is named by the shared-memory wave's own open item:
+this is the first chip built on the reduced 48-kilobyte memory configuration, and the gate-level
+regression has never been run on that configuration at all. **It is an owner item and it is not
+this chip's layout.**
+
+**The fifty remaining geometry problems are seven classes, not fifty problems, and eighty-eight more
+were filed in the wrong place.** Of the chip's two hundred and seventeen reported items, last wave
+counted a hundred and sixty-seven as deferred filler-metal density. Eighty-eight of those are a
+*connectivity* check, not a density one: they are gates whose inputs reach no transistor, and the
+reason is that the analog channel placeholder contains no transistors at all -- its layout carries
+pin shapes and nothing else. They clear themselves when the real analog channel is drawn, they
+cannot be fixed by any routing change, and the first chip's register already files the same class
+separately. The deferred density class is seventy-nine, not a hundred and sixty-seven.
+
+**And twenty-nine of the fifty are one disagreement between two sections of the same foundry library
+file.** One section tells the router that two pieces of metal *on the same net* may come within 0.09
+to 0.10 microns of each other; another section in the same file -- the one the foundry's checking
+deck implements -- requires 0.11 to 0.16 when one of the two pieces is wide. So the router legally
+places a narrow shielding wire a tenth of a micron from a wide supply shape, reports nothing, and
+the foundry's own check calls it a violation. **That is why this chip can pass every internal
+verification check and still carry fifty problems.** Ten more are the flow's own repair pass joining
+two narrow pieces of top metal into one wide piece, which makes the *next* gap along illegal -- and
+the whole-die check that is supposed to score that reports zero where the foundry's deck reports
+eight, which is an instrument certifying what it does not measure, the same class of defect as last
+wave's mis-counting.
+
+**One of the seven classes was fixed in this wave's chip attempt and five were deliberately not.**
+The one fixed is net-scoped and cannot disturb anything: four of the problems are a single-contact
+via where an analog electrode route narrows into its tile connection, and the routing rule those
+nets already carry simply never asked for two contacts. The rest would have to go through the flow's
+existing repair stage for foundry-deck problems, and **that stage is off by default with a record of
+nought for two** -- its filling branch cost one chip attempt its final verification, and its
+re-routing branch is entangled with a second change on another. Spending this wave's single chip
+attempt on it was the wrong trade. All fifty are written up with their coordinates, their owners and
+the three repair options in the chip's own waiver register, and **none of them is waived.**
