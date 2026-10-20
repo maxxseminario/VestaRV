@@ -5330,3 +5330,85 @@ it carries none of the wiring's own delay and none of the two early-path repair 
 flow is configured for, and **it is not a closure claim**. What it is good for is the
 distinction the next wave needs: the thirty-eight thousand geometry violations are a question
 about how much wiring room the floorplan leaves, not about speed.
+
+### Y48 -- the thing watching the second chip's routing was killing it, and a killed run now leaves its evidence behind
+
+**The previous wave's third attempt was stopped by its own supervisor, and the supervisor was
+wrong.** Routing a chip of this size takes hours, and the flow leaves an unattended job with a
+simple rule: if the tool has written nothing to its log for an hour, assume it has hung and stop
+it. That rule has now been wrong in both directions, and both failures are in this chip's own
+records. It was **missing** when it was needed -- four waves back an attempt sat for twelve hours
+and twenty minutes without writing a line, on forty-seven processor threads, and never came back,
+because the thing supposed to be watching it had itself been cleared away. And last wave it
+**fired on a healthy run**: the tool was in the middle of one routing step, using two and a half
+processors' worth of effort the whole time, and was killed at the hour mark. Nothing had measured
+whether that step was making progress, so an hour-long step and a hang looked identical.
+
+**So the supervisor now measures progress instead of silence.** Every five minutes it takes three
+readings -- how much the tool has written, whether any report or database file on disk has grown,
+and how much processor time the job has actually consumed -- and writes all three into its own
+record, so a later reader can see why a decision was taken instead of having to work it out. A job
+is considered alive if it is consuming processor time **and** something on disk is changing. Two
+rules stop it: three hours with nothing written **and** no processor time consumed, which is a
+dead process rather than a slow one; and six hours of silence whatever else is true, because a
+step that has not written a line in six hours is not a step this flow has ever had. Both of the
+past cases were then checked against the new rule as the test of it: the twelve-hour hang is
+stopped at six hours, six hours earlier than it actually ended, and **last wave's kill does not
+happen at all** -- which is to say that kill is withdrawn. Simply raising the one hour to three was
+refused, because the twelve-hour case proves processor effort alone is no proof of life. The
+supervisor is exercised by starting real stand-in processes, one frozen and one spinning, and
+checking that each rule picks out the right one.
+
+**And a run that is stopped now leaves something behind.** Until this wave the routed layout was
+saved only once the routing step *returned*, which meant that both of last wave's attempts --
+each stopped part-way through routing -- left nothing to examine, and two attempts' worth of
+evidence was lost to a save placed after the thing that fails. Routing is now done in two halves
+with the result written to disk in between, the router's own periodic save is switched on and
+confirmed to have taken effect rather than assumed, and the original save is kept. Whatever
+happens next, there is a layout to measure.
+
+**Two mistakes in the earlier corridor experiment are also fixed, so that experiment can be run
+honestly if it is needed.** Each processor tile has four narrow channels through it that upper
+wiring can cross; opening them is still the only change in this campaign that measurably helped
+routing, and it is also the change that made the second half of routing explode. Last time the
+openings were pulled back slightly from their own walls to respect a spacing rule -- but the code
+picked the wrong one of the two directions, so the pull-back went onto the three-hundred-micron
+length instead of the eleven-micron width and the clearance was never applied at all. And the
+blockage meant to stop wiring dropping down inside a channel was laid over the **whole** channel
+including its two ends -- which are the only places a crossing wire can get in or out. Both are
+corrected and both are now checked by name rather than trusted: the pull-back must land on the
+narrow direction and is measured against the channel's own width, and each channel must keep an
+opening at each end sized from the tile's own access window. The corrected stage is run offline
+against the real tile description and produces sixteen channels of the right shape with both ends
+of every one left clear.
+
+**And then three measurements nobody had taken, which change what the second chip's routing
+problem is understood to be.** The processor tiles sit two per side with their control pins facing
+inward toward the central band. Checking, for every one of the three hundred and fifty inward pins
+of each tile, whether that pin's wire ends up in a violation gives: **four of three hundred and
+fifty on the first tile, four on the fourth, one hundred and six on the second, and two hundred
+and fifty-seven on the third.** The two clean ones are the two placed the normal way up; the two
+bad ones are the two the layout places **mirrored**. It is not the amount of free floor beside
+them -- by that measure the order would be fourth, second, first, third, and the first tile has a
+thirteenth of the fourth's room while scoring exactly the same. The previous wave had recorded one
+bad tile as unexplained; it is two, and they are the mirrored pair.
+
+**Second, the damage is at the wrong edge.** Counting violations within five microns of each
+tile's two long edges, the worst tile carries **one thousand and eighty-five against its OUTER
+edge, facing the chip boundary, and sixty-five against the inner edge facing the band**. Of the
+twenty worst wires, two are the power grid and are harmless, and **all eighteen of the rest belong
+to that one tile**; every one of them lives in the two-and-a-half micron strip against the chip
+edge, while the other end of each is a cell six hundred and sixty-seven microns away on the far
+side of the band. A picture drawn from the violation coordinates themselves shows them as long
+bars **crossing the full depth of the tile**, with the first tile's end of the same column
+carrying none at all. The router is going **around** the tile column through the chip-edge strip
+and back across the tile body, which is also why opening the channels helped so much and why
+blocking their ends made it worse.
+
+**Third, the two repairs the last two waves made did not move the starting point.** The router's
+first full pass on the new floorplan produces **thirty-nine thousand** violations against the
+previous wave's **forty-one thousand**, with the same split layer by layer -- on a floorplan where
+the worst tile went from no free floor at all beside its inner edge to five thousand square
+microns. Room beside the band is therefore not what the router was short of. It does clear further
+than before, and **what is left is almost half on one wiring layer** -- the one layer on which the
+tile's own description blocks everything with no opening at all.
