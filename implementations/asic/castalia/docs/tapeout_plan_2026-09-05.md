@@ -5593,3 +5593,29 @@ What is still owed is the physical reason a power-grid alignment on the top laye
 signal wiring on the middle layers. The correlation is now established by intervention -- change
 only that, and the outcome changes by two and a half orders of magnitude -- but the path between
 them has not been traced, and that is the next wave's first task.
+
+**The chip also closes its timing, and then stops at the last check before layout output.** With
+the wiring clean, the timing signs off at both ends: no late paths and no early paths out of
+thirty-six thousand seven hundred, with a hundred and thirty-three picoseconds of margin in hand
+on one side and five on the other, after the early-path repair inserted twenty-four delay cells
+and re-wired the affected connections. That is a real post-wiring figure rather than the
+pre-wiring one quoted last wave, though it is still not the coupled-interference number the
+first chip is judged on.
+
+The final verification check then refuses the chip on **thirty-seven** remaining shorts. None of
+them is the class that blocked this chip: the processors' blocked areas are clean on all four, and
+thirty-two of the thirty-seven sit in the two narrow strips along the chip's outer edges, outside
+the logic area entirely. Every one is an analog supply strap touching the obstruction of its own
+supply pad.
+
+**And that class is not new.** The very first attempt, four waves ago on the old arrangement,
+carried **exactly thirty-seven of the same thing** — it had simply never been seen, because every
+previous attempt died in wiring thousands of violations earlier and this check never ran. The
+chip is the first to get far enough to reach it. It also shows that the two existing analog-strap
+checks, both of which passed, test how the straps connect but not whether they overlap their own
+pads. Closing that gap is work on the floorplan, can be developed and tested without building a
+chip, and is the next thing to do.
+
+**So: the wiring problem that has blocked this chip since the campaign began is solved, and what
+stands between it and a finished layout is now a different, smaller, named and long-standing
+defect at the analog pads.**
