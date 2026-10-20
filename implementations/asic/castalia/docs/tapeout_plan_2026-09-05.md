@@ -5568,3 +5568,28 @@ and for most of the wiring violations -- has gone from six to fifty-three, exact
 neighbour. **That gives a prediction to test rather than a result to explain:** if the pin
 failures follow that quantity, that processor should now wire like its neighbour. It is the first
 time this effort has predicted a result before building rather than accounting for one afterwards.
+
+**The second chip routes.** With the mirroring removed and nothing else changed, the wiring tool
+finished its first eight passes at **forty** outstanding violations. The version stopped a few
+hours earlier, identical in every other respect, had settled at thirteen and a half thousand and
+stopped improving after five hours. The first pass alone came out at thirteen and a half thousand
+against the previous version's thirty-nine thousand.
+
+**And the count that has blocked this chip since the campaign began is now zero.** The check
+introduced four waves ago asks how much signal wiring runs through the processors' own blocked
+areas. It was one thousand one hundred and sixty-two -- seven hundred and five on one processor,
+four hundred and fifty-seven on another -- and the check asked for it to be at least halved. It is
+**zero on all four**, the separate count along the chip edges is **zero**, and the check records a
+pass for the first time.
+
+**The result was predicted before the chip was built, which is what makes it an explanation rather
+than a coincidence.** The sequence was: the pin-access failures follow which processors are placed
+mirrored, and not how much room or how far their logic sits; mirroring reverses how the chip-wide
+power grid lines up with each processor's own supply pin rows; removing the mirroring restores that
+alignment on the worst processor from six rows to fifty-three; therefore that processor should wire
+like its clean neighbour. It does.
+
+What is still owed is the physical reason a power-grid alignment on the top layer should govern
+signal wiring on the middle layers. The correlation is now established by intervention -- change
+only that, and the outcome changes by two and a half orders of magnitude -- but the path between
+them has not been traced, and that is the next wave's first task.
