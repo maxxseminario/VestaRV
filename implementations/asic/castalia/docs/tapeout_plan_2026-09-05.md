@@ -5684,3 +5684,44 @@ and run against the refused chip's own report, and against a synthetic report bu
 exactly what the four fixes delete and nothing else -- on which all three counts read zero. That is
 the only thing such a test can honestly show, and it is the thing worth showing: either the set of
 fixes clears the check or it does not.
+
+**And the second chip is now a finished layout.** With the counting fixed and the three local
+problems closed, the first attempt still stopped -- on sixty new problems that the fix for the
+late repair pass had itself created. Restoring those keep-outs puts them back into the database,
+and a keep-out that is still there when the geometry is checked IS geometry; it had also turned
+out to be unnecessary, because narrowing the over-wide strap had already emptied the track the
+late repair was using. That fix was withdrawn rather than tuned, and the second attempt then
+passed every arm of the final check -- the first time this chip has ever done so -- and wrote its
+layout file. It meets both speed requirements with nothing left over to fix: zero failing paths
+at either end over thirty-six thousand paths, and this time the check says the measurement
+included the interference between neighbouring wires, which the first chip's headline number does
+not.
+
+**Three more counters in this flow turned out to be incapable of changing their value, and all
+three printed a plausible number.** One compared a printed decimal against a computed one and so
+reported every repair patch as moved; it now reports four, which is exactly the number that were.
+One matched only the first line of a report and so reported zero problems on a report listing
+eight thousand -- which means a safety limit written four waves ago, meant to stop an automatic
+repair being run on a hopeless case, has never once been able to fire. And one applied the reset
+contract for the first chip's nineteen configurable pads to this chip, which has four. **A counter
+whose value cannot change is not a measurement, and the cheapest way to find one is a test with
+two rows in it.**
+
+**The checks that run on the finished layout are a mixed result and are reported as one.** The
+antenna check is clean. The geometry check is not: of two hundred and seventeen findings on the
+chip itself, a hundred and sixty-seven are the deliberately deferred filler work and **fifty are
+real** -- spacing and via-enclosure problems of the same kinds and the same count as the other
+chip carries, none of them in the analog supply straps. Fixing them is a wave of floorplan and
+wiring work; accepting them is a conversation with the foundry; **this wave has no basis for
+choosing between those and the choice is the owner's.**
+
+**And the comparison between the layout and the circuit it is supposed to be could not be made.**
+It ran, and it disagreed on three hundred thousand items -- because it compared this chip's
+layout, which contains the newest version of the processor block, against a circuit description
+of a version from three weeks earlier. The check meant to prevent exactly that compares the
+circuit description against a directory that deliberately holds an older copy, so it passed. **A
+freshness check pointed at the wrong file is worse than none: it certifies the thing it does not
+look at.** That is now fixed and refuses the pairing, and the remaining comparison runs were left
+unused rather than spent on a result that cannot mean anything. **Regenerating the processor
+block's circuit description from the version this chip actually contains is the next thing that
+has to happen, and it belongs to the processor block's own flow rather than this one.**
