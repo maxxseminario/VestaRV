@@ -5483,3 +5483,22 @@ planned experiment on band density was therefore not run, because its result is 
 from the chip's own placement. **What is left is the combination of the mirror with the chip-wide
 power mesh**, which is the one thing measured to differ between the two pairs in the right way,
 and that is the next and final test.
+
+**Going to the chip's own commands turned up something nobody had written down: the power mesh is
+already built in two halves at different offsets.** The horizontal top-layer stripes over the
+upper half of the chip stand sixteen microns out of step with those over the lower half, and the
+supply and ground stripes swap places between the two halves as well. That is a real and
+previously unrecorded property of the floorplan. It is also the wrong shape to be the answer: it
+divides the four processors into top and bottom, whereas the failure divides them into mirrored
+and not. The two processors sharing the top mesh fail four times and a hundred and six; the two
+sharing the bottom mesh fail two hundred and fifty-seven and four.
+
+**The planned experiment was therefore not run, and the check that stopped it is the cheap kind.**
+It required copying the real chip's mesh into the test block exactly rather than rebuilding it
+from a formula, so a copy was made and then scored with the same instrument used on the real
+chip. The copy reproduced none of the real coverage -- zero against the chip's fifty-three, five,
+six and fifty-four. Running on it would have measured the copying tool rather than the chip, so
+nothing was run. The copy needs fixing first. That is the same discipline applied to the previous
+planned experiment, which was also not run because its answer was already visible in the chip's
+own placement: do not spend a run whose result is decided by something other than the question
+being asked.
