@@ -5462,3 +5462,24 @@ not the shape of anything around the tile, but **where each processor's share of
 logic actually ends up** -- six hundred and sixty-seven microns away from the face it has to reach,
 on the far side of the band. That is the next and last thing to test, and the unit block is
 already built for it.
+
+**The last suspect falls as well, and what remains is a clean four-way comparison.** The worry was
+that one processor's share of the central logic sits too far from the face it has to reach. Read
+off the real chip's placement, the distances are: first processor **640 microns**, third
+processor **642**, second **326**, fourth **303**. They split by which side of the chip the tile
+is on, not by whether it is mirrored. The first and third processors sit in the same column,
+behind the same memory wall, with their logic the same distance away to within two microns and
+with the strip in front of them barely a tenth full in both cases -- **and one of them fails four
+times out of three hundred and fifty while the other fails two hundred and fifty-seven times.**
+The chip contains exactly one placement fence, and it belongs to the orchestrator and sits in
+front of the **cleanest** processor, not the worst. The one asymmetric keep-out in the band
+belongs to the analog island at the band's north end, is present for the two top tiles and absent
+for the two bottom ones, and is nowhere near the failing processor's pins.
+
+So distance, density, fences and keep-outs are all ruled out by the same argument: within a
+column they are matched, and the failure still follows the mirror. Distance only changes how bad
+it is -- the mirrored tile in the far column is worse than the mirrored tile in the near one. The
+planned experiment on band density was therefore not run, because its result is already known
+from the chip's own placement. **What is left is the combination of the mirror with the chip-wide
+power mesh**, which is the one thing measured to differ between the two pairs in the right way,
+and that is the next and final test.
