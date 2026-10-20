@@ -5502,3 +5502,23 @@ nothing was run. The copy needs fixing first. That is the same discipline applie
 planned experiment, which was also not run because its answer was already visible in the chip's
 own placement: do not spend a run whose result is decided by something other than the question
 being asked.
+
+**The test was built, it stopped itself after ninety seconds, and the stop is the useful part.** The
+test block was rebuilt with the four processors standing exactly where the real chip puts them, so
+that laying the power mesh with the chip's own two commands reproduces it exactly rather than
+approximately. The mesh was laid, and the block then scored itself with the same instrument used
+on the real chip: the upper-layer coverage of the processors' own supply pin rows came out at zero
+on all four, against the chip's fifty-three, five, six and fifty-four. The lower-layer coverage
+did reproduce. So the check refused to route, and no licence was spent.
+
+**Sorting the real chip's covering shapes by what produced them explains why, and relocates the
+problem.** Of the ninety-six shapes covering each normally-placed processor's supply pin rows,
+only about a tenth come from the band's mesh at all; between thirty and thirty-four are produced
+by the step that connects a block's own supply pins to the grid, and the two mirrored processors
+receive **five**. The asymmetry is therefore made by that connection step, not by the mesh
+spacing -- which also means the mesh-phase fix that was being prepared would not have addressed
+it. The planned follow-up run, which varied the mesh spacing, was not launched for the same
+reason.
+
+The question is now narrow and specific: why does the supply-pin connection step reach thirty-odd
+of a processor's upper-layer pin rows when it is placed one way up and five when it is mirrored.
