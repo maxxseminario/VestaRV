@@ -5437,3 +5437,28 @@ what it can answer, rather than guessing the question, shows plainly that it can
 one at all: every path returns nothing and the attribute is simply not recognised, at every
 orientation. The geometry has to be read from the file on disk, which the offline checks already
 do, and the guessing can stop.
+
+**Three of the four remaining suspects were then eliminated without running anything at all.**
+Every object the flow places next to a processor tile is produced by the same code, turned to
+match that tile's orientation, so measured in the tile's own frame of reference the four should be
+identical -- and whichever one is not is the suspect. Checked against the real chip's floorplan:
+the analog end of each tile, with its windows, its supply straps and its keep-outs, is **identical
+to within a single rectangle** across all four, and that rectangle belongs to the central band
+rather than to the tile. So the first planned experiment would have measured nothing.
+
+What does differ is the chip-wide power mesh. Of the four hundred and thirty top-layer pin rows
+each tile exposes, the two tiles placed the normal way up have **fifty-three and fifty-four**
+covered by the chip's mesh, and the two mirrored ones have **five and six** -- a factor of ten,
+splitting exactly on the mirror and not on where the tiles sit. The mesh is a chip-wide grid and a
+mirrored tile meets it at a reflected offset. That is a real power-connection asymmetry on two of
+the four processors, nothing currently checks for it, and it should be checked before any version
+of this chip is accepted.
+
+**It is not, however, what breaks the wiring**, and the third check settles that: the three
+hundred and forty-eight inward signal pins sit on two middle layers, and the amount of chip-level
+material covering them is **zero on all four tiles**. The pins are completely clear at every
+orientation. So the remaining explanation is the one the wire-by-wire evidence already pointed to:
+not the shape of anything around the tile, but **where each processor's share of the central
+logic actually ends up** -- six hundred and sixty-seven microns away from the face it has to reach,
+on the far side of the band. That is the next and last thing to test, and the unit block is
+already built for it.
