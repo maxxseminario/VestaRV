@@ -5321,3 +5321,12 @@ power-grid repair gave the chip fifteen hundred connections it was being denied;
 the routing fix and neither was offered as one. There is still no verification of the
 layout-versus-schematic question, open now for seven waves, and the second chip's library
 remains unpublished.
+
+**One number the third attempt did leave, with the caveat that makes it readable.** It got as
+far as clock-tree construction, and at that point the chip has **no timing problem at all**:
+zero late paths out of thirty-six thousand seven hundred, two picoseconds of margin in hand,
+and an early-path residue of three picoseconds across five paths. That is before routing, so
+it carries none of the wiring's own delay and none of the two early-path repair passes the
+flow is configured for, and **it is not a closure claim**. What it is good for is the
+distinction the next wave needs: the thirty-eight thousand geometry violations are a question
+about how much wiring room the floorplan leaves, not about speed.
