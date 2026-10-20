@@ -5544,3 +5544,27 @@ is in a harmless class of report entries that the first chip carries too. The wi
 contrast, are on the middle layers against the processor's own blocked area. Nothing measured so
 far connects the two. Removing the mirroring would show cleanly whether the correlation is real;
 it would not, on its own, explain it, and a version that routed would still owe that explanation.
+
+**The mirroring has been removed and the chip is being built again, and the quantity it was aimed
+at has moved exactly as predicted.** The earlier version was stopped after five hours: its wiring
+count had settled into a band between thirteen and a half and fifteen and a half thousand and
+stopped falling, which is the measurement that version was run for. The replacement places both
+west processors the same way up and both east ones the other way up, so no processor on the die is
+mirrored. Everything else is identical -- the same floorplan, the same free space in front of each
+processor to the square micron, the same netlist -- so whatever it produces is attributable to the
+one change.
+
+It passed every floorplan and power check on the first attempt, including the one that was
+supposed to make this arrangement illegal: the required gap between a column's two analog
+cut-outs is two hundred microns and the new arrangement leaves three hundred and eighty-eight. The
+note in the records saying there was only one legal arrangement was too strong, and the check that
+was meant to enforce it is what proves otherwise.
+
+**And the measurement that prompted the change has recovered.** Of the four hundred and thirty
+top-layer supply pin rows each processor exposes, the two mirrored ones were previously connected
+on five and six. They are now connected on fifty-three and twenty, and the worst processor on the
+die -- the one responsible for two hundred and fifty-seven of three hundred and fifty pin failures
+and for most of the wiring violations -- has gone from six to fifty-three, exactly matching its
+neighbour. **That gives a prediction to test rather than a result to explain:** if the pin
+failures follow that quantity, that processor should now wire like its neighbour. It is the first
+time this effort has predicted a result before building rather than accounting for one afterwards.
