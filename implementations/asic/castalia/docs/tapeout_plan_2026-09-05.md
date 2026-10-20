@@ -5619,3 +5619,68 @@ chip, and is the next thing to do.
 **So: the wiring problem that has blocked this chip since the campaign began is solved, and what
 stands between it and a finished layout is now a different, smaller, named and long-standing
 defect at the analog pads.**
+
+### Y49 -- the thirty-seven analog-pad shorts were not what stopped the second chip, and the check that stopped it was mis-counting
+
+**The previous wave read the refusal wrongly, and the refusal itself says so.** The second chip
+finished its wiring clean and met both of its speed requirements, and the final verification check
+then stopped it. That check reports three separate things, and last wave's account quoted one line
+of one of them -- thirty-seven overlaps between the analog supply straps and the obstruction of
+their own supply pads -- and set this wave the task of removing all thirty-seven. Read in full, the
+refusal is: two problems of one kind, **one** overlap of the quoted kind out of thirty-seven, and a
+third count that came out **negative**.
+
+**Thirty-six of the thirty-seven were already accepted, and they cannot be removed.** The analog
+supply pads come from the foundry's own library, and each one declares a keep-out covering its
+entire area on six metal layers -- including the small contact windows that are the only way to
+connect to it. There is no route to the pad that does not cross its own keep-out. The first chip
+carries sixty-five of exactly the same thing and was signed off with them. So "remove all
+thirty-seven" is not an available outcome, and the wave's first task was re-scoped from removing
+them to **measuring** them -- separating the overlap the connection requires from an overlap that
+has no reason to exist. That measurement now exists, runs without building a chip, and reproduces
+the tool's own count and its layer-by-layer breakdown exactly from the floorplan plus the pad
+library. It accepts the required kind and counts them against a ceiling; it refuses the other kind
+outright, and is tested by injecting one of each at both ends of the chip.
+
+**The negative count was the thing worth finding.** The check works by counting reported problems,
+counting the ones already accepted, and subtracting. Its accepting rule for one class required two
+conditions to be met by the same text and tested each independently, so a single mention satisfied
+both -- and three further accepting rules then matched the same line again, none of them stopping
+after it matched. The result was a hundred and thirty-five acceptances against eighty-four reported
+problems. Because the check subtracts, **an over-count hides a real problem exactly as easily as it
+invents one**: this time it produced a negative number and somebody looked, but the same error on a
+chip with fifty-one genuine problems of that class would have produced zero and released the
+layout. That is now fixed at its cause, and the arithmetic itself is checked from the other side --
+if the accepted count ever exceeds the reported count again, the chip is refused with that as the
+reason.
+
+**With the counting right, what was actually wrong was three things, each small and each local.**
+One of the analog supply straps is drawn as wide as the free space it crosses, which is a deliberate
+choice everywhere else on the chip because the free space is one micron wide; at the one place where
+the free space is twenty-two microns wide, the strap came out nearly twice the widest piece of metal
+that layer permits. It is now capped just under the limit, centred so every connection it carries
+keeps its overlap, and the cap is written so it can only ever make a strap narrower -- the four
+places that were already legal come out identical. The same over-wide strap filled the only
+remaining track along the top edge of the logic area, and a late repair pass put a signal on top of
+it, which is the one genuine short on the chip. That pass was running with the keep-outs over the
+analog straps removed: they are restored once, after the floorplan, and a second removal later in
+the flow put back only an unrelated set. Both halves are fixed, because they fail independently.
+And six of the eight remaining problems are this flow's own repair patches placed at coordinates
+the manufacturing grid cannot represent -- the patch is built from a printed number rounded to three
+decimal places. Snapping each patch outward onto the grid fixes those six at once: four of them
+directly, and two more that were the two- and three-nanometre slivers the rounding left behind.
+Snapping outward can only make a patch cover more of the gap it was drawn to close, and the existing
+rule that stops a patch growing through its neighbour still takes precedence.
+
+**Two problems are accepted rather than fixed, and the reason is recorded.** Both are a power net
+measured against itself in the narrow gap where the chip's power grid meets a memory block's own
+connections, both are a few tens of nanometres across, and both are produced by a stage whose file
+is shared with the first chip. A second-chip wave does not edit that file. They are accepted under a
+rule narrow on four separate conditions and capped, and the authority on them is named: the
+foundry's own rule deck on the finished layout, which runs in this wave.
+
+**Every fix is proved before the chip is built.** The real checking code is extracted from the flow
+and run against the refused chip's own report, and against a synthetic report built by deleting
+exactly what the four fixes delete and nothing else -- on which all three counts read zero. That is
+the only thing such a test can honestly show, and it is the thing worth showing: either the set of
+fixes clears the check or it does not.
