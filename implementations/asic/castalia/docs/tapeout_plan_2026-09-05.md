@@ -5522,3 +5522,25 @@ reason.
 
 The question is now narrow and specific: why does the supply-pin connection step reach thirty-odd
 of a processor's upper-layer pin rows when it is placed one way up and five when it is mirrored.
+
+**Removing the mirroring turns out to be cheap, and that was checked before anything was run.**
+The reason the four processors are placed two of them mirrored is a rule that the two analog
+cut-outs in a column must not sit next to each other, and the flow measures the gap rather than
+trusting the orientation list. Placing both west processors the same way up and both east ones the
+same way up leaves **three hundred and eighty-eight microns** between the two cut-outs in each
+column against a required minimum of two hundred, so the rule is satisfied. Re-running the pad-ring
+planner with only those two orientations changed completes cleanly: **the chip's wrapper and its
+pin assignments come out byte-for-byte identical**, the pad budget is unchanged, and only the
+positions of two of the five analog pad groups move, each by three hundred and five microns along
+the ring. The analog sections would then sit at two corners and two edge-middles instead of four
+corners.
+
+**But the chain of cause is still missing a link, and the records say so.** The quantity that
+tracks the mirroring is how well each processor's own supply pin rows on the top wiring layer are
+connected. All four hundred and thirty of those rows are supply pins -- none of them carries a
+signal -- and every one that is left unconnected sits underneath a blanket reservation that keeps
+the whole top layer for power, so nothing downstream can touch them; their only appearance later
+is in a harmless class of report entries that the first chip carries too. The wiring failures, by
+contrast, are on the middle layers against the processor's own blocked area. Nothing measured so
+far connects the two. Removing the mirroring would show cleanly whether the correlation is real;
+it would not, on its own, explain it, and a version that routed would still owe that explanation.
