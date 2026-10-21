@@ -6145,3 +6145,193 @@ tenth, two of the fifty geometry problems are closed by a rule that reproduces t
 findings exactly and nothing else, and the simulation failure that read fourteen rows failing at
 both corners two waves ago is fixed at its source for one line of a file list. None of that needs
 another attempt to be true; it needs an attempt to be *shipped*.
+
+### Y53 -- the foundry's rule was two words long, the hold check was measuring the wrong thing one attempt before the budget ran out, and the repair this project has carried for one geometry problem since August constrains nothing at all
+
+**The first of the three is a small fix with a general lesson.** One of the fifty remaining
+geometry problems on the second chip is a notch: a via's landing pad oversteps the narrow power
+riser it sits on, and the two short edges that leaves are illegal. Last wave filled the gap beside
+the pad, then measured that the fill is *impossible* -- at the clearance a block footprint actually
+requires there are nine hundredths of a micron of room where a tenth is the minimum feature, and no
+choice of clearance changes that. The alternative was already written down: widen the riser to the
+pad's own width, so the pad is enclosed rather than patched around.
+
+Taking that alternative needed the rule stated rather than guessed, and the foundry's own library
+file states it in one line: **at most one boundary edge shorter than a tenth of a micron is
+allowed.** One is legal, two adjacent ones are not. That is why the foundry's checker reports this
+one notch *twice* -- the two edges share a corner -- and, decisively, why it does **not** report the
+two-and-a-half-thousandths-of-a-micron step the same via pad already makes against the horizontal
+leg beside it: that step's two neighbours are long. Without that second observation "any short edge
+is illegal" would have been an equally consistent reading of the rule, and it would have refused
+this fix. **A rule with two consistent readings is not measured until something in the layout
+distinguishes them.**
+
+With the rule stated, it becomes a check that can be run on any attempt. Over the chip of record's
+own power geometry -- **eighty-eight thousand rectangles on six layers** -- it reports **exactly the
+one corner the foundry reports and nothing else, in seven seconds**; over the *first* chip's power
+geometry, a hundred and forty-two thousand rectangles, it reports **zero**. The widening then closes
+it, and three separate gates can refuse the widening before it is drawn: it may not be clipped by a
+block footprint, it must keep a third more clearance to the neighbouring ground wire than the rule
+asks, and the check must find something to fix before and nothing after. The attempt stops if the
+check reads anything but zero afterwards, and also if nothing was patched *and* the check reads
+non-zero -- a geometry that breaks the rule and that this stage does not recognise is a new problem,
+not a clean chip.
+
+**The second is a correction to this project's own record, and it cost an attempt.** The last
+attempt closed its timing on one end and was stopped by the hold check with the message that the
+repair tool "inserted nothing". The standing reading of that was that the tool had no cells to work
+with. **It had twelve, and it had used eighteen of them on the previous pass of the same attempt.**
+The line that says "all the cells are filtered" is in the *resizing* section of the tool's own
+report, not the buffering section: it is about resizing a driver, which is a different lever. What
+actually happened is in the tool's table two lines above: it **resized five instances** and inserted
+no buffer, and the hold number moved from minus ten thousandths of a nanosecond on seven endpoints
+to minus one thousandth on three, out of thirty-six thousand. **A resize moves hold and adds no
+cell, so the check -- which counts cells -- read zero for a pass that did real work.** The setting
+allows three passes; the check stopped the attempt at the second, and the three endpoints left are
+the same kind the third pass has always closed (it closed three of their immediate neighbours on the
+pass that was interrupted).
+
+So the refusal now fires on the **last** pass the setting allows, or immediately on a pass that
+moved neither the slack nor the endpoint count -- which is strictly more than the old check could
+express, because it could not tell "did nothing" from "worked without inserting". The decision is
+one small function with its own test suite, fifteen assertions on that attempt's own numbers with
+eight deliberate failures including the same pass at a two-pass budget, which must still stop. The
+final timing gate is untouched: nothing here can let a chip that misses its timing be written out.
+The cell list is widened from seven to twelve anyway, with the library's intermediate drive steps,
+and every member is now checked against the libraries that are actually loaded rather than the ones
+the list was written from.
+
+**The third is the one worth reading twice.** Four of the fifty geometry problems are single-via
+connections on the analog electrode wires. Since August this project has carried a repair for them
+-- a setting on the analog routing rule that demands two vias -- and has reported it accepted by the
+tool in five consecutive attempts. **It constrains nothing.**
+
+The rule asks for two vias within five microns of a metal plate wider than **three** microns. The
+project's own notes said the plate was the analog rule's own two-micron wire; two is less than
+three, so it could never have been. Measured in the layout the foundry actually checked, the plate
+is the **analog pad ring's own metal** -- a region a hundred and twenty-nine microns long and
+nineteen wide, seventeen hundred square microns -- and the via is two and a third microns from it.
+And the analog rule reaches none of these wires: every segment of all sixteen electrode connections
+is marked as reverting to the default rule, because each one is a two-point-eight-micron jumper from
+the pad straight into the tile's pin, entirely inside the router's own taper window. Not one
+via on any of the sixteen was built by the analog rule. **The four bias rails, by contrast, carry
+between sixteen and thirty-four each -- which is the control that makes this a measurement rather
+than a story.**
+
+Four attempts prove it independently: all four carry the setting accepted, and all four reproduce
+the chip of record's geometry at all four sites down to the text of the file. Two of the four did
+close on the two most recent attempts -- because last wave's *unrelated* fix moved two of the
+electrode wires onto different tracks. So the expected count on this wave's attempt is **two, not
+zero**, and that is a prediction from the layout to be graded by this wave's own foundry run -- the
+first on an attempt that carries the setting and produces a layout to check.
+
+The class stays open and is recommended for repair rather than exemption, and the reason is not the
+rule: a single via here is the **only** connection on an electrode pin, so one void opens that
+electrode and kills the channel. On the chip of record all three of one channel's electrode
+connections sat on single vias -- three independent single points of failure on one sensor channel.
+The repair is two shapes per site on empty silicon and is specified; it was not spent this wave. The
+two wrong notes are corrected where they were written, because a note that names the wrong mechanism
+misled three waves.
+
+**And one owner question is closed rather than carried.** Two of the fifty are single-via power
+stitches at memory-block edges. The tool books them and exempts them itself under this project's own
+adjudicated rule, and **the first chip was manufactured carrying three of exactly these at exactly
+this kind of site** -- the layout file, its fingerprint and its own foundry report are all on disk,
+and two earlier registers itemise them and name the same objects. They ship, registered, with the
+residual stated: one redundancy short on a power connection that has many parallel paths, which is a
+reliability margin and not a connectivity risk -- explicitly not the same thing as the electrode
+vias above. The alternative was a wave spent on the power-stitch generator's via rule, which reaches
+every stitch on the chip.
+
+**The first attempt closed its timing with room to spare and was stopped by two shapes, and the
+attempt's own reports name the single step that made them.** Timing: the slower end passed with
+a hundred and eighteen thousandths of a nanosecond to spare and the faster end at exactly zero,
+with no failing endpoint on either, out of thirty-six thousand seven hundred. That is the best
+either end has read on this chip. The routing finished with forty-two unresolved conflicts,
+fewer than any previous attempt. The notch repair worked in the tool exactly as it did offline --
+the foundry-rule check went from one problem to none, and the marker that stopped an earlier
+attempt is simply absent from this one's list.
+
+What stopped it was two places where a signal wire sits in a power patch. Both are the same
+0.8-by-4.3-micron power shape, and so was the one that stopped the previous attempt -- a
+different net at a different place, but the same kind of shape, of which the chip has a hundred
+and eighty-four. **Three attempts have now been spent treating that as a place rather than as a
+kind.**
+
+**And the attempt proved its own fix in four lines of its own reports.** The repair pass that now
+runs with the power geometry visible to it *removed both wires* -- the count went thirty-nine to
+thirty-seven and the only thing left was a via corner inside a memory block's own footprint, on
+that block's own data net, which the gate already waives. Then the *next* repair pass, the one
+after the filler cells go in, put both wires straight back, because that pass is shielded from the
+analog pad straps and not from the power patches. One call of an idiom that had already worked
+twice in the same attempt. That is the whole of the second attempt's change, plus a repair to a
+check of mine that reported the exact opposite of the truth -- it announced that none of the
+twelve hold-repair cells were available and the tool then used twenty-four of them -- and the
+same-net weld, armed for the first time.
+
+**The weld was armed only after a second measurement that the census does not provide, and the
+reason is worth stating.** The census proves the two shapes at each site belong to one net. It
+says nothing about a *third* net crossing the space between them -- and the longest of those
+spaces is twenty-nine microns. A weld across a wire crossing that band would be a short this
+project created rather than found, which is worse than the problem being fixed. So every proposed
+weld is now scored against every shape of every other net on its layer: all twenty-five are
+clear, the tightest by more than twice the rule. And because the weld's own patch leaves a step at
+each end, each step was checked against the foundry's minimum-feature rule for that layer: every
+one is at or above it, with eight of them exactly at it rather than below. Only power nets are
+welded; the five clock-net sites need a different kind of shape and are left for a later wave with
+the reason recorded.
+
+**The second attempt reached the third and last repair pass for the first time, closed its timing
+there, and was then stopped by the one thing this wave added on its own judgement rather than on
+instruction: the same-net weld.** The arithmetic is brutal and it is worth stating in full. Fourteen
+welds were drawn, each about a micron long. The geometry check went from thirty-nine power-shape
+problems, two wiring problems and sixty-eight same-net problems -- all but two of them already
+accepted -- to two hundred and sixty-seven, one hundred and eighty-six, and three hundred and
+forty. Seven hundred and fifty-five new problems from fourteen patches.
+
+**Two of the fourteen caused all of it, and the reason is a general one worth more than the
+attempt it cost.** The problem the foundry reports is a gap between a clock shield and the power
+rail it runs beside. Welding that gap does not produce a legal shape; it merges the shield into the
+rail. The tool then re-emits the pair as one conductor -- one of them four hundred and ninety-three
+microns long, most of the width of the chip, where the patch that caused it was one micron. And at
+that width two separate foundry rules change what they demand of it: the spacing it owes every
+standard cell along four hundred and ninety-three microns of row nearly doubles, and every via
+sitting on it now needs two cuts instead of one. Seven hundred of the seven hundred and fifty-five
+new problems are more than ten microns away from any patch, which is exactly the signature.
+
+**Four separate checks cleared that weld before it was armed and all four were correct.** The census
+reproduces every one of the foundry's thirty-two findings with no false ones. The first chip reports
+nothing new. A check written specifically for this -- is any other net's metal inside the patch --
+reads clear on all twenty-five with better than twice the margin. And the step each patch leaves at
+its ends was checked against the minimum-feature rule and clears it. **What none of the four asked
+is what shape the patch produces.** A check that proves two shapes belong to one net, and a check
+that proves nothing else is between them, have still not proved the result of joining them is
+legal. That is a third question and this wave did not ask it. The rule to carry forward is that an
+additive repair must be measured on its result, not on the defect it is aimed at -- and the
+measurement was available offline the whole time, in a file already parsed.
+
+**So the weld is switched off, with those two numbers written into the switch itself** so nobody
+turns it back on without reading why, and the instrument is kept because it is correct about
+everything it actually measures.
+
+**What the next attempt should be is now arithmetic rather than hope: the first attempt's settings
+plus the one call it was missing.** That attempt reached thirty-nine power-shape problems of which
+thirty-seven were already accepted, two wiring problems both accepted, sixty-eight same-net
+problems all accepted -- and its own reports show the repair pass with the power geometry visible
+*removing* both of the two that were not, before an unguarded later pass put them back. Guard that
+pass, leave the weld off, and the expected result is every category fully accepted, which is a
+pass. The honest risk is that those two shapes are a *kind* rather than a place -- five different
+nets at four different stitches across three attempts -- so a fourth attempt can land a different
+member, and the durable repair is to move the power patch itself off the signal track, which is one
+instrument on a hundred and eighty-four shapes and was not spent.
+
+**And the thirty same-net findings should be carried, not waived, because that is what every chip
+this project has streamed already does.** The first chip's manufactured layout carries thirty-two
+of them; the second chip's layout of record carries twenty-one; its predecessor registered
+twenty-three as open. The register for the manufactured one says it in those words -- *carried, not
+waived, and still the class to watch*. The cause is a disagreement between two files: the library
+the router is given permits two shapes of one net to sit a tenth of a micron apart, and the
+foundry's own rules want more once either is wide. The router therefore places them legally, the
+in-house check is blind to it by the same permission, and only the foundry sees it. The two ways
+out are to tighten that permission in a second-chip-only copy of the library -- which exists,
+switched off, and has never been tried in the tool -- or to carry it as the other three do.
