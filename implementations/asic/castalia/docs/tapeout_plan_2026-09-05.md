@@ -5956,3 +5956,45 @@ makes them one shape with no gap to measure -- which is an instrument this flow 
 over, except that both copies run before the clock tree creates the shapes in question. The named
 fix is one new call of an existing pass after routing, and it is written down rather than bolted onto
 an attempt that was already carrying three new instruments.
+
+**And the keep-outs did not work, which is the other half of this wave and is stated here because the
+paragraphs above were written before the second attempt measured it.** Both attempts are spent and
+neither produced a layout. The first died after routing on a one-character slip of mine in the
+generated script -- a stray backslash before a closing quote, which left a text string open and was
+closed by the next quote thousands of lines later, so every existing check on that file, including
+the one whose whole job is to ask whether the script is complete, said it was fine. That check now
+looks at each line instead of the whole file, and its test case is the defect itself. The second
+attempt routed, closed timing at both ends with no violating paths, and was refused on exactly two
+problems, both named: one is a 0.095-micron step in the power metal that the foundry's own check
+already reports twice at the same corner and for which a repair is already written down, and the
+other is the same power patch that refused an earlier attempt three times over.
+
+**The keep-outs are inert for two separate and measurable reasons, both of them mine.** The analog
+bias net is marked *do not touch*, so the router never re-routes it: its landing came out identical
+to the previous layout's to the last digit, not because the keep-out failed to persuade it but
+because nothing was ever going to ask. A keep-out is the wrong instrument for that net, and the
+corridor arithmetic -- correct as geometry -- was aimed at a router that was never going to look.
+And on the nets the router *does* move, the keep-outs were created with a zero clearance setting so
+that the margin built into the plan would carry the spacing instead of the tool's own rule; every
+proved use of keep-outs in this flow passes no such setting, and those do block. The count of the
+problem class they were meant to remove went from {0, 4, 1} across three earlier attempts to 1, and
+the overlap census the keep-outs were computed from got **worse**, from two to six. The route did
+change, so they are not being ignored outright; they are simply not hard obstructions.
+
+**What the next wave should do needs no new idea**: remove the zero-clearance setting and set the
+plan's margin to nothing, which makes the tool's own spacing rule the constraint and requires the
+corridor arithmetic to be re-derived; and separately fix the bias landing where a *do not touch* net
+can be fixed, which is the routing rule's own width -- the flow's own note says those rails carry no
+current, so a narrower wire costs nothing and fits the connection point from any track.
+
+**Three things this wave did settle, and none of them needs another attempt to confirm.** The
+electrical comparison's two differences are reproduced from files on disk by a check that costs no
+licence, and that check is now the acceptance test for the repair whenever the repair works. The
+top-metal problem went from a check that reported nothing where the foundry reported eight to one
+that reports eight, and the repair runs to a fixed point in the tool exactly as the offline replay
+predicted -- seventeen patches over seven passes, the same rectangle count both times, on two
+separate attempts. And the gate-level timing regression, which the previous wave left failing all
+fourteen programs at both corners, now passes **fourteen of fourteen at both** -- the cause was a
+name collision between a behavioural oscillator model and a module of the same name in the chip
+netlist, and the two chips differ by a single inverter inside it, which is enough to leave a latch
+holding its power-up undefined value through the whole reset window.
