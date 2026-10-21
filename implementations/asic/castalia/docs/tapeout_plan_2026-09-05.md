@@ -5998,3 +5998,150 @@ fourteen programs at both corners, now passes **fourteen of fourteen at both** -
 name collision between a behavioural oscillator model and a module of the same name in the chip
 netlist, and the two chips differ by a single inverter inside it, which is enough to leave a latch
 holding its power-up undefined value through the whole reset window.
+
+### Y52 -- the gap in the processor tile's summary is closed in the summary, and closing it forced a second change nobody had noticed was coupled to it
+
+**Last wave found the cause of the second chip's two remaining electrical differences and tried to
+fix it with keep-outs; the keep-outs did nothing.** A hardened block is handed to the chip in two
+forms: a *summary* that says where its connection points are and what is off limits, and the *actual
+layout* merged in at the end. The summary marks the tile off limits except a small clearance window
+around each connection point, and the tile's own internal wiring runs inside those windows -- so the
+chip's router sees free space and puts a wire there. The attempted repair put temporary keep-outs
+over that wiring for the duration of routing. Two measurements said it was inert: one of the two
+offending wires is marked *do not touch*, so the router never looks at it again whatever is in its
+way, and the keep-outs were created with a zero-clearance option that appears to make them advisory
+rather than binding.
+
+**This wave fixes it in the summary instead, as a copy that only the second chip uses.** The
+exposed tile wiring is simply declared off limits -- added to the same off-limits list the summary
+already carries, in a separate file bound only by this chip, so the tile team's own file and the
+first chip read exactly what they read before. That is a stronger thing than a keep-out: the router
+reads it when it loads the design, the tool applies its own clearance rule to any wire that
+approaches it, and unlike a keep-out it is still there when the geometry is checked. **1,308
+rectangles, 163 square microns**, and the check that found the problem now reports **zero** overlaps
+on the previous chip's own finished routing where it reported the foundry's exact two before -- the
+same check, the same routing, one input changed.
+
+**Three gates stand between that copy and a chip, and each of them has cost an attempt somewhere in
+this campaign.** The copy carries a fingerprint of the tile layout it was derived from and is
+refused if the chip is merging a different one, because the rectangles are coordinates of *that*
+layout's wiring. Everything in the copy outside the off-limits list must be byte-for-byte the
+original, so a copy that moved a connection point, the outline, the allowed rotations or an antenna
+number is refused rather than used. And the copy must declare *more* than the file it replaces,
+because one that declares no more is the old file under a new name. The floorplan is also proved
+unmoved: the flow's own reader returns all sixteen of its numbers identical from the two files.
+
+**And the first draft of that copy would have made twelve connection points unreachable.** The
+check that lists the exposed wiring treated a fragment as the pin's own only if it *overlapped* the
+pin; wiring six hundredths of a micron from a pin was therefore declared off limits, and six
+hundredths is below the layer's own minimum spacing, so it cannot belong to anything but that pin.
+It took away the only position a wire could land on, on twelve of the processor tile's data pins.
+Found by a new reachability check before any licence was spent; the rule is now *the pin's own if it
+is closer than the minimum spacing*, both of the original two problem sites survive it, and the
+reachability check reports **the same total number of landing positions, 2406, before and after** --
+the declaration costs the router nothing on the tile's 348 data pins.
+
+**The second change is the one that was coupled to the first, and the reachability check is what
+found that too.** The four analog bias connections are each shielded by the tile's own thin wire
+0.55 microns off either side, so there is a 3.1 micron corridor between the shields. The rule the
+analog nets are routed under asks for a two-micron wire with a one-micron clearance on each side,
+which needs four microns. **Once the shields are declared, that rule has no legal landing position
+at all** -- the previous chip got away with it only because the shields were invisible. So the four
+bias rails get their own rule at **0.4 microns wide**, which leaves three legal positions per
+connection and puts the whole wire inside the connection point on all three. The width is free
+because those rails carry no current: each one ends on a 20 kilohm resistor inside the analog
+channel, against about 23 ohms of two-micron wire and 115 ohms of 0.4-micron wire. The one-micron
+clearance, which is what the design note says the width was ever about, is unchanged, and the
+sixteen electrode connections keep the original rule because their pins have no shield near them.
+
+**Both chip positions are covered by one proof.** The tile sits rotated in four places, two facing
+one way and two the other, and the routing grid lands on the same positions inside the tile in all
+four -- because the placement coordinates are whole or half multiples of the grid pitch. So the
+reachability result holds for both orientations at once, and a placement shifted by half a grid step
+breaks it, which is how that is checked rather than assumed.
+
+**Two of the fifty remaining geometry problems are now found by a rule rather than by a coordinate,
+and the rule reproduces the foundry exactly.** Both are in the power stitching: a power wire that
+stops ten nanometres short of its own via, and a via pad that oversteps the narrow riser it lands on
+and leaves two adjacent edges below the minimum width. The second one is also the single geometry
+marker the tool itself raised that refused the last attempt, so it was on the critical path of a
+chip and not only of a foundry run. A scan over **88,561 power rectangles on six layers finds
+exactly those two and nothing else, in two seconds**, and finds nothing at all on the first chip's
+own power stitching. Both are closed by adding metal of the same net, which cannot create a short;
+the patch shapes themselves were sized by measurement -- a narrower fill on the first would have
+created a *new* minimum-width problem at the same place, and a fill that stopped at the foundry's
+own reported coordinate on the second would have left a 2.5-nanometre step. The stage re-runs the
+scan after patching and stops the chip if anything is left, including anything the patch created.
+
+**The simulation failure that read fourteen rows failing at both timing corners two waves ago is
+fixed at its source for one line of a file list.** The behavioural model of the on-chip oscillator
+instantiates a clock gate by name; the chip's own netlist defines a gate with the same name and the
+same three connections, and the test harness compiled no file for the behavioural one -- so the
+model picked up the chip's gate, whose clock phase is decided by the physical flow. The harness now
+compiles the behavioural gate, and a new check refuses to run at all if that file is missing while
+the netlist defines a colliding name. Proved on the free, timing-less leg of the regression, which
+reproduces the exact pass/fail pattern the previous wave got with its temporary workaround -- and
+that workaround is now off by default, so the regression grades the fix.
+
+**One of the five things this wave was asked to do was measured and deliberately not done.** Thirty
+of the fifty geometry problems are the same disagreement between the tool and the foundry about
+how close two shapes of the *same* net may come, and the named fix is to fill those gaps after
+routing. The filling instrument exists; the *measuring* instrument does not. Extended with the two
+missing rules and run over the previous chip's own finished routing, it reproduces at best nineteen
+of the thirty -- it misses two whole layers entirely and reports four the foundry does not -- because
+it reads only the power network and the sites in question are clock shielding and clock via pads,
+which live in the signal network. Worse, the same scan names **three pairs that are on different
+power rails**, and filling one of those would short the two supplies together. So the class stays
+open and unfilled, with the missing half of the instrument named: a reader for the signal network,
+calibrated against the foundry's thirty coordinates, then one call of the filling pass that already
+exists.
+
+**Neither of this wave's chip attempts produced a finished layout, and each was stopped by
+something named and measured.** The first closed timing on both ends with more margin than the
+chip of record -- and the internal geometry checker refused it on two shorts. **One of them was
+the new power patch itself.** It followed an existing power wire east to that wire's own end, and
+a memory block's footprint begins a tenth of a micron before that end; the existing wire is
+allowed inside the footprint only because it lands on that block's own power connection, and a
+keep-out area carries no net, so only a connection counts as permission. A hundredth of a square
+micron of metal, three hours in. The patch generator now reads every block's size from the
+library files and every placement from the layout database, clips each patch out of those
+footprints, and then checks the three edges the patch leaves against the minimum feature size --
+and refuses to draw one that would leave a short edge instead of drawing it anyway.
+
+**The other was a signal wire running through a power patch, in the same place four of the last
+six attempts have put one, and this wave finally measured why the previous wave's keep-outs did
+nothing.** They were created with a zero-clearance option; with it dropped, the checker reports
+**eight thousand of the chip's own power shapes sitting inside the keep-outs**, which is exactly
+what a keep-out that the tool can see does and a keep-out it cannot see does not. One of the two
+offending wires moved away. The other stayed -- **because the router will drive through a keep-out
+rather than leave a connection unmade, and that wire has no other route**: the via the power patch
+exists to enclose sits on the very track the signal needs. So the remaining fix is to move the
+patch, or to let the clean-up pass see the keep-outs (it runs after they are removed today, which
+is why it nudged the same via by a tenth of a micron three times and never left the patch). Both
+are smaller than what the last two waves were chasing.
+
+**The second attempt was refused earlier still, by the hold-timing gate, at one picosecond.**
+Three of thirty-six thousand seven hundred endpoints missed by a thousandth of a nanosecond, and
+the repair pass could not act because its list of permitted repair cells came back empty for a
+hundred and forty-one wires. The previous attempt, same flow, closed the same check with a
+picosecond to spare. That is the routing change landing on three endpoints, not a timing problem
+in the design, and it is a setting rather than a redesign -- but it is a blocker this chip has not
+had before, and it was not spent because the attempt budget was already over.
+
+**And the power patch turns out to be impossible as a fill, which closes that question instead of
+moving it.** At the clearance the rules actually require from a block footprint -- a tenth of a
+micron, not the twentieth this wave used -- the patch may reach only to within nine hundredths of
+a micron of the narrow riser it is filling beside, and a tenth is the minimum feature. There is
+no legal choice. The alternative the previous wave had already written down is therefore the
+answer: widen the narrow riser to the width of the via pad that oversteps it, which encloses the
+pad instead of patching around it and removes the side-effect that made the alternative second
+choice.
+
+**What stands, and it is the larger half of the wave:** the processor tile's summary now declares
+its own hidden wiring on the second chip, the check that found the electrical difference reads zero
+on both of this wave's attempts when judged against the *unmodified* summary, every analog bias
+connection lands legally with a third of a micron to spare where the chip of record overlapped by a
+tenth, two of the fifty geometry problems are closed by a rule that reproduces the foundry's own
+findings exactly and nothing else, and the simulation failure that read fourteen rows failing at
+both corners two waves ago is fixed at its source for one line of a file list. None of that needs
+another attempt to be true; it needs an attempt to be *shipped*.
