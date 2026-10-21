@@ -5842,3 +5842,117 @@ difference is **two named nets** - one of the analog bias rails merged with grou
 arbitration signal merged with a register-file wire inside one processor. The bias rail is the same
 net the foundry check flags in its own separate complaint, so two independent tools now point at one
 place for the first time on this chip. The expected placeholder waiver was not needed at all.
+
+### Y51 -- both of the second chip's two remaining electrical differences are the same gap in the processor tile's summary, and every short that refused the last two attempts is power metal the router cannot see
+
+**The two named nets in last wave's electrical comparison turn out to be one defect, and it is a
+gap between the processor tile's summary and the processor tile itself.** A hardened block is handed
+to the chip in two forms: a *summary* that says where its connection points are and which areas are
+off limits, and the *actual layout* that gets merged in at the end. The summary marks the whole tile
+as off limits **except** a small clearance window around each connection point -- and the tile's own
+internal wiring runs inside those windows. So the chip's router sees free space, places a wire
+there, every internal check agrees it is legal, and in the merged layout that wire is touching the
+tile's own wiring. **The foundry's comparison is the only thing in the flow that can see it**, which
+is exactly why the two differences it reported had no geometry problem beside them.
+
+**A new check reproduces both of them from the files already on disk, with no licence.** It takes
+the clearance windows out of the summary, finds the tile's own metal inside them, places that metal
+at each of the four processors, and intersects it with the chip's own routing. On the chip of record
+it finds **exactly two overlaps and no others** -- the same two nets the foundry's comparison names,
+at the same coordinates. That is the first time an in-house measurement and the foundry's own
+comparison have agreed on this chip's electrical difference site for site, and it means the two
+differences are now a measured mechanism rather than two names.
+
+**The first of them is a wire landing one micron off centre, and that one micron is exactly half its
+own width.** The bias connection point is two microns wide and the rule the analog nets are routed
+under makes the wire two microns wide too, so the wire fits the connection point **exactly and only
+when it is centred on it**. Three of the four processors are centred to the last digit. The fourth
+is centred on the connection point's *edge*, so its wire hangs one micron past and lands on the
+tile's own shielding wire -- which the tile draws on both sides of all four bias connections at the
+same distance, so it is the tile's shielding policy and not bad luck. A centred landing clears that
+shield by 0.55 microns against a 0.50 requirement: **legal by five hundredths of a micron**, which
+is why the other three are clean. And the foundry's separate geometry complaint about that same net
+is the same place, promoted by the same merged shape -- two checkers, one net, one cause.
+
+**The second is a wire centred on the edge of the tile itself.** Half of its width is inside the
+tile, and its end extension reaches the tile's own metal, which comes to within a hundredth of a
+micron of the tile's own boundary inside one of those clearance windows. The overlap is four
+hundredths by a tenth of a micron. Nothing should ever route centred on a block boundary, and
+nothing in the flow measured that it had.
+
+**The repair has to be on the chip side, because the summary belongs to the tile team**, and
+widening it from here would make the summary disagree with the layout -- which is the defect. So the
+chip now places keep-outs over exactly that exposed tile metal for the duration of routing and
+removes them again before anything is measured. The keep-out plan is computed once offline and
+**tied to a fingerprint of the tile layout the chip actually merges**, so a plan for a different
+version of the tile is refused rather than used at coordinates this layout does not have. Three
+things in the plan are measured rather than chosen, and two of them would have cost an attempt: the
+keep-out margin is the spacing the landing wire owes, chosen so the bias connection has exactly one
+legal position left and it is the centred one; keep-outs are only combined when the result is still
+a rectangle, because combining two L-shaped ones covers area neither had and in one case put a plate
+over a connection point's only access; and the margin is cut back out of every declared connection
+point **twice**, because combining them can re-cover a point the first cut-back opened -- ungated,
+sixty-four connection points lost access and seven lost it entirely.
+
+**And every short that refused the last two chip attempts is power metal that the geometry checker
+reports and the router does not model.** The flow draws small power patches in several places -- a
+stitch between power rails, a connection inside a block's footprint -- using a command that creates
+a shape rather than a wire. The geometry checker counts those as power metal. **The router's own
+map of what is occupied does not contain them**, so it routes signal wires straight through, and the
+repair pass that is supposed to clean up afterwards has the same blind spot: across three passes it
+nudged one offending via by a tenth of a micron at a time and never left the patch it was sitting
+in. All five of the shorts that refused the two attempts are that, and **all five are already there
+the moment detail routing finishes** -- not created by any later step.
+
+**So last wave's "single named blocker" is one of eight hundred and five.** It recorded a
+0.65-by-11 micron window and asked for a keep-out over it; that window is just the bounding box of
+three markers from three different attempts, and the thing they all sit inside is one power stitch
+patch. The chip carries **805 such patches on the signal layers**. A keep-out over one of them would
+have closed three of the four historical attempts and left eight hundred and four loaded dice. The
+fix reads the flow's own power-stage output and shadows all of them, for the duration of routing
+only, and the removal is confirmed by reading the database back -- a pair whose removal silently
+misses is the permanent keep-out that cost an attempt two waves ago.
+
+**The top-metal check that reported nothing where the foundry reported eight now reports eight, and
+the fix is a fixed point rather than a patch.** The check measured width per *rectangle*; the
+foundry's rule measures it on the *merged* shape, which is a different quantity and the one that
+matters, because the flow's own repair pass welds a narrow pad finger onto a wide plate and thereby
+*creates* wide metal where there was none. With the merge in, the check reproduces all ten of the
+foundry's results to the digit, and the earlier calibration cases are unchanged -- **including the
+first chip of record, which still reports zero**, so the repaired check went into all three places
+that share it. The ten are a cascade: each weld makes the next gap along illegal, so one pass walks
+the problem one finger over. The repair now iterates to a fixed point -- seven passes, seventeen
+patches, seventy-five square microns -- and the effect on every other top-metal rule was measured on
+the same replay rather than argued.
+
+**Last wave's own count of the geometry problems does not add up, in three separate ways.** One
+class is stated as twenty-four against its own breakdown of twenty-five, because a count of distinct
+*locations* was put in a column of *result* counts; the "forty-eight distinct locations" is
+forty-seven; and "twenty-nine of the fifty" is thirty on results and twenty-eight on locations, the
+same two bases mixed. With the four claimed classes subtracted properly the remainder is **nine, not
+eleven**, and all nine are now named with their coordinates and their causes. The eighty-eight
+floating-input results are forty-four analog readback inputs with two transistor gates each -- the
+analog channel placeholder contains no transistors, so every input it feeds reads as floating -- and
+**the same class on the first chip, which was filed as fragments of cut standard-cell rows, is the
+same placeholder mechanism**: all of its markers land on real logic cells, none on filler, and the
+proposed fix for it would close none of them.
+
+**Two waiver registers that were cited as precedent do not reproduce from the reports that produced
+their own layouts.** One is off by two in each direction, so its two numbers still add to the right
+total -- the same failure mode this campaign keeps finding, inside the document being used as
+evidence. The other waives the floating-input class as "inside purchased cells" with its own
+retirement test being "the moment one appears outside a purchased cell", and on its own report every
+single one is at the top level. **Both are owner items on other blocks' registers and neither was
+edited.** This chip's register now runs to six hundred lines and carries a checker that matches it
+against the foundry report line by line, with a deliberately wrong entry as a control.
+
+**The twenty-nine same-net results were measured and specified rather than attempted, and the reason
+is arithmetic.** A single override number cannot carry a table whose requirement runs from 0.11 to
+1.50 microns depending on which of the two shapes is wider, so no single value is both sufficient
+and safe. Both candidate library variants are built and diffed, and one of them is a control rather
+than a candidate because deleting the override also removes permission to stack vias. **And the real
+fix is not the library file at all**: all thirty pairs are on the *same net*, so filling the gap
+makes them one shape with no gap to measure -- which is an instrument this flow already owns twice
+over, except that both copies run before the clock tree creates the shapes in question. The named
+fix is one new call of an existing pass after routing, and it is written down rather than bolted onto
+an attempt that was already carrying three new instruments.
