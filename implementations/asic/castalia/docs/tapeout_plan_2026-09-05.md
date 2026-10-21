@@ -5824,3 +5824,21 @@ nought for two** -- its filling branch cost one chip attempt its final verificat
 re-routing branch is entangled with a second change on another. Spending this wave's single chip
 attempt on it was the wrong trade. All fifty are written up with their coordinates, their owners and
 the three repair options in the chip's own waiver register, and **none of them is waived.**
+
+**What the two chip attempts settled, and it is not what either was aimed at.** Both attempts
+closed timing at both ends and both were refused by the final verification check on a handful of
+places where a signal wire sits on a power wire. Taken with the two attempts before them, **three of
+the four layouts this chip has ever produced carry the same one in the same 0.65-by-11 micron
+window**, inside the same neural-accelerator block, against the same power wire; only the net the
+router happens to pick changes. The previous wave read a single instance of it as bad luck and the
+absence of it on the next attempt as luck going the other way. Four samples say otherwise: **it is
+one place, and it is the only thing standing between this chip and a clean layout with this wave's
+fixes in it.** A local keep-out over that one power wire is one setting and one attempt.
+
+**And the electrical comparison, once the version and the coordinates were both right, came out as
+good as it has ever been on any block here**: every device matched, every one of the eighty-three
+external connections matched, the file that lists shorts is empty, and the entire remaining
+difference is **two named nets** - one of the analog bias rails merged with ground, and a chip-level
+arbitration signal merged with a register-file wire inside one processor. The bias rail is the same
+net the foundry check flags in its own separate complaint, so two independent tools now point at one
+place for the first time on this chip. The expected placeholder waiver was not needed at all.
