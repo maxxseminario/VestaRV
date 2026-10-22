@@ -6335,3 +6335,68 @@ foundry's own rules want more once either is wide. The router therefore places t
 in-house check is blind to it by the same permission, and only the foundry sees it. The two ways
 out are to tighten that permission in a second-chip-only copy of the library -- which exists,
 switched off, and has never been tried in the tool -- or to carry it as the other three do.
+
+### Y54 -- the repair the project has been reaching for since August cannot exist, and the reason is a number in the foundry's own library file
+
+The second chip's remaining obstacle is a small piece of power metal. To give a cell-power
+rail a connection it would otherwise not have, the flow draws a hundred and thirty-eight
+short power patches, each less than a micron wide and about four microns long. On every
+attempt so far, one or two signal wires have ended up touching one of those patches -- a
+real electrical fault, not a cosmetic one -- and the plan carried forward since August was
+*move the patch off the signal wiring*.
+
+**It cannot be moved.** The signal wiring in that layer sits on a grid two tenths of a
+micron apart. A patch eight tenths wide, plus the separation the foundry requires on each
+side, covers one and two tenths of a micron -- six grid lines, whichever grid line you
+start from. There is no position, at any width the foundry permits, where the patch leaves
+the grid alone; making it as thin as the rules allow still blocks one line. That is
+arithmetic on two numbers taken out of the foundry's own files, and the measuring tool was
+checked by asking it the same question about a hypothetical grid ten times coarser, where
+it correctly answers *yes, a position exists*.
+
+So the second thing was measured instead: is there a place where no signal wire actually
+*uses* those grid lines? The tool stepped each patch along the whole length of the rail it
+serves and scored every position against every wire of every other net on that layer, out
+of the attempt's own database. **Across the two problem patches, two positions out of two
+thousand one hundred and fifty-one are clear** -- and the position the flow already chose
+is, in both cases, among the least crowded available. The channel is full. The patch has
+nowhere to go.
+
+Narrowing it does not work either, for a second independent reason: the via inside it needs
+three and a half tenths of a micron of width to carry two contacts, and three tenths is the
+threshold above which the foundry demands two. Any width that avoids that demand also
+reduces the via to a single contact on every one of the hundred and thirty-eight.
+
+**And the attempt itself confirmed the other half.** The guard this project added last week
+-- making the repair pass see the power metal it was repairing around -- worked exactly as
+designed: where the previous attempt had the fault removed and then put straight back, this
+one removed it and it stayed removed. The two faults that remain are at different places on
+different nets. More guarding was measured and would change only *which* rule reports the
+fault, not whether one is reported: with the power metal visible the repair pass moves the
+signal wire exactly one grid line, which is still inside the forbidden span.
+
+The attempt is otherwise the best this chip has had: timing closes on both ends with room
+(fifty-four picoseconds of setup margin, hold exactly at zero, nothing failing out of
+thirty-six thousand seven hundred and twenty-two paths), the routing finished in the same
+regime as every other attempt, and the logic density is within eight hundredths of a
+percentage point of the previous five attempts.
+
+**What is left is one level up, and its numbers are already measured.** Move the four-micron
+run from the crowded layer to the one two levels above it, leaving only a small contact pad
+behind on the crowded layer. On the same database, the same scan, the same rule: the run has
+thirteen and thirty-six clear positions instead of one and zero, and the contact pads have
+sixty-two and a hundred and twenty-two. The upper layer carries a third as much wiring,
+which is why it has room. The price is a taller via stack at a hundred and thirty-eight
+places and a new tool call -- one instrument, one rehearsal, one attempt.
+
+**The second attempt of the two this wave was allowed was deliberately not spent.** Every
+change available was either refused by its own measurement or an unrehearsed change to a
+hundred and thirty-eight power connections, which is precisely what cost the previous wave
+an attempt. The budget is handed back with the instrument specified rather than consumed on
+a one-in-a-thousand placement gamble. The chip's layout of record, its manufacturing checks
+and its viewing library are all unchanged.
+
+One smaller thing was found and fixed on the way: a check in the previous wave's own test
+suite was never actually being run -- its second argument had been left on a line of its
+own, so the suite printed a shell error on every run and still reported a clean pass. It is
+a test again.
