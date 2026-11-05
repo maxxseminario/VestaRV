@@ -1,0 +1,292 @@
+{
+"arb": [
+{
+"0": [
+414984,
+1724418,
+12
+],
+"1": [
+8269,
+95511,
+16
+],
+"2": [
+8265,
+95417,
+19
+],
+"3": [
+8249,
+95421,
+22
+],
+"4": [
+8237,
+95323,
+25
+]
+},
+{
+"0": [
+0,
+0,
+0
+],
+"1": [
+8,
+60,
+9
+],
+"2": [
+13,
+75,
+9
+],
+"3": [
+6,
+53,
+10
+],
+"4": [
+7,
+58,
+9
+]
+},
+{
+"0": [
+0,
+0,
+0
+],
+"1": [
+2,
+18,
+9
+],
+"2": [
+2,
+18,
+9
+],
+"3": [
+2,
+18,
+9
+],
+"4": [
+1,
+9,
+9
+]
+},
+{
+"0": [
+0,
+0,
+0
+],
+"1": [
+1,
+9,
+9
+],
+"2": [
+1,
+8,
+8
+],
+"3": [
+0,
+0,
+0
+],
+"4": [
+1,
+9,
+9
+]
+},
+{
+"0": [
+0,
+0,
+0
+],
+"1": [
+156,
+792,
+9
+],
+"2": [
+168,
+742,
+9
+],
+"3": [
+157,
+800,
+9
+],
+"4": [
+156,
+795,
+9
+]
+},
+{
+"0": [
+0,
+0,
+0
+],
+"1": [
+25,
+210,
+9
+],
+"2": [
+26,
+217,
+9
+],
+"3": [
+25,
+211,
+9
+],
+"4": [
+26,
+216,
+9
+]
+},
+{
+"0": [
+0,
+0,
+0
+],
+"1": [
+2,
+18,
+9
+],
+"2": [
+2,
+16,
+8
+],
+"3": [
+2,
+18,
+9
+],
+"4": [
+1,
+9,
+9
+]
+},
+{
+"0": [
+0,
+0,
+0
+],
+"1": [
+1,
+9,
+9
+],
+"2": [
+1,
+8,
+8
+],
+"3": [
+0,
+0,
+0
+],
+"4": [
+1,
+9,
+9
+]
+}
+],
+"bench": "coremark",
+"harts": {
+"1": {
+"coremark_per_mhz": 1.213174836084915,
+"cpi": 1.1040564943207525,
+"crc_ok": true,
+"crcfinal": [
+"0xfcaf"
+],
+"cycles": 8242835,
+"instret": 7465954,
+"log": "2K performance run parameters for coremark.\nCoreMark Size    : 666\nTotal ticks      : 8242835\nTotal time (secs): 0\nERROR! Must execute for at least 10 secs for a valid result!\nIterations       : 10\nCompiler version : GCC13.2.0\nCompiler flags   : -O2 -std=gnu99 -fno-common -fno-tree-loop-distribute-patterns -march=rv32iac_zicsr -mabi=ilp32 -mcmodel=medany\nMemory location  : STACK(TCM)\nseedcrc          : 0xe9f5\n[0]crclist       : 0xe714\n[0]crcmatrix     : 0x1fd7\n[0]crcstate      : 0x8e3a\n[0]crcfinal      : 0xfcaf\nErrors detected\n",
+"seedcrc": [
+"0xe9f5"
+]
+},
+"2": {
+"coremark_per_mhz": 1.21319043729328,
+"cpi": 1.1040422965370533,
+"crc_ok": true,
+"crcfinal": [
+"0xfcaf"
+],
+"cycles": 8242729,
+"instret": 7465954,
+"log": "2K performance run parameters for coremark.\nCoreMark Size    : 666\nTotal ticks      : 8242729\nTotal time (secs): 0\nERROR! Must execute for at least 10 secs for a valid result!\nIterations       : 10\nCompiler version : GCC13.2.0\nCompiler flags   : -O2 -std=gnu99 -fno-common -fno-tree-loop-distribute-patterns -march=rv32iac_zicsr -mabi=ilp32 -mcmodel=medany\nMemory location  : STACK(TCM)\nseedcrc          : 0xe9f5\n[0]crclist       : 0xe714\n[0]crcmatrix     : 0x1fd7\n[0]crcstate      : 0x8e3a\n[0]crcfinal      : 0xfcaf\nErrors detected\n",
+"seedcrc": [
+"0xe9f5"
+]
+},
+"3": {
+"coremark_per_mhz": 1.213174836084915,
+"cpi": 1.1040564943207525,
+"crc_ok": true,
+"crcfinal": [
+"0xfcaf"
+],
+"cycles": 8242835,
+"instret": 7465954,
+"log": "2K performance run parameters for coremark.\nCoreMark Size    : 666\nTotal ticks      : 8242835\nTotal time (secs): 0\nERROR! Must execute for at least 10 secs for a valid result!\nIterations       : 10\nCompiler version : GCC13.2.0\nCompiler flags   : -O2 -std=gnu99 -fno-common -fno-tree-loop-distribute-patterns -march=rv32iac_zicsr -mabi=ilp32 -mcmodel=medany\nMemory location  : STACK(TCM)\nseedcrc          : 0xe9f5\n[0]crclist       : 0xe714\n[0]crcmatrix     : 0x1fd7\n[0]crcstate      : 0x8e3a\n[0]crcfinal      : 0xfcaf\nErrors detected\n",
+"seedcrc": [
+"0xe9f5"
+]
+},
+"4": {
+"coremark_per_mhz": 1.213174836084915,
+"cpi": 1.1040564943207525,
+"crc_ok": true,
+"crcfinal": [
+"0xfcaf"
+],
+"cycles": 8242835,
+"instret": 7465954,
+"log": "2K performance run parameters for coremark.\nCoreMark Size    : 666\nTotal ticks      : 8242835\nTotal time (secs): 0\nERROR! Must execute for at least 10 secs for a valid result!\nIterations       : 10\nCompiler version : GCC13.2.0\nCompiler flags   : -O2 -std=gnu99 -fno-common -fno-tree-loop-distribute-patterns -march=rv32iac_zicsr -mabi=ilp32 -mcmodel=medany\nMemory location  : STACK(TCM)\nseedcrc          : 0xe9f5\n[0]crclist       : 0xe714\n[0]crcmatrix     : 0x1fd7\n[0]crcstate      : 0x8e3a\n[0]crcfinal      : 0xfcaf\nErrors detected\n",
+"seedcrc": [
+"0xe9f5"
+]
+}
+},
+"iters": 10,
+"killed": false,
+"mask": 30,
+"passed": true,
+"run": "perf",
+"sizes": {
+"h0": "/home/mseminario2/vestarv/.claude/worktrees/agent-a264e3edcb37bbcbd/xcelium/riscv_test/perf_mp/bimg/coremark_hot_m1e_i10_perf_d0/h0.elf  :\nsection             size     addr\n.tcm_text           4672    32768\n.tcm_ro                0    37440\n.data                 24    37440\n.shbss                 0   124928\n.bss                  28    37464\n.text               4488    67840\n.comment              51        0\n.riscv.attributes     93        0\nTotal               9356\n\n\n",
+"tile": "/home/mseminario2/vestarv/.claude/worktrees/agent-a264e3edcb37bbcbd/xcelium/riscv_test/perf_mp/bimg/coremark_hot_m1e_i10_perf_d0/tile.elf  :\nsection              size     addr\n.tcm_text            5292    32768\n.tcm_ro                 0    38060\n.data                  24    38060\n.shbss                  0   124928\n.bss                   28    38084\n.text                4592    80384\n.comment               51        0\n.riscv.attributes      51        0\nTotal               10038\n\n\n"
+},
+"stall": 0,
+"tag": "coremark_hot_m1e_i10_perf_d0",
+"variant": "hot",
+"wall_s": 1291.3
+}

@@ -1,0 +1,340 @@
+{
+"arb": [
+{
+"0": [
+605424,
+2607068,
+12
+],
+"1": [
+23319,
+275975,
+16
+],
+"2": [
+23307,
+275927,
+19
+],
+"3": [
+23299,
+275878,
+22
+],
+"4": [
+23287,
+275776,
+25
+]
+},
+{
+"0": [
+6,
+32,
+8
+],
+"1": [
+28,
+114,
+6
+],
+"2": [
+28,
+114,
+6
+],
+"3": [
+28,
+114,
+6
+],
+"4": [
+28,
+114,
+6
+]
+},
+{
+"0": [
+0,
+0,
+0
+],
+"1": [
+0,
+0,
+0
+],
+"2": [
+1,
+4,
+4
+],
+"3": [
+0,
+0,
+0
+],
+"4": [
+0,
+0,
+0
+]
+},
+{
+"0": [
+0,
+0,
+0
+],
+"1": [
+1,
+4,
+4
+],
+"2": [
+0,
+0,
+0
+],
+"3": [
+0,
+0,
+0
+],
+"4": [
+0,
+0,
+0
+]
+},
+{
+"0": [
+0,
+0,
+0
+],
+"1": [
+0,
+0,
+0
+],
+"2": [
+0,
+0,
+0
+],
+"3": [
+0,
+0,
+0
+],
+"4": [
+1,
+4,
+4
+]
+},
+{
+"0": [
+2495,
+10684,
+12
+],
+"1": [
+2430,
+10991,
+14
+],
+"2": [
+2434,
+10392,
+15
+],
+"3": [
+2430,
+11016,
+13
+],
+"4": [
+2430,
+10815,
+11
+]
+},
+{
+"0": [
+367,
+1565,
+11
+],
+"1": [
+65,
+315,
+11
+],
+"2": [
+66,
+319,
+8
+],
+"3": [
+66,
+319,
+8
+],
+"4": [
+65,
+272,
+7
+]
+},
+{
+"0": [
+20,
+84,
+6
+],
+"1": [
+5,
+21,
+5
+],
+"2": [
+20,
+81,
+5
+],
+"3": [
+5,
+21,
+5
+],
+"4": [
+5,
+26,
+7
+]
+},
+{
+"0": [
+0,
+0,
+0
+],
+"1": [
+0,
+0,
+0
+],
+"2": [
+12,
+51,
+7
+],
+"3": [
+0,
+0,
+0
+],
+"4": [
+9,
+37,
+5
+]
+},
+{
+"0": [
+0,
+0,
+0
+],
+"1": [
+2,
+12,
+6
+],
+"2": [
+2,
+11,
+7
+],
+"3": [
+0,
+0,
+0
+],
+"4": [
+2,
+8,
+4
+]
+}
+],
+"bench": "dhrystone",
+"harts": {
+"0": {
+"cpi": 1.6004277755670513,
+"cyc_per_run": 643.5,
+"cycles": 321750,
+"dhry_checked": 13,
+"dhry_ok": true,
+"dmips_per_mhz": 0.8844630358574582,
+"instret": 201040,
+"log": "\nDhrystone Benchmark, Version C, Version 2.2\nProgram compiled without 'register' attribute\nUsing rdcycle(), HZ=1000000\n\nTrying 500 runs through Dhrystone:\nFinal values of the variables used in the benchmark:\n\nInt_Glob:            5\n        should be:   5\nBool_Glob:           1\n        should be:   1\nCh_1_Glob:           A\n        should be:   A\nCh_2_Glob:           B\n        should be:   B\nArr_1_Glob[8]:       7\n        should be:   7\nArr_2_Glob[8][7]:    510\n        should be:   Number_Of_Runs + 10\nPtr_Glob->\n  Ptr_Comp:          40736\n        should be:   (implementation-dependent)\n  Discr:             0\n        should be:   0\n  Enum_Comp:         2\n        should be:   2\n  Int_Comp:          17\n        should be:   17\n  Str_Comp:          DHRYSTONE PROGRAM, SOME STRING\n        should be:   DHRYSTONE PROGRAM, SOME STRING\nNext_Ptr_Glob->\n  Ptr_Comp:          40736\n        should be:   (implementation-dependent), same as above\n  Discr:             0\n        should be:   0\n  Enum_Comp:         1\n        should be:   1\n  Int_Comp:          18\n        should be:   18\n  Str_Comp:          DHRYSTONE PROGRAM, SOME STRING\n        should be:   DHRYSTONE PROGRAM, SOME STRING\nInt_1_Loc:           5\n        should be:   5\nInt_2_Loc:           13\n        should be:   13\nInt_3_Loc:           7\n        should be:   7\nEnum_Loc:            1\n        should be:   1\nStr_1_Loc:           DHRYSTONE PROGRAM, 1'ST STRING\n        should be:   DHRYSTONE PROGRAM, 1'ST STRING\nStr_2_Loc:           DHRYSTONE PROGRAM, 2'ND STRING\n        should be:   DHRYSTONE PROGRAM, 2'ND STRING\n\nMicroseconds for one run through Dhrystone: 643\nDhrystones per Second:                      1554\n"
+},
+"1": {
+"cpi": 1.5221433837080722,
+"cyc_per_run": 660.732,
+"cycles": 330366,
+"dhry_checked": 13,
+"dhry_ok": true,
+"dmips_per_mhz": 0.8613960933847223,
+"instret": 217040,
+"log": "\nDhrystone Benchmark, Version C, Version 2.2\nProgram compiled without 'register' attribute\nUsing rdcycle(), HZ=1000000\n\nTrying 500 runs through Dhrystone:\nFinal values of the variables used in the benchmark:\n\nInt_Glob:            5\n        should be:   5\nBool_Glob:           1\n        should be:   1\nCh_1_Glob:           A\n        should be:   A\nCh_2_Glob:           B\n        should be:   B\nArr_1_Glob[8]:       7\n        should be:   7\nArr_2_Glob[8][7]:    510\n        should be:   Number_Of_Runs + 10\nPtr_Glob->\n  Ptr_Comp:          40736\n        should be:   (implementation-dependent)\n  Discr:             0\n        should be:   0\n  Enum_Comp:         2\n        should be:   2\n  Int_Comp:          17\n        should be:   17\n  Str_Comp:          DHRYSTONE PROGRAM, SOME STRING\n        should be:   DHRYSTONE PROGRAM, SOME STRING\nNext_Ptr_Glob->\n  Ptr_Comp:          40736\n        should be:   (implementation-dependent), same as above\n  Discr:             0\n        should be:   0\n  Enum_Comp:         1\n        should be:   1\n  Int_Comp:          18\n        should be:   18\n  Str_Comp:          DHRYSTONE PROGRAM, SOME STRING\n        should be:   DHRYSTONE PROGRAM, SOME STRING\nInt_1_Loc:           5\n        should be:   5\nInt_2_Loc:           13\n        should be:   13\nInt_3_Loc:           7\n        should be:   7\nEnum_Loc:            1\n        should be:   1\nStr_1_Loc:           DHRYSTONE PROGRAM, 1'ST STRING\n        should be:   DHRYSTONE PROGRAM, 1'ST STRING\nStr_2_Loc:           DHRYSTONE PROGRAM, 2'ND STRING\n        should be:   DHRYSTONE PROGRAM, 2'ND STRING\n\nMicroseconds for one run through Dhrystone: 660\nDhrystones per Second:                      1513\n"
+},
+"2": {
+"cpi": 1.519305197198673,
+"cyc_per_run": 659.5,
+"cycles": 329750,
+"dhry_checked": 13,
+"dhry_ok": true,
+"dmips_per_mhz": 0.86300525181846,
+"instret": 217040,
+"log": "\nDhrystone Benchmark, Version C, Version 2.2\nProgram compiled without 'register' attribute\nUsing rdcycle(), HZ=1000000\n\nTrying 500 runs through Dhrystone:\nFinal values of the variables used in the benchmark:\n\nInt_Glob:            5\n        should be:   5\nBool_Glob:           1\n        should be:   1\nCh_1_Glob:           A\n        should be:   A\nCh_2_Glob:           B\n        should be:   B\nArr_1_Glob[8]:       7\n        should be:   7\nArr_2_Glob[8][7]:    510\n        should be:   Number_Of_Runs + 10\nPtr_Glob->\n  Ptr_Comp:          40736\n        should be:   (implementation-dependent)\n  Discr:             0\n        should be:   0\n  Enum_Comp:         2\n        should be:   2\n  Int_Comp:          17\n        should be:   17\n  Str_Comp:          DHRYSTONE PROGRAM, SOME STRING\n        should be:   DHRYSTONE PROGRAM, SOME STRING\nNext_Ptr_Glob->\n  Ptr_Comp:          40736\n        should be:   (implementation-dependent), same as above\n  Discr:             0\n        should be:   0\n  Enum_Comp:         1\n        should be:   1\n  Int_Comp:          18\n        should be:   18\n  Str_Comp:          DHRYSTONE PROGRAM, SOME STRING\n        should be:   DHRYSTONE PROGRAM, SOME STRING\nInt_1_Loc:           5\n        should be:   5\nInt_2_Loc:           13\n        should be:   13\nInt_3_Loc:           7\n        should be:   7\nEnum_Loc:            1\n        should be:   1\nStr_1_Loc:           DHRYSTONE PROGRAM, 1'ST STRING\n        should be:   DHRYSTONE PROGRAM, 1'ST STRING\nStr_2_Loc:           DHRYSTONE PROGRAM, 2'ND STRING\n        should be:   DHRYSTONE PROGRAM, 2'ND STRING\n\nMicroseconds for one run through Dhrystone: 659\nDhrystones per Second:                      1516\n"
+},
+"3": {
+"cpi": 1.5222585698488758,
+"cyc_per_run": 660.782,
+"cycles": 330391,
+"dhry_checked": 13,
+"dhry_ok": true,
+"dmips_per_mhz": 0.8613309133334055,
+"instret": 217040,
+"log": "\nDhrystone Benchmark, Version C, Version 2.2\nProgram compiled without 'register' attribute\nUsing rdcycle(), HZ=1000000\n\nTrying 500 runs through Dhrystone:\nFinal values of the variables used in the benchmark:\n\nInt_Glob:            5\n        should be:   5\nBool_Glob:           1\n        should be:   1\nCh_1_Glob:           A\n        should be:   A\nCh_2_Glob:           B\n        should be:   B\nArr_1_Glob[8]:       7\n        should be:   7\nArr_2_Glob[8][7]:    510\n        should be:   Number_Of_Runs + 10\nPtr_Glob->\n  Ptr_Comp:          40736\n        should be:   (implementation-dependent)\n  Discr:             0\n        should be:   0\n  Enum_Comp:         2\n        should be:   2\n  Int_Comp:          17\n        should be:   17\n  Str_Comp:          DHRYSTONE PROGRAM, SOME STRING\n        should be:   DHRYSTONE PROGRAM, SOME STRING\nNext_Ptr_Glob->\n  Ptr_Comp:          40736\n        should be:   (implementation-dependent), same as above\n  Discr:             0\n        should be:   0\n  Enum_Comp:         1\n        should be:   1\n  Int_Comp:          18\n        should be:   18\n  Str_Comp:          DHRYSTONE PROGRAM, SOME STRING\n        should be:   DHRYSTONE PROGRAM, SOME STRING\nInt_1_Loc:           5\n        should be:   5\nInt_2_Loc:           13\n        should be:   13\nInt_3_Loc:           7\n        should be:   7\nEnum_Loc:            1\n        should be:   1\nStr_1_Loc:           DHRYSTONE PROGRAM, 1'ST STRING\n        should be:   DHRYSTONE PROGRAM, 1'ST STRING\nStr_2_Loc:           DHRYSTONE PROGRAM, 2'ND STRING\n        should be:   DHRYSTONE PROGRAM, 2'ND STRING\n\nMicroseconds for one run through Dhrystone: 660\nDhrystones per Second:                      1513\n"
+},
+"4": {
+"cpi": 1.521157390342794,
+"cyc_per_run": 660.304,
+"cycles": 330152,
+"dhry_checked": 13,
+"dhry_ok": true,
+"dmips_per_mhz": 0.861954438522672,
+"instret": 217040,
+"log": "\nDhrystone Benchmark, Version C, Version 2.2\nProgram compiled without 'register' attribute\nUsing rdcycle(), HZ=1000000\n\nTrying 500 runs through Dhrystone:\nFinal values of the variables used in the benchmark:\n\nInt_Glob:            5\n        should be:   5\nBool_Glob:           1\n        should be:   1\nCh_1_Glob:           A\n        should be:   A\nCh_2_Glob:           B\n        should be:   B\nArr_1_Glob[8]:       7\n        should be:   7\nArr_2_Glob[8][7]:    510\n        should be:   Number_Of_Runs + 10\nPtr_Glob->\n  Ptr_Comp:          40736\n        should be:   (implementation-dependent)\n  Discr:             0\n        should be:   0\n  Enum_Comp:         2\n        should be:   2\n  Int_Comp:          17\n        should be:   17\n  Str_Comp:          DHRYSTONE PROGRAM, SOME STRING\n        should be:   DHRYSTONE PROGRAM, SOME STRING\nNext_Ptr_Glob->\n  Ptr_Comp:          40736\n        should be:   (implementation-dependent), same as above\n  Discr:             0\n        should be:   0\n  Enum_Comp:         1\n        should be:   1\n  Int_Comp:          18\n        should be:   18\n  Str_Comp:          DHRYSTONE PROGRAM, SOME STRING\n        should be:   DHRYSTONE PROGRAM, SOME STRING\nInt_1_Loc:           5\n        should be:   5\nInt_2_Loc:           13\n        should be:   13\nInt_3_Loc:           7\n        should be:   7\nEnum_Loc:            1\n        should be:   1\nStr_1_Loc:           DHRYSTONE PROGRAM, 1'ST STRING\n        should be:   DHRYSTONE PROGRAM, 1'ST STRING\nStr_2_Loc:           DHRYSTONE PROGRAM, 2'ND STRING\n        should be:   DHRYSTONE PROGRAM, 2'ND STRING\n\nMicroseconds for one run through Dhrystone: 660\nDhrystones per Second:                      1514\n"
+}
+},
+"iters": 1,
+"killed": false,
+"mask": 31,
+"passed": true,
+"run": "perf",
+"sizes": {
+"h0": "/home/mseminario2/vestarv/.claude/worktrees/agent-a264e3edcb37bbcbd/xcelium/riscv_test/perf_mp/bimg/dhrystone_tcmtext_m1f_i1_perf_d0/h0.elf  :\nsection              size    addr\n.tcm_text            4956   32768\n.tcm_ro                 0   37724\n.data                   0   37724\n.shbss              10000   71680\n.bss                  256   37724\n.text                 372   67840\n.comment               51       0\n.riscv.attributes      93       0\nTotal               15728\n\n\n",
+"tile": "/home/mseminario2/vestarv/.claude/worktrees/agent-a264e3edcb37bbcbd/xcelium/riscv_test/perf_mp/bimg/dhrystone_tcmtext_m1f_i1_perf_d0/h1.elf  :\nsection              size    addr\n.tcm_text            5180   32768\n.tcm_ro                 0   37948\n.data                   0   37948\n.shbss              10000   81920\n.bss                  256   37948\n.text                 372   68608\n.comment               51       0\n.riscv.attributes      51       0\nTotal               15910\n\n\n"
+},
+"stall": 0,
+"tag": "dhrystone_tcmtext_m1f_i1_perf_d0",
+"variant": "tcmtext",
+"wall_s": 275.3
+}

@@ -195,7 +195,6 @@ package constants is
     constant RORI_FN7    : std_logic_vector(6 downto 0) := "0110000"; -- RORI (immediate rotate right)
     constant SEXT_B_IMM12 : std_logic_vector(11 downto 0) := "011000000100"; -- SEXT.B immediate encoding
     constant SEXT_H_IMM12 : std_logic_vector(11 downto 0) := "011000000101"; -- SEXT.H immediate encoding
-    constant ZEXT_H_IMM12 : std_logic_vector(11 downto 0) := "000010000000"; -- ZEXT.H immediate encoding
     constant CLZ_IMM12   : std_logic_vector(11 downto 0) := "011000000000"; -- CLZ immediate encoding
     constant CTZ_IMM12   : std_logic_vector(11 downto 0) := "011000000001"; -- CTZ immediate encoding
     constant CPOP_IMM12  : std_logic_vector(11 downto 0) := "011000000010"; -- CPOP immediate encoding

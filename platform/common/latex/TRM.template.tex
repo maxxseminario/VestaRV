@@ -457,6 +457,27 @@ An instruction of an extension that is not configured into the build raises an i
 
 Three instructions are specific to this core and are used by the runtime: \asminline{retirq} returns from a legacy-mode interrupt (Chapter~\ref{s:interrupts}), \asminline{sleep} gates the hart's clock until an interrupt arrives (Section~\ref{ss:sleep}), and \asminline{wake} is its counterpart. Their encodings are in the generated \texttt{periph.S}.
 
+\section{Data alignment} \label{ss:alignment}
+
+Half-word accesses must be 2-byte aligned and word accesses 4-byte aligned, including \asminline{lr.w}, \asminline{sc.w} and AMOs. A misaligned access never reaches the bus: \asminline{rd} and memory are unchanged and the hart takes an exception, with cause 4 for a load or \asminline{lr.w}, cause 6 for a store, \asminline{sc.w} or AMO, and the address in \register{mtval} (Table~\ref{t:priv-causes}). In legacy delivery mode the exception is terminal (Section~\ref{ss:csr-unimplemented}). Correctly typed C does not produce misaligned accesses; the usual cause is a byte pointer cast to a wider type. A build without the trap CSRs does not check alignment and uses the aligned location.
+
+\ifnum\NumHarts=5
+\section{Conformance} \label{ss:conformance}
+
+Table~\ref{t:conformance} gives the results of riscv-arch-test 3.10.0, run through RISCOF on the complete chip in behavioral simulation, with signatures compared against Spike and Sail. This is not a RISC-V International certification.
+
+\begin{longtable}[c]{ l l r r r r }
+\caption{riscv-arch-test 3.10.0 results by hart class.} \label{t:conformance} \\
+\hline \textbf{Hart} & \textbf{Profile} & \textbf{Run} & \textbf{Pass} & \textbf{Deviation} & \textbf{Too large} \\ \hline \endfirsthead
+\hline \textbf{Hart} & \textbf{Profile} & \textbf{Run} & \textbf{Pass} & \textbf{Deviation} & \textbf{Too large} \\ \hline \endhead
+                               0 & RV32IMAC, Zba, Zbb, Zbc, Zbs & 133 & 124 & 2 & 7 \\
+\rowcolor{tablehighlightcolor} 1 to 4, each & RV32IAC & 93 & 84 & 2 & 7 \\
+\hline
+\end{longtable}
+
+The two deviations are \texttt{ebreak} and \texttt{cebreak-01}: \register{mtval} is 0 on a breakpoint, which the specification permits. The seven tests that are too large for the chip's RAM pass when split into slices, except for 3 \texttt{jal-01} cases that jump further than any hart has memory. The 41 \texttt{pmp32} tests are not run because this configuration has no PMP.
+\fi
+
 \section{Registers and calling convention} \label{ss:abi}
 
 The 32 general-purpose registers and their roles under the standard RISC-V calling convention (the \texttt{ilp32} ABI) are listed in Table~\ref{t:cpu-registers}. The compiler follows this convention, so hand-written assembly that follows it is drop-in compatible with compiled code. A register whose saver is the caller may be overwritten by any function call; a register whose saver is the callee is preserved across calls.
@@ -562,7 +583,7 @@ Figure~\ref{fig:irq-fabric-diagram}, in the \peripheral{IRQROUTER} chapter (Chap
 
 \section{Exceptions}
 
-In the legacy trap delivery mode selected at reset there is no recoverable exception: an illegal instruction, including an access to an unimplemented CSR, puts the hart into a terminal trap state (Section~\ref{ss:csr-unimplemented}). Where the standard delivery mode is configured and selected, exceptions vector through \register{mtvec} with the \register{mcause} codes of Table~\ref{t:priv-causes} in Chapter~\ref{s:privarch}. Table~\ref{t:cpu-exceptions} lists the causes that originate inside the hart rather than on a numbered vector.
+In the legacy trap delivery mode selected at reset there is no recoverable exception: an illegal instruction, including an access to an unimplemented CSR, or a misaligned data access (Section~\ref{ss:alignment}) puts the hart into a terminal trap state (Section~\ref{ss:csr-unimplemented}). Where the standard delivery mode is configured and selected, exceptions vector through \register{mtvec} with the \register{mcause} codes of Table~\ref{t:priv-causes} in Chapter~\ref{s:privarch}. Table~\ref{t:cpu-exceptions} lists the causes that originate inside the hart rather than on a numbered vector.
 \IfFileExists{include/CpuExceptionsTable.tex}{\input{include/CpuExceptionsTable.tex}}{}
 
 \section{Interrupt vector table}
@@ -593,18 +614,19 @@ Clock and power management, including sleep mode configuration, are controlled t
 
 % The per-class cycle costs, the straddling-fetch residual and the benchmark CPI in
 % this chapter are measured on the RTL (GHDL, bare core, single hart out of TCM), not
-% derived. Every figure printed here is recorded in verification/cpi/expected.json and
-% gated by //verification/cpi: a core change that moves CPI turns that gate red until
-% the numbers here move with it.
+% derived. Those figures are recorded in verification/cpi/expected.json and gated by
+% //verification/cpi: a core change that moves CPI turns that gate red until the numbers
+% here move with it. The contention, atomic, interrupt-latency and benchmark figures come
+% from the five-hart chip through verification/perf_mp (results/, expected_mp.json).
 \chapter{Core performance and instruction timing} \label{s:cpi}
 
 The VestaRV core is a multi-cycle machine on a single unified instruction and data bus, but it issues the fetch of the next instruction during the execute cycle of the current one. Most instructions therefore retire at one per MCLK cycle, and the core's measured cycles-per-instruction (CPI) is much closer to 1 than the term ``multi-cycle'' on its own would suggest: over the benchmark suite of Section~\ref{ss:cpi-measured} it is 1.260. This chapter gives the cost of every instruction class and reports the CPI measured on that suite.
 
-Every figure below is for one hart executing out of its own TCM with no shared-bus contention. An access that crosses the arbiter into the shared window, or that is made while another hart holds the grant, adds stall cycles on top of these numbers (Chapter~\ref{s:multicore}). The core's clock is gated while it waits, so a stalled cycle is still an MCLK cycle in which nothing retires and it is charged to CPI like any other.
+Unless a section says otherwise, every figure below is for one hart executing out of its own TCM with no shared-bus contention. An access that crosses the arbiter into the shared window, or that is made while another hart holds the grant, adds stall cycles on top of these numbers (Chapter~\ref{s:multicore})\ifnum\NumHarts=5, which Section~\ref{ss:cpi-contention} quantifies\fi. The core's clock is gated while it waits, so a stalled cycle is still an MCLK cycle in which nothing retires and it is charged to CPI like any other.
 
 \section{Instruction timing} \label{ss:cpi-timing}
 
-Table~\ref{t:cpi-timing} gives the cost of each instruction class. A row for an optional extension applies only when that extension is configured for this build; a disabled extension's instructions raise an illegal-instruction trap instead of executing. Atomic memory operations are the one class not re-measured here, because the bare-core bench has no second master; their 5-cycle cost is the design value.
+Table~\ref{t:cpi-timing} gives the cost of each instruction class. A row for an optional extension applies only when that extension is configured for this build; a disabled extension's instructions raise an illegal-instruction trap instead of executing. Atomic memory operations cannot be measured on the bare-core bench, which has no second master, so their rows come from the five-hart chip. An \asminline{lr.w}/\asminline{sc.w} pair costs the same as one AMO.
 
 \begin{longtable}[c]{ l l }
 \caption{Measured instruction timing, in MCLK cycles.} \label{t:cpi-timing} \\
@@ -620,9 +642,10 @@ Table~\ref{t:cpi-timing} gives the cost of each instruction class. A row for an 
 \rowcolor{tablehighlightcolor} Conditional branch, whether taken or not taken & 1 \\
                                Jump and link (\asminline{jal}, \asminline{jalr}) & 1 \\
 \rowcolor{tablehighlightcolor} CSR read (\asminline{csrr}) & 1 \\
-                               Atomic memory operations (A) & 5 \\
-\rowcolor{tablehighlightcolor} \emph{Additional} penalty: 32-bit instruction straddling a word boundary, reached sequentially & 0 \\
-                               \emph{Additional} penalty: the same, reached by a taken branch or jump & +1 \\
+                               Atomic memory operation (A) on the TCM & 6 \\
+\rowcolor{tablehighlightcolor} Atomic memory operation (A) on the shared window, no contention & 18 \\
+                               \emph{Additional} penalty: 32-bit instruction straddling a word boundary, reached sequentially & 0 \\
+\rowcolor{tablehighlightcolor} \emph{Additional} penalty: the same, reached by a taken branch or jump & +1 \\
 \hline
 \end{longtable}
 
@@ -687,6 +710,66 @@ Table~\ref{t:cpi-bench} reports CPI over nine benchmarks derived from the riscv-
 
 The aggregate is the total cycle count over the total retired-instruction count, so each benchmark contributes in proportion to the work it does. Read against Table~\ref{t:cpi-timing}, the spread has a simple explanation: the further a workload sits above 1.0, the more of its instruction mix is loads and stores, which cost two cycles each on the unified bus. Fetch alignment barely enters into it: \texttt{multiply} is register-bound and runs at 1.163, of which 0.148 is the one unaligned loop head of Section~\ref{ss:cpi-align} and the rest is its own work, and \texttt{towers} and \texttt{memcpy} sit at the other end because they are dominated by memory traffic. Branches move none of it, since they are free.
 
+\ifnum\NumHarts=5
+\section{Cost under arbiter contention} \label{ss:cpi-contention}
+
+Table~\ref{t:cpi-contention} gives access costs on the five-hart chip, measured on one hart while the other four issue back-to-back shared-window accesses. TCM accesses are unaffected; everything that crosses the arbiter, including instruction fetch from shared RAM, is not.
+
+\begin{longtable}[c]{ l r r r }
+\caption{Cost under arbiter contention, in MCLK cycles per operation.} \label{t:cpi-contention} \\
+\hline \textbf{Operation} & \textbf{Alone} & \textbf{4 harts, plain accesses} & \textbf{4 harts, atomics} \\ \hline \endfirsthead
+\hline \textbf{Operation} & \textbf{Alone} & \textbf{4 harts, plain accesses} & \textbf{4 harts, atomics} \\ \hline \endhead
+                               TCM load or store & 2 & 2 & 2 \\
+\rowcolor{tablehighlightcolor} AMO or \asminline{lr.w}/\asminline{sc.w} pair on the TCM & 6 & 6 & 6 \\
+                               Shared-window load or store, any width & 8 & 14.9 & 54.9 \\
+\rowcolor{tablehighlightcolor} 32-bit instruction fetched from shared RAM & 7 & 15 & 55 \\
+                               AMO on the shared window & 18 & 24.9 & 64.9 \\
+\rowcolor{tablehighlightcolor} \asminline{lr.w}/\asminline{sc.w} pair on the shared window & 18 & 29.9 & 109.9 \\
+\hline
+\end{longtable}
+
+Keep hot code, its stack and its private data in the TCM.
+
+\begin{Caution}
+Do not mix \asminline{lr.w}/\asminline{sc.w} and AMOs on the same word: with other harts issuing AMOs to it, every \asminline{sc.w} failed (1024 of 1024). The RISC-V forward-progress rule permits this, and a retry loop written around it does not terminate.
+\end{Caution}
+
+\section{Interrupt latency} \label{ss:cpi-irq}
+
+Table~\ref{t:irq-latency} gives the latency from the interrupt level at the hart to the first ISR instruction retiring. Worst-case rows are the largest values measured over 256 interrupt phases, not guaranteed bounds. Only the machine timer interrupt was timed, with \peripheral{DMA} and the debug module idle; a peripheral interrupt also adds the \peripheral{IRQROUTER} path.
+
+\begin{longtable}[c]{ l r r }
+\caption{Interrupt latency, in MCLK cycles (ISR, vector table and stack in TCM).} \label{t:irq-latency} \\
+\hline \textbf{Condition} & \textbf{Legacy} & \textbf{Standard} \\ \hline \endfirsthead
+\hline \textbf{Condition} & \textbf{Legacy} & \textbf{Standard} \\ \hline \endhead
+                               Typical, interrupted code in TCM & 7 & 4 \\
+\rowcolor{tablehighlightcolor} Worst measured, code in TCM, idle bus & 23 & 20 \\
+                               Worst measured, code in TCM, interrupting a divide (hart 0) & 42 & 39 \\
+\rowcolor{tablehighlightcolor} Worst measured, code in TCM, 4 harts issuing AMOs & 70 & 67 \\
+                               Worst measured, code in shared RAM, 4 harts issuing AMOs & 116 & 128 \\
+\hline
+\end{longtable}
+
+On the legacy path, keep the stack in the TCM: with it in shared RAM, the worst latency measured rises to 170 cycles.
+
+\section{CoreMark and Dhrystone} \label{ss:cpi-benchmarks}
+
+Table~\ref{t:cpi-benchmarks} gives benchmark results, with each hart running its own copy. Tile harts run multiplication in software, which accounts for most of the difference between the columns.
+
+\begin{longtable}[c]{ l r r }
+\caption{CoreMark and Dhrystone by code placement (behavioral simulation).} \label{t:cpi-benchmarks} \\
+\hline \textbf{Benchmark and placement} & \textbf{Tile hart} & \textbf{Hart 0} \\ \hline \endfirsthead
+\hline \textbf{Benchmark and placement} & \textbf{Tile hart} & \textbf{Hart 0} \\ \hline \endhead
+                               CoreMark/MHz, hot code and stack in TCM, all five running & 1.213 & 2.606 \\
+\rowcolor{tablehighlightcolor} CoreMark/MHz, all code in shared RAM, one hart running & 0.235 & 0.520 \\
+                               CoreMark/MHz, all code in shared RAM, all five running & 0.131 & 0.259 \\
+\rowcolor{tablehighlightcolor} DMIPS/MHz, code in TCM, one hart running & 0.865 & 0.886 \\
+\hline
+\end{longtable}
+
+\textbf{These are not valid EEMBC CoreMark scores}: they come from behavioral simulation, and the longest run was 0.34 simulated seconds against the 10 second minimum. The compiler was GCC 13.2.0 at \texttt{-O2}. CoreMark needs 12.4 KB on a tile, more than the \TcmSizeKiB{} KiB TCM, so the TCM rows place only the hot objects, data and stack there.
+
+\fi
 \section{Measuring application code} \label{ss:cpi-measure}
 
 The core implements the \register{cycle}/\register{cycleh} and \register{instret}/\register{instreth} counters, and their machine-mode aliases \register{mcycle} and \register{minstret}, in every configuration. \register{cycle} counts MCLK cycles, free-running and independent of whether the core is stalled; \register{minstret} counts instructions actually retired. Bracketing a region with \asminline{rdcycle} and \asminline{rdinstret} and taking the differences therefore gives that region's exact cycle count and CPI on hardware, with no external instrumentation:
@@ -699,11 +782,15 @@ __asm__ volatile ("rdcycle %0; rdinstret %1" : "=r"(c1), "=r"(i1));
 /* cycles = c1 - c0, instructions = i1 - i0 */
 \end{lstlisting}
 
+The event counters \register{mhpmcounter3} and \register{mhpmcounter4} read zero unless the Zihpm extension is configured.
+
 \register{time} and \register{timeh} are not implemented in any configuration, because no real-time source is wired to the core, and reading either raises an illegal-instruction trap. Use \register{cycle} for elapsed time, converting through the known MCLK frequency, or a timer peripheral for wall-clock measurement.
 
 \section{Measurement methodology} \label{ss:cpi-method}
 
 The numbers in this chapter are measured on the RTL, not estimated. Each benchmark is run to completion in a VHDL simulation of the bare core with a one-cycle-latency memory and no bus back-pressure, which is the timing a single hart sees executing from its own TCM. Cycles are counted on the free-running core clock, so any cycle in which the core's clock is gated is still counted. Instructions are counted from the core's internal instruction-retire strobe, the same signal that increments \register{minstret}, so the instruction count is architectural rather than an estimate derived from the simulation. The core under measurement is configured as this build ships it, fetch-ahead included.
+
+\ifnum\NumHarts=5 The atomic-operation rows of Table~\ref{t:cpi-timing} and Sections~\ref{ss:cpi-contention} to~\ref{ss:cpi-benchmarks} are instead measured on the complete five-hart chip in behavioral simulation with Xcelium, not on silicon or at gate level.\fi
 
 The per-class costs in Table~\ref{t:cpi-timing} come from paired micro-kernels: a loop containing 64 copies of the instruction under test is run against an otherwise identical empty loop, and the difference in cycles divided by the difference in retired instructions gives the marginal cost of that instruction alone, with the loop's own overhead subtracted out. Every micro-kernel body is word-aligned, so no class is charged a fetch cost that is not its own, with two deliberate exceptions: the two kernels that measure the straddling rows are built to straddle. One is a straight-line block of four instructions, two of them straddling 32-bit ones and every one of them reached sequentially, which measures 1.000 cycles per instruction; the other is a taken branch onto a straddling 32-bit target followed by a compressed instruction, three instructions whose measured classes cost one cycle each, which measures 4 cycles for the block.
 
@@ -1114,7 +1201,8 @@ none & all & None known. & & & \\
 \caption{Revision history of this manual.} \label{t:revhistory} \\
 \hline \textbf{Revision} & \textbf{Date} & \textbf{Summary} \\ \hline \endfirsthead
 \hline \textbf{Revision} & \textbf{Date} & \textbf{Summary} \\ \hline \endhead
-1 & \RevisionDateISO & Restructured into parts and chapters with a front matter chapter (conventions, access types, register anatomy, glossary). Register descriptions reformatted with summary tables, per-register reset values and field tables. Per-peripheral instance, signal and interrupt tables generated from the chip configuration. Reset, clocks and power consolidated into one chapter; the boot image format corrected from the ROM source; the hand-written instruction listing replaced by the ISA and CSR summary; software material moved to Appendix~\ref{s:software}. \\
+1 & 2026-08-29 & Restructured into parts and chapters with a front matter chapter (conventions, access types, register anatomy, glossary). Register descriptions reformatted with summary tables, per-register reset values and field tables. Per-peripheral instance, signal and interrupt tables generated from the chip configuration. Reset, clocks and power consolidated into one chapter; the boot image format corrected from the ROM source; the hand-written instruction listing replaced by the ISA and CSR summary; software material moved to Appendix~\ref{s:software}. \\
+2 & \RevisionDateISO & Core corrections: misaligned data accesses now raise causes 4 and 6 (Section~\ref{ss:alignment}); \asminline{jalr} clears bit 0 of its target; \asminline{xori} with immediate \texttt{0x80} and the \asminline{c.lui} HINT with destination \asminline{x0} execute correctly; a CSR read-modify-write returns the old value when the following fetch stalls. \ifnum\NumHarts=5{}Added the conformance results (Section~\ref{ss:conformance}) and the multi-hart contention, interrupt latency and benchmark measurements (Chapter~\ref{s:cpi}). \fi Corrected the atomic operation timing. \\
 \hline
 \end{longtable}
 

@@ -224,6 +224,7 @@ architecture struct of datapath is
     
     -- PC calculation signals
     signal PC_targetbase      : std_logic_vector(XLEN-1 downto 0);  -- Base address for PC target calculation
+    signal pc_target_sum      : std_logic_vector(XLEN-1 downto 0);  -- Base plus immediate, before the JALR bit-0 clear
     
     -- AMO saved values
     signal amo_addr_reg       : std_logic_vector(XLEN-1 downto 0);  -- Saved address for AMO
@@ -324,8 +325,9 @@ begin
     -- For branches/JAL: use current PC as base
     PC_targetbase <= src_a when jalr = '1' else pc;
     
-    -- Calculate target PC by adding immediate to base
-    pc_target <= std_logic_vector(unsigned(PC_targetbase) + unsigned(imm_ext));
+    -- Calculate target PC by adding immediate to base. JALR clears bit 0 of the sum: left set, the odd PC survives every later sequential step (fetch ignores the low bits) and reaches auipc and the link value.
+    pc_target_sum <= std_logic_vector(unsigned(PC_targetbase) + unsigned(imm_ext));
+    pc_target <= pc_target_sum(XLEN-1 downto 1) & (pc_target_sum(0) and not jalr);
 
     -- Register File Instance
     -- 32 general-purpose registers with special stack pointer handling.

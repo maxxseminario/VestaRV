@@ -81,7 +81,7 @@ entity vesta_tracer is
         mret_op          : in std_logic;
         isr_ret          : in std_logic;
         pmp_f_deny_r     : in std_logic;
-        pmp_d_deny       : in std_logic;
+        d_fault          : in std_logic;
 
         -- Trap-record sources.
         trap_pc_val      : in std_logic_vector(XLEN-1 downto 0);  -- MTRAP_SV mepc
@@ -419,7 +419,7 @@ begin
                 ret_exec := is_disp
                             and trap = '0' and ecall_op = '0' and ebreak_op = '0'
                             and mret_op = '0'
-                            and not (ENABLE_PMP and pmp_d_deny = '1')
+                            and d_fault = '0'
                             -- DBG_SV is in the whitelist, mirroring vesta.vhd's retire_now: a halt or step divert out of EXECUTE withdraws only pc_en, so the diverted instruction still retires.
                             -- This list must track vesta's; the deliberate difference between the two is the MEMORY_WAIT isr_ret term below, and nothing else.
                             and (next_state = ST_EXECUTE  or next_state = ST_IRQ_SV or

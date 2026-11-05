@@ -488,7 +488,7 @@ architecture struct of vesta is
             mret_op          : in std_logic;
             isr_ret          : in std_logic;
             pmp_f_deny_r     : in std_logic;
-            pmp_d_deny       : in std_logic;
+            d_fault          : in std_logic;
             trap_pc_val      : in std_logic_vector(XLEN-1 downto 0);  -- MTRAP_SV mepc
             trap_cause_val   : in std_logic_vector(XLEN-1 downto 0);  -- MTRAP_SV mcause
             trap_value_val   : in std_logic_vector(XLEN-1 downto 0);  -- MTRAP_SV mtval
@@ -955,6 +955,9 @@ architecture struct of vesta is
     -- This is the ACCESS CLASS, not the permission need: LR, SC and AMO all check R and W, but a denied LR still reports cause 5.
     signal pmp_d_st_class         : std_logic;
     signal pmp_d_deny             : std_logic;
+    -- A data access that must not issue: misaligned (mis_d_fault, causes 4/6) or PMP-denied (pmp_d_deny, causes 5/7). Every dispatch arm and commit guard keys on d_fault; only the cause mux tells the two apart.
+    signal mis_d_fault            : std_logic;
+    signal d_fault                : std_logic;
     -- The faulting address for mtval (causes 1, 5 and 7): combinational at the dispatch cycle, LATCHED at the MTRAP_SV dispatch edge because neither source is stable during MTRAP_SV.
     signal mtrap_disp_val         : std_logic_vector(XLEN-1 downto 0);
     signal mtrap_val_r            : std_logic_vector(XLEN-1 downto 0);
@@ -1061,7 +1064,7 @@ architecture struct of vesta is
                            and split_ready = '0')                        -- the split-fetch bubble
                   and trap = '0' and ecall_op = '0' and ebreak_op = '0'  -- trap sub-arms
                   and mret_op = '0'                                      -- retires at MTRAP_RET
-                  and not (ENABLE_PMP and pmp_d_deny = '1')              -- PMP data deny
+                  and not (d_fault = '1')              -- PMP data deny
                   -- DBG_SV belongs in this closed whitelist: a halt or step divert takes away only pc_en, so the diverted instruction still retires, and for a single step that retire IS the step.
                   -- vesta_tracer carries the same term in its own copy of this condition; the copies differ on purpose only in the MEMORY_WAIT isr_ret term, and any other mismatch is silent.
                   and (next_state = EXECUTE  or next_state = IRQ_SV or
@@ -1388,7 +1391,7 @@ architecture struct of vesta is
     if_ahead_req <= '1' when (ENABLE_IF_AHEAD and ENABLE_COMPRESSED
                               and current_state = EXECUTE
                               and dec_dispatch = '1'
-                              and not (ENABLE_PMP and pmp_d_deny = '1')
+                              and not (d_fault = '1')
                               and (next_state = EXECUTE or next_state = MEMORY_WAIT)
                               and (pc_en = '1' or next_state = MEMORY_WAIT)
                               and pc_src = '0'
@@ -1496,10 +1499,10 @@ architecture struct of vesta is
 
     -- The three SEQUENCER address terms are selected by STATE, not by mem_access_instr, so a PMP denial must gate them here too: suppressing only the FSM's request would still leave the denied word on data_addr, and sh_req is a pure decode of data_addr.
     -- The EXECUTE-dispatch terms need no such gate, being qualified by mem_access_instr, which a denial forces '0'; the PC_RST_VAL arm is the FETCH suppression point.
-    data_addr <= cboz_zero_addr when (current_state = CBOZ_WRITE and pmp_d_deny = '0') else
+    data_addr <= cboz_zero_addr when (current_state = CBOZ_WRITE and d_fault = '0') else
                  zcm_mem_addr when ((current_state = ZCM_PUSH_ST or current_state = ZCM_POP_LD)
-                                    and pmp_d_deny = '0') else
-                 zcm_jt_addr  when (current_state = ZCM_JT_LD and pmp_d_deny = '0') else
+                                    and d_fault = '0') else
+                 zcm_jt_addr  when (current_state = ZCM_JT_LD and d_fault = '0') else
                  -- SC-SUCCESS PREDICATE, FOUR IDENTICAL COPIES: `reservation_valid = '1' and reservation_addr = rs1_value` appears in this data_addr arm, in amo_phase ("101"), in lr_sc_bus ("10") and in the SC_CHECK FSM arm. Change all four or none, since a divergence is SILENT.
                  -- Steering the address is not optional: sh_sel is a pure decode of data_addr, so suppressing only the request would still issue the transaction. On the failing path this arm drops out and data_addr falls through to pc_next, a harmless early fetch.
                  rs1_value  when (current_state = SC_CHECK
@@ -1565,9 +1568,9 @@ architecture struct of vesta is
                     "000";  -- normal operation
 
     /* Tag the current memory access for the global reservation unit. The LR's bus transaction runs during the EXECUTE decode cycle and LR_READ only consumes the returned data, so the "01" tag must ride EXECUTE; the SC's conditional write runs in SC_CHECK.
-       "10" requires the LOCAL check to pass, since a locally failed SC issues no write and must not be adjudicated as an SC. The pmp_d_deny qualifier keeps a denied LR, which issues no read at all, from tagging the fetch that data_addr falls through to.
+       "10" requires the LOCAL check to pass, since a locally failed SC issues no write and must not be adjudicated as an SC. The d_fault qualifier keeps a denied or misaligned LR, which issues no read at all, from tagging the fetch that data_addr falls through to.
        SC-SUCCESS PREDICATE, FOUR IDENTICAL COPIES: this lr_sc_bus term, the data_addr mux's SC_CHECK term, amo_phase and the SC_CHECK FSM arm. Change all four or none, since a divergence is SILENT. */
-    lr_sc_bus <= "01" when current_state = EXECUTE and lr_op = '1' and pmp_d_deny = '0' else
+    lr_sc_bus <= "01" when current_state = EXECUTE and lr_op = '1' and d_fault = '0' else
                  "10" when current_state = SC_CHECK and reservation_valid = '1'
                            and reservation_addr = rs1_value else
                  "00";
@@ -1603,7 +1606,7 @@ architecture struct of vesta is
         '0' when (current_state = EXECUTE and (not ENABLE_COMPRESSED) and pc(1) = '1') else   -- instruction-address-misaligned
         '0' when (current_state = EXECUTE and
                   (trap = '1' or ecall_op = '1' or ebreak_op = '1')) else                     -- illegal / ECALL / EBREAK
-        '0' when (pmp_d_deny = '1') else                                                      -- 5/7 load-store access fault
+        '0' when (d_fault = '1') else                                                         -- 4/5/6/7 load-store misaligned or access fault
         '1' when (current_state /= EXECUTE) else                                 -- MEMORY_WAIT, DIV_DONE, AMO_*, SLEEPING and the rest: interrupt
         '1';                                                                     -- EXECUTE with none of the above: interrupt
 
@@ -1615,7 +1618,9 @@ architecture struct of vesta is
         x"8" when (current_state = EXECUTE and ecall_op = '1' and trap_priv_mode = '0') else  -- 8  ecall from U
         x"B" when (current_state = EXECUTE and ecall_op = '1') else                           -- 11 ecall from M
         x"3" when (current_state = EXECUTE and ebreak_op = '1') else                          -- 3  breakpoint
-        -- Data-side access faults; the access class, not the permission need, picks the code.
+        -- Data-side faults; the access class, not the permission need, picks the code. Misaligned is tested first, the order Spike uses.
+        x"6" when (mis_d_fault = '1' and pmp_d_st_class = '1') else                           -- 6  store/AMO address misaligned
+        x"4" when (mis_d_fault = '1') else                                                    -- 4  load address misaligned
         -- Store, SC, AMO, cbo.zero and cm.push give 7; load, LR, cm.pop and the Zcmt table fetch give 5.
         x"7" when (pmp_d_deny = '1' and pmp_d_st_class = '1') else                            -- 7  store/AMO access fault
         x"5" when (pmp_d_deny = '1') else                                                     -- 5  load access fault
@@ -1643,11 +1648,12 @@ architecture struct of vesta is
     -- mtval is the faulting 32-bit encoding for an illegal instruction, the misaligned PC for cause 0, otherwise 0.
     trap_pc_val    <= pc_next_reg when mtrap_cause_int = '1' else pc;
     trap_cause_val <= mtrap_cause_int & MTRAP_RSVD27 & mtrap_cause_code;
-    -- For the three ACCESS-FAULT causes mtval is the FAULTING ADDRESS, taken from the dispatch-edge latch because neither pmp_d_addr nor pmp_f_addr_r is stable during MTRAP_SV; the latch is all-zero on an ENABLE_PMP=false build.
+    -- For the access-fault and data-misaligned causes mtval is the FAULTING ADDRESS, taken from the dispatch-edge latch because neither pmp_d_addr nor pmp_f_addr_r is stable during MTRAP_SV; the latch is all-zero on an ENABLE_TRAPCSR=false build.
     trap_value_val <= instr_curr_prev when (mtrap_cause_int = '0' and mtrap_cause_code = x"2") else
                       pc              when (mtrap_cause_int = '0' and mtrap_cause_code = x"0") else
-                      mtrap_val_r     when (ENABLE_PMP and mtrap_cause_int = '0' and
-                                            (mtrap_cause_code = x"1" or mtrap_cause_code = x"5" or
+                      mtrap_val_r     when (ENABLE_TRAPCSR and mtrap_cause_int = '0' and
+                                            (mtrap_cause_code = x"1" or mtrap_cause_code = x"4" or
+                                             mtrap_cause_code = x"5" or mtrap_cause_code = x"6" or
                                              mtrap_cause_code = x"7")) else
                       (others => '0');
 
@@ -1859,7 +1865,8 @@ architecture struct of vesta is
                                 and not (pc(1) = '1' and quadrant_upper = "11" and split_ready = '0')
                                 and (ENABLE_COMPRESSED or pc(1) = '0'))
                       else '0';
-    csr_valid_eff  <= csr_valid and dec_dispatch;
+    -- en_clk_cpu: csr_unit commits on the free-running clk while rd is captured on clk_cpu, so a commit in a frozen cycle (next fetch stalled, or tile sleep) lands first and rd then reads the post-write value. The commit must ride the same edge as the capture.
+    csr_valid_eff  <= csr_valid and dec_dispatch and en_clk_cpu;
     -- isr_ret_eff is deliberately NOT re-qualified to the dispatch cycle. irq_handler runs on the free-running clk and consumes isr_ret as a LEVEL, both inside WAIT_EOI and to leave it, and instr_curr holds the iret encoding across EXECUTE, MEMORY_WAIT and IRQ_REST.
     -- Narrowing it would shrink the window over which the EOI is asserted, on the one path where a mistake hangs the chip; the level is idempotent here, since the EOI clears a flag rather than incrementing a counter.
     isr_ret_eff    <= isr_ret   and not dec_squash;
@@ -1901,6 +1908,17 @@ architecture struct of vesta is
     -- the half-fetch branch has no PMP arm and goes unconditionally to EXECUTE, so pmp_d_deny can never dispatch a trap from it. The qualifier is the FSM arm placement, as it is for amo_lock.
     pmp_d_active <= pmp_d_rd or pmp_d_wr;
     pmp_d_deny   <= '1' when (ENABLE_PMP and pmp_d_active = '1' and pmp_d_grant = '0') else '0';
+
+    /* MISALIGNED DATA ACCESS: the bus has no way to express one, so it is trapped before issue, through the same arms and with the same pre-issue guarantee as a PMP denial. funct3(1:0) is the access size for every load, store, LR, SC and AMO ("01" half, "10" word, "00" byte); the sequencer states are all word accesses.
+       Gated on ENABLE_TRAPCSR because without the trap CSRs the cause cannot be reported. In legacy delivery the arms land in the terminal TRAP_STATE, as every other exception does. The pmp_d_* terms are shared on purpose: "check and access must never disagree about the address" applies here too. */
+    mis_d_fault <= '1' when (ENABLE_TRAPCSR and pmp_d_active = '1' and
+                             ((current_state = EXECUTE and instr_curr(13 downto 12) = "01"
+                               and pmp_d_addr(0) = '1')
+                              or (current_state = EXECUTE and instr_curr(13 downto 12) = "10"
+                                  and pmp_d_addr(1 downto 0) /= "00")
+                              or (current_state /= EXECUTE and pmp_d_addr(1 downto 0) /= "00")))
+                   else '0';
+    d_fault <= pmp_d_deny or mis_d_fault;
 
     /* FETCH side. fetch_addr IS the fetch address: the data_addr mux falls through to it in every cycle that issues an instruction fetch, and it is pc_next except in the two cycles the fetch-ahead claims.
        Checking fetch_addr rather than pc_next is what keeps the pmp_f_deny_r pipeline honest, since that flop must describe the word the bus actually carried.
@@ -1961,8 +1979,11 @@ architecture struct of vesta is
             end if;
         end process;
 
-        -- mtval latch, on the same edge and condition as mtrap_cause_proc; a separate process so its 32 flops sit inside the generate and an OFF build carries none of them.
-        pmp_mtval_proc: process(clk_cpu, resetn)
+    end generate;
+
+    -- mtval latch, on the same edge and condition as mtrap_cause_proc; a separate process so its 32 flops sit inside the generate and an ENABLE_TRAPCSR=false build carries none of them.
+    gen_mtval: if ENABLE_TRAPCSR generate
+        mtval_proc: process(clk_cpu, resetn)
         begin
             if resetn = '0' then
                 mtrap_val_r <= (others => '0');
@@ -1974,13 +1995,16 @@ architecture struct of vesta is
         end process;
     end generate;
 
+    gen_mtval_off: if not ENABLE_TRAPCSR generate
+        mtrap_val_r <= (others => '0');
+    end generate;
+
     gen_pmp_off: if not ENABLE_PMP generate
         -- Grant everything, with no flops and no unit, so the OFF cell lists need no pmp_unit entry.
         pmp_f_grant  <= '1';
         pmp_d_grant  <= '1';
         pmp_f_deny_r <= '0';
         pmp_f_addr_r <= (others => '0');
-        mtrap_val_r  <= (others => '0');
     end generate;
 
     wfi_slept_proc: process(clk_cpu, resetn)
@@ -2013,7 +2037,7 @@ architecture struct of vesta is
                              is_fp_multicycle, is_fp_fma, fpu_done_sig,
                              std_mode, std_irq_take, ecall_op, ebreak_op, mret_op,
                              wfi_op, std_wfi_wake,
-                             pmp_f_deny_r, pmp_d_deny,
+                             pmp_f_deny_r, d_fault,
                              -- The debug decision signals MUST be listed: in an absorbing state such as SLEEPING or TRAP_STATE nothing else in this list moves, so without them the process never re-runs to see a halt request and next_state sticks forever.
                              -- A synthesis tool ignores sensitivity lists, so omitting them makes the netlist right and every behavioural run wrong, which is the worst direction.
                              dbg_halt_take, dbg_ebreak_take, dbg_exc_take, dret_op, debug_mode,
@@ -2175,7 +2199,7 @@ architecture struct of vesta is
                                     else
                                         next_state <= TRAP_STATE;
                                     end if;
-                                elsif ENABLE_PMP and pmp_d_deny = '1' then
+                                elsif d_fault = '1' then
                                     /* PMP load/store access fault: cause 5 for a load or LR, 7 for a store, SC or AMO, with mtval the byte-precise data address and mepc the pc.
                                        It sits after the trap, ECALL, EBREAK and MRET arms and before every memory dispatch arm, so an illegal encoding still reports cause 2 and a memory instruction can never reach its own arm.
                                        PRE-ISSUE GUARANTEE: mem_access_instr stays '0', so data_addr keeps the fetch fall-through, sh_req never rises for the denied address and no request is yanked from the arbiter; wen all-ones kills the private-RAM lane strobes. */
@@ -2339,7 +2363,7 @@ architecture struct of vesta is
                                 else
                                     next_state <= TRAP_STATE;
                                 end if;
-                            elsif ENABLE_PMP and pmp_d_deny = '1' then
+                            elsif d_fault = '1' then
                                 -- PMP load/store access fault; see the split-fetch dispatch arm above.
                                 -- A compressed c.lw or c.sw reaches it through mem_access_controller exactly like a 32-bit one; cm.* sequencer steps are checked in their OWN states, so pmp_d_active is '0' at a zcm dispatch.
                                 mem_access_instr <= '0';
@@ -2450,7 +2474,7 @@ architecture struct of vesta is
                                 else
                                     next_state <= TRAP_STATE;
                                 end if;
-                            elsif ENABLE_PMP and pmp_d_deny = '1' then
+                            elsif d_fault = '1' then
                                 -- PMP load/store access fault; see the split-fetch dispatch arm above.
                                 mem_access_instr <= '0';
                                 if dbg_exc_take = '1' then
@@ -2598,7 +2622,7 @@ architecture struct of vesta is
                                 else
                                     next_state <= TRAP_STATE;
                                 end if;
-                            elsif ENABLE_PMP and pmp_d_deny = '1' then
+                            elsif d_fault = '1' then
                                 -- PMP load/store access fault; see the split-fetch dispatch arm above.
                                 -- A compressed c.lw or c.sw reaches it through mem_access_controller exactly like a 32-bit one; cm.* sequencer steps are checked in their OWN states, so pmp_d_active is '0' at a zcm dispatch.
                                 mem_access_instr <= '0';
@@ -2767,7 +2791,7 @@ architecture struct of vesta is
                    UNINTERRUPTIBLE, there being no irq_save check, so the burst runs to completion; RAM here is idempotent and fault-free, so no mid-sequence trap and no re-execution machinery is needed.
                    The per-word PMP check rides THIS state, because the burst address only exists here; a denial leaves no lane strobe and no request, and the data_addr term is gated by the same pmp_d_deny. The PC has been frozen since dispatch, so mepc is the cbo.zero itself. */
                 when CBOZ_WRITE =>
-                    if ENABLE_PMP and pmp_d_deny = '1' then
+                    if d_fault = '1' then
                         mem_access_instr <= '0';
                         if dbg_exc_take = '1' then
                             -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
@@ -2796,7 +2820,7 @@ architecture struct of vesta is
                 -- Zcmp/Zcmt sequencer states: all UNINTERRUPTIBLE, with every index and address taken from registered state, and sp committed ONCE and LAST in ZCM_SP_COMMIT, which a fault here never reaches.
                 -- Per-slot pre-issue PMP check, the same contract as CBOZ_WRITE; the PC is frozen from dispatch, so mepc is the cm.push itself.
                 when ZCM_PUSH_ST =>
-                    if ENABLE_PMP and pmp_d_deny = '1' then
+                    if d_fault = '1' then
                         mem_access_instr <= '0';
                         if dbg_exc_take = '1' then
                             -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
@@ -2823,7 +2847,7 @@ architecture struct of vesta is
 
                 -- Issue the frame-slot load. Its per-slot pre-issue check reports cause 5, a pop slot being a LOAD, and the writeback happens in ZCM_POP_WB, which a fault never reaches, so this cycle commits nothing.
                 when ZCM_POP_LD =>
-                    if ENABLE_PMP and pmp_d_deny = '1' then
+                    if d_fault = '1' then
                         mem_access_instr <= '0';
                         if dbg_exc_take = '1' then
                             -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
@@ -2890,7 +2914,7 @@ architecture struct of vesta is
 
                 -- Issue the jvt table read. It is a DATA read of jvt + 4*index riding data_addr rather than the fetch path, so it is checked on the data port and reports cause 5; the target capture and the ra link both land in ZCM_JT_WB.
                 when ZCM_JT_LD =>
-                    if ENABLE_PMP and pmp_d_deny = '1' then
+                    if d_fault = '1' then
                         mem_access_instr <= '0';
                         if dbg_exc_take = '1' then
                             -- Debug mode never traps out; re-enter instead. See dbg_exc_take.
@@ -3616,7 +3640,7 @@ architecture struct of vesta is
                 mret_op          => mret_op,
                 isr_ret          => isr_ret,
                 pmp_f_deny_r     => pmp_f_deny_r,
-                pmp_d_deny       => pmp_d_deny,
+                d_fault          => d_fault,
                 trap_pc_val      => trap_pc_val,
                 trap_cause_val   => trap_cause_val,
                 trap_value_val   => trap_value_val,
