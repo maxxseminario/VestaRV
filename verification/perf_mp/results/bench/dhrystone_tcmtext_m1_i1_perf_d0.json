@@ -1,0 +1,84 @@
+{
+"arb": [
+{
+"0": [
+137317,
+549354,
+12
+],
+"1": [
+11,
+133,
+16
+],
+"2": [
+11,
+136,
+19
+],
+"3": [
+11,
+139,
+22
+],
+"4": [
+11,
+142,
+25
+]
+},
+{
+"0": [
+2501,
+10004,
+4
+],
+"1": [
+0,
+0,
+0
+],
+"2": [
+0,
+0,
+0
+],
+"3": [
+0,
+0,
+0
+],
+"4": [
+0,
+0,
+0
+]
+}
+],
+"bench": "dhrystone",
+"harts": {
+"0": {
+"cpi": 1.5968861918026263,
+"cyc_per_run": 642.076,
+"cycles": 321038,
+"dhry_checked": 13,
+"dhry_ok": true,
+"dmips_per_mhz": 0.8864246032779208,
+"instret": 201040,
+"log": "\nDhrystone Benchmark, Version C, Version 2.2\nProgram compiled without 'register' attribute\nUsing rdcycle(), HZ=1000000\n\nTrying 500 runs through Dhrystone:\nFinal values of the variables used in the benchmark:\n\nInt_Glob:            5\n        should be:   5\nBool_Glob:           1\n        should be:   1\nCh_1_Glob:           A\n        should be:   A\nCh_2_Glob:           B\n        should be:   B\nArr_1_Glob[8]:       7\n        should be:   7\nArr_2_Glob[8][7]:    510\n        should be:   Number_Of_Runs + 10\nPtr_Glob->\n  Ptr_Comp:          40736\n        should be:   (implementation-dependent)\n  Discr:             0\n        should be:   0\n  Enum_Comp:         2\n        should be:   2\n  Int_Comp:          17\n        should be:   17\n  Str_Comp:          DHRYSTONE PROGRAM, SOME STRING\n        should be:   DHRYSTONE PROGRAM, SOME STRING\nNext_Ptr_Glob->\n  Ptr_Comp:          40736\n        should be:   (implementation-dependent), same as above\n  Discr:             0\n        should be:   0\n  Enum_Comp:         1\n        should be:   1\n  Int_Comp:          18\n        should be:   18\n  Str_Comp:          DHRYSTONE PROGRAM, SOME STRING\n        should be:   DHRYSTONE PROGRAM, SOME STRING\nInt_1_Loc:           5\n        should be:   5\nInt_2_Loc:           13\n        should be:   13\nInt_3_Loc:           7\n        should be:   7\nEnum_Loc:            1\n        should be:   1\nStr_1_Loc:           DHRYSTONE PROGRAM, 1'ST STRING\n        should be:   DHRYSTONE PROGRAM, 1'ST STRING\nStr_2_Loc:           DHRYSTONE PROGRAM, 2'ND STRING\n        should be:   DHRYSTONE PROGRAM, 2'ND STRING\n\nMicroseconds for one run through Dhrystone: 642\nDhrystones per Second:                      1557\n"
+}
+},
+"iters": 1,
+"killed": false,
+"mask": 1,
+"passed": true,
+"run": "perf",
+"sizes": {
+"h0": "/home/mseminario2/vestarv/.claude/worktrees/agent-a264e3edcb37bbcbd/xcelium/riscv_test/perf_mp/bimg/dhrystone_tcmtext_m1_i1_perf_d0/h0.elf  :\nsection              size    addr\n.tcm_text            4956   32768\n.tcm_ro                 0   37724\n.data                   0   37724\n.shbss              10000   71680\n.bss                  256   37724\n.text                 372   67840\n.comment               51       0\n.riscv.attributes      93       0\nTotal               15728\n\n\n",
+"tile": "/home/mseminario2/vestarv/.claude/worktrees/agent-a264e3edcb37bbcbd/xcelium/riscv_test/perf_mp/bimg/dhrystone_tcmtext_m1_i1_perf_d0/h0.elf  :\nsection              size    addr\n.tcm_text            4956   32768\n.tcm_ro                 0   37724\n.data                   0   37724\n.shbss              10000   71680\n.bss                  256   37724\n.text                 372   67840\n.comment               51       0\n.riscv.attributes      93       0\nTotal               15728\n\n\n"
+},
+"stall": 0,
+"tag": "dhrystone_tcmtext_m1_i1_perf_d0",
+"variant": "tcmtext",
+"wall_s": 60.1
+}

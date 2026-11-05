@@ -1,0 +1,6 @@
+# Tests RISCOF selects by ISA string but this flow does not run. One per line:
+#   <glob on the path under rv32i_m/>  <reason>
+# Exclusion is only for a test that cannot mean anything on this hart class. A test
+# that fails, or that does not fit the memory map, stays in the run and shows up in
+# the results; see the report for those.
+pmp32/* selected only because no ISA check names PMP; Castalia harts implement no PMP (priv.pmp false, pmp CSRs trap), and the reference runs with --pmpregions=0
