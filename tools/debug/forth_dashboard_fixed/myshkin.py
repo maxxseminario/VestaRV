@@ -1,0 +1,262 @@
+"""VestaRV: the chip interface the Forth dashboard drives over UART.
+Myshkin Chip Interface
+Simplified version using peripherals_config.py for register definitions
+Communicates via UART using Forth commands
+"""
+import time
+import serial
+import numpy as np
+import logging
+from datetime import datetime
+from collections import deque
+from peripherals_config import PERIPHERALS, get_register_address, addr_to_forth
+
+# Configure logging to file
+log_file = 'myshkin_commands.log'
+logging.basicConfig(
+    filename=log_file,
+    level=logging.INFO,
+    format='%(asctime)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger('myshkin')
+
+# Global command history for GUI display (last 100 commands)
+command_history = deque(maxlen=100)
+
+
+class Myshkin:
+    """
+    Interface class for Myshkin MCU via UART/Forth
+    """
+    
+    def __init__(self, port='/dev/ttyAMA0', baudrate=115200):
+        """Open the UART to the chip; port defaults to the RPi 4's /dev/ttyAMA0 at 115200 baud."""
+        self.uart = None
+        self.register_cache = {}  # Cache for register values
+        
+        try:
+            self.uart = serial.Serial(
+                port=port,
+                baudrate=baudrate,
+                bytesize=serial.EIGHTBITS,
+                parity=serial.PARITY_NONE,
+                stopbits=serial.STOPBITS_ONE,
+                timeout=0.1,        # short timeout to avoid blocking
+                xonxoff=False,      # no software flow control
+                rtscts=False,       # no hardware RTS/CTS
+                dsrdtr=False,       # no hardware DSR/DTR
+            )
+            print(f"✓ UART connection established on {port} at {baudrate} baud")
+        except serial.SerialException as e:
+            print(f"✗ Warning: Could not open UART port {port}: {e}")
+            print("  Running in simulation mode (no hardware communication)")
+            self.uart = None
+
+    def send_forth_command(self, command):
+        """Send a Forth command over UART and return the chip's response, or None with no UART."""
+        timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
+        
+        if self.uart is None:
+            # Simulation mode - return dummy data
+            log_msg = f"[SIM] TX: {command}"
+            logger.info(log_msg)
+            command_history.append(f"{timestamp} {log_msg}")
+            return "0"
+            
+        try:
+            # Clear any stale data from the buffer first
+            if self.uart.in_waiting > 0:
+                self.uart.reset_input_buffer()
+                time.sleep(0.01)
+            
+            # Log command being sent
+            log_msg = f"TX: {command}"
+            logger.info(log_msg)
+            command_history.append(f"{timestamp} {log_msg}")
+            
+            # Send command with newline
+            self.uart.write((command + '\n').encode('utf-8'))
+            self.uart.flush()
+            time.sleep(0.1)  # Wait for chip to process
+            
+            # Read response with timeout - wait for complete response
+            response = b''
+            start_time = time.time()
+            last_data_time = time.time()
+            
+            while time.time() - start_time < 0.5:  # 500ms total timeout
+                if self.uart.in_waiting > 0:
+                    chunk = self.uart.read(self.uart.in_waiting)
+                    response += chunk
+                    last_data_time = time.time()
+                    
+                    # If we see the prompt '>', we're done
+                    if b'>' in chunk:
+                        break
+                    time.sleep(0.01)
+                elif response and time.time() - last_data_time > 0.05:
+                    # No new data for 50ms after getting some data - assume done
+                    break
+                else:
+                    time.sleep(0.01)
+            
+            response_str = response.decode('utf-8', errors='replace').strip()
+            
+            # Log response
+            if response_str:
+                log_msg = f"RX: {response_str}"
+                logger.info(log_msg)
+                command_history.append(f"{timestamp} {log_msg}")
+            
+            return response_str
+        except Exception as e:
+            error_msg = f"ERROR: UART communication error: {e}"
+            logger.error(error_msg)
+            command_history.append(f"{timestamp} {error_msg}")
+            print(error_msg)
+            return None
+
+    def read(self, addr, cached=False):
+        """Read a register by hex address, from the cache when `cached`. The value's size follows the
+        register definition.
+        """
+        if cached and addr in self.register_cache:
+            return self.register_cache[addr]
+        
+        # Forth command to read from address: "addr @ ."
+        # For multi-byte registers, we read the full word
+        command = f"{addr_to_forth(addr)} @ ."
+        response = self.send_forth_command(command)
+        
+        if response:
+            try:
+                # Parse the numeric response
+                # Expected format: "0xADDR @ . VALUE >" or similar
+                # Clean the response first - remove control chars and '?'
+                cleaned_response = response.replace('\x1a', '').replace('?', '')
+                tokens = cleaned_response.split()
+                
+                # Find the numeric value (skip address, @, ., and >)
+                # Typical response: "0x04B00 @ . 8 >"
+                # We want the value before the '>' prompt
+                value = None
+                
+                # Look for the pattern: number followed by '>'
+                for i in range(len(tokens) - 1, -1, -1):
+                    if tokens[i] == '>' and i > 0:
+                        # Try to parse the token before '>'
+                        try:
+                            value = int(tokens[i-1], 0)
+                            break
+                        except ValueError:
+                            continue
+                
+                # If that didn't work, search for any valid number token
+                if value is None:
+                    for token in reversed(tokens):
+                        if token in ['@', '.', '>']:
+                            continue
+                        if token.startswith('0x'):
+                            continue  # Skip addresses
+                        try:
+                            value = int(token, 0)
+                            break
+                        except ValueError:
+                            continue
+                
+                if value is not None:
+                    self.register_cache[addr] = value
+                    return value
+                else:
+                    raise ValueError(f"No valid numeric value found in tokens: {tokens}")
+                    
+            except (ValueError, IndexError) as e:
+                print(f"Error parsing read response from {addr_to_forth(addr)}: '{response}' (Tokens: {cleaned_response.split() if 'cleaned_response' in locals() else response.split()}) (Error: {e})")
+                return 0
+        
+        print(f"Warning: Empty response for read from {addr_to_forth(addr)}")
+        return 0
+
+    def write(self, addr, value):
+        """Write a value to a register by hex address."""
+        addr = int(addr)
+        value = int(value)
+        
+        # Forth command to write to address: "value addr !"
+        command = f"{value} {addr_to_forth(addr)} !"
+        self.send_forth_command(command)
+        
+        # Update cache
+        self.register_cache[addr] = value
+        print(f"Write {addr_to_forth(addr)}: {value} (0x{value:04X})")
+
+    def read_register(self, peripheral, register, cached=False):
+        """Read a named register of a peripheral, from the cache when `cached`; None if not found.
+        """
+        addr = get_register_address(peripheral, register)
+        if addr is None:
+            print(f"Error: Unknown register {peripheral}.{register}")
+            return None
+        
+        return self.read(addr, cached=cached)
+
+    def write_register(self, peripheral, register, value):
+        """Write a value to a named register of a peripheral."""
+        addr = get_register_address(peripheral, register)
+        if addr is None:
+            print(f"Error: Unknown register {peripheral}.{register}")
+            return
+        
+        self.write(addr, value)
+
+    def clear_cache(self):
+        """Clear the register cache"""
+        self.register_cache = {}
+        print("Register cache cleared")
+
+    def cache_all_registers(self):
+        """
+        Read all registers from all peripherals and cache them
+        This is useful for bulk register synchronization
+        """
+        print("Caching all registers...")
+        count = 0
+        for periph_name, periph_info in PERIPHERALS.items():
+            for reg_name in periph_info['registers'].keys():
+                self.read_register(periph_name, reg_name, cached=False)
+                count += 1
+        print(f"Cached {count} registers")
+
+    def close(self):
+        """Close UART connection"""
+        if self.uart and self.uart.is_open:
+            self.uart.close()
+            print("UART connection closed")
+
+    def __del__(self):
+        """Destructor - close UART when object is deleted"""
+        self.close()
+
+
+def get_command_history():
+    """The command history, as a list of log strings, for GUI display."""
+    return list(command_history)
+
+
+# Test function
+if __name__ == "__main__":
+    print("Testing Myshkin interface...")
+    chip = Myshkin()
+    
+    # Test reading a register
+    print("\nTesting register read:")
+    val = chip.read_register('GPIO0', 'PIN')
+    print(f"GPIO0.PIN = {val} (0x{val:02X})")
+    
+    # Test writing a register
+    print("\nTesting register write:")
+    chip.write_register('GPIO0', 'POUT', 0xFF)
+    
+    print("\nTest complete!")
+    chip.close()

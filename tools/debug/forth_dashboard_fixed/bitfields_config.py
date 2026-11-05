@@ -1,0 +1,971 @@
+"""VestaRV: peripheral configuration with bit-level definitions for the control registers.
+Enhanced Peripheral Configuration with Bitfield Definitions
+Includes detailed bit-level information for all control registers
+"""
+
+from peripherals_config import PERIPHERALS, PERIPHERAL_BASES
+
+# Bitfield definitions for control registers
+# Format: {peripheral_reg: {bitfield_name: {bit: pos/range, desc: description, values: {0: desc, 1: desc}}}}
+
+BITFIELDS = {
+    # SPI0 and SPI1 Control Register
+    'SPI_CR': {
+        'FEN': {
+            'bits': 19,
+            'width': 1,
+            'desc': 'SPI Flash extended memory enable',
+            'values': {
+                0: 'Flash extended memory disabled',
+                1: 'Flash extended memory enabled'
+            }
+        },
+        'SM': {
+            'bits': 18,
+            'width': 1,
+            'desc': 'SPI slave mode select',
+            'values': {
+                0: 'Master mode',
+                1: 'Slave mode'
+            }
+        },
+        'TXSB': {
+            'bits': 17,
+            'width': 1,
+            'desc': 'SPI TX swap bytes',
+            'values': {
+                0: 'Bytes not swapped',
+                1: 'Bytes swapped'
+            }
+        },
+        'RXSB': {
+            'bits': 16,
+            'width': 1,
+            'desc': 'SPI RX swap bytes',
+            'values': {
+                0: 'Bytes not swapped',
+                1: 'Bytes swapped'
+            }
+        },
+        'BR': {
+            'bits': [8, 15],
+            'width': 8,
+            'desc': 'SPI clock baud rate (SMCLK/(2*(1+BR)))',
+            'values': None  # Numeric field, not enumerated
+        },
+        'EN': {
+            'bits': 7,
+            'width': 1,
+            'desc': 'SPI enable',
+            'values': {
+                0: 'Disabled',
+                1: 'Enabled'
+            }
+        },
+        'MSB': {
+            'bits': 6,
+            'width': 1,
+            'desc': 'Bit endianness',
+            'values': {
+                0: 'LSB-first',
+                1: 'MSB-first'
+            }
+        },
+        'TCIE': {
+            'bits': 5,
+            'width': 1,
+            'desc': 'Transmit complete interrupt enable',
+            'values': {
+                0: 'Interrupt disabled',
+                1: 'Interrupt enabled'
+            }
+        },
+        'TEIE': {
+            'bits': 4,
+            'width': 1,
+            'desc': 'Transmit empty interrupt enable',
+            'values': {
+                0: 'Interrupt disabled',
+                1: 'Interrupt enabled'
+            }
+        },
+        'DL': {
+            'bits': [2, 3],
+            'width': 2,
+            'desc': 'Data length select',
+            'values': {
+                0: '8-bit transfers',
+                1: '16-bit transfers',
+                2: '32-bit transfers',
+                3: 'Reserved'
+            }
+        },
+        'CPOL': {
+            'bits': 1,
+            'width': 1,
+            'desc': 'Clock polarity',
+            'values': {
+                0: 'SCK idles low',
+                1: 'SCK idles high'
+            }
+        },
+        'CPHA': {
+            'bits': 0,
+            'width': 1,
+            'desc': 'Clock phase',
+            'values': {
+                0: 'Sample on leading edge',
+                1: 'Sample on trailing edge'
+            }
+        },
+    },
+    
+    # UART Control Register
+    'UART_CR': {
+        'EN': {
+            'bits': 7,
+            'width': 1,
+            'desc': 'UART enable',
+            'values': {
+                0: 'Disabled',
+                1: 'Enabled'
+            }
+        },
+        'RXIE': {
+            'bits': 6,
+            'width': 1,
+            'desc': 'Receive interrupt enable',
+            'values': {
+                0: 'Interrupt disabled',
+                1: 'Interrupt enabled'
+            }
+        },
+        'TXIE': {
+            'bits': 5,
+            'width': 1,
+            'desc': 'Transmit interrupt enable',
+            'values': {
+                0: 'Interrupt disabled',
+                1: 'Interrupt enabled'
+            }
+        },
+        'SB': {
+            'bits': 2,
+            'width': 1,
+            'desc': 'Stop bits',
+            'values': {
+                0: '1 stop bit',
+                1: '2 stop bits'
+            }
+        },
+        'PEN': {
+            'bits': 1,
+            'width': 1,
+            'desc': 'Parity enable',
+            'values': {
+                0: 'Parity disabled',
+                1: 'Parity enabled'
+            }
+        },
+        'PSEL': {
+            'bits': 0,
+            'width': 1,
+            'desc': 'Parity select',
+            'values': {
+                0: 'Even parity',
+                1: 'Odd parity'
+            }
+        },
+    },
+    
+    # GPIO Control Registers
+    'GPIO_POUT': {
+        'OUT7': {'bits': 7, 'width': 1, 'desc': 'Pin 7 output', 'values': {0: 'Low', 1: 'High'}},
+        'OUT6': {'bits': 6, 'width': 1, 'desc': 'Pin 6 output', 'values': {0: 'Low', 1: 'High'}},
+        'OUT5': {'bits': 5, 'width': 1, 'desc': 'Pin 5 output', 'values': {0: 'Low', 1: 'High'}},
+        'OUT4': {'bits': 4, 'width': 1, 'desc': 'Pin 4 output', 'values': {0: 'Low', 1: 'High'}},
+        'OUT3': {'bits': 3, 'width': 1, 'desc': 'Pin 3 output', 'values': {0: 'Low', 1: 'High'}},
+        'OUT2': {'bits': 2, 'width': 1, 'desc': 'Pin 2 output', 'values': {0: 'Low', 1: 'High'}},
+        'OUT1': {'bits': 1, 'width': 1, 'desc': 'Pin 1 output', 'values': {0: 'Low', 1: 'High'}},
+        'OUT0': {'bits': 0, 'width': 1, 'desc': 'Pin 0 output', 'values': {0: 'Low', 1: 'High'}},
+    },
+    
+    'GPIO_POUTS': {
+        'SET7': {'bits': 7, 'width': 1, 'desc': 'Set pin 7 output', 'values': {0: 'No action', 1: 'Set high'}},
+        'SET6': {'bits': 6, 'width': 1, 'desc': 'Set pin 6 output', 'values': {0: 'No action', 1: 'Set high'}},
+        'SET5': {'bits': 5, 'width': 1, 'desc': 'Set pin 5 output', 'values': {0: 'No action', 1: 'Set high'}},
+        'SET4': {'bits': 4, 'width': 1, 'desc': 'Set pin 4 output', 'values': {0: 'No action', 1: 'Set high'}},
+        'SET3': {'bits': 3, 'width': 1, 'desc': 'Set pin 3 output', 'values': {0: 'No action', 1: 'Set high'}},
+        'SET2': {'bits': 2, 'width': 1, 'desc': 'Set pin 2 output', 'values': {0: 'No action', 1: 'Set high'}},
+        'SET1': {'bits': 1, 'width': 1, 'desc': 'Set pin 1 output', 'values': {0: 'No action', 1: 'Set high'}},
+        'SET0': {'bits': 0, 'width': 1, 'desc': 'Set pin 0 output', 'values': {0: 'No action', 1: 'Set high'}},
+    },
+    
+    'GPIO_POUTC': {
+        'CLR7': {'bits': 7, 'width': 1, 'desc': 'Clear pin 7 output', 'values': {0: 'No action', 1: 'Set low'}},
+        'CLR6': {'bits': 6, 'width': 1, 'desc': 'Clear pin 6 output', 'values': {0: 'No action', 1: 'Set low'}},
+        'CLR5': {'bits': 5, 'width': 1, 'desc': 'Clear pin 5 output', 'values': {0: 'No action', 1: 'Set low'}},
+        'CLR4': {'bits': 4, 'width': 1, 'desc': 'Clear pin 4 output', 'values': {0: 'No action', 1: 'Set low'}},
+        'CLR3': {'bits': 3, 'width': 1, 'desc': 'Clear pin 3 output', 'values': {0: 'No action', 1: 'Set low'}},
+        'CLR2': {'bits': 2, 'width': 1, 'desc': 'Clear pin 2 output', 'values': {0: 'No action', 1: 'Set low'}},
+        'CLR1': {'bits': 1, 'width': 1, 'desc': 'Clear pin 1 output', 'values': {0: 'No action', 1: 'Set low'}},
+        'CLR0': {'bits': 0, 'width': 1, 'desc': 'Clear pin 0 output', 'values': {0: 'No action', 1: 'Set low'}},
+    },
+    
+    'GPIO_POUTT': {
+        'TOG7': {'bits': 7, 'width': 1, 'desc': 'Toggle pin 7 output', 'values': {0: 'No action', 1: 'Toggle'}},
+        'TOG6': {'bits': 6, 'width': 1, 'desc': 'Toggle pin 6 output', 'values': {0: 'No action', 1: 'Toggle'}},
+        'TOG5': {'bits': 5, 'width': 1, 'desc': 'Toggle pin 5 output', 'values': {0: 'No action', 1: 'Toggle'}},
+        'TOG4': {'bits': 4, 'width': 1, 'desc': 'Toggle pin 4 output', 'values': {0: 'No action', 1: 'Toggle'}},
+        'TOG3': {'bits': 3, 'width': 1, 'desc': 'Toggle pin 3 output', 'values': {0: 'No action', 1: 'Toggle'}},
+        'TOG2': {'bits': 2, 'width': 1, 'desc': 'Toggle pin 2 output', 'values': {0: 'No action', 1: 'Toggle'}},
+        'TOG1': {'bits': 1, 'width': 1, 'desc': 'Toggle pin 1 output', 'values': {0: 'No action', 1: 'Toggle'}},
+        'TOG0': {'bits': 0, 'width': 1, 'desc': 'Toggle pin 0 output', 'values': {0: 'No action', 1: 'Toggle'}},
+    },
+    
+    'GPIO_PDIR': {
+        'DIR7': {'bits': 7, 'width': 1, 'desc': 'Pin 7 direction', 'values': {0: 'Input', 1: 'Output'}},
+        'DIR6': {'bits': 6, 'width': 1, 'desc': 'Pin 6 direction', 'values': {0: 'Input', 1: 'Output'}},
+        'DIR5': {'bits': 5, 'width': 1, 'desc': 'Pin 5 direction', 'values': {0: 'Input', 1: 'Output'}},
+        'DIR4': {'bits': 4, 'width': 1, 'desc': 'Pin 4 direction', 'values': {0: 'Input', 1: 'Output'}},
+        'DIR3': {'bits': 3, 'width': 1, 'desc': 'Pin 3 direction', 'values': {0: 'Input', 1: 'Output'}},
+        'DIR2': {'bits': 2, 'width': 1, 'desc': 'Pin 2 direction', 'values': {0: 'Input', 1: 'Output'}},
+        'DIR1': {'bits': 1, 'width': 1, 'desc': 'Pin 1 direction', 'values': {0: 'Input', 1: 'Output'}},
+        'DIR0': {'bits': 0, 'width': 1, 'desc': 'Pin 0 direction', 'values': {0: 'Input', 1: 'Output'}},
+    },
+    
+    'GPIO_PSEL': {
+        'SEL7': {'bits': 7, 'width': 1, 'desc': 'Pin 7 function', 'values': {0: 'GPIO', 1: 'Peripheral'}},
+        'SEL6': {'bits': 6, 'width': 1, 'desc': 'Pin 6 function', 'values': {0: 'GPIO', 1: 'Peripheral'}},
+        'SEL5': {'bits': 5, 'width': 1, 'desc': 'Pin 5 function', 'values': {0: 'GPIO', 1: 'Peripheral'}},
+        'SEL4': {'bits': 4, 'width': 1, 'desc': 'Pin 4 function', 'values': {0: 'GPIO', 1: 'Peripheral'}},
+        'SEL3': {'bits': 3, 'width': 1, 'desc': 'Pin 3 function', 'values': {0: 'GPIO', 1: 'Peripheral'}},
+        'SEL2': {'bits': 2, 'width': 1, 'desc': 'Pin 2 function', 'values': {0: 'GPIO', 1: 'Peripheral'}},
+        'SEL1': {'bits': 1, 'width': 1, 'desc': 'Pin 1 function', 'values': {0: 'GPIO', 1: 'Peripheral'}},
+        'SEL0': {'bits': 0, 'width': 1, 'desc': 'Pin 0 function', 'values': {0: 'GPIO', 1: 'Peripheral'}},
+    },
+    
+    'GPIO_PREN': {
+        'REN7': {'bits': 7, 'width': 1, 'desc': 'Pin 7 resistor', 'values': {0: 'Disabled', 1: 'Enabled'}},
+        'REN6': {'bits': 6, 'width': 1, 'desc': 'Pin 6 resistor', 'values': {0: 'Disabled', 1: 'Enabled'}},
+        'REN5': {'bits': 5, 'width': 1, 'desc': 'Pin 5 resistor', 'values': {0: 'Disabled', 1: 'Enabled'}},
+        'REN4': {'bits': 4, 'width': 1, 'desc': 'Pin 4 resistor', 'values': {0: 'Disabled', 1: 'Enabled'}},
+        'REN3': {'bits': 3, 'width': 1, 'desc': 'Pin 3 resistor', 'values': {0: 'Disabled', 1: 'Enabled'}},
+        'REN2': {'bits': 2, 'width': 1, 'desc': 'Pin 2 resistor', 'values': {0: 'Disabled', 1: 'Enabled'}},
+        'REN1': {'bits': 1, 'width': 1, 'desc': 'Pin 1 resistor', 'values': {0: 'Disabled', 1: 'Enabled'}},
+        'REN0': {'bits': 0, 'width': 1, 'desc': 'Pin 0 resistor', 'values': {0: 'Disabled', 1: 'Enabled'}},
+    },
+    
+    'GPIO_PIES': {
+        'IES7': {'bits': 7, 'width': 1, 'desc': 'Pin 7 interrupt edge', 'values': {0: 'Rising edge', 1: 'Falling edge'}},
+        'IES6': {'bits': 6, 'width': 1, 'desc': 'Pin 6 interrupt edge', 'values': {0: 'Rising edge', 1: 'Falling edge'}},
+        'IES5': {'bits': 5, 'width': 1, 'desc': 'Pin 5 interrupt edge', 'values': {0: 'Rising edge', 1: 'Falling edge'}},
+        'IES4': {'bits': 4, 'width': 1, 'desc': 'Pin 4 interrupt edge', 'values': {0: 'Rising edge', 1: 'Falling edge'}},
+        'IES3': {'bits': 3, 'width': 1, 'desc': 'Pin 3 interrupt edge', 'values': {0: 'Rising edge', 1: 'Falling edge'}},
+        'IES2': {'bits': 2, 'width': 1, 'desc': 'Pin 2 interrupt edge', 'values': {0: 'Rising edge', 1: 'Falling edge'}},
+        'IES1': {'bits': 1, 'width': 1, 'desc': 'Pin 1 interrupt edge', 'values': {0: 'Rising edge', 1: 'Falling edge'}},
+        'IES0': {'bits': 0, 'width': 1, 'desc': 'Pin 0 interrupt edge', 'values': {0: 'Rising edge', 1: 'Falling edge'}},
+    },
+    
+    'GPIO_PIE': {
+        'IE7': {'bits': 7, 'width': 1, 'desc': 'Pin 7 interrupt enable', 'values': {0: 'Disabled', 1: 'Enabled'}},
+        'IE6': {'bits': 6, 'width': 1, 'desc': 'Pin 6 interrupt enable', 'values': {0: 'Disabled', 1: 'Enabled'}},
+        'IE5': {'bits': 5, 'width': 1, 'desc': 'Pin 5 interrupt enable', 'values': {0: 'Disabled', 1: 'Enabled'}},
+        'IE4': {'bits': 4, 'width': 1, 'desc': 'Pin 4 interrupt enable', 'values': {0: 'Disabled', 1: 'Enabled'}},
+        'IE3': {'bits': 3, 'width': 1, 'desc': 'Pin 3 interrupt enable', 'values': {0: 'Disabled', 1: 'Enabled'}},
+        'IE2': {'bits': 2, 'width': 1, 'desc': 'Pin 2 interrupt enable', 'values': {0: 'Disabled', 1: 'Enabled'}},
+        'IE1': {'bits': 1, 'width': 1, 'desc': 'Pin 1 interrupt enable', 'values': {0: 'Disabled', 1: 'Enabled'}},
+        'IE0': {'bits': 0, 'width': 1, 'desc': 'Pin 0 interrupt enable', 'values': {0: 'Disabled', 1: 'Enabled'}},
+    },
+    
+    # Potentiostat and DSADC share the same control register (AFE_CR)
+    'POTENTIOSTAT_CR': {
+        'RAMPNUM': {
+            'bits': [12, 23],
+            'width': 12,
+            'desc': 'Number of DSADC ramp cycles per conversion',
+            'values': None
+        },
+        'ADCSEL': {
+            'bits': 11,
+            'width': 1,
+            'desc': 'ADC output multiplexer select',
+            'values': {
+                0: 'DSADC result',
+                1: 'SARADC result'
+            }
+        },
+        'ATPSEL': {
+            'bits': 10,
+            'width': 1,
+            'desc': 'Analog test port signal select',
+            'values': {
+                0: 'Potentiostat output',
+                1: 'DSADC output'
+            }
+        },
+        'ATPEN': {
+            'bits': 9,
+            'width': 1,
+            'desc': 'Analog test port enable',
+            'values': {
+                0: 'Disabled',
+                1: 'Enabled'
+            }
+        },
+        'ADCEXTIN': {
+            'bits': 8,
+            'width': 1,
+            'desc': 'DSADC input source select',
+            'values': {
+                0: 'External pin',
+                1: 'Potentiostat output pad'
+            }
+        },
+        'CONTMEAS': {
+            'bits': 4,
+            'width': 1,
+            'desc': 'Continuous measurement mode',
+            'values': {
+                0: 'Single conversion',
+                1: 'Continuous'
+            }
+        },
+        'DACEN': {
+            'bits': 3,
+            'width': 1,
+            'desc': 'Enable the bias DACs',
+            'values': {
+                0: 'DACs disabled',
+                1: 'DACs enabled'
+            }
+        },
+        'DATARDYIE': {
+            'bits': 2,
+            'width': 1,
+            'desc': 'Data-ready interrupt enable',
+            'values': {
+                0: 'Interrupt disabled',
+                1: 'Interrupt enabled'
+            }
+        },
+        'EN': {
+            'bits': 1,
+            'width': 1,
+            'desc': 'AFE enable',
+            'values': {
+                0: 'AFE clock disabled',
+                1: 'AFE clock enabled'
+            }
+        },
+        'ADCEN': {
+            'bits': 0,
+            'width': 1,
+            'desc': 'DSADC enable',
+            'values': {
+                0: 'Disabled',
+                1: 'Enabled'
+            }
+        },
+    },
+    
+    'DSADC_CR': {
+        'RAMPNUM': {
+            'bits': [12, 23],
+            'width': 12,
+            'desc': 'Number of DSADC ramp cycles per conversion',
+            'values': None
+        },
+        'ADCSEL': {
+            'bits': 11,
+            'width': 1,
+            'desc': 'ADC output multiplexer select',
+            'values': {
+                0: 'DSADC result',
+                1: 'SARADC result'
+            }
+        },
+        'ATPSEL': {
+            'bits': 10,
+            'width': 1,
+            'desc': 'Analog test port signal select',
+            'values': {
+                0: 'Potentiostat output',
+                1: 'DSADC output'
+            }
+        },
+        'ATPEN': {
+            'bits': 9,
+            'width': 1,
+            'desc': 'Analog test port enable',
+            'values': {
+                0: 'Disabled',
+                1: 'Enabled'
+            }
+        },
+        'ADCEXTIN': {
+            'bits': 8,
+            'width': 1,
+            'desc': 'DSADC input source select',
+            'values': {
+                0: 'External pin',
+                1: 'Potentiostat output pad'
+            }
+        },
+        'CONTMEAS': {
+            'bits': 4,
+            'width': 1,
+            'desc': 'Continuous measurement mode',
+            'values': {
+                0: 'Single conversion',
+                1: 'Continuous'
+            }
+        },
+        'DACEN': {
+            'bits': 3,
+            'width': 1,
+            'desc': 'Enable the bias DACs',
+            'values': {
+                0: 'DACs disabled',
+                1: 'DACs enabled'
+            }
+        },
+        'DATARDYIE': {
+            'bits': 2,
+            'width': 1,
+            'desc': 'Data-ready interrupt enable',
+            'values': {
+                0: 'Interrupt disabled',
+                1: 'Interrupt enabled'
+            }
+        },
+        'EN': {
+            'bits': 1,
+            'width': 1,
+            'desc': 'AFE enable',
+            'values': {
+                0: 'AFE clock disabled',
+                1: 'AFE clock enabled'
+            }
+        },
+        'ADCEN': {
+            'bits': 0,
+            'width': 1,
+            'desc': 'DSADC enable',
+            'values': {
+                0: 'Disabled',
+                1: 'Enabled'
+            }
+        },
+    },
+    
+    # AFE Control Register (legacy, kept for backwards compatibility)
+    'AFE_CR': {
+        'RAMPNUM': {
+            'bits': [12, 23],
+            'width': 12,
+            'desc': 'Number of DSADC ramp cycles per conversion',
+            'values': None
+        },
+        'ADCSEL': {
+            'bits': 11,
+            'width': 1,
+            'desc': 'ADC output multiplexer select',
+            'values': {
+                0: 'DSADC result',
+                1: 'SARADC result'
+            }
+        },
+        'ATPSEL': {
+            'bits': 10,
+            'width': 1,
+            'desc': 'Analog test port signal select',
+            'values': {
+                0: 'Potentiostat output',
+                1: 'DSADC output'
+            }
+        },
+        'ATPEN': {
+            'bits': 9,
+            'width': 1,
+            'desc': 'Analog test port enable',
+            'values': {
+                0: 'Disabled',
+                1: 'Enabled'
+            }
+        },
+        'ADCEXTIN': {
+            'bits': 8,
+            'width': 1,
+            'desc': 'DSADC input source select',
+            'values': {
+                0: 'External pin',
+                1: 'Potentiostat output pad'
+            }
+        },
+        'CONTMEAS': {
+            'bits': 4,
+            'width': 1,
+            'desc': 'Continuous measurement mode',
+            'values': {
+                0: 'Single conversion',
+                1: 'Continuous'
+            }
+        },
+        'DACEN': {
+            'bits': 3,
+            'width': 1,
+            'desc': 'Enable the bias DACs',
+            'values': {
+                0: 'DACs disabled',
+                1: 'DACs enabled'
+            }
+        },
+        'DATARDYIE': {
+            'bits': 2,
+            'width': 1,
+            'desc': 'Data-ready interrupt enable',
+            'values': {
+                0: 'Interrupt disabled',
+                1: 'Interrupt enabled'
+            }
+        },
+        'EN': {
+            'bits': 1,
+            'width': 1,
+            'desc': 'AFE enable',
+            'values': {
+                0: 'AFE clock disabled',
+                1: 'AFE clock enabled'
+            }
+        },
+        'ADCEN': {
+            'bits': 0,
+            'width': 1,
+            'desc': 'DSADC enable',
+            'values': {
+                0: 'Disabled',
+                1: 'Enabled'
+            }
+        },
+    },
+
+    # AFE Test Port Register - 4x 5-bit selectors choosing which internal signal to route to each DTP pin
+    # dtp0_sel = TPR[4:0], dtp1_sel = TPR[9:5], dtp2_sel = TPR[14:10], dtp3_sel = TPR[19:15]
+    # Each selector indexes into dtp_vect[31:0] as defined in AFE.vhd
+    'POTENTIOSTAT_TPR': {
+        'DTP0': {
+            'bits': 0,
+            'width': 5,
+            'desc': 'Digital test port 0 signal select',
+            'values': {
+                0:  'adc_active',
+                1:  'adc_data_rdy_if',
+                2:  'adc_ovf_if',
+                3:  'adc_done',
+                4:  'adc_clk',
+                5:  'adc_switch[0]',
+                6:  'adc_switch[1]',
+                7:  'adc_switch[2]',
+                8:  'adc_start',
+                9:  "GND",
+                10: "GND",
+                11: "GND",
+                12: "GND",
+                13: "GND",
+                14: "GND",
+                15: "GND",
+                16: "GND",
+                17: "GND",
+                18: "GND",
+                19: "GND",
+                20: 'DSADC_CNT[0]',
+                21: 'DSADC_CNT[1]',
+                22: 'DSADC_CNT[2]',
+                23: 'DSADC_CNT[3]',
+                24: 'DSADC_CNT[4]',
+                25: 'DSADC_CNT[5]',
+                26: 'DSADC_CNT[6]',
+                27: 'DSADC_CNT[7]',
+                28: 'DSADC_CNT[8]',
+                29: 'DSADC_CNT[9]',
+                30: 'DSADC_CNT[10]',
+                31: 'DSADC_CNT[11]',
+            }
+        },
+        'DTP1': {
+            'bits': 5,
+            'width': 5,
+            'desc': 'Digital test port 1 signal select',
+            'values': {
+                0:  'adc_active',
+                1:  'adc_data_rdy_if',
+                2:  'adc_ovf_if',
+                3:  'adc_done',
+                4:  'adc_clk',
+                5:  'adc_switch[0]',
+                6:  'adc_switch[1]',
+                7:  'adc_switch[2]',
+                8:  'adc_start',
+                9:  "GND",
+                10: "GND",
+                11: "GND",
+                12: "GND",
+                13: "GND",
+                14: "GND",
+                15: "GND",
+                16: "GND",
+                17: "GND",
+                18: "GND",
+                19: "GND",
+                20: 'DSADC_CNT[0]',
+                21: 'DSADC_CNT[1]',
+                22: 'DSADC_CNT[2]',
+                23: 'DSADC_CNT[3]',
+                24: 'DSADC_CNT[4]',
+                25: 'DSADC_CNT[5]',
+                26: 'DSADC_CNT[6]',
+                27: 'DSADC_CNT[7]',
+                28: 'DSADC_CNT[8]',
+                29: 'DSADC_CNT[9]',
+                30: 'DSADC_CNT[10]',
+                31: 'DSADC_CNT[11]',
+            }
+        },
+        'DTP2': {
+            'bits': 10,
+            'width': 5,
+            'desc': 'Digital test port 2 signal select',
+            'values': {
+                0:  'adc_active',
+                1:  'adc_data_rdy_if',
+                2:  'adc_ovf_if',
+                3:  'adc_done',
+                4:  'adc_clk',
+                5:  'adc_switch[0]',
+                6:  'adc_switch[1]',
+                7:  'adc_switch[2]',
+                8:  'adc_start',
+                9:  "GND",
+                10: "GND",
+                11: "GND",
+                12: "GND",
+                13: "GND",
+                14: "GND",
+                15: "GND",
+                16: "GND",
+                17: "GND",
+                18: "GND",
+                19: "GND",
+                20: 'DSADC_CNT[0]',
+                21: 'DSADC_CNT[1]',
+                22: 'DSADC_CNT[2]',
+                23: 'DSADC_CNT[3]',
+                24: 'DSADC_CNT[4]',
+                25: 'DSADC_CNT[5]',
+                26: 'DSADC_CNT[6]',
+                27: 'DSADC_CNT[7]',
+                28: 'DSADC_CNT[8]',
+                29: 'DSADC_CNT[9]',
+                30: 'DSADC_CNT[10]',
+                31: 'DSADC_CNT[11]',
+            }
+        },
+        'DTP3': {
+            'bits': 15,
+            'width': 5,
+            'desc': 'Digital test port 3 signal select',
+            'values': {
+                0:  'adc_active',
+                1:  'adc_data_rdy_if',
+                2:  'adc_ovf_if',
+                3:  'adc_done',
+                4:  'adc_clk',
+                5:  'adc_switch[0]',
+                6:  'adc_switch[1]',
+                7:  'adc_switch[2]',
+                8:  'adc_start',
+                9:  "GND",
+                10: "GND",
+                11: "GND",
+                12: "GND",
+                13: "GND",
+                14: "GND",
+                15: "GND",
+                16: "GND",
+                17: "GND",
+                18: "GND",
+                19: "GND",
+                20: 'DSADC_CNT[0]',
+                21: 'DSADC_CNT[1]',
+                22: 'DSADC_CNT[2]',
+                23: 'DSADC_CNT[3]',
+                24: 'DSADC_CNT[4]',
+                25: 'DSADC_CNT[5]',
+                26: 'DSADC_CNT[6]',
+                27: 'DSADC_CNT[7]',
+                28: 'DSADC_CNT[8]',
+                29: 'DSADC_CNT[9]',
+                30: 'DSADC_CNT[10]',
+                31: 'DSADC_CNT[11]',
+            }
+        },
+    },
+
+    'POTENTIOSTAT_BIAS_CR': {
+        'USEDAC': {
+            'bits': 4,
+            'width': 1,
+            'desc': 'Bias source select',
+            'values': {
+                0: 'Internal bias generator',
+                1: 'Bias DACs'
+            }
+        },
+        'BUFEN': {
+            'bits': 3,
+            'width': 1,
+            'desc': 'Bias voltage buffer enable',
+            'values': {
+                0: 'Buffers disabled',
+                1: 'Buffers enabled'
+            }
+        },
+        'EN': {
+            'bits': 2,
+            'width': 1,
+            'desc': 'Internal bias generator enable',
+            'values': {
+                0: 'Generator disabled',
+                1: 'Generator enabled'
+            }
+        },
+    },
+    
+    # Legacy AFE_BIAS_CR for backwards compatibility
+    'AFE_BIAS_CR': {
+        'USEDAC': {
+            'bits': 4,
+            'width': 1,
+            'desc': 'Bias source select',
+            'values': {
+                0: 'Internal bias generator',
+                1: 'Bias DACs'
+            }
+        },
+        'BUFEN': {
+            'bits': 3,
+            'width': 1,
+            'desc': 'Bias voltage buffer enable',
+            'values': {
+                0: 'Buffers disabled',
+                1: 'Buffers enabled'
+            }
+        },
+        'EN': {
+            'bits': 2,
+            'width': 1,
+            'desc': 'Internal bias generator enable',
+            'values': {
+                0: 'Generator disabled',
+                1: 'Generator enabled'
+            }
+        },
+    },
+    
+    # SARADC Status Register
+    # Based on SARADC.vhd - 4 bits total (bits 0-3)
+    # Bits 1-2 are write-1-to-clear
+    'SARADC_SR': {
+        'ADC_READY': {
+            'bits': 3,
+            'width': 1,
+            'desc': 'ADC ready status (read-only)',
+            'values': {
+                0: 'Not ready',
+                1: 'Ready'
+            }
+        },
+        'OVF_IF': {
+            'bits': 2,
+            'width': 1,
+            'desc': 'ADC overflow interrupt flag (write 1 to clear)',
+            'values': {
+                0: 'No overflow',
+                1: 'Overflow occurred'
+            }
+        },
+        'DATA_VALID': {
+            'bits': 1,
+            'width': 1,
+            'desc': 'ADC data valid flag (write 1 to clear)',
+            'values': {
+                0: 'No new data',
+                1: 'New data available'
+            }
+        },
+        'CONV_BUSY': {
+            'bits': 0,
+            'width': 1,
+            'desc': 'Conversion busy status (read-only)',
+            'values': {
+                0: 'Idle',
+                1: 'Conversion in progress'
+            }
+        },
+    },
+
+    # SARADC Control Register
+    # Based on SARADC.vhd - 9 bits total (bits 0-8)
+    'SARADC_CR': {
+        'CONTMEAS': {
+            'bits': 8,
+            'width': 1,
+            'desc': 'Continuous measurement mode',
+            'values': {
+                0: 'Single conversion',
+                1: 'Continuous conversion'
+            }
+        },
+        'DATAIE': {
+            'bits': 7,
+            'width': 1,
+            'desc': 'ADC data valid interrupt enable',
+            'values': {
+                0: 'Interrupt disabled',
+                1: 'Interrupt enabled'
+            }
+        },
+        'DEBUG': {
+            'bits': 6,
+            'width': 1,
+            'desc': 'Debug mode enable',
+            'values': {
+                0: 'Normal mode',
+                1: 'Debug mode'
+            }
+        },
+        'EN': {
+            'bits': 5,
+            'width': 1,
+            'desc': 'SARADC enable',
+            'values': {
+                0: 'Disabled',
+                1: 'Enabled'
+            }
+        },
+        'SAMPLESTEP': {
+            'bits': [1, 4],
+            'width': 4,
+            'desc': 'Sample step counter initial value (0-15)',
+            'values': None
+        },
+        'RESET': {
+            'bits': 0,
+            'width': 1,
+            'desc': 'ADC reset',
+            'values': {
+                0: 'Normal operation',
+                1: 'Reset ADC'
+            }
+        },
+    },
+
+    # AFE Status Register
+    # Based on AFE.vhd - 4 bits total (bits 0-3)
+    # Bit 3 is reserved (always reads 0).
+    # Bits 1 (ADC_DATA_RDY_IF) and 2 (ADC_OVF_IF) are sticky interrupt flags
+    # that get cleared by writing 1 to the corresponding bit in AFE_SR_CLR.
+    # The same physical AFE peripheral is exposed in peripherals_config.py
+    # under two logical names (POTENTIOSTAT and DSADC), so we register the
+    # bitfields under both keys via assignment after the dict.
+    'POTENTIOSTAT_SR': {
+        'RESERVED': {
+            'bits': 3,
+            'width': 1,
+            'desc': 'Reserved (always 0)',
+            'values': {
+                0: 'Reserved',
+                1: 'Reserved'
+            }
+        },
+        'ADC_OVF_IF': {
+            'bits': 2,
+            'width': 1,
+            'desc': 'ADC overflow interrupt flag - AFE_ADC_VAL was overwritten before being read (write 1 to clear)',
+            'values': {
+                0: 'No overflow',
+                1: 'Overflow occurred'
+            }
+        },
+        'ADC_DATA_RDY_IF': {
+            'bits': 1,
+            'width': 1,
+            'desc': 'ADC data ready interrupt flag - new conversion result available in AFE_ADC_VAL (write 1 to clear)',
+            'values': {
+                0: 'No new data',
+                1: 'New data available'
+            }
+        },
+        'ADC_ACTIVE': {
+            'bits': 0,
+            'width': 1,
+            'desc': 'ADC active status (read-only) - high while a conversion is in progress',
+            'values': {
+                0: 'Idle',
+                1: 'Conversion in progress'
+            }
+        },
+    },
+}
+
+# DSADC and POTENTIOSTAT are two logical views of the same AFE peripheral, so
+# they share the same status-register bitfield layout.
+BITFIELDS['DSADC_SR'] = BITFIELDS['POTENTIOSTAT_SR']
+
+
+def get_bitfields(peripheral, register):
+    """The bitfield definitions of one peripheral register, or None if not found."""
+    # Create a generic register name (remove instance number)
+    generic_peripheral = peripheral.rstrip('0123456789')
+    key = f"{generic_peripheral}_{register}"
+    
+    return BITFIELDS.get(key)
+
+
+def extract_bitfield(reg_value, bitfield_info):
+    """Extract a bitfield value from a full register value, given a bitfield info dict."""
+    bits = bitfield_info['bits']
+    width = bitfield_info['width']
+    
+    if isinstance(bits, list):
+        # Multi-bit field: [start_bit, end_bit]
+        start_bit = bits[0]
+        mask = (1 << width) - 1
+        return (reg_value >> start_bit) & mask
+    else:
+        # Scalar LSB position, width may be > 1
+        mask = (1 << width) - 1
+        return (reg_value >> bits) & mask
+
+
+def insert_bitfield(reg_value, bitfield_info, field_value):
+    """Insert a bitfield value into a register value, given a bitfield info dict."""
+    bits = bitfield_info['bits']
+    width = bitfield_info['width']
+    
+    if isinstance(bits, list):
+        # Multi-bit field
+        start_bit = bits[0]
+        mask = (1 << width) - 1
+        # Clear the field
+        reg_value &= ~(mask << start_bit)
+        # Set the new value
+        reg_value |= (field_value & mask) << start_bit
+    else:
+        # Scalar LSB position, width may be > 1
+        mask = (1 << width) - 1
+        reg_value &= ~(mask << bits)
+        reg_value |= (field_value & mask) << bits
+    
+    return reg_value
