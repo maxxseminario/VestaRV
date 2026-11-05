@@ -6,6 +6,7 @@ Loads the checked-in data/registers.json and independently loads the v1 source d
 cross-check the generator reproduced them, and regenerates to prove it is deterministic.
 """
 
+import importlib.util
 import json
 import os
 import subprocess
@@ -21,6 +22,16 @@ DATA_DIR = os.path.join(_ROOT, "data")
 JSON_PATH = os.path.join(DATA_DIR, "registers.json")
 GEN_PATH = os.path.join(DATA_DIR, "gen_registers.py")
 V1_DIR = os.path.abspath(os.path.join(_ROOT, "..", "forth_dashboard"))
+
+
+def _load_generator():
+    spec = importlib.util.spec_from_file_location("gen_registers", GEN_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+GEN = _load_generator()
 
 
 # Fixtures
@@ -153,14 +164,15 @@ def test_matches_v1_peripherals_and_registers(doc, v1):
     for pname, pdef in peripherals.items():
         got = doc["peripherals"][pname]
         assert got["base_addr"] == pdef["base_addr"]
-        assert got["description"] == pdef["description"]
+        assert got["description"] == GEN.PERIPHERAL_DESCRIPTIONS.get(pname, pdef["description"])
         assert set(got["registers"]) == set(pdef["registers"])
         for rname, rdef in pdef["registers"].items():
             g = got["registers"][rname]
-            assert g["addr"] == rdef["addr"]
+            assert g["addr"] == GEN.register_address(pname, rname, pdef)
             assert g["size"] == rdef["size"]
             assert g["type"] == rdef["type"]
-            assert g["description"] == rdef["description"]
+            correction = GEN.REGISTER_CORRECTIONS.get((pname, rname), {})
+            assert g["description"] == correction.get("description", rdef["description"])
 
 
 def test_field_resolution_matches_v1_mapping(doc, v1):
@@ -169,7 +181,10 @@ def test_field_resolution_matches_v1_mapping(doc, v1):
     for pname, pdef in peripherals.items():
         generic = pname.rstrip("0123456789")
         for rname in pdef["registers"]:
-            block = bitfields.get("%s_%s" % (generic, rname))
+            correction = GEN.REGISTER_CORRECTIONS.get((pname, rname), {})
+            key = "POTENTIOSTAT_TPR" if (pname, rname) == ("DSADC", "TPR") \
+                else "%s_%s" % (generic, rname)
+            block = correction.get("fields") or bitfields.get(key)
             got_fields = doc["peripherals"][pname]["registers"][rname]["fields"]
             if not block:
                 assert got_fields == {}, "%s.%s should have no fields" % (pname, rname)
@@ -182,10 +197,34 @@ def test_field_resolution_matches_v1_mapping(doc, v1):
                 assert g["lsb"] == expect_lsb
                 assert g["width"] == finfo["width"]
                 assert g["desc"] == finfo["desc"]
-                if finfo["values"] is None:
+                if finfo.get("values") is None:
                     assert g["values"] is None
                 else:
                     assert g["values"] == {str(k): v for k, v in finfo["values"].items()}
+
+
+@pytest.mark.parametrize("port", ["GPIO0", "GPIO1", "GPIO2", "GPIO3"])
+def test_gpio_offsets_match_memory_map(doc, port):
+    periph = doc["peripherals"][port]
+    offsets = {name: reg["addr"] - periph["base_addr"] for name, reg in periph["registers"].items()}
+    assert offsets == {"PIN": 0x00, "POUT": 0x04, "POUTS": 0x08, "POUTC": 0x0C, "POUTT": 0x10,
+                       "PDIR": 0x14, "PIF": 0x18, "PIES": 0x1C, "PIE": 0x20, "PSEL": 0x24,
+                       "PREN": 0x28}
+
+
+def test_watchdog_offsets_match_memory_map(doc):
+    periph = doc["peripherals"]["SYSTEM"]
+    offsets = {name: periph["registers"][name]["addr"] - periph["base_addr"]
+               for name in ("WDTPASS", "WDTCR", "WDTSR", "WDTVAL")}
+    assert offsets == {"WDTPASS": 0x30, "WDTCR": 0x34, "WDTSR": 0x38, "WDTVAL": 0x3C}
+
+
+def test_tia_gain_matches_the_netlist(doc):
+    """Bit 16 is the 1 Mohm short and bits 0-15 the 60 kohm shorts; reset is all ones."""
+    reg = doc["peripherals"]["POTENTIOSTAT"]["registers"]["BIAS_TIA_G_POT"]
+    assert reg["reset"] == 0x1FFFF
+    assert (reg["fields"]["R1M_SHORT"]["lsb"], reg["fields"]["R1M_SHORT"]["width"]) == (16, 1)
+    assert (reg["fields"]["R60K_SHORT"]["lsb"], reg["fields"]["R60K_SHORT"]["width"]) == (0, 16)
 
 
 # Determinism

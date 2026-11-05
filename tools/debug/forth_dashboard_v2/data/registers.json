@@ -3,43 +3,47 @@
   "chip": "myshkin",
   "peripherals": {
     "DSADC": {
-      "description": "Delta-Sigma ADC",
+      "description": "Dual-slope ADC",
       "base_addr": 19456,
       "registers": {
         "ADC_VAL": {
           "addr": 19468,
           "size": 2,
           "type": "DATA",
-          "description": "DSADC result register",
+          "description": "12-bit conversion result; a write starts a conversion when ADCEN is set",
           "fields": {}
         },
         "BIAS_LC_DSADC": {
           "addr": 19520,
           "size": 1,
           "type": "BIAS",
-          "description": "Bias LC DSADC register",
-          "fields": {}
+          "description": "Integrator op-amp LC resistor trim",
+          "fields": {},
+          "reset": 40
         },
         "BIAS_RFB_DSADC": {
           "addr": 19528,
           "size": 1,
           "type": "BIAS",
-          "description": "Bias RFB DSADC register",
-          "fields": {}
+          "description": "Resistor in series with the integrator cap; each set bit shorts a segment",
+          "fields": {},
+          "reset": 47
         },
         "BIAS_RIN_DSADC": {
           "addr": 19524,
           "size": 1,
           "type": "BIAS",
-          "description": "Bias RIN DSADC register",
-          "fields": {}
+          "description": "Integrator input resistor; each set bit shorts a segment",
+          "fields": {},
+          "reset": 35
         },
         "BIAS_TC_DSADC": {
           "addr": 19516,
           "size": 1,
           "type": "BIAS",
-          "description": "Bias TC DSADC register",
-          "fields": {}
+          "description": "Integrator op-amp bias current",
+          "fields": {},
+          "reset": 48
         },
         "CR": {
           "addr": 19456,
@@ -185,7 +189,164 @@
           "size": 4,
           "type": "CONTROL",
           "description": "AFE test port register",
-          "fields": {}
+          "fields": {
+            "DTP0": {
+              "lsb": 0,
+              "width": 5,
+              "desc": "Digital test port 0 signal select",
+              "values": {
+                "0": "adc_active",
+                "1": "adc_data_rdy_if",
+                "2": "adc_ovf_if",
+                "3": "adc_done",
+                "4": "adc_clk",
+                "5": "adc_switch[0]",
+                "6": "adc_switch[1]",
+                "7": "adc_switch[2]",
+                "8": "adc_start",
+                "9": "GND",
+                "10": "GND",
+                "11": "GND",
+                "12": "GND",
+                "13": "GND",
+                "14": "GND",
+                "15": "GND",
+                "16": "GND",
+                "17": "GND",
+                "18": "GND",
+                "19": "GND",
+                "20": "DSADC_CNT[0]",
+                "21": "DSADC_CNT[1]",
+                "22": "DSADC_CNT[2]",
+                "23": "DSADC_CNT[3]",
+                "24": "DSADC_CNT[4]",
+                "25": "DSADC_CNT[5]",
+                "26": "DSADC_CNT[6]",
+                "27": "DSADC_CNT[7]",
+                "28": "DSADC_CNT[8]",
+                "29": "DSADC_CNT[9]",
+                "30": "DSADC_CNT[10]",
+                "31": "DSADC_CNT[11]"
+              }
+            },
+            "DTP1": {
+              "lsb": 5,
+              "width": 5,
+              "desc": "Digital test port 1 signal select",
+              "values": {
+                "0": "adc_active",
+                "1": "adc_data_rdy_if",
+                "2": "adc_ovf_if",
+                "3": "adc_done",
+                "4": "adc_clk",
+                "5": "adc_switch[0]",
+                "6": "adc_switch[1]",
+                "7": "adc_switch[2]",
+                "8": "adc_start",
+                "9": "GND",
+                "10": "GND",
+                "11": "GND",
+                "12": "GND",
+                "13": "GND",
+                "14": "GND",
+                "15": "GND",
+                "16": "GND",
+                "17": "GND",
+                "18": "GND",
+                "19": "GND",
+                "20": "DSADC_CNT[0]",
+                "21": "DSADC_CNT[1]",
+                "22": "DSADC_CNT[2]",
+                "23": "DSADC_CNT[3]",
+                "24": "DSADC_CNT[4]",
+                "25": "DSADC_CNT[5]",
+                "26": "DSADC_CNT[6]",
+                "27": "DSADC_CNT[7]",
+                "28": "DSADC_CNT[8]",
+                "29": "DSADC_CNT[9]",
+                "30": "DSADC_CNT[10]",
+                "31": "DSADC_CNT[11]"
+              }
+            },
+            "DTP2": {
+              "lsb": 10,
+              "width": 5,
+              "desc": "Digital test port 2 signal select",
+              "values": {
+                "0": "adc_active",
+                "1": "adc_data_rdy_if",
+                "2": "adc_ovf_if",
+                "3": "adc_done",
+                "4": "adc_clk",
+                "5": "adc_switch[0]",
+                "6": "adc_switch[1]",
+                "7": "adc_switch[2]",
+                "8": "adc_start",
+                "9": "GND",
+                "10": "GND",
+                "11": "GND",
+                "12": "GND",
+                "13": "GND",
+                "14": "GND",
+                "15": "GND",
+                "16": "GND",
+                "17": "GND",
+                "18": "GND",
+                "19": "GND",
+                "20": "DSADC_CNT[0]",
+                "21": "DSADC_CNT[1]",
+                "22": "DSADC_CNT[2]",
+                "23": "DSADC_CNT[3]",
+                "24": "DSADC_CNT[4]",
+                "25": "DSADC_CNT[5]",
+                "26": "DSADC_CNT[6]",
+                "27": "DSADC_CNT[7]",
+                "28": "DSADC_CNT[8]",
+                "29": "DSADC_CNT[9]",
+                "30": "DSADC_CNT[10]",
+                "31": "DSADC_CNT[11]"
+              }
+            },
+            "DTP3": {
+              "lsb": 15,
+              "width": 5,
+              "desc": "Digital test port 3 signal select",
+              "values": {
+                "0": "adc_active",
+                "1": "adc_data_rdy_if",
+                "2": "adc_ovf_if",
+                "3": "adc_done",
+                "4": "adc_clk",
+                "5": "adc_switch[0]",
+                "6": "adc_switch[1]",
+                "7": "adc_switch[2]",
+                "8": "adc_start",
+                "9": "GND",
+                "10": "GND",
+                "11": "GND",
+                "12": "GND",
+                "13": "GND",
+                "14": "GND",
+                "15": "GND",
+                "16": "GND",
+                "17": "GND",
+                "18": "GND",
+                "19": "GND",
+                "20": "DSADC_CNT[0]",
+                "21": "DSADC_CNT[1]",
+                "22": "DSADC_CNT[2]",
+                "23": "DSADC_CNT[3]",
+                "24": "DSADC_CNT[4]",
+                "25": "DSADC_CNT[5]",
+                "26": "DSADC_CNT[6]",
+                "27": "DSADC_CNT[7]",
+                "28": "DSADC_CNT[8]",
+                "29": "DSADC_CNT[9]",
+                "30": "DSADC_CNT[10]",
+                "31": "DSADC_CNT[11]"
+              }
+            }
+          }
         }
       }
     },
@@ -274,7 +435,7 @@
           }
         },
         "PIE": {
-          "addr": 16424,
+          "addr": 16416,
           "size": 1,
           "type": "CONTROL",
           "description": "GPIO interrupt enable register",
@@ -354,7 +515,7 @@
           }
         },
         "PIES": {
-          "addr": 16420,
+          "addr": 16412,
           "size": 1,
           "type": "CONTROL",
           "description": "GPIO interrupt edge select register",
@@ -434,7 +595,7 @@
           }
         },
         "PIF": {
-          "addr": 16416,
+          "addr": 16408,
           "size": 1,
           "type": "STATUS",
           "description": "GPIO interrupt flag register",
@@ -768,7 +929,7 @@
           }
         },
         "PREN": {
-          "addr": 16408,
+          "addr": 16424,
           "size": 1,
           "type": "CONTROL",
           "description": "GPIO resistor enable register",
@@ -848,7 +1009,7 @@
           }
         },
         "PSEL": {
-          "addr": 16412,
+          "addr": 16420,
           "size": 1,
           "type": "CONTROL",
           "description": "GPIO peripheral select register",
@@ -1014,7 +1175,7 @@
           }
         },
         "PIE": {
-          "addr": 16680,
+          "addr": 16672,
           "size": 1,
           "type": "CONTROL",
           "description": "GPIO interrupt enable register",
@@ -1094,7 +1255,7 @@
           }
         },
         "PIES": {
-          "addr": 16676,
+          "addr": 16668,
           "size": 1,
           "type": "CONTROL",
           "description": "GPIO interrupt edge select register",
@@ -1174,7 +1335,7 @@
           }
         },
         "PIF": {
-          "addr": 16672,
+          "addr": 16664,
           "size": 1,
           "type": "STATUS",
           "description": "GPIO interrupt flag register",
@@ -1508,7 +1669,7 @@
           }
         },
         "PREN": {
-          "addr": 16664,
+          "addr": 16680,
           "size": 1,
           "type": "CONTROL",
           "description": "GPIO resistor enable register",
@@ -1588,7 +1749,7 @@
           }
         },
         "PSEL": {
-          "addr": 16668,
+          "addr": 16676,
           "size": 1,
           "type": "CONTROL",
           "description": "GPIO peripheral select register",
@@ -1754,7 +1915,7 @@
           }
         },
         "PIE": {
-          "addr": 18472,
+          "addr": 18464,
           "size": 1,
           "type": "CONTROL",
           "description": "GPIO interrupt enable register",
@@ -1834,7 +1995,7 @@
           }
         },
         "PIES": {
-          "addr": 18468,
+          "addr": 18460,
           "size": 1,
           "type": "CONTROL",
           "description": "GPIO interrupt edge select register",
@@ -1914,7 +2075,7 @@
           }
         },
         "PIF": {
-          "addr": 18464,
+          "addr": 18456,
           "size": 1,
           "type": "STATUS",
           "description": "GPIO interrupt flag register",
@@ -2248,7 +2409,7 @@
           }
         },
         "PREN": {
-          "addr": 18456,
+          "addr": 18472,
           "size": 1,
           "type": "CONTROL",
           "description": "GPIO resistor enable register",
@@ -2328,7 +2489,7 @@
           }
         },
         "PSEL": {
-          "addr": 18460,
+          "addr": 18468,
           "size": 1,
           "type": "CONTROL",
           "description": "GPIO peripheral select register",
@@ -2494,7 +2655,7 @@
           }
         },
         "PIE": {
-          "addr": 19752,
+          "addr": 19744,
           "size": 1,
           "type": "CONTROL",
           "description": "GPIO interrupt enable register",
@@ -2574,7 +2735,7 @@
           }
         },
         "PIES": {
-          "addr": 19748,
+          "addr": 19740,
           "size": 1,
           "type": "CONTROL",
           "description": "GPIO interrupt edge select register",
@@ -2654,7 +2815,7 @@
           }
         },
         "PIF": {
-          "addr": 19744,
+          "addr": 19736,
           "size": 1,
           "type": "STATUS",
           "description": "GPIO interrupt flag register",
@@ -2988,7 +3149,7 @@
           }
         },
         "PREN": {
-          "addr": 19736,
+          "addr": 19752,
           "size": 1,
           "type": "CONTROL",
           "description": "GPIO resistor enable register",
@@ -3068,7 +3229,7 @@
           }
         },
         "PSEL": {
-          "addr": 19740,
+          "addr": 19748,
           "size": 1,
           "type": "CONTROL",
           "description": "GPIO peripheral select register",
@@ -3399,8 +3560,9 @@
           "addr": 19508,
           "size": 2,
           "type": "BIAS",
-          "description": "Bias DSADC VCM register",
-          "fields": {}
+          "description": "VCM DAC code, shared by the dual-slope ADC and the potentiostat",
+          "fields": {},
+          "reset": 8192
         },
         "BIAS_LC_POT": {
           "addr": 19500,
@@ -3427,8 +3589,25 @@
           "addr": 19504,
           "size": 4,
           "type": "BIAS",
-          "description": "Bias TIA gain potentiostat register",
-          "fields": {}
+          "description": "TIA feedback resistor string: 1 Mohm in series with 16 x 60 kohm",
+          "fields": {
+            "R1M_SHORT": {
+              "lsb": 16,
+              "width": 1,
+              "desc": "1 Mohm resistor",
+              "values": {
+                "0": "In circuit",
+                "1": "Shorted"
+              }
+            },
+            "R60K_SHORT": {
+              "lsb": 0,
+              "width": 16,
+              "desc": "Each set bit shorts one 60 kohm resistor",
+              "values": null
+            }
+          },
+          "reset": 131071
         },
         "CR": {
           "addr": 19456,
@@ -4259,21 +4438,21 @@
           "fields": {}
         },
         "WDTCR": {
-          "addr": 18736,
+          "addr": 18740,
           "size": 1,
           "type": "CONTROL",
           "description": "Watchdog timer control register",
           "fields": {}
         },
         "WDTPASS": {
-          "addr": 18744,
+          "addr": 18736,
           "size": 4,
           "type": "CONFIG",
           "description": "Watchdog timer password register",
           "fields": {}
         },
         "WDTSR": {
-          "addr": 18740,
+          "addr": 18744,
           "size": 1,
           "type": "STATUS",
           "description": "Watchdog timer status register",

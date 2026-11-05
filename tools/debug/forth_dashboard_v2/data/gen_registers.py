@@ -25,6 +25,53 @@ GENERATED_FROM = (
 CHIP = "myshkin"
 
 
+# Corrections from the fabricated design, applied over v1's data. Field dicts use v1's form.
+_AFE_TPR_FIELDS = "POTENTIOSTAT_TPR"
+PERIPHERAL_DESCRIPTIONS = {"DSADC": "Dual-slope ADC"}
+# Register offsets v1 has wrong, from MemoryMap.vhd. Keyed by peripheral with digits stripped.
+OFFSET_CORRECTIONS = {
+    ("GPIO", "PIF"): 0x18, ("GPIO", "PIES"): 0x1C, ("GPIO", "PIE"): 0x20,
+    ("GPIO", "PSEL"): 0x24, ("GPIO", "PREN"): 0x28,
+    ("SYSTEM", "WDTPASS"): 0x30, ("SYSTEM", "WDTCR"): 0x34, ("SYSTEM", "WDTSR"): 0x38,
+}
+REGISTER_CORRECTIONS = {
+    ("DSADC", "ADC_VAL"): {
+        "description": "12-bit conversion result; a write starts a conversion when ADCEN is set",
+    },
+    ("DSADC", "BIAS_TC_DSADC"): {
+        "description": "Integrator op-amp bias current", "reset": 0x30,
+    },
+    ("DSADC", "BIAS_LC_DSADC"): {
+        "description": "Integrator op-amp LC resistor trim", "reset": 0x28,
+    },
+    ("DSADC", "BIAS_RIN_DSADC"): {
+        "description": "Integrator input resistor; each set bit shorts a segment", "reset": 0x23,
+    },
+    ("DSADC", "BIAS_RFB_DSADC"): {
+        "description": "Resistor in series with the integrator cap; each set bit shorts a segment",
+        "reset": 0x2F,
+    },
+    ("POTENTIOSTAT", "BIAS_DSADC_VCM"): {
+        "description": "VCM DAC code, shared by the dual-slope ADC and the potentiostat",
+        "reset": 0x2000,
+    },
+    ("POTENTIOSTAT", "BIAS_TIA_G_POT"): {
+        "description": "TIA feedback resistor string: 1 Mohm in series with 16 x 60 kohm",
+        "reset": 0x1FFFF,
+        "fields": {
+            "R60K_SHORT": {
+                "bits": [0, 15], "width": 16,
+                "desc": "Each set bit shorts one 60 kohm resistor",
+            },
+            "R1M_SHORT": {
+                "bits": 16, "width": 1, "desc": "1 Mohm resistor",
+                "values": {0: "In circuit", 1: "Shorted"},
+            },
+        },
+    },
+}
+
+
 def load_v1() -> "tuple[Dict[str, Any], Dict[str, Any]]":
     """Import the v1 PERIPHERALS and BITFIELDS dicts (no data is copied)."""
     if V1_DIR not in sys.path:
@@ -63,6 +110,14 @@ def normalize_field(info: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def register_address(peripheral: str, register: str, pdef: Dict[str, Any]) -> int:
+    """Return a register's address, applying any offset correction."""
+    offset = OFFSET_CORRECTIONS.get((peripheral.rstrip("0123456789"), register))
+    if offset is None:
+        return pdef["registers"][register]["addr"]
+    return pdef["base_addr"] + offset
+
+
 def build_registers(
     peripherals: Dict[str, Any], bitfields: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -73,20 +128,24 @@ def build_registers(
         out_regs: Dict[str, Any] = {}
         for rname in sorted(pdef["registers"]):
             rdef = pdef["registers"][rname]
-            block = bitfields.get(bitfield_key(pname, rname))
+            correction = REGISTER_CORRECTIONS.get((pname, rname), {})
+            key = _AFE_TPR_FIELDS if (pname, rname) == ("DSADC", "TPR") else bitfield_key(pname, rname)
+            block = correction.get("fields") or bitfields.get(key)
             if block:
                 fields = {fn: normalize_field(block[fn]) for fn in sorted(block)}
             else:
                 fields = {}
             out_regs[rname] = {
-                "addr": rdef["addr"],
+                "addr": register_address(pname, rname, pdef),
                 "size": rdef["size"],
                 "type": rdef["type"],
-                "description": rdef["description"],
+                "description": correction.get("description", rdef["description"]),
                 "fields": fields,
             }
+            if "reset" in correction:
+                out_regs[rname]["reset"] = correction["reset"]
         out_periphs[pname] = {
-            "description": pdef["description"],
+            "description": PERIPHERAL_DESCRIPTIONS.get(pname, pdef["description"]),
             "base_addr": pdef["base_addr"],
             "registers": out_regs,
         }

@@ -96,7 +96,7 @@ class CodeRunner {
         const res = await api.post('/api/memory/write', {
           addr: (this.loadAddr + i * 4) >>> 0, words: slice, verify: true,
         });
-        if (res && res.verified === false) mismatch = true;
+        if (res && res.mismatches && res.mismatches.length) mismatch = true;
         written += slice.length;
         this._setProgress(written / total);
         this.writeMsg.textContent = `${written}/${total} words`;

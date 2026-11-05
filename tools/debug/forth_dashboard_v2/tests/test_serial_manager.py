@@ -318,3 +318,56 @@ def test_retry_resyncs_and_parses_after_stale_bytes():
     assert transport.saw_resync is True        # the resync '\n' ran before retry
     assert mgr.state == ConnectionState.IDLE
     mgr.stop()
+
+
+# ROM behaviour the framing and bulk paths depend on
+
+def _commands(manager):
+    sent = []
+    manager.add_listener(lambda e: sent.append(e["data"]) if e["type"] == "tx" else None)
+    return sent
+
+
+def test_prompt_character_in_output_does_not_end_the_frame(manager):
+    assert ">" in manager.submit("list").result(timeout=3)
+    assert manager.submit("1 2 + .").result(timeout=3).strip() == "3"
+
+
+def test_me_is_not_a_rom_word(manager):
+    assert "?" in manager.submit("4 0x10000 me").result(timeout=3)
+
+
+def test_bulk_write_uses_mw_and_lands_in_little_endian_order(manager):
+    sent = _commands(manager)
+    words = [0x11223344, 0x0A0D3E24, 0xFFFFFFFF, 0]
+    res = memops.write_memory(manager, 0x10040, words)
+    assert res == {"written": 4, "verified": 4, "mismatches": []}
+    assert any(cmd.endswith(" mw") for cmd in sent)
+    for index, word in enumerate(words):
+        rx = manager.submit(forth.build_read_hex(0x10040 + 4 * index)).result(timeout=3)
+        assert forth.parse_hex_word(rx) == word
+
+
+def test_peripheral_block_never_uses_mw(manager):
+    sent = _commands(manager)
+    res = memops.write_memory(manager, 0x4C00, [1, 2, 3, 4])
+    assert res["verified"] == 4
+    assert not any(cmd.endswith(" mw") for cmd in sent)
+
+
+def test_short_write_uses_store(manager):
+    sent = _commands(manager)
+    memops.write_memory(manager, 0x10050, [7])
+    assert not any(cmd.endswith(" mw") for cmd in sent)
+
+
+def test_erase_handles_an_unaligned_range(manager):
+    manager.submit(forth.build_write(0x10060, 0xAABBCCDD)).result(timeout=3)
+    memops.erase_memory(manager, 0x10061, 2)
+    rx = manager.submit(forth.build_read_hex(0x10060)).result(timeout=3)
+    assert forth.parse_hex_word(rx) == 0xAA0000DD
+
+
+def test_transfer_timeout_grows_with_length():
+    assert memops.transfer_timeout(0) == memops.BINARY_TIMEOUT
+    assert memops.transfer_timeout(1 << 20) > 130

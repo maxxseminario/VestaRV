@@ -6,7 +6,9 @@ Skipped cleanly if fastapi/starlette cannot be imported on this host.
 
 import base64
 import os
+import sys
 import time
+import types
 
 import pytest
 
@@ -224,3 +226,70 @@ def test_ws_terminal_round_trip(client):
                 saw_rx_with_8 = True
                 break
         assert saw_rx_with_8
+
+
+# Boot-mode pin and payload handling
+
+class _FakeOutputDevice:
+    instances = []
+
+    def __init__(self, pin, active_high=True, initial_value=False):
+        self.pin, self.value, self.closed = pin, 1 if initial_value else 0, False
+        self.history = [self.value]
+        _FakeOutputDevice.instances.append(self)
+
+    def off(self):
+        self.value = 0
+
+    def close(self):
+        self.closed = True
+
+
+@pytest.fixture
+def fake_gpio(monkeypatch):
+    module = types.ModuleType("gpiozero")
+    module.OutputDevice = _FakeOutputDevice
+    _FakeOutputDevice.instances = []
+    monkeypatch.setitem(sys.modules, "gpiozero", module)
+    return _FakeOutputDevice
+
+
+def _hardware_app(tmp_path):
+    return create_app(sim=False, port="/nonexistent", registers_path=FIXTURE_REGS,
+                      macros_path=str(tmp_path / "macros.json"), reset_pin=17, boot_pin=18,
+                      autoconnect=False)
+
+
+def test_boot_pin_held_for_forth_mode_and_released_on_shutdown(tmp_path, fake_gpio):
+    with TestClient(_hardware_app(tmp_path)):
+        boot = fake_gpio.instances[0]
+        assert (boot.pin, boot.value, boot.closed) == (18, 1, False)
+    assert boot.closed
+
+
+def test_reset_can_select_flash_boot(tmp_path, fake_gpio):
+    with TestClient(_hardware_app(tmp_path)) as hw:
+        boot = fake_gpio.instances[0]
+        assert hw.post("/api/reset", json={"boot_low": False}).json()["boot_mode_set"] is True
+        assert boot.value == 0
+        assert hw.post("/api/reset", json={}).json()["ok"] is True
+        assert boot.value == 1
+
+
+def test_sim_never_touches_gpio(tmp_path, fake_gpio):
+    app = create_app(sim=True, registers_path=FIXTURE_REGS, boot_pin=18,
+                     macros_path=str(tmp_path / "macros.json"))
+    with TestClient(app):
+        assert fake_gpio.instances == []
+
+
+def test_memory_read_reports_crc(client):
+    r = client.post("/api/memory/read", json={"addr": 0x10000, "length": 4, "mode": 1}).json()
+    assert r["crc_ok"] is True
+
+
+def test_flash_write_rejects_bad_payload(client):
+    r = client.post("/api/flash/write", json={"page": 0, "data_hex": "zz"})
+    assert r.status_code == 400
+    r = client.post("/api/flash/write", json={"page": 0, "data": "@@@"})
+    assert r.status_code == 400

@@ -6,7 +6,7 @@ import { store } from './store.js';
 import { el, clear, download } from './dom.js';
 
 // On-chip Forth word set — ROM, never changes.
-// Source: software/rv4th/src/rv4th.c lines 134-160 (cmdListBi + cmdListBi2).
+// Source: Myshkin mask ROM, riscv-tests/gcc/bootrom/src/rv4th.c (cmdListBi + cmdListBi2).
 export const FORTH_WORDS = [
   'bye', '+', '-', '*', '/%', '.', 'dup', 'drop', 'swap', '<',
   '>', '==', 'hb.', 'gw', 'dfn', 'abs', ',', 'p@', 'p!', 'not',
@@ -16,8 +16,8 @@ export const FORTH_WORDS = [
   '^', '&', '|', '*/', 'key', 'cr', '*2', '/2', 'call0', 'call1',
   'call2', 'call3', 'call4', 'ndrop', 'swpb', '+!', 'roll', 'pick', 'tuck', 'max',
   'min', 's.', 'sh.', 'neg', 'echo', 'init', 'o2w', 'o2p', 'rst', 'clk',
-  'fr', 'fw', 'fe', 'sbi', 'cbi', 'mask', 'and', 'or', 'swphw', 'sll',
-  'srl', 'mr', 'mw', 'me', 'wadc',
+  'fr', 'fw', 'fe', 'fem', 'sbi', 'cbi', 'mask', 'and', 'or', 'swphw',
+  'sll', 'srl', 'mr', 'mw', 'ms',
   '[', ':', 'var',
 ];
 

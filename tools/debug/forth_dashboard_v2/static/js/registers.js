@@ -6,6 +6,18 @@ import { api } from './api.js';
 import { store } from './store.js';
 import { el, clear, hex, parseNum } from './dom.js';
 
+// BIAS_TIA_G_POT: bit 16 shorts the 1 Mohm feedback resistor, bits 0-15 each short a 60 kohm one.
+// Slider positions run in order of falling Rf: 0-16 keep the 1M in, 17-33 short it.
+const TIA_REG = 'BIAS_TIA_G_POT';
+const TIA_MAX_POS = 33;
+const tiaPosToReg = (pos) => (pos <= 16 ? (1 << pos) - 1 : 0x10000 | ((1 << (pos - 17)) - 1));
+function tiaRegToPos(raw) {
+  let shorted = 0;
+  for (let bit = 0; bit < 16; bit++) shorted += (raw >>> bit) & 1;
+  return raw & 0x10000 ? shorted + 17 : shorted;
+}
+const tiaRfKohm = (pos) => (pos <= 16 ? 1960 - 60 * pos : 960 - 60 * (pos - 17));
+
 class Registers {
   constructor(root) {
     this.root = root;
@@ -90,6 +102,9 @@ class Registers {
       el('button.btn.small', { onclick: () => this.readAll() }, 'Read all in ' + periph),
     ]));
 
+    this.tiaSlider = null;
+    if (reg === TIA_REG) d.appendChild(this._buildTiaControl());
+
     // Field editors.
     const fields = r.fields || {};
     const names = Object.keys(fields).sort((a, b) => fields[a].lsb - fields[b].lsb);
@@ -138,6 +153,26 @@ class Registers {
     this._clearDirty();
   }
 
+  _buildTiaControl() {
+    this.tiaLabel = el('span.hint');
+    this.tiaSlider = el('input', {
+      type: 'range', min: 0, max: TIA_MAX_POS, step: 1, 'aria-label': 'TIA feedback resistance',
+    });
+    this.tiaSlider.addEventListener('input', () => {
+      this.rawInput.value = hex(tiaPosToReg(Number(this.tiaSlider.value)), this._hexDigits());
+      this._syncFieldsFromRaw();
+      this._markDirty();
+    });
+    this.tiaSlider.addEventListener('change', () => this.write());
+    return el('div.rawline', null, [el('span.hint', { text: 'Feedback Rf' }), this.tiaSlider, this.tiaLabel]);
+  }
+  _syncTiaControl() {
+    if (!this.tiaSlider) return;
+    const pos = tiaRegToPos(this._currentRaw());
+    this.tiaSlider.value = String(pos);
+    this.tiaLabel.textContent = `${tiaRfKohm(pos)} kΩ nominal`;
+  }
+
   // ---- value <-> field syncing ----
   _loadValue(v) {
     this.rawInput.value = hex(v, this._hexDigits());
@@ -152,6 +187,7 @@ class Registers {
     return v === null ? 0 : (v >>> 0);
   }
   _syncFieldsFromRaw() {
+    this._syncTiaControl();
     const raw = this._currentRaw();
     const r = store.registers.peripherals[this.sel.periph].registers[this.sel.reg];
     for (const [fn, f] of Object.entries(r.fields || {})) {
@@ -178,6 +214,7 @@ class Registers {
       raw = (raw & ~(mask << f.lsb)) | (fv << f.lsb);
     }
     this.rawInput.value = hex(raw >>> 0, this._hexDigits());
+    this._syncTiaControl();
   }
 
   _markDirty() {
