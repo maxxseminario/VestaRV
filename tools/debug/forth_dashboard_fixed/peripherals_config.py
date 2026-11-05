@@ -1,6 +1,6 @@
 """VestaRV: the peripheral and register map the Forth dashboard reads.
 
-The complete map for the myshkin chip, extracted from MCU-User-Guide.pdf: GPIO0 to GPIO3,
+The complete map for the myshkin chip, checked against its fabricated MemoryMap.vhd: GPIO0 to GPIO3,
 SPI0/1, UART0/1, TIMER0/1, SYSTEM (clock, power, interrupts, watchdog, DCO, CRC), NPU,
 POTENTIOSTAT, SARADC, DSADC and I2C0/1.
 """
@@ -49,11 +49,11 @@ PERIPHERALS = {
             'POUTC': {'addr': 0x400C, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO output drive clear register'},
             'POUTT': {'addr': 0x4010, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO output drive toggle register'},
             'PDIR': {'addr': 0x4014, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO pin direction register'},
-            'PREN': {'addr': 0x4018, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO resistor enable register'},
-            'PSEL': {'addr': 0x401C, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO peripheral select register'},
-            'PIF': {'addr': 0x4020, 'size': 1, 'type': 'STATUS', 'description': 'GPIO interrupt flag register'},
-            'PIES': {'addr': 0x4024, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO interrupt edge select register'},
-            'PIE': {'addr': 0x4028, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO interrupt enable register'},
+            'PREN': {'addr': 0x4028, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO resistor enable register'},
+            'PSEL': {'addr': 0x4024, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO peripheral select register'},
+            'PIF': {'addr': 0x4018, 'size': 1, 'type': 'STATUS', 'description': 'GPIO interrupt flag register'},
+            'PIES': {'addr': 0x401C, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO interrupt edge select register'},
+            'PIE': {'addr': 0x4020, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO interrupt enable register'},
         }
     },
     
@@ -67,11 +67,11 @@ PERIPHERALS = {
             'POUTC': {'addr': 0x410C, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO output drive clear register'},
             'POUTT': {'addr': 0x4110, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO output drive toggle register'},
             'PDIR': {'addr': 0x4114, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO pin direction register'},
-            'PREN': {'addr': 0x4118, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO resistor enable register'},
-            'PSEL': {'addr': 0x411C, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO peripheral select register'},
-            'PIF': {'addr': 0x4120, 'size': 1, 'type': 'STATUS', 'description': 'GPIO interrupt flag register'},
-            'PIES': {'addr': 0x4124, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO interrupt edge select register'},
-            'PIE': {'addr': 0x4128, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO interrupt enable register'},
+            'PREN': {'addr': 0x4128, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO resistor enable register'},
+            'PSEL': {'addr': 0x4124, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO peripheral select register'},
+            'PIF': {'addr': 0x4118, 'size': 1, 'type': 'STATUS', 'description': 'GPIO interrupt flag register'},
+            'PIES': {'addr': 0x411C, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO interrupt edge select register'},
+            'PIE': {'addr': 0x4120, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO interrupt enable register'},
         }
     },
     
@@ -85,11 +85,11 @@ PERIPHERALS = {
             'POUTC': {'addr': 0x480C, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO output drive clear register'},
             'POUTT': {'addr': 0x4810, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO output drive toggle register'},
             'PDIR': {'addr': 0x4814, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO pin direction register'},
-            'PREN': {'addr': 0x4818, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO resistor enable register'},
-            'PSEL': {'addr': 0x481C, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO peripheral select register'},
-            'PIF': {'addr': 0x4820, 'size': 1, 'type': 'STATUS', 'description': 'GPIO interrupt flag register'},
-            'PIES': {'addr': 0x4824, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO interrupt edge select register'},
-            'PIE': {'addr': 0x4828, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO interrupt enable register'},
+            'PREN': {'addr': 0x4828, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO resistor enable register'},
+            'PSEL': {'addr': 0x4824, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO peripheral select register'},
+            'PIF': {'addr': 0x4818, 'size': 1, 'type': 'STATUS', 'description': 'GPIO interrupt flag register'},
+            'PIES': {'addr': 0x481C, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO interrupt edge select register'},
+            'PIE': {'addr': 0x4820, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO interrupt enable register'},
         }
     },
     
@@ -103,11 +103,11 @@ PERIPHERALS = {
             'POUTC': {'addr': 0x4D0C, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO output drive clear register'},
             'POUTT': {'addr': 0x4D10, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO output drive toggle register'},
             'PDIR': {'addr': 0x4D14, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO pin direction register'},
-            'PREN': {'addr': 0x4D18, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO resistor enable register'},
-            'PSEL': {'addr': 0x4D1C, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO peripheral select register'},
-            'PIF': {'addr': 0x4D20, 'size': 1, 'type': 'STATUS', 'description': 'GPIO interrupt flag register'},
-            'PIES': {'addr': 0x4D24, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO interrupt edge select register'},
-            'PIE': {'addr': 0x4D28, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO interrupt enable register'},
+            'PREN': {'addr': 0x4D28, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO resistor enable register'},
+            'PSEL': {'addr': 0x4D24, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO peripheral select register'},
+            'PIF': {'addr': 0x4D18, 'size': 1, 'type': 'STATUS', 'description': 'GPIO interrupt flag register'},
+            'PIES': {'addr': 0x4D1C, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO interrupt edge select register'},
+            'PIE': {'addr': 0x4D20, 'size': 1, 'type': 'CONTROL', 'description': 'GPIO interrupt enable register'},
         }
     },
     
@@ -205,9 +205,9 @@ PERIPHERALS = {
             'IRQPRIM': {'addr': 0x4924, 'size': 4, 'type': 'CONFIG', 'description': 'IRQ priority middle register'},
             'IRQPRIU': {'addr': 0x4928, 'size': 4, 'type': 'CONFIG', 'description': 'IRQ priority upper register'},
             'IRQCR': {'addr': 0x492C, 'size': 1, 'type': 'CONTROL', 'description': 'IRQ control register'},
-            'WDTCR': {'addr': 0x4930, 'size': 1, 'type': 'CONTROL', 'description': 'Watchdog timer control register'},
-            'WDTSR': {'addr': 0x4934, 'size': 1, 'type': 'STATUS', 'description': 'Watchdog timer status register'},
-            'WDTPASS': {'addr': 0x4938, 'size': 4, 'type': 'CONFIG', 'description': 'Watchdog timer password register'},
+            'WDTCR': {'addr': 0x4934, 'size': 1, 'type': 'CONTROL', 'description': 'Watchdog timer control register'},
+            'WDTSR': {'addr': 0x4938, 'size': 1, 'type': 'STATUS', 'description': 'Watchdog timer status register'},
+            'WDTPASS': {'addr': 0x4930, 'size': 4, 'type': 'CONFIG', 'description': 'Watchdog timer password register'},
             'WDTVAL': {'addr': 0x493C, 'size': 4, 'type': 'CONFIG', 'description': 'Watchdog timer value register'},
             'DCO0BIAS': {'addr': 0x4940, 'size': 2, 'type': 'BIAS', 'description': 'DCO0 bias control register'},
             'DCO1BIAS': {'addr': 0x4944, 'size': 2, 'type': 'BIAS', 'description': 'DCO1 bias control register'},
@@ -258,7 +258,7 @@ PERIPHERALS = {
     },
     
     'DSADC': {
-        'description': 'Delta-Sigma ADC',
+        'description': 'Dual-Slope ADC',
         'base_addr': 0x4C00,
         'registers': {
             'CR': {'addr': 0x4C00, 'size': 4, 'type': 'CONTROL', 'description': 'AFE control register'},
