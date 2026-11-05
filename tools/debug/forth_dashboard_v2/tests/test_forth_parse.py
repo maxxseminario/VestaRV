@@ -6,6 +6,8 @@ they include the noise bytes (0x1a, '?') the v1 parser had to strip. The TX comm
 are lifted from the log to pin the builders.
 """
 
+import pytest
+
 from server import forth
 
 
@@ -47,9 +49,16 @@ def test_builder_exec_stack_order():
     assert forth.build_exec(0x8200, [1, 2]) == "0x1 0x2 0x8200 call2 ."
 
 
-def test_builder_mr_and_me():
+def test_builder_mr_ms_mw():
     assert forth.build_mr(1, 256, 0x10000) == "1 256 0x10000 mr"
-    assert forth.build_erase(0x10000, 64) == "64 0x10000 me"
+    assert forth.build_erase(0x10000, 64) == "0 64 0x10000 ms"
+    assert forth.build_mw(1, 64, 0x10000) == "1 64 0x10000 mw"
+
+
+@pytest.mark.parametrize("garbled", ["", "h.?", "abc", "DEADBEE", "DEADBEEF0"])
+def test_parse_hex_word_rejects_anything_but_8_digits(garbled):
+    with pytest.raises(ValueError):
+        forth.parse_hex_word(garbled)
 
 
 # '.' signed decimal parsing

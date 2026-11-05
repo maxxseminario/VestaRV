@@ -2,8 +2,8 @@
 
 One background thread owns the transport; callers enqueue and await a Future, so transactions
 never interleave. A text transaction writes the command, reads back its echo by exact byte
-count, then reads until the '>' prompt, which is unambiguous because output never contains it.
-Binary reads can contain 0x3E and use a length-counted read instead. No time.sleep() anywhere.
+count, then reads until the "\\n>" prompt. Binary reads can contain those bytes and use a
+length-counted read instead. No time.sleep() anywhere.
 """
 
 import enum
@@ -282,6 +282,11 @@ class SerialManager:
     @property
     def banner_seen(self) -> bool:
         return self._banner_seen
+
+    def clear_banner(self) -> None:
+        """Forget the banner before a chip reset, so banner_seen reports the new boot."""
+        self._banner_seen = False
+        self._banner_window = ""
 
     def uptime(self) -> float:
         if self._connect_time is None or not self.connected:

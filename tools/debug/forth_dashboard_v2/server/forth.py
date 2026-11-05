@@ -11,7 +11,8 @@ from typing import List, Optional, Tuple
 
 # Constants
 
-PROMPT = b">"          # getLine() prints "\n>" every time it wants input.
+PROMPT = b"\n>"         # getLine() prints this every time it wants input. A bare '>' is not
+                       # enough: the `list` word prints '>' as the name of a word.
 BANNER_MARK = "rv4th-rom!"   # substring that identifies the reset banner.
 FLASH_ERASE_KEY = 123        # fe requires this confirmation key (case 83).
 
@@ -20,6 +21,7 @@ FLASH_ERASE_KEY = 123        # fe requires this confirmation key (case 83).
 _NOISE_RE = re.compile(r"[\x1a\x00]")
 _SIGNED_DEC_RE = re.compile(r"-?\d+")
 _HEX_TOKEN_RE = re.compile(r"[0-9A-Fa-f]+")
+_HEX_WORD_RE = re.compile(r"(?<![0-9A-Za-z])[0-9A-Fa-f]{8}(?![0-9A-Za-z])")
 
 
 # 32-bit helpers
@@ -94,8 +96,13 @@ def build_mask(posmask: int, value: int, addr: int) -> str:
 
 
 def build_erase(addr: int, length: int) -> str:
-    """Memory erase (zero-fill): ``length addr me``."""
-    return "%d 0x%X me" % (length, to_u32(addr))
+    """Zero-fill *length* bytes: ``0 length addr ms``. The Myshkin mask ROM has ms, not me."""
+    return "0 %d 0x%X ms" % (length, to_u32(addr))
+
+
+def build_mw(mode: int, length: int, addr: int) -> str:
+    """Bulk memory write header: ``mode length addr mw`` (interactive handshake)."""
+    return "%d %d 0x%X mw" % (mode, length, to_u32(addr))
 
 
 def build_mr(mode: int, length: int, addr: int) -> str:
@@ -157,9 +164,10 @@ def parse_decimal(text: str) -> int:
 def parse_hex_word(text: str) -> int:
     """Parse the 8-digit hex value printed by ``h.`` (last token wins).
 
-    Returns an unsigned 32-bit int.  ``h.`` always emits exactly 8 hex chars.
+    Returns an unsigned 32-bit int. ``h.`` always emits exactly 8 hex chars, so anything else is
+    a garbled reply and raises rather than decoding to a wrong value.
     """
-    matches = _HEX_TOKEN_RE.findall(strip_noise(text))
+    matches = _HEX_WORD_RE.findall(strip_noise(text))
     if not matches:
         raise ValueError("no hex value in response: %r" % text)
     return to_u32(int(matches[-1], 16))

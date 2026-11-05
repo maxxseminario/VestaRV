@@ -3,7 +3,8 @@
 Synchronous, each step blocking on its transaction Future, so REST handlers run them in a
 thread executor; every step still goes through the one serial queue. ASCII mr (mode 0) is
 prompt-framed and carries a CRC, binary mr (mode 1) is length-counted because a payload byte
-can be 0x3E. mw is an empty ROM stub, so uploads must use ! loops.
+can be 0x3E. Bulk RAM writes use mw; peripheral space and short writes use ! because mw stores
+single bytes and peripheral registers take whole words.
 """
 
 import base64
@@ -13,7 +14,7 @@ from server import forth
 from server.serial_manager import Channel, SerialManager
 
 FLASH_PAGE = 256
-# Ground truth (software/bootrom/src/flash_memory.c writePage/erasePage):
+# Ground truth (Myshkin ROM, riscv-tests/gcc/bootrom/src/flash_memory.c writePage/erasePage):
 # the SPI address is sent as opcode<<24 | page_address, so bits [31:24] are out
 # of range ("MSB 8 bits ignored") -> 24-bit space = 16 MiB addressable;
 # LSB 8 bits ignored -> 256-byte page boundary.
@@ -22,6 +23,16 @@ FLASH_PAGE_COUNT = FLASH_TOTAL_BYTES // FLASH_PAGE   # 65536
 
 BINARY_TIMEOUT = 5.0
 FLASH_TIMEOUT = 6.0
+
+PERIPHERAL_BASE = 0x4000
+PERIPHERAL_END = 0x5000
+MW_MIN_WORDS = 4           # below this, the mw handshake saves nothing over ! loops
+UART_BYTES_PER_SEC = 11520  # 115200 baud, 8N1
+
+
+def transfer_timeout(wire_bytes: int, base: float = BINARY_TIMEOUT) -> float:
+    """Deadline for moving *wire_bytes* over the UART, with 50% margin on top of *base*."""
+    return base + 1.5 * wire_bytes / UART_BYTES_PER_SEC
 
 
 def flash_info() -> Dict[str, int]:
@@ -34,13 +45,14 @@ def flash_info() -> Dict[str, int]:
 
 
 def _result(future: Any, timeout: float) -> Any:
-    return future.result(timeout=timeout + 1.0)
+    # Covers the first attempt, its retry, and the resync between them.
+    return future.result(timeout=2 * timeout + 2.0)
 
 
 # Memory read
 
 def read_memory(manager: SerialManager, addr: int, length: int,
-                mode: int = 0, timeout: float = BINARY_TIMEOUT) -> Dict[str, Any]:
+                mode: int = 0, timeout: Optional[float] = None) -> Dict[str, Any]:
     """Read *length* bytes from *addr*.  mode 0 = ASCII hex, 1 = binary.
 
     Returns {addr, length, mode, hex, base64, crc, crc_ok}.
@@ -49,6 +61,8 @@ def read_memory(manager: SerialManager, addr: int, length: int,
         return {"addr": addr, "length": 0, "mode": mode, "hex": "",
                 "base64": "", "crc": None, "crc_ok": True}
 
+    if timeout is None:
+        timeout = transfer_timeout(length if mode == 1 else 2 * length)
     if mode == 1:
         payload, crc = _read_memory_binary(manager, addr, length, timeout)
     else:
@@ -104,9 +118,14 @@ def write_memory(manager: SerialManager, addr: int, words: List[int],
                  verify: bool = True, timeout: float = 2.0,
                  progress: Optional[Callable[[int, int], None]] = None
                  ) -> Dict[str, Any]:
-    """Write *words*, 32 bits each, sequentially from *addr* via `!` loops. With *verify* each word is
-    read back and compared. Returns {written, verified, mismatches:[{index, addr, wrote, read}]}.
+    """Write *words*, 32 bits each, sequentially from *addr*. RAM blocks go through mw, whose CRC
+    is always checked; anything else uses `!`, with each word read back when *verify* is set.
+    Returns {written, verified, mismatches:[{index, addr, wrote, read}]}.
     """
+    in_peripherals = addr < PERIPHERAL_END and addr + 4 * len(words) > PERIPHERAL_BASE
+    if len(words) >= MW_MIN_WORDS and not in_peripherals:
+        return _write_memory_bulk(manager, addr, words, progress)
+
     mismatches = []  # type: List[Dict[str, Any]]
     verified = 0
     total = len(words)
@@ -130,12 +149,44 @@ def write_memory(manager: SerialManager, addr: int, words: List[int],
     return {"written": total, "verified": verified, "mismatches": mismatches}
 
 
+def _write_memory_bulk(manager: SerialManager, addr: int, words: List[int],
+                       progress: Optional[Callable[[int, int], None]] = None
+                       ) -> Dict[str, Any]:
+    """Write a RAM block through the mw binary handshake, checking the chip's CRC of what it got.
+    Not retried: a failed attempt can leave the chip still waiting for payload bytes.
+    """
+    data = b"".join(forth.to_u32(word).to_bytes(4, "little") for word in words)
+    expected = forth.crc16_cdma2000(data)
+    command = forth.build_mw(1, len(data), addr)
+    line = command + "\n"
+    timeout = transfer_timeout(len(data))
+
+    def run(ch: Channel) -> int:
+        ch.write(line.encode("latin-1"))
+        ch.expect_echo(line)
+        ch.read_until(b"$")                        # ready character
+        ch.write(data)
+        chip_crc = int(ch.read_exact(4).decode("latin-1"), 16)
+        ch.read_until(forth.PROMPT)
+        return chip_crc
+
+    chip_crc = _result(manager.submit_interaction(run, command, timeout=timeout, retries=0),
+                       timeout)
+    total = len(words)
+    if progress is not None:
+        progress(total, total)
+    if chip_crc == expected:
+        return {"written": total, "verified": total, "mismatches": []}
+    return {"written": total, "verified": 0,
+            "mismatches": [{"index": 0, "addr": addr, "wrote": expected, "read": chip_crc}]}
+
+
 def erase_memory(manager: SerialManager, addr: int, length: int,
                  timeout: float = 3.0) -> Dict[str, Any]:
-    """Zero-fill *length* bytes from *addr* using ``me`` (word-aligned)."""
+    """Zero-fill *length* bytes from *addr* using ``ms``."""
     _result(manager.submit(forth.build_erase(addr, length), timeout=timeout),
             timeout)
-    return {"addr": addr & ~3, "length": length & ~3, "erased": True}
+    return {"addr": addr, "length": length, "erased": True}
 
 
 # Flash
@@ -161,11 +212,13 @@ def flash_erase(manager: SerialManager, page: int,
 
 
 def flash_read(manager: SerialManager, addr: int, length: int,
-               timeout: float = FLASH_TIMEOUT) -> Dict[str, Any]:
+               timeout: Optional[float] = None) -> Dict[str, Any]:
     """Read *length* flash bytes from *addr* (a BYTE address; fr reads arbitrary
     addresses, no page masking).  ASCII-hex, no CRC.  {hex, base64}."""
     if length <= 0:
         return {"addr": addr, "length": 0, "hex": "", "base64": ""}
+    if timeout is None:
+        timeout = transfer_timeout(2 * length, FLASH_TIMEOUT)
     text = _result(manager.submit(forth.build_flash_read(0, length, addr),
                                   timeout=timeout), timeout)
     payload = forth.parse_hexdump(text, length)
@@ -204,7 +257,8 @@ def flash_write_page(manager: SerialManager, page: int, data: bytes,
         return {"page": page, "crc": chip_crc, "expected_crc": expected,
                 "ok": ok, "written": ok}
 
-    return _result(manager.submit_interaction(run, command, timeout=timeout),
+    # Not retried: resending after a timeout would land inside the chip's payload read.
+    return _result(manager.submit_interaction(run, command, timeout=timeout, retries=0),
                    timeout)
 
 

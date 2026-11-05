@@ -18,7 +18,7 @@ BANNER = ASIC_NAME + " rv4th-rom!"
 CALL_RETURN = 0x0000002A          # canned return value for call0..call4
 CLK_FREQ = {0: 24000000, 1: 24000000, 2: 32768, 3: 24000000}  # SMCLK/MCLK/LFXT/HFXT
 # fw/fe mask their forth argument exactly like the ROM SPI driver
-# (software/bootrom/src/flash_memory.c:104-121): the low 8 bits (256-byte page
+# (Myshkin ROM flash_memory.c writePage/erasePage): the low 8 bits (256-byte page
 # boundary) AND the high 8 bits (out of the 16 MiB range) are ignored.
 FLASH_PAGE_MASK = 0x00FFFF00
 
@@ -161,6 +161,8 @@ class SimChip:
         if token == "swap":
             stack[-1], stack[-2] = stack[-2], stack[-1]; return
         # Output words
+        if token == "list":
+            self._emit_str("bye + - < > == hb. \n"); return
         if token == ".":
             self._emit_str("%d " % forth.to_i32(stack.pop())); return
         if token == "h.":
@@ -186,8 +188,12 @@ class SimChip:
             addr = stack.pop(); val = stack.pop(); posmask = stack.pop()
             cur = self._read_word(addr)
             self._write_word(addr, (cur & ~posmask) | (val & posmask)); return
-        if token == "me":
-            addr = stack.pop(); length = stack.pop(); self._mem_erase(addr, length); return
+        if token == "ms":
+            addr = stack.pop(); length = stack.pop(); byte = stack.pop()
+            self._mem_set(addr, length, byte); return
+        if token == "mw":
+            addr = stack.pop(); length = stack.pop(); mode = stack.pop()
+            self._do_mw(mode, length, addr); return
         if token == "mr":
             addr = stack.pop(); length = stack.pop(); mode = stack.pop()
             self._do_mr(mode, length, addr); return
@@ -232,12 +238,14 @@ class SimChip:
         word = self._read_word(addr)
         return (word >> (8 * (forth.to_u32(addr) & 3))) & 0xFF
 
-    def _mem_erase(self, addr: int, length: int) -> None:
-        addr = forth.to_u32(addr) & ~3
-        end = addr + (length & ~3)
-        while addr < end:
-            self._mem[addr] = 0
-            addr += 4
+    def _set_byte(self, addr: int, value: int) -> None:
+        shift = 8 * (forth.to_u32(addr) & 3)
+        word = self._read_word(addr) & ~(0xFF << shift)
+        self._write_word(addr, word | ((value & 0xFF) << shift))
+
+    def _mem_set(self, addr: int, length: int, value: int) -> None:
+        for offset in range(length):
+            self._set_byte(addr + offset, value)
 
     # -- mr / fr / fw
 
@@ -250,6 +258,17 @@ class SimChip:
         else:
             self._emit(data)
             self._emit(bytes([crc & 0xFF, (crc >> 8) & 0xFF]))  # LSB first
+
+    def _do_mw(self, mode: int, length: int, addr: int) -> None:
+        self._emit_str("$")                        # ready character
+        if mode == 0:
+            data = bytes((self._hex_nibble(self._get_byte()) << 4)
+                         | self._hex_nibble(self._get_byte()) for _ in range(length))
+        else:
+            data = bytes(self._get_byte() for _ in range(length))
+        for offset, byte in enumerate(data):
+            self._set_byte(addr + offset, byte)
+        self._emit_str("%04X" % forth.crc16_cdma2000(data))
 
     def _do_fr(self, binflag: int, length: int, addr: int) -> None:
         data = bytes(self._flash.get(forth.to_u32(addr) + i, 0xFF)

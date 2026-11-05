@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # VestaRV: Forth dashboard v2 launcher.
 # Usage: ./run.sh [--sim] [--port /dev/ttyAMA0] [--baud 115200]
-#                 [--listen 0.0.0.0:8060] [--reset-pin N]
+#                 [--listen 0.0.0.0:8060] [--reset-pin N] [--boot-pin N]
 # Arguments pass through verbatim to server/main.py. --sim needs no hardware;
 # on the Raspberry Pi use --port /dev/ttyAMA0 --reset-pin 17. The dashboard
 # serves on http://<host>:8060. Runs from anywhere: it cd's to its own directory.

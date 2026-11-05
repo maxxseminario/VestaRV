@@ -5,6 +5,9 @@ Browser dashboard for the Myshkin MCU running its rv4th Forth ROM (BOOT `P1.7` l
 JS frontend with no CDN or internet dependency. Rework of
 [`../forth_dashboard`](../forth_dashboard/README.md) (port 8050, unchanged); both can run at once.
 
+Myshkin only: registers follow its fabricated `MemoryMap.vhd`, and the Forth words follow its mask
+ROM (`riscv-tests/gcc/bootrom/src/rv4th.c`), not the later `software/rv4th` fork.
+
 Features: connection manager with GPIO reset, terminal, register browser with bitfield editors,
 memory dump/peek/poke/erase, code runner (upload `.bin` to RAM, `call0`), flash programmer,
 GPIO panel, clock/system panel, macro library, session log.
@@ -18,9 +21,11 @@ python3 -m pip install -r requirements.txt                          # first time
 ./run.sh --port /dev/ttyAMA0 --listen 0.0.0.0:8060 --reset-pin 17   # Raspberry Pi
 ```
 
-Open `http://<host>:8060`. Flags (`--sim --port --baud --listen --reset-pin`) pass through to
-`server/main.py`. `--sim` uses `SimChip`, a byte-level emulation of the REPL that exercises
-the full stack. GPIO reset needs `gpiozero`; without it reset reports `gpiozero-missing`.
+Open `http://<host>:8060`. Flags (`--sim --port --baud --listen --reset-pin --boot-pin`) pass
+through to `server/main.py`. `--sim` uses `SimChip`, a byte-level emulation of the REPL that
+exercises the full stack. GPIO control needs `gpiozero`; without it reset reports
+`gpiozero-missing`. GPIO18 is held high to select Forth mode (the PCB inverts it to BOOT low);
+`--boot-pin 0` disables this, and the terminal script cannot run while the dashboard holds it.
 
 Pi setup and wiring: [`../README.md`](../README.md), [`../RPI_SETUP.md`](../RPI_SETUP.md).
 Disable the serial login console, or its echo doubles characters.
@@ -58,6 +63,6 @@ cd tools/debug/forth_dashboard_v2/data && python3 gen_registers.py
 
 - Never send `0 echo`: it suppresses the echo and `>` prompt the framing depends on; every
   command then times out until reconnect/reset.
-- `mw` is a ROM stub, so RAM uploads use `!` loops at about 1.3 KB/s.
+- Peripheral space (`0x4000`-`0x4FFF`) and writes under 4 words use `!`; other uploads use `mw`.
 - API flash `page` parameters are page indices; byte address = `page × 256`.
 - Compressed (mode 2) `mr`/`fw` transfers are unsupported; only modes 0 and 1.

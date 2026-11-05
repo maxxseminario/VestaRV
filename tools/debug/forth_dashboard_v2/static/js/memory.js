@@ -66,7 +66,7 @@ class Memory {
   _build() {
     clear(this.root);
     this.root.appendChild(el('h2.view-title', { text: 'Memory Tools' }));
-    this.root.appendChild(el('p.view-desc', { text: 'Bulk read (mr), single-word peek/poke (@ / !), region erase (me).' }));
+    this.root.appendChild(el('p.view-desc', { text: 'Bulk read (mr), single-word peek/poke (@ / !), region erase (ms).' }));
 
     // Dump controls
     const addrIn = el('input', { type: 'text', value: hex(this.addr, 4), spellcheck: 'false' });
@@ -143,7 +143,8 @@ class Memory {
       const bytes = decodeMemPayload(res);
       this.lastBytes = bytes; this.lastAddr = this.addr;
       this.dumpOut.innerHTML = bytes.length ? hexdumpHtml(this.addr, bytes) : '<span class="asc">(empty)</span>';
-      this.dumpMsg.textContent = `${bytes.length} bytes @ ${hex(this.addr, 4)}`;
+      this.dumpMsg.textContent = `${bytes.length} bytes @ ${hex(this.addr, 4)}`
+        + (res.crc_ok === false ? ' — CRC MISMATCH, data is unreliable' : '');
     } catch (e) {
       this.dumpMsg.textContent = 'read failed: ' + e.message;
     }

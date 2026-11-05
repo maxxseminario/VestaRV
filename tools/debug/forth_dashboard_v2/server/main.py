@@ -27,6 +27,7 @@ from server import forth, memops  # noqa: E402
 from server.macros import MacroStore  # noqa: E402
 from server.registers import (RegisterMap, RegisterNotFound,  # noqa: E402
                               RegistersUnavailable)
+from server.registers import default_path as default_registers_path  # noqa: E402
 from server.serial_manager import SerialManager, list_ports  # noqa: E402
 from server.sim_chip import SimChip  # noqa: E402
 
@@ -154,13 +155,14 @@ def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200
                registers_path: Optional[str] = None,
                macros_path: Optional[str] = None,
                reset_pin: Optional[int] = None,
+               boot_pin: Optional[int] = None,
                static_dir: Optional[str] = None,
                autoconnect: bool = True) -> FastAPI:
     app = FastAPI(title="Forth Dashboard v2", version="2.0")
 
     if sim:
         def factory(p: str, b: int):
-            return SimChip(registers_path=registers_path)
+            return SimChip(registers_path=registers_path or default_registers_path())
     else:
         def factory(p: str, b: int):
             from server.serial_manager import RealSerial
@@ -174,6 +176,7 @@ def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200
     app.state.hub = hub
     app.state.macros = macros
     app.state.reset_pin = reset_pin
+    app.state.boot_device = None
     app.state.registers_path = registers_path
     app.state.default_port = port
     app.state.default_baud = baud
@@ -185,6 +188,8 @@ def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200
 
     @app.on_event("startup")
     def _startup() -> None:
+        if boot_pin and not sim:
+            app.state.boot_device = _open_boot_pin(boot_pin)
         manager.add_listener(hub.on_event)
         manager.start()
         if autoconnect:
@@ -193,6 +198,8 @@ def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200
     @app.on_event("shutdown")
     def _shutdown() -> None:
         manager.stop()
+        if app.state.boot_device is not None:
+            app.state.boot_device.close()
 
     # -- helpers
 
@@ -245,8 +252,13 @@ def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200
             manager.connect(port, baud)
             status = await wait_connected()
             return {"ok": True, "method": "sim-reconnect", "status": status}
-        method, ok = _gpio_reset(app.state.reset_pin, bool(body.boot_low))
-        return {"ok": ok, "method": method, "status": manager.status()}
+        boot_device = app.state.boot_device
+        if boot_device is not None:
+            boot_device.value = 1 if body.boot_low else 0
+        manager.clear_banner()
+        method, ok = _gpio_reset(app.state.reset_pin)
+        return {"ok": ok, "method": method,
+                "boot_mode_set": boot_device is not None, "status": manager.status()}
 
     # -- raw command passthrough
 
@@ -346,7 +358,7 @@ def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200
             raise HTTPException(status_code=502, detail=str(exc))
         return {"addr": result["addr"], "length": result["length"],
                 "mode": result["mode"], "encoding": "base64",
-                "data": result["base64"]}
+                "data": result["base64"], "crc_ok": result["crc_ok"]}
 
     @app.post("/api/memory/write")
     async def api_memory_write(body: MemWriteBody) -> Dict[str, Any]:
@@ -382,13 +394,16 @@ def create_app(sim: bool = False, port: str = "/dev/ttyAMA0", baud: int = 115200
 
     @app.post("/api/flash/write")
     async def api_flash_write(body: FlashWriteBody) -> Dict[str, Any]:
-        if body.data is not None:
-            data = base64.b64decode(body.data)
-        elif body.data_hex is not None:
-            data = bytes.fromhex(body.data_hex)
-        else:
-            raise HTTPException(status_code=400,
-                                detail="provide 'data' (base64) or 'data_hex'")
+        try:
+            if body.data is not None:
+                data = base64.b64decode(body.data, validate=True)
+            elif body.data_hex is not None:
+                data = bytes.fromhex(body.data_hex)
+            else:
+                raise HTTPException(status_code=400,
+                                    detail="provide 'data' (base64) or 'data_hex'")
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="bad payload: %s" % exc)
         try:
             return await in_executor(memops.flash_write_page, manager,
                                      coerce_int(body.page), data)
@@ -552,7 +567,20 @@ def _mount_static(app: FastAPI, static_dir: Optional[str]) -> None:
         return _read(path)
 
 
-def _gpio_reset(reset_pin: Optional[int], boot_low: bool):
+def _open_boot_pin(pin: int):
+    """Drive the boot-mode GPIO high and hold it, selecting Forth mode: the PCB inverts it, so GPIO
+    high means BOOT low. Returns the live device, or None when the pin cannot be driven, in which
+    case BOOT has to be held low some other way.
+    """
+    try:
+        from gpiozero import OutputDevice  # type: ignore
+        return OutputDevice(pin, active_high=True, initial_value=True)
+    except Exception as exc:  # noqa: BLE001 - gpiozero missing, or not a Pi
+        print("[warn] cannot drive boot-mode pin GPIO%d: %s" % (pin, exc))
+        return None
+
+
+def _gpio_reset(reset_pin: Optional[int]):
     """Pulse the chip's active-low resetn via gpiozero.  (method, ok)."""
     if reset_pin is None:
         return ("no-reset-pin", False)
@@ -591,11 +619,13 @@ def main() -> None:
     parser.add_argument("--listen", default="0.0.0.0:8060", help="host:port")
     parser.add_argument("--reset-pin", type=int, default=None,
                         help="BCM GPIO wired to the chip resetn (optional)")
+    parser.add_argument("--boot-pin", type=int, default=18,
+                        help="BCM GPIO held high to select Forth mode; 0 disables")
     args = parser.parse_args()
 
     host, listen_port = _parse_listen(args.listen)
     app = create_app(sim=args.sim, port=args.port, baud=args.baud,
-                     reset_pin=args.reset_pin)
+                     reset_pin=args.reset_pin, boot_pin=args.boot_pin)
 
     import uvicorn
     uvicorn.run(app, host=host, port=listen_port)
