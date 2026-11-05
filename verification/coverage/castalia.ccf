@@ -1,0 +1,14 @@
+# VestaRV: Xcelium coverage scope for the Castalia multi-hart flow.
+# The whole chip would be a very large model and most of it is peripherals nobody asked
+# about here. Scope: every core (block, expression, FSM), the shared fabric, and toggle
+# only where the roadmap wants it, on the decoders and the arbiter.
+set_branch_scoring
+set_fsm_scoring -hold_transition on
+
+# -coverage all selects everything, so deselect the whole hierarchy first; each command
+# builds on the previous one. `...` takes the unit and everything below it, and each core
+# is one vesta, told apart afterwards by instance path.
+deselect_coverage -all -module cov_top...
+select_coverage -block -expression -fsm -module vesta...
+select_coverage -block -expression -fsm -module mp_arbiter resv_unit mutex_bank
+select_coverage -toggle -module maindec c_dec mp_arbiter

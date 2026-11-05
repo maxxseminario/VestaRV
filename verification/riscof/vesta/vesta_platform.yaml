@@ -1,0 +1,11 @@
+# CLINT per derived.clintLayout: mtime 0x5020, mtimecmp 0x5030 + 8*hart.
+mtime:
+  implemented: true
+  address: 0x5020
+mtimecmp:
+  implemented: true
+  address: 0x5030
+nmi:
+  label: nmi_vector
+reset:
+  label: reset_vector

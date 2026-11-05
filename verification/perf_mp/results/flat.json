@@ -1,0 +1,34 @@
+{
+"coremark_h0": {
+"coremark_per_mhz": 2.6157337957253155,
+"cpi": 1.2581232961284352,
+"cycles": 3823019,
+"instret": 3038668,
+"iters": 10,
+"status": "PASS"
+},
+"coremark_tile": {
+"coremark_per_mhz": 1.2118043803577658,
+"cpi": 1.1053047995460996,
+"cycles": 8252157,
+"instret": 7465956,
+"iters": 10,
+"status": "PASS"
+},
+"dhrystone_h0": {
+"cpi": 1.5037028171331968,
+"cyc_per_run": 603.054,
+"cycles": 301527,
+"dmips_per_mhz": 0.9437827517507128,
+"instret": 200523,
+"status": "PASS"
+},
+"dhrystone_tile": {
+"cpi": 1.3856587983724593,
+"cyc_per_run": 600.054,
+"cycles": 300027,
+"dmips_per_mhz": 0.9485012408454478,
+"instret": 216523,
+"status": "PASS"
+}
+}
