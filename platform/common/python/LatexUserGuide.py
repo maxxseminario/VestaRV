@@ -6731,7 +6731,7 @@ class LatexUserGuide():
 
 	def GenerateCpuExceptionsTable(self):
 		'''include/CpuExceptionsTable.tex: the CPU-internal causes, in their own table.
-		   These three rows are the legacy causes the old vector table hard-coded; they are not vector numbers.'''
+		   These three rows are the causes the old vector table hard-coded; they are not vector numbers.'''
 		s = self._TablePreamble()
 		s += '\\begin{tabularx}{\\textwidth}{ l X }\n'
 		s += '\\caption{CPU-internal interrupt causes} \\label{t:cpu-exceptions} \\\\\n'
@@ -6741,7 +6741,7 @@ class LatexUserGuide():
 		s += '\\hline \\endlastfoot\n'
 		s += 'Timer & CPU internal timer \\\\\n'
 		s += '\\rowcolor{tablehighlightcolor} Instruction & EBREAK, ECALL, or illegal instruction \\\\\n'
-		s += 'Bus error & Unaligned memory access \\\\\n'
+		s += 'Address misaligned & Misaligned load, store or atomic operation (Section~\\ref{ss:alignment}) \\\\\n'
 		s += '\\end{tabularx}\n'
 		self._writeInclude('CpuExceptionsTable.tex', s)
 		return

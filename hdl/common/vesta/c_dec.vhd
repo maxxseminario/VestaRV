@@ -316,8 +316,9 @@ begin
                                     imm(17) := instr16(12);
                                     imm(16 downto 12) := instr16(6 downto 2);
                                     
-                                    if rd = "00000" or unsigned(imm(17 downto 12)) = 0 then
-                                        -- Reserved C.LUI region: rd=x0, or the nzimm=0 hole whose odd-rd slots encode c.mop.N (15..13=011, 12=0, 11..7=N odd, 6..2=00000, 1..0=01).
+                                    -- rd=x0 with a nonzero nzimm is a HINT, not reserved: it expands to lui x0, which retires with no effect.
+                                    if unsigned(imm(17 downto 12)) = 0 then
+                                        -- Reserved C.LUI region: the nzimm=0 hole, whose odd-rd slots encode c.mop.N (15..13=011, 12=0, 11..7=N odd, 6..2=00000, 1..0=01).
                                         -- With ENABLE_ZIMOP c.mop.N becomes a canonical nop (addi x0,x0,0); otherwise the word stays all-zero and illegal.
                                         if ENABLE_ZIMOP and instr16(7) = '1' and
                                            instr16(6 downto 2) = "00000" and

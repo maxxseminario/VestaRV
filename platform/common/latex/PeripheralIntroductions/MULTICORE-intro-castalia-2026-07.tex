@@ -188,7 +188,7 @@ The exact sequence, in the order the ROM executes it (register addresses in the 
 
 \begin{enumerate}
 	\item \textbf{Hardware mutexes} (\peripheral{MUTEX} bank): a single load claims a free mutex; a single store releases it. No retry loop hardware state, no reservation. This is the preferred lock for most uses. See the \peripheral{MUTEX} chapter.
-	\item \textbf{\texttt{LR}/\texttt{SC} spinlocks in shared RAM}: standard RISC-V reservation-based locks. A failed \texttt{SC} has its write suppressed by the reservation unit, so it is safe under contention.
+	\item \textbf{\texttt{LR}/\texttt{SC} spinlocks in shared RAM}: standard RISC-V reservation-based locks. A failed \texttt{SC} has its write suppressed by the reservation unit, so it is safe under contention. Never mix them with AMOs on the same word: an AMO clears the reservation, and the \texttt{SC} can then fail indefinitely\ifnum\NumHarts=5{} (Section~\ref{ss:cpi-contention})\fi.
 	\item \textbf{\texttt{AMO} instructions to shared RAM}: atomic add, swap, and friends; the arbiter locks the grant across the read-modify-write pair.
 \end{enumerate}
 

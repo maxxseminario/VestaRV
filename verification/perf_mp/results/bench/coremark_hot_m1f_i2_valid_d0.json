@@ -1,0 +1,360 @@
+{
+"arb": [
+{
+"0": [
+415504,
+1727381,
+12
+],
+"1": [
+8271,
+95930,
+16
+],
+"2": [
+8259,
+95801,
+19
+],
+"3": [
+8251,
+95832,
+22
+],
+"4": [
+8239,
+95734,
+25
+]
+},
+{
+"0": [
+30,
+120,
+4
+],
+"1": [
+0,
+0,
+0
+],
+"2": [
+8,
+32,
+4
+],
+"3": [
+0,
+0,
+0
+],
+"4": [
+0,
+0,
+0
+]
+},
+{
+"0": [
+0,
+0,
+0
+],
+"1": [
+8,
+62,
+9
+],
+"2": [
+13,
+80,
+9
+],
+"3": [
+7,
+60,
+9
+],
+"4": [
+8,
+65,
+9
+]
+},
+{
+"0": [
+0,
+0,
+0
+],
+"1": [
+1,
+9,
+9
+],
+"2": [
+1,
+9,
+9
+],
+"3": [
+1,
+9,
+9
+],
+"4": [
+0,
+0,
+0
+]
+},
+{
+"0": [
+0,
+0,
+0
+],
+"1": [
+1,
+9,
+9
+],
+"2": [
+1,
+9,
+9
+],
+"3": [
+0,
+0,
+0
+],
+"4": [
+1,
+9,
+9
+]
+},
+{
+"0": [
+48,
+192,
+4
+],
+"1": [
+30,
+219,
+9
+],
+"2": [
+17,
+142,
+9
+],
+"3": [
+32,
+230,
+9
+],
+"4": [
+31,
+225,
+9
+]
+},
+{
+"0": [
+6705,
+26824,
+6
+],
+"1": [
+31,
+178,
+9
+],
+"2": [
+48,
+228,
+9
+],
+"3": [
+29,
+169,
+9
+],
+"4": [
+30,
+173,
+9
+]
+},
+{
+"0": [
+0,
+0,
+0
+],
+"1": [
+17,
+146,
+9
+],
+"2": [
+18,
+153,
+9
+],
+"3": [
+18,
+153,
+9
+],
+"4": [
+18,
+154,
+9
+]
+},
+{
+"0": [
+0,
+0,
+0
+],
+"1": [
+1,
+9,
+9
+],
+"2": [
+1,
+9,
+9
+],
+"3": [
+1,
+9,
+9
+],
+"4": [
+0,
+0,
+0
+]
+},
+{
+"0": [
+0,
+0,
+0
+],
+"1": [
+1,
+9,
+9
+],
+"2": [
+1,
+9,
+9
+],
+"3": [
+0,
+0,
+0
+],
+"4": [
+1,
+9,
+9
+]
+}
+],
+"bench": "coremark",
+"harts": {
+"0": {
+"coremark_per_mhz": 2.5955216868814546,
+"cpi": 1.263512250473064,
+"crc_ok": true,
+"crcfinal": [
+"0xfe8c"
+],
+"cycles": 770558,
+"instret": 609854,
+"log": "2K validation run parameters for coremark.\nCoreMark Size    : 666\nTotal ticks      : 770558\nTotal time (secs): 0\nERROR! Must execute for at least 10 secs for a valid result!\nIterations       : 2\nCompiler version : GCC13.2.0\nCompiler flags   : -O2 -std=gnu99 -fno-common -fno-tree-loop-distribute-patterns -march=rv32imac_zicsr_zba_zbb_zbc_zbs -mabi=ilp32 -mcmodel=medany\nMemory location  : STACK(TCM)\nseedcrc          : 0x18f2\n[0]crclist       : 0xe3c1\n[0]crcmatrix     : 0x0747\n[0]crcstate      : 0x8d84\n[0]crcfinal      : 0xfe8c\nErrors detected\n",
+"seedcrc": [
+"0x18f2"
+]
+},
+"1": {
+"coremark_per_mhz": 1.138565725983664,
+"cpi": 1.0976694311552362,
+"crc_ok": true,
+"crcfinal": [
+"0xfe8c"
+],
+"cycles": 1756596,
+"instret": 1600296,
+"log": "2K validation run parameters for coremark.\nCoreMark Size    : 666\nTotal ticks      : 1756596\nTotal time (secs): 0\nERROR! Must execute for at least 10 secs for a valid result!\nIterations       : 2\nCompiler version : GCC13.2.0\nCompiler flags   : -O2 -std=gnu99 -fno-common -fno-tree-loop-distribute-patterns -march=rv32iac_zicsr -mabi=ilp32 -mcmodel=medany\nMemory location  : STACK(TCM)\nseedcrc          : 0x18f2\n[0]crclist       : 0xe3c1\n[0]crcmatrix     : 0x0747\n[0]crcstate      : 0x8d84\n[0]crcfinal      : 0xfe8c\nErrors detected\n",
+"seedcrc": [
+"0x18f2"
+]
+},
+"2": {
+"coremark_per_mhz": 1.1386000798158655,
+"cpi": 1.0976363122822277,
+"crc_ok": true,
+"crcfinal": [
+"0xfe8c"
+],
+"cycles": 1756543,
+"instret": 1600296,
+"log": "2K validation run parameters for coremark.\nCoreMark Size    : 666\nTotal ticks      : 1756543\nTotal time (secs): 0\nERROR! Must execute for at least 10 secs for a valid result!\nIterations       : 2\nCompiler version : GCC13.2.0\nCompiler flags   : -O2 -std=gnu99 -fno-common -fno-tree-loop-distribute-patterns -march=rv32iac_zicsr -mabi=ilp32 -mcmodel=medany\nMemory location  : STACK(TCM)\nseedcrc          : 0x18f2\n[0]crclist       : 0xe3c1\n[0]crcmatrix     : 0x0747\n[0]crcstate      : 0x8d84\n[0]crcfinal      : 0xfe8c\nErrors detected\n",
+"seedcrc": [
+"0x18f2"
+]
+},
+"3": {
+"coremark_per_mhz": 1.138565725983664,
+"cpi": 1.0976694311552362,
+"crc_ok": true,
+"crcfinal": [
+"0xfe8c"
+],
+"cycles": 1756596,
+"instret": 1600296,
+"log": "2K validation run parameters for coremark.\nCoreMark Size    : 666\nTotal ticks      : 1756596\nTotal time (secs): 0\nERROR! Must execute for at least 10 secs for a valid result!\nIterations       : 2\nCompiler version : GCC13.2.0\nCompiler flags   : -O2 -std=gnu99 -fno-common -fno-tree-loop-distribute-patterns -march=rv32iac_zicsr -mabi=ilp32 -mcmodel=medany\nMemory location  : STACK(TCM)\nseedcrc          : 0x18f2\n[0]crclist       : 0xe3c1\n[0]crcmatrix     : 0x0747\n[0]crcstate      : 0x8d84\n[0]crcfinal      : 0xfe8c\nErrors detected\n",
+"seedcrc": [
+"0x18f2"
+]
+},
+"4": {
+"coremark_per_mhz": 1.138565725983664,
+"cpi": 1.0976694311552362,
+"crc_ok": true,
+"crcfinal": [
+"0xfe8c"
+],
+"cycles": 1756596,
+"instret": 1600296,
+"log": "2K validation run parameters for coremark.\nCoreMark Size    : 666\nTotal ticks      : 1756596\nTotal time (secs): 0\nERROR! Must execute for at least 10 secs for a valid result!\nIterations       : 2\nCompiler version : GCC13.2.0\nCompiler flags   : -O2 -std=gnu99 -fno-common -fno-tree-loop-distribute-patterns -march=rv32iac_zicsr -mabi=ilp32 -mcmodel=medany\nMemory location  : STACK(TCM)\nseedcrc          : 0x18f2\n[0]crclist       : 0xe3c1\n[0]crcmatrix     : 0x0747\n[0]crcstate      : 0x8d84\n[0]crcfinal      : 0xfe8c\nErrors detected\n",
+"seedcrc": [
+"0x18f2"
+]
+}
+},
+"iters": 2,
+"killed": false,
+"mask": 31,
+"passed": true,
+"run": "valid",
+"sizes": {
+"h0": "/home/mseminario2/vestarv/.claude/worktrees/agent-a264e3edcb37bbcbd/xcelium/riscv_test/perf_mp/bimg/coremark_hot_m1f_i2_valid_d0/h0.elf  :\nsection             size     addr\n.tcm_text           4672    32768\n.tcm_ro                0    37440\n.data                 32    37440\n.shbss                 0   124928\n.bss                  20    37472\n.text               4488    67840\n.comment              51        0\n.riscv.attributes     93        0\nTotal               9356\n\n\n",
+"tile": "/home/mseminario2/vestarv/.claude/worktrees/agent-a264e3edcb37bbcbd/xcelium/riscv_test/perf_mp/bimg/coremark_hot_m1f_i2_valid_d0/tile.elf  :\nsection              size     addr\n.tcm_text            5292    32768\n.tcm_ro                 0    38060\n.data                  32    38060\n.shbss                  0   124928\n.bss                   20    38092\n.text                4592    80384\n.comment               51        0\n.riscv.attributes      51        0\nTotal               10038\n\n\n"
+},
+"stall": 0,
+"tag": "coremark_hot_m1f_i2_valid_d0",
+"variant": "hot",
+"wall_s": 435.4
+}
