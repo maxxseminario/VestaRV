@@ -129,7 +129,9 @@ Instruction address misaligned & \texttt{0} & The misaligned address & The fault
 \rowcolor{tablehighlightcolor} Instruction access fault (memory protection) & \texttt{1} & The faulting fetch address & The faulting instruction \\
 Illegal instruction (including an access to an unimplemented or privileged control register, or a \textit{write} to a read-only one) & \texttt{2} & The faulting instruction encoding & The faulting instruction \\
 \rowcolor{tablehighlightcolor} Breakpoint (\asminline{EBREAK}) & \texttt{3} & \texttt{0} & The \asminline{EBREAK} \\
-Load access fault (memory protection) & \texttt{5} & The faulting data address & The faulting instruction \\
+Load address misaligned (including \asminline{lr.w}) & \texttt{4} & The misaligned address & The faulting instruction \\
+\rowcolor{tablehighlightcolor} Load access fault (memory protection) & \texttt{5} & The faulting data address & The faulting instruction \\
+Store or atomic address misaligned (including \asminline{sc.w}) & \texttt{6} & The misaligned address & The faulting instruction \\
 \rowcolor{tablehighlightcolor} Store or atomic access fault (memory protection) & \texttt{7} & The faulting data address & The faulting instruction \\
 \ifprivumode Environment call from user mode & \texttt{8} & \texttt{0} & The \asminline{ECALL} \\ \fi
 \privstripeA Environment call from machine mode & \texttt{11} & \texttt{0} & The \asminline{ECALL} \\
@@ -139,10 +141,11 @@ Load access fault (memory protection) & \texttt{5} & The faulting data address &
 \hline
 \end{longtable}
 
-Three details of Table \ref{t:priv-causes} need stating explicitly.
+Four details of Table \ref{t:priv-causes} need stating explicitly.
 
 \begin{itemize}
 	\item \textbf{The illegal-instruction value for a compressed instruction is the expanded encoding, not the raw halfword.} When a 16-bit compressed instruction traps, \register{mtval} carries the 32-bit instruction the decompressor produced from it, which is what the core actually rejected. The specification permits either the faulting encoding or zero here; reporting the expansion is more informative than zero and costs nothing, but a debugger that expects the raw halfword will not find it. This is a deliberate, documented deviation.
+	\item \textbf{A misaligned access is stopped before it issues}, so a trapped store or AMO changes no memory, a trapped load does not write \asminline{rd}, and a peripheral sees no access. Where an access is both misaligned and denied by memory protection, the misaligned cause is reported.
 	\item \textbf{Interrupt priority is fixed}: external, then software, then timer. An interrupt is taken only when \bitfield{MIE} is set and the same bit is set in both \register{mip} and \register{mie}.
 	\item \textbf{Interrupts are sampled at instruction boundaries only}, and the multi-cycle instruction sequences (the compressed push/pop sequences, the cache-block zero instruction, and the table-jump sequence) run to completion uninterrupted, exactly as in the legacy mechanism.
 \end{itemize}

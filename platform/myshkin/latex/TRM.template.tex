@@ -513,7 +513,7 @@ The Myshkin MCU's VestaRV core implements several standard and extended instruct
 	\item \textbf{Zbs Extension (Single-Bit Manipulation):} Offers single-bit set, clear, invert, and extract operations (\asminline{bset}, \asminline{bclr}, \asminline{binv}, \asminline{bext}) with both register and immediate variants, facilitating efficient manipulation of bit fields and flags.
 \end{itemize}
 
-When compiling for the Myshkin MCU, specify the complete architecture string \\ \bashinline{-march=rv32imac\_zba\_zbb\_zbc\_zbs} to enable all supported extensions. Individual extensions may be selectively disabled by omitting them from the \bashinline{-march} flag if desired for compatibility testing or code size optimization.
+When compiling for the Myshkin MCU, use \\ \bashinline{-march=rv32im\_zba\_zbb\_zbc\_zbs -mno-div}. The core also implements the A and C extensions, but this build avoids the core errata (Section~\ref{s:errata}). Individual extensions may be selectively disabled by omitting them from the \bashinline{-march} flag if desired for compatibility testing or code size optimization.
 
 \subsection{Getting the RISC-V Toolchain on Linux} \label{ss:linuxinstall}
 There are two primary methods for obtaining the RISC-V toolchain on Linux: installing a prebuilt binary distribution or building from source. For most users, the prebuilt xPack distribution is recommended due to its simplicity and time savings.
@@ -625,7 +625,7 @@ The RISC-V toolchain includes a GCC compiler. Thus, the compilation process is s
 
 There are several compilation flags that are suggested:
 \begin{itemize}
-\item \bashinlinehl{-march=rv32imac\_zba\_zbb\_zbc\_zbs} Architecture flag. This specifies which ISA extensions are enabled during compilation. For the Myshkin MCU with full VestaRV capabilities, use the complete architecture string as shown to enable the base integer instructions (I), hardware multiplication/division (M), atomic operations (A), compressed instructions (C), and all bit manipulation extensions (Zba, Zbb, Zbc, Zbs). Individual extensions may be selectively disabled by omitting them from the string (e.g., \bashinline{-march=rv32imc} for basic support without atomics or bit manipulation, or \bashinline{-march=rv32imac} to include atomics but exclude bit manipulation extensions).
+\item \bashinlinehl{-march=rv32im\_zba\_zbb\_zbc\_zbs -mno-div} Architecture flags. These specify which ISA extensions are enabled during compilation: the base integer instructions (I), multiplication (M), and all bit manipulation extensions (Zba, Zbb, Zbc, Zbs). Compressed instructions (C) are left out and \bashinline{-mno-div} replaces hardware division with library calls, because of the core errata (Section~\ref{s:errata}). Other extensions may be disabled by omitting them from the string (e.g., \bashinline{-march=rv32im} to exclude bit manipulation).
 
 \item \bashinlinehl{-mabi=ilp32} Application Binary Interface (ABI) flag. Specifies the calling convention and data model. Use \bashinline{ilp32} for integer-only ABI without floating point support, which is appropriate for the VestaRV core.
 
@@ -644,7 +644,7 @@ There are several compilation flags that are suggested:
 
 \begin{lstlisting}[language=bash]
 riscv-none-elf-gcc -c \
-  -march=rv32imac_zba_zbb_zbc_zbs \
+  -march=rv32im_zba_zbb_zbc_zbs -mno-div \
   -mabi=ilp32 -O2 -Wall -Wextra \
   -I./include -g \
   main.c -o main.o
@@ -666,7 +666,7 @@ To execute the linker, use:
 
 There are several linker flags that are suggested:
 \begin{itemize}
-\item \bashinlinehl{-march=rv32imac_zba_zbb_zbc_zbs} Architecture flag. This specifies which extensions are enabled in the linking process. The VestaRV core supports the RV32IMAC instruction set plus the Zba, Zbb, Zbc, and Zbs bit manipulation extensions. This flag must match the architecture flags used during compilation.
+\item \bashinlinehl{-march=rv32im_zba_zbb_zbc_zbs} Architecture flag. This specifies which extensions are enabled in the linking process. The VestaRV core supports the RV32IMAC instruction set plus the Zba, Zbb, Zbc, and Zbs bit manipulation extensions. This flag must match the architecture flags used during compilation.
 \item \bashinlinehl{-flto} Link-time optimization flag. This instructs the linker to perform optimizations to the final binary.
 \item \bashinlinehl{-nostdlib} Disables the use of the standard library for linking, decreasing software bloat. However, using the flag precludes using standard library functions such as software emulation of integer multiplication and division, floating point numbers, initialization routines, memory allocation, etc. It is suggested that you only use this flag if you have a specific need to reduce the software size.
 \item \bashinlinehl{-T linker_script.ld} Path to the linker script
@@ -745,7 +745,7 @@ It is highly suggested to use the provided Python program \bashinline{forthprog.
 
 % Errata
 \section{Errata} \label{s:errata}
-Listed are the known issues with the {\AsicNameForUserGuide} MCU:
+Listed are the known issues with the {\AsicNameForUserGuide} MCU. The last ten are digital defects found after tape-out. All but the last were reproduced by simulating the tape-out netlist with sign-off timing, and the last was found in the tape-out RTL. None has been tested on silicon. All are corrected in the RTL for subsequent chips.
 
 \begin{itemize}
 	\item \textbf{\peripheral{SARADC} converts at one quarter of the intended rate.}
@@ -824,6 +824,66 @@ Listed are the known issues with the {\AsicNameForUserGuide} MCU:
 	cyclic voltammetry data acquired in this condition must be discarded. No register
 	trims the control-amplifier compensation --- \bitfield{BIAS\_TC\_POT} and
 	\bitfield{BIAS\_LC\_POT} act on $A_2$ --- so there is no workaround on this silicon.
+
+	\item \textbf{\asminline{div}, \asminline{divu}, \asminline{rem} and \asminline{remu} fail when \asminline{rd} equals a source register.}
+	With \asminline{rd} equal to \asminline{rs1} the result is 0. With \asminline{rd} equal to
+	\asminline{rs2} the result is that of a division by zero. GCC emits these forms routinely.
+	To avoid it, compile with \bashinline{-mno-div}, which uses the software routines in
+	libgcc, and keep \asminline{rd} distinct in hand-written assembly.
+
+	\item \textbf{Compressed stack adjustments and calls are wrong.}
+	\asminline{c.addi16sp} with a negative immediate adds 15 too much, so \asminline{sp} is
+	wrong after a normal function prologue. \asminline{c.jal} and \asminline{c.jalr} save
+	\asminline{pc+4} instead of \asminline{pc+2}, so the return lands 2 bytes too far. To avoid
+	it, do not build with the C extension: use \bashinline{-march=rv32im\_zba\_zbb\_zbc\_zbs}.
+	The code in the mask ROM contains no compressed instructions.
+
+	\item \textbf{\asminline{xori} with immediate \texttt{0x80} executes as \asminline{zext.h}.}
+	The decoder misreads this one encoding, so \asminline{rd} silently receives the low 16
+	bits of \asminline{rs1} instead of \asminline{rs1} with bit 7 inverted. GCC emits this
+	instruction for \texttt{x \^{} 0x80} and for byte sign extension, so compiled code can be
+	affected. The mask ROM is not. To avoid it, hold the constant in a register and use
+	\asminline{xor}, and search finished images for instruction words where
+	\texttt{(word \& 0xFFF0707F) == 0x08004013}.
+
+	\item \textbf{Misaligned loads and stores use the aligned location.}
+	The core has no misaligned-access trap. \asminline{lw} and \asminline{sw} ignore address
+	bits 1:0, and \asminline{lh}, \asminline{lhu} and \asminline{sh} ignore bit 0, so the
+	wrong data is read or written with no error. Correctly typed C is not affected; the usual
+	cause is a byte pointer cast to a wider type. Avoid it with good software practice: keep
+	accesses naturally aligned, and read unaligned fields with byte loads or \texttt{memcpy}.
+
+	\item \textbf{\asminline{c.lui} with destination \asminline{x0} stops the core.}
+	This encoding is a HINT that must execute as a no-op, but the decoder treats it as
+	illegal and the core halts until reset. Compilers do not emit it, and neither the mask
+	ROM nor the toolchain libraries contain it. Do not hand-assemble it.
+
+	\item \textbf{A CSR read-modify-write executed from flash extended memory returns the value it wrote.}
+	The flash fetch of the next instruction freezes the CPU clock during the CSR instruction,
+	so \asminline{rd} receives the new value rather than the old one. Only the
+	\register{mcycle} and \register{minstret} counters are writable, so the impact is small.
+	To avoid it, read with \asminline{csrr} and write with a separate \asminline{csrw}.
+
+	\item \textbf{\asminline{jalr} does not clear bit 0 of its target.}
+	A jump to an odd address leaves the program counter odd until the next jump to an even
+	address. Execution continues correctly, but \asminline{auipc} returns a value one too
+	high in that window. Compiled code does not jump to odd addresses. Software that tags
+	code pointers must clear bit 0 before the jump.
+
+	\item \textbf{The watchdog never fires.}
+	The counter runs, but a defective edge detector means the interrupt flag, the interrupt
+	and the watchdog reset never occur. Use a timer interrupt where a timeout is needed.
+
+	\item \textbf{The UART overflow flag is unreliable.}
+	The receiver checks \bitfield{TCIF} instead of its own receive flag, so \bitfield{OVF}
+	stays clear on a real overrun unless \bitfield{TCIF} is set, and sets falsely on a good
+	byte received while \bitfield{TCIF} is set. Do not rely on \bitfield{OVF}; read each
+	received byte before the next frame ends.
+
+	\item \textbf{\bitfield{NPUTHINK} always reads 0.}
+	The bit is missing from the \register{NPUCR} readback. This is harmless, because the CPU is
+	stopped while the \peripheral{NPU} runs, so polling still returns only after it finishes.
+
 \end{itemize}
 
 
