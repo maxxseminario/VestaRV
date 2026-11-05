@@ -247,9 +247,7 @@ begin
         -- CLZ, CTZ, CPOP, SEXT.B, SEXT.H, ORC.B, REV8 
         (funct3 = "001" and (imm12 = CLZ_IMM12 or imm12 = CTZ_IMM12 or imm12 = CPOP_IMM12 or
                              imm12 = SEXT_B_IMM12 or imm12 = SEXT_H_IMM12 or 
-                             imm12 = ORC_B_IMM12 or imm12 = REV8_IMM12)) or
-        -- ZEXT.H via ANDI special encoding
-        (funct3 = "100" and imm12 = ZEXT_H_IMM12)
+                             imm12 = ORC_B_IMM12 or imm12 = REV8_IMM12))
     )) else '0';
 
 
@@ -982,7 +980,6 @@ begin
         "0100110" when (op = I_ARITH_OPCODE and funct3 = "001" and imm12 = CPOP_IMM12) else -- CPOP
         "0100111" when (op = I_ARITH_OPCODE and funct3 = "001" and imm12 = SEXT_B_IMM12) else -- SEXT.B
         "0101000" when (op = I_ARITH_OPCODE and funct3 = "001" and imm12 = SEXT_H_IMM12) else -- SEXT.H
-        "0101001" when (op = I_ARITH_OPCODE and funct3 = "100" and imm12 = ZEXT_H_IMM12) else -- ZEXT.H (I-type)
         "0101010" when (op = I_ARITH_OPCODE and funct3 = "101" and imm12 = ORC_B_IMM12) else  -- ORC.B (TODO: Edited)
         "0101011" when (op = I_ARITH_OPCODE and funct3 = "101" and imm12 = REV8_IMM12) else   -- REV8
 
