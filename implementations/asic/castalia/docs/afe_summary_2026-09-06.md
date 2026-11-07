@@ -240,8 +240,18 @@ through class-AB unity-gain buffers onto explicit pins. Every number is from sta
 spectre decks, nominal only; the cell has no authored Maestro setup and the cloned maestro
 view still carries the start-up bench's variables and specs.
 
+**Chip cell, 2026-10-28.** The chip flow replaces this schematic-only cell with the laid-out
+`castalia/anatop_biasgen` (148.865 × 425.15 µm, LVS 78:78). Its rails are driven by four
+`OpAmpCurrentMirrorP` followers when `EnBuf` = 1 and bypass them through `anatop_tgate_n16` when
+`EnBuf` = 0. `EnBuf` takes `AFE0BIASGCR.ENBUFINT` (bit 2), so rule R15 now writes it 1; `EN`
+(bit 3) is unused (no load on this cell; reserved pending an owner decision on retiring it). `UseExt` takes the new `AFE0BIASGCR.USEEXT` (bit 4, reset 0),
+which switches the four rails to `ExtBN/ExtBNC/ExtBP/ExtBPC` from four dedicated pads through
+`anatop_tgate_p16`. Pin map and rail stability (phase margin 93.4–106.7°, DC follower error
+≤ 0.28 mV): `tapeout_review/reports/SYM_biasgen_centre_20261026.md` §B.
+
 | Spec | Value | Condition | Source |
 |---|---|---|---|
+| Register control | `AFE0BIASGCR` @0x6C34: `USEDAC` 0, `ENGEN` 1, `ENBUFINT` 2 (→ `EnBuf`), `EN` 3 (unused: no load on `anatop_biasgen`; reserved pending owner decision), `USEEXT` 4 (→ `UseExt`), `ADJ` 13:8. All reset 0 | `biasg.rdl`, `BIASG.vhd` | firmware contract R15 |
 | Composition | `anatop_biasgen_core_g` (rev-1 generator with four 14-bit `anatop_dac_g` DACs) + four `anatop_tia_amp_ab` unity-gain buffers + eight 500 fF compensation mimcaps + one `anatop_lvl_d10a25` for `en`; 15 terminals, `schCheck` (0 0) | schematic + symbol only | SIM_STATUS §7; B4 |
 | Generator rails | bn 0.614697 V, bnc 0.777105 V, bp 1.814929 V, bpc 1.588046 V | `castalia_pm_25`, 25 °C, `use_dac` = 0, internal rev-1 buffers bypassed, real four-channel load | SIM_STATUS §7; B4 |
 | Buffered outputs | bn 0.614126 V, bnc 0.776540 V, bp 1.814330 V, bpc 1.587462 V | same | SIM_STATUS §7 |
@@ -261,7 +271,7 @@ view still carries the start-up bench's variables and specs.
 | Open: `bp`/`bpc` are supply-referenced | any AVDD IR drop between this macro and a channel is a direct PMOS bias error: 10 mV ≈ 12 % of mirror current (measured d(ln I)/dV = 12.3 /V) | topology A never had this, because the generator sits inside the pixel | SIM_STATUS §7; B4-1 |
 | Open: offsets cannot be trimmed out | σ(buffer offset) 5.0–5.7 mV against trim steps of 1.42–4.47 mV, and the four offsets are independent while `bias_adj<5:0>` is one shared code | removing the per-pixel generator also removes the per-site trim | SIM_STATUS §7; B4-2 |
 | Corners and process MC | **not measured** (the decks sweep temperature and supply instead; the MC is mismatch-only) | needs an authored Maestro setup on `tb_anatop_biasgen_g` with `castalia_cor.scs` and a `variations=all` run | SIM_STATUS §1.2, §1.5 |
-| Layout | **none.** Placeholder LEF `innovus/common/shared/anatop_biasgen_g/`, 340 × 340 µm. `anatop_and2_dac` has no layout, so the four DACs cannot be laid out; `anatop_biasgen_r1` (the mismatchflag copy) is schematic-only and its two `INVX1` instances still point into `AFE_ECS` | | SIM_STATUS §7, §7.1; B4-6 |
+| Layout | **none** for this cell; the chip uses `anatop_biasgen` (above). Placeholder LEF `innovus/common/shared/anatop_biasgen_g/`, 340 × 340 µm. `anatop_and2_dac` has no layout, so the four DACs cannot be laid out; `anatop_biasgen_r1` (the mismatchflag copy) is schematic-only and its two `INVX1` instances still point into `AFE_ECS` | | SIM_STATUS §7, §7.1; B4-6 |
 
 Run of record: `simarchive/tb_anatop_biasgen_g/{decks,results,20260906_mismatchflag,20260906_codes}`.
 
@@ -606,7 +616,7 @@ Fifteen rules, each with the measured cost of ignoring it. Full text and provena
 | R12 | Gain-range against the double-layer charge, not the settled current: the binding constraint is `Cdl`·ΔV ≤ `C_F`·headroom. At ±16 codes and N = 20 the ceiling is ~1.7 nF; 10 nF rails both supplies while the settled current is 1.88 µA. |
 | R13 | Do not take `Rs` as Re(Z) at the top sweep frequency: +9.92 % structural bias before any measurement, +22.7 % with it, and it propagates into `Rct` and `Cdl`. Fit `Rs`, `Rct`, `Cdl` jointly over the sweep. |
 | R14 | Demodulate against `Zt` = `Rf`/(1 + jω`Rf C_F`), not `Rf`: the nominal law carries +1.159° at 1 kHz and +52.3° at 50 kHz at N = 20. Restoring the pole leaves 0.07° at 1 kHz. Supersedes the ±0.573° band edge at 5.3 kHz, which was measured with no `C_F`. |
-| R15 | Topology B only: write `AFE0BIASGCR` = 0x0000250A (ENGEN, EN, ADJ = 37) first, confirm the four rails (601.2 / 766.2 / 1828.6 / 1599.0 mV at 37 °C, 419.2 µA), then leave USEDAC alone. Every bit resets to 0, which leaves the generator off and nothing on the die meaningful. |
+| R15 | Topology B only: write `AFE0BIASGCR` = 0x0000250E (ENGEN, ENBUFINT, unused EN, ADJ = 37; USEEXT = 0) first, confirm the four rails (601.2 / 766.2 / 1828.6 / 1599.0 mV at 37 °C, 419.2 µA, measured on `anatop_biasgen_g`; not yet re-measured on `anatop_biasgen`), then leave USEDAC alone. ENBUFINT = 1 puts the rail followers in the path. External-bias override: apply all four ExtB pad voltages, then set USEEXT (0x0000251E); set it only while those pads are externally driven. Every bit resets to 0, which leaves the generator off and nothing on the die meaningful. |
 
 Caption: the fifteen firmware rules condensed to one line each, in the order of the
 contract. R7, R12, R13 and R14 were added or amended on 2026-09-05 from measurements
