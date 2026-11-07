@@ -243,7 +243,7 @@ done
 #     mp_boot (it now spins on harts that never come up); plain shmem still
 #     degrades cleanly and still runs.
 for t in shdma shevfab shexecc shmem_mp shorch shtcm wactf wdma wgemm \
-         wgpio wi2ct wi3c wnfc wnpuconv wow wperiph wpwm wqspi wrtc wtrng \
+         wgpio wdtboot wi2ct wi3c wnfc wnpuconv wow wperiph wpwm wqspi wrtc wtrng \
          wxnpu; do
     SKIP["rv32ui/$t"]="MCU peripheral MMIO / mp_boot system test — devices and harts absent on the bare core (family 4)"
 done

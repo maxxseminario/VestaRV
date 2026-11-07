@@ -63,6 +63,7 @@ _RV32UI_TESTS = [
     "wi3c",
     "wnfc",
     "wgpio",
+    "wdtboot",
     "wrtc",
     "wpwm",
     "wow",

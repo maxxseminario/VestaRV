@@ -274,7 +274,7 @@ GATE_FILES = [
     # The image is re-cut whenever a source under software/bootrom_mp/src/ or the
     # generated memory map moves, and software/bootrom_mp/testdata/rom_rcf_golden.txt
     # moves with it; the three copies are one md5,
-    # cea7e60f4723f63acfd92c5883716f1e.
+    # 57b6a0ddd38bc64e89ef9fe91decf902.
     # The boot-mode x pins in cosim_xallow.txt are pc 0x5a and pc 0x1b6, both
     # re-measured against this image (W8, 2026-09-13): the 8-test COSIM_BOOT=1
     # sweep applies each exactly once. Re-measure them from a fresh trace after

@@ -28,7 +28,7 @@ rv32ui_sc_tests = \
 	shdma \
 	shevfab \
 	wperiph \
-	wqspi wi3c wnfc wgpio \
+	wqspi wi3c wnfc wgpio wdtboot \
 	wrtc wpwm wow wdma \
 	wi2ct wtrng \
 	wnpuconv \

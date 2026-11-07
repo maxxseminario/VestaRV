@@ -228,26 +228,26 @@ static_assert(sizeof(system_t) == 0x46, "Packing error");
 #define BLOCKPWR_T__SYSSHB3OFF__BANK_3_POWERED_OFF 0x1   // Bank 3 powered off (contents lost)
 
 // enum - WDTCR_t
-#define WDTCR_T__SYSWDTHWRST__WATCHDOG_RESET_DISABLED 0x0   // Watchdog reset disabled
-#define WDTCR_T__SYSWDTHWRST__WATCHDOG_RESET_ENABLED 0x1   // Watchdog reset enabled
+#define WDTCR_T__SYSWDTHWRST__WATCHDOG_RESET_DISABLED 0x0   // No reset requested
+#define WDTCR_T__SYSWDTHWRST__WATCHDOG_RESET_ENABLED 0x1   // Reset the system now
 #define WDTCR_T__SYSWDTIE__WATCHDOG_INTERRUPT_DISABLED 0x0   // Watchdog interrupt disabled
 #define WDTCR_T__SYSWDTIE__WATCHDOG_INTERRUPT_ENABLED 0x1   // Watchdog interrupt enabled
-#define WDTCR_T__SYSWDTCDIV__65536 0x0   // Bit 16: 65,536 MCLK cycles
-#define WDTCR_T__SYSWDTCDIV__131072 0x1   // Bit 17: 131,072 MCLK cycles
-#define WDTCR_T__SYSWDTCDIV__262144 0x2   // Bit 18: 262,144 MCLK cycles
-#define WDTCR_T__SYSWDTCDIV__524288 0x3   // Bit 19: 524,288 MCLK cycles
-#define WDTCR_T__SYSWDTCDIV__1048576 0x4   // Bit 20: 1,048,576 MCLK cycles
-#define WDTCR_T__SYSWDTCDIV__2097152 0x5   // Bit 21: 2,097,152 MCLK cycles
-#define WDTCR_T__SYSWDTCDIV__4194304 0x6   // Bit 22: 4,194,304 MCLK cycles
-#define WDTCR_T__SYSWDTCDIV__8388608 0x7   // Bit 23: 8,388,608 MCLK cycles
-#define WDTCR_T__SYSWDTCDIV__16777216 0x8   // Bit 24: 16,777,216 MCLK cycles
-#define WDTCR_T__SYSWDTCDIV__33554432 0x9   // Bit 25: 33,554,432 MCLK cycles
-#define WDTCR_T__SYSWDTCDIV__67108864 0xa   // Bit 26: 67,108,864 MCLK cycles
-#define WDTCR_T__SYSWDTCDIV__134217728 0xb   // Bit 27: 134,217,728 MCLK cycles
-#define WDTCR_T__SYSWDTCDIV__268435456 0xc   // Bit 28: 268,435,456 MCLK cycles
-#define WDTCR_T__SYSWDTCDIV__536870912 0xd   // Bit 29: 536,870,912 MCLK cycles
-#define WDTCR_T__SYSWDTCDIV__1073741824 0xe   // Bit 30: 1,073,741,824 MCLK cycles
-#define WDTCR_T__SYSWDTCDIV__2147483648 0xf   // Bit 31: 2,147,483,648 MCLK cycles
+#define WDTCR_T__SYSWDTCDIV__1 0x0   // Bit 0: 1 MCLK cycles
+#define WDTCR_T__SYSWDTCDIV__2 0x1   // Bit 1: 2 MCLK cycles
+#define WDTCR_T__SYSWDTCDIV__4 0x2   // Bit 2: 4 MCLK cycles
+#define WDTCR_T__SYSWDTCDIV__8 0x3   // Bit 3: 8 MCLK cycles
+#define WDTCR_T__SYSWDTCDIV__16 0x4   // Bit 4: 16 MCLK cycles
+#define WDTCR_T__SYSWDTCDIV__32 0x5   // Bit 5: 32 MCLK cycles
+#define WDTCR_T__SYSWDTCDIV__64 0x6   // Bit 6: 64 MCLK cycles
+#define WDTCR_T__SYSWDTCDIV__128 0x7   // Bit 7: 128 MCLK cycles
+#define WDTCR_T__SYSWDTCDIV__256 0x8   // Bit 8: 256 MCLK cycles
+#define WDTCR_T__SYSWDTCDIV__512 0x9   // Bit 9: 512 MCLK cycles
+#define WDTCR_T__SYSWDTCDIV__1024 0xa   // Bit 10: 1,024 MCLK cycles
+#define WDTCR_T__SYSWDTCDIV__2048 0xb   // Bit 11: 2,048 MCLK cycles
+#define WDTCR_T__SYSWDTCDIV__4096 0xc   // Bit 12: 4,096 MCLK cycles
+#define WDTCR_T__SYSWDTCDIV__8192 0xd   // Bit 13: 8,192 MCLK cycles
+#define WDTCR_T__SYSWDTCDIV__16384 0xe   // Bit 14: 16,384 MCLK cycles
+#define WDTCR_T__SYSWDTCDIV__32768 0xf   // Bit 15: 32,768 MCLK cycles
 #define WDTCR_T__SYSWDTEN__WATCHDOG_DISABLED 0x0   // Watchdog disabled
 #define WDTCR_T__SYSWDTEN__WATCHDOG_ENABLED 0x1   // Watchdog enabled
 

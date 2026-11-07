@@ -93,11 +93,11 @@ rv32_firmware(
 # The pinned bench copy of the ROM image, tracked under a name that does not
 # collide with the global *.rcf gitignore.
 # tools/cosim/gate/bootrom_mp_rom.rcf and software/bootrom_mp/bin/rom.rcf are
-# mirrors of it; the three are one md5, currently cea7e60f4723f63acfd92c5883716f1e.
+# mirrors of it; the three are one md5, currently 57b6a0ddd38bc64e89ef9fe91decf902.
 # The image is 7,532 bytes of 8,192. The cosim boot-mode X pins in xrun_cosim.sh
 # sit at pc 0x5c and 0x15c, so a cut that moves any word below 0x39C makes them
 # stale and they must be re-measured against the new image.
-# ~/chips/myshkin/ip/rom2k_hvt_pg IS TWO CUTS BEHIND THIS IMAGE. Recompiling it
+# ~/chips/myshkin/ip/rom2k_hvt_pg IS THREE CUTS BEHIND THIS IMAGE. Recompiling it
 # is a signoff_mp job and the plate is stale until it is done.
 filegroup(
     name = "rom_rcf_golden",

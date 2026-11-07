@@ -413,13 +413,13 @@ boot_flash_timeout:
 
 // Function to delay for FLASH_SLAVE_PU_DELAY cycles
 flash_slave_power_up_delay:
-    // Kick first: this loop is the one stretch of the flash path with no SPI
-    // poll in it. 4000 iterations x 2 instructions is well inside the 32768
-    // mclk watchdog period, but only from a zeroed counter.
-    sw   s6, SYS_WDT_PASS(s4)
     // Delay loop for FLASH_SLAVE_PU_DELAY cycles
     li a6, FLASH_SLAVE_PU_DELAY // Load delay count
 delay_loop:
+    // Kick every iteration: this is the one stretch of the flash path with no
+    // SPI poll in it, and a fetch from ROM costs about 15 mclk per iteration,
+    // so a single kick leaves 56110 mclk against the 32768 mclk watchdog period.
+    sw   s6, SYS_WDT_PASS(s4)
     addi a6, a6, -1 // Decrement delay count
     bnez a6, delay_loop // If delay count is not zero, loop back
     ret

@@ -412,10 +412,12 @@ begin
 
         -- (b) Unlock, then write WDT_CR within the 64-cycle window.
         -- cdiv=5 watches WDT_VAL(5), which rises at count 32 and re-rises only every 64 counts, wide enough to see the flag set then cleared.
+        -- Routed with ie=1 is the one configuration in which a timeout does not reset.
+        wdt_irq_routed <= '1';
         bus_write(clk, pbus, RegSlotSYS_WDT_PASS, WDT_UNLCK_PASSWD);
-        bus_write(clk, pbus, RegSlotSYS_WDT_CR, x"00000094");           -- wdt_en=1, cdiv=5, ie=0
+        bus_write(clk, pbus, RegSlotSYS_WDT_CR, x"00000096");           -- wdt_en=1, cdiv=5, ie=1
         bus_read(clk, pbus, read_data, RegSlotSYS_WDT_CR, rdw);
-        sb.check_slv("WDT_CR written after unlock", rdw(7 downto 0), x"94");
+        sb.check_slv("WDT_CR written after unlock", rdw(7 downto 0), x"96");
 
         -- (c) The counter runs while the WDT is enabled.
         bus_read(clk, pbus, read_data, RegSlotSYS_WDT_VAL, rdw);
@@ -475,8 +477,8 @@ begin
         wdt_irq_routed <= '0';
 
         -- GROUP 5c: watchdog RESET path and WDTRF.
-        -- The only configuration that resets: enabled, interrupt enabled, routed to no
-        -- hart. resetn_sys must pulse low and WDTRF must be standing afterwards, having
+        -- Enabled, interrupt enabled, routed to no hart: the timeout has nowhere to go.
+        -- resetn_sys must pulse low and WDTRF must be standing afterwards, having
         -- survived the reset it records. Added 2026-09-14 (Y2) as the oracle for moving
         -- the flag off the resetn_wdt edge and onto mclk.
         report "=== GROUP 5c: watchdog reset ===" severity note;
@@ -500,6 +502,25 @@ begin
         bus_read(clk, pbus, read_data, RegSlotSYS_WDT_SR, rdw);
         sb.check_bit("a written 1 clears WDTRF", rdw(0), '0');
 
+        -- Enabled with the interrupt OFF: the boot ROM's backstop. The route must not matter.
+        v1 := cnt_sys_reset;
+        wdt_irq_routed <= '1';
+        bus_write(clk, pbus, RegSlotSYS_WDT_PASS, WDT_UNLCK_PASSWD);
+        bus_write(clk, pbus, RegSlotSYS_WDT_CR, x"00000094");   -- en=1, cdiv=5, ie=0
+        wait for 120 * PERIOD;                                  -- past WDT_VAL(5) and the reset
+
+        sb.check_true("an IE=0 WDT timeout pulses resetn_sys low", cnt_sys_reset > v1);
+        bus_read(clk, pbus, read_data, RegSlotSYS_WDT_SR, rdw);
+        sb.check_bit("... and sets WDTRF (SR bit0)", rdw(0), '1');
+        bus_read(clk, pbus, read_data, RegSlotSYS_WDT_CR, rdw);
+        sb.check_slv("... and the reset returns WDT_CR to its default", rdw(7 downto 0), x"00");
+
+        -- Disable for the failing case too, so one miss does not cascade into GROUP 5d.
+        bus_write(clk, pbus, RegSlotSYS_WDT_PASS, WDT_UNLCK_PASSWD);
+        bus_write(clk, pbus, RegSlotSYS_WDT_CR, x"00000000");
+        bus_write(clk, pbus, RegSlotSYS_WDT_SR, x"00000001");   -- W1C retires it
+        wdt_irq_routed <= '0';
+
         /* GROUP 5d: a MINIMUM-WIDTH select must land every WDT side effect.
            periph_regs runs with STROBE_HOLD = true here, and a held strobe is retired
            ASYNCHRONOUSLY while en_mem is high, so it is only as wide as the fabric holds
@@ -511,8 +532,9 @@ begin
            Every access below is a plain single-cycle bus_write. */
         report "=== GROUP 5d: single-cycle select ===" severity note;
 
+        wdt_irq_routed <= '1';                                  -- no reset: this group needs the chip up
         bus_write(clk, pbus, RegSlotSYS_WDT_PASS, WDT_UNLCK_PASSWD);
-        bus_write(clk, pbus, RegSlotSYS_WDT_CR, x"00000094");   -- en=1, cdiv=5, ie=0
+        bus_write(clk, pbus, RegSlotSYS_WDT_CR, x"00000096");   -- en=1, cdiv=5, ie=1
         wait for 60 * PERIOD;                                   -- past WDT_VAL(5)
         bus_read(clk, pbus, read_data, RegSlotSYS_WDT_SR, rdw);
         sb.check_bit("GROUP5d: precondition, the timeout has set wdt_if", rdw(1), '1');
@@ -555,6 +577,7 @@ begin
         bus_read(clk, pbus, read_data, RegSlotSYS_WDT_CR, rdw);
         sb.check_slv("GROUP5d: a single-cycle password opens the unlock window "
                      & "(WDT_CR takes the write)", rdw(7 downto 0), x"00");
+        wdt_irq_routed <= '0';
 
         -- GROUP 6: clock tree activity.
         report "=== GROUP 6: clocks ===" severity note;

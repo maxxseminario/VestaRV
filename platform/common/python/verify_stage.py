@@ -448,6 +448,7 @@ CATALOG = [
     T('rv32ui-p-xori'), T('rv32ui-p-ld_st'), T('rv32ui-p-st_ld'),
     T('rv32ui-p-shfault', 'tiles'),
     T('rv32ui-p-wgpio'),
+    T('rv32ui-p-wdtboot'),
     T('rv32ui-p-wperiph', 'qspi i3c nfc'), T('rv32ui-p-wqspi', 'qspi'),
     T('rv32ui-p-wi3c', 'i3c'), T('rv32ui-p-wnfc', 'nfc'),
     # One-defect detectors, both polarities.

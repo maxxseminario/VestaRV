@@ -89,30 +89,30 @@ enum wdtcr_syswdten_e {
     WATCHDOG_ENABLED = 1'h1 { desc = "Watchdog enabled"; };
 };
 enum wdtcr_syswdtcdiv_e {
-    SYSWDTCDIV_65536 = 4'h0 { desc = "Bit 16: 65,536 MCLK cycles"; };
-    SYSWDTCDIV_131072 = 4'h1 { desc = "Bit 17: 131,072 MCLK cycles"; };
-    SYSWDTCDIV_262144 = 4'h2 { desc = "Bit 18: 262,144 MCLK cycles"; };
-    SYSWDTCDIV_524288 = 4'h3 { desc = "Bit 19: 524,288 MCLK cycles"; };
-    SYSWDTCDIV_1048576 = 4'h4 { desc = "Bit 20: 1,048,576 MCLK cycles"; };
-    SYSWDTCDIV_2097152 = 4'h5 { desc = "Bit 21: 2,097,152 MCLK cycles"; };
-    SYSWDTCDIV_4194304 = 4'h6 { desc = "Bit 22: 4,194,304 MCLK cycles"; };
-    SYSWDTCDIV_8388608 = 4'h7 { desc = "Bit 23: 8,388,608 MCLK cycles"; };
-    SYSWDTCDIV_16777216 = 4'h8 { desc = "Bit 24: 16,777,216 MCLK cycles"; };
-    SYSWDTCDIV_33554432 = 4'h9 { desc = "Bit 25: 33,554,432 MCLK cycles"; };
-    SYSWDTCDIV_67108864 = 4'hA { desc = "Bit 26: 67,108,864 MCLK cycles"; };
-    SYSWDTCDIV_134217728 = 4'hB { desc = "Bit 27: 134,217,728 MCLK cycles"; };
-    SYSWDTCDIV_268435456 = 4'hC { desc = "Bit 28: 268,435,456 MCLK cycles"; };
-    SYSWDTCDIV_536870912 = 4'hD { desc = "Bit 29: 536,870,912 MCLK cycles"; };
-    SYSWDTCDIV_1073741824 = 4'hE { desc = "Bit 30: 1,073,741,824 MCLK cycles"; };
-    SYSWDTCDIV_2147483648 = 4'hF { desc = "Bit 31: 2,147,483,648 MCLK cycles"; };
+    SYSWDTCDIV_1 = 4'h0 { desc = "Bit 0: 1 MCLK cycles"; };
+    SYSWDTCDIV_2 = 4'h1 { desc = "Bit 1: 2 MCLK cycles"; };
+    SYSWDTCDIV_4 = 4'h2 { desc = "Bit 2: 4 MCLK cycles"; };
+    SYSWDTCDIV_8 = 4'h3 { desc = "Bit 3: 8 MCLK cycles"; };
+    SYSWDTCDIV_16 = 4'h4 { desc = "Bit 4: 16 MCLK cycles"; };
+    SYSWDTCDIV_32 = 4'h5 { desc = "Bit 5: 32 MCLK cycles"; };
+    SYSWDTCDIV_64 = 4'h6 { desc = "Bit 6: 64 MCLK cycles"; };
+    SYSWDTCDIV_128 = 4'h7 { desc = "Bit 7: 128 MCLK cycles"; };
+    SYSWDTCDIV_256 = 4'h8 { desc = "Bit 8: 256 MCLK cycles"; };
+    SYSWDTCDIV_512 = 4'h9 { desc = "Bit 9: 512 MCLK cycles"; };
+    SYSWDTCDIV_1024 = 4'hA { desc = "Bit 10: 1,024 MCLK cycles"; };
+    SYSWDTCDIV_2048 = 4'hB { desc = "Bit 11: 2,048 MCLK cycles"; };
+    SYSWDTCDIV_4096 = 4'hC { desc = "Bit 12: 4,096 MCLK cycles"; };
+    SYSWDTCDIV_8192 = 4'hD { desc = "Bit 13: 8,192 MCLK cycles"; };
+    SYSWDTCDIV_16384 = 4'hE { desc = "Bit 14: 16,384 MCLK cycles"; };
+    SYSWDTCDIV_32768 = 4'hF { desc = "Bit 15: 32,768 MCLK cycles"; };
 };
 enum wdtcr_syswdtie_e {
     WATCHDOG_INTERRUPT_DISABLED = 1'h0 { desc = "Watchdog interrupt disabled"; };
     WATCHDOG_INTERRUPT_ENABLED = 1'h1 { desc = "Watchdog interrupt enabled"; };
 };
 enum wdtcr_syswdthwrst_e {
-    WATCHDOG_RESET_DISABLED = 1'h0 { desc = "Watchdog reset disabled"; };
-    WATCHDOG_RESET_ENABLED = 1'h1 { desc = "Watchdog reset enabled"; };
+    WATCHDOG_RESET_DISABLED = 1'h0 { desc = "No reset requested"; };
+    WATCHDOG_RESET_ENABLED = 1'h1 { desc = "Reset the system now"; };
 };
 enum wdtsr_syswdtif_e {
     NO_WATCHDOG_INTERRUPT_PENDING = 1'h0 { desc = "No watchdog interrupt pending"; };
@@ -308,21 +308,21 @@ reg WDTCR_t {
         vesta_access = "rw";
         encode = wdtcr_syswdtcdiv_e;
         vesta_named_values = true;
-        desc = "Watchdog timeout select. The timeout event occurs when counter bit SYSWDTCDIV + 16 rises, so the period is 2^(SYSWDTCDIV + 16) MCLK cycles.";
+        desc = "Watchdog timeout select. The timeout event occurs when counter bit SYSWDTCDIV rises: 2^SYSWDTCDIV MCLK cycles after the counter is cleared, then every 2^(SYSWDTCDIV + 1) cycles.";
     } SYSWDTCDIV[5:2];
     field {
         sw = rw; hw = r;
         reset = 1'h0;
         vesta_access = "rw";
         encode = wdtcr_syswdtie_e;
-        desc = "Watchdog interrupt enable. When set, a timeout sets SYSWDTIF and raises the watchdog interrupt (vector 0) to the harts the IRQROUTER routes it to; with SYSWDTHWRST also set, the system reset follows the servicing hart completing the interrupt. If the vector is routed to no hart, the reset (when enabled) occurs immediately on timeout.";
+        desc = "Watchdog interrupt enable. When clear, a timeout resets the system. When set, a timeout raises the watchdog interrupt (vector 0) to the harts the IRQROUTER routes it to; if the servicing hart completes the interrupt with SYSWDTIF still set, the next timeout resets the system. If the vector is routed to no hart, the timeout resets the system.";
     } SYSWDTIE[1:1];
     field {
         sw = rw; hw = r;
         reset = 1'h0;
         vesta_access = "rw";
         encode = wdtcr_syswdthwrst_e;
-        desc = "Watchdog reset enable. When set, a timeout resets the system: immediately if the watchdog interrupt is disabled or routed to no hart, otherwise after the servicing hart completes the interrupt.";
+        desc = "Software system reset. Writing 1 resets the system at once and the bit returns to 0 with the rest of WDTCR. It does not select what a timeout does: that is SYSWDTIE and the IRQROUTER.";
     } SYSWDTHWRST[0:0];
 };
 
@@ -334,7 +334,7 @@ reg WDTSR_t {
         reset = 1'h0;
         vesta_access = "rw1";
         encode = wdtsr_syswdtif_e;
-        desc = "Watchdog interrupt flag, set on a timeout while SYSWDTIE = 1 and held until software writes 1 to it.";
+        desc = "Watchdog interrupt flag, set on a timeout and held until software writes 1 to it or a reset clears it.";
     } SYSWDTIF[1:1];
     field {
         sw = rw; hw = w; onwrite = woclr;

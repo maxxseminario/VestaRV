@@ -10,7 +10,7 @@ The \peripheral{SYSTEM} peripheral groups the chip-level control blocks: the clo
 	\item Source selection and enables for MCLK and SMCLK (\register{SYSCLKCR}), dividers for both (\register{CLKDIVCR}), and bias control of the two on-chip oscillators (\register{DCO0BIAS}, \register{DCO1BIAS})
 	\item Power gates in \register{BLOCKPWR} for the ROM, the per-hart memory blocks and the first four shared RAM banks
 	\item CRC16-CDMA2000 accumulator (\register{CRCDATA}, \register{CRCSTATE})
-	\item 24-bit watchdog with sixteen timeouts, password-protected control, optional interrupt and hardware reset (\register{WDTCR}, \register{WDTPASS}, \register{WDTSR}, \register{WDTVAL})
+	\item 24-bit watchdog with sixteen timeouts, password-protected control, reset on timeout, optional interrupt and software reset (\register{WDTCR}, \register{WDTPASS}, \register{WDTSR}, \register{WDTVAL})
 	\item One interrupt: watchdog timeout, vector 0
 \end{itemize}
 
@@ -40,7 +40,7 @@ The CRC module computes CRC16-CDMA2000 over a byte sequence: width 16, polynomia
 
 \subsection{Watchdog}
 
-The watchdog is a 24-bit counter that increments on every MCLK cycle while \bitfield{SYSWDTEN} is set. \bitfield{SYSWDTCDIV} selects which counter bit, 16 to 31, raises the event on its 0-to-1 transition, so the timeout is $2^{\bitfield{SYSWDTCDIV} + 16}$ MCLK cycles: at 24 MHz from about 2.73 \si{\milli\second} to about 89.5 \si{\second}. On the event, \bitfield{SYSWDTIF} is set; if \bitfield{SYSWDTIE} is set and vector 0 is routed to some hart, the interrupt is delivered through the \peripheral{IRQROUTER} and, if \bitfield{SYSWDTHWRST} is also set, the chip resets after that hart completes the claim. If the interrupt is disabled or unrouted, the chip resets immediately on the event when \bitfield{SYSWDTHWRST} is set.
+The watchdog is a 24-bit counter that increments on every MCLK cycle while \bitfield{SYSWDTEN} is set. \bitfield{SYSWDTCDIV} selects which counter bit, 0 to 15, raises the event on its 0-to-1 transition, so the timeout is $2^{\bitfield{SYSWDTCDIV}}$ MCLK cycles after the counter is cleared, at most about 1.37 \si{\milli\second} at 24 MHz, and repeats every $2^{\bitfield{SYSWDTCDIV} + 1}$ cycles after that. On the event, \bitfield{SYSWDTIF} is set. If \bitfield{SYSWDTIE} is clear or vector 0 is routed to no hart, the chip resets immediately. Otherwise the interrupt is delivered through the \peripheral{IRQROUTER}, and if the hart completes the claim with \bitfield{SYSWDTIF} still set, the chip resets on the next event. Writing 1 to \bitfield{SYSWDTHWRST} resets the chip at once, with or without the watchdog running.
 
 \register{WDTCR} is write-protected: a write of the unlock password \texttt{\WdtUnlockPassword} to \register{WDTPASS} opens a 64-MCLK-cycle window in which \register{WDTCR} accepts a write, so that a runaway program cannot disable the watchdog by chance. A write of the clear password \texttt{\WdtClearPassword} to \register{WDTPASS} resets the counter to zero. \bitfield{SYSWDTRF} in \register{WDTSR} records that the last reset was caused by the watchdog and survives reset. \register{WDTVAL} reads the counter, or zero while the watchdog is disabled.
 
@@ -85,7 +85,7 @@ Table \ref{t:system-irq} lists the one vector.
 \begin{enumerate}
 	\item Route vector 0 to the servicing hart in its \peripheral{IRQROUTER} row if the interrupt is wanted.
 	\item Write \texttt{\WdtUnlockPassword} to \register{WDTPASS}.
-	\item Write \register{WDTCR} with \bitfield{SYSWDTCDIV}, \bitfield{SYSWDTIE}, \bitfield{SYSWDTHWRST} and \bitfield{SYSWDTEN} set in the same write, within 64 MCLK cycles of the unlock.
+	\item Write \register{WDTCR} with \bitfield{SYSWDTCDIV}, \bitfield{SYSWDTIE} and \bitfield{SYSWDTEN} in the same write, within 64 MCLK cycles of the unlock. Leave \bitfield{SYSWDTHWRST} at 0: a 1 resets the chip.
 	\item Write \texttt{\WdtClearPassword} to \register{WDTPASS} periodically, within the timeout.
 \end{enumerate}
 
@@ -110,4 +110,4 @@ Table \ref{t:system-irq} lists the one vector.
 
 \paragraph{Write \register{WDTCR} in one access within the unlock window.} The window closes 64 MCLK cycles after the unlock password; a read-modify-write that straddles it is discarded.
 
-\paragraph{Clear \bitfield{SYSWDTIF} with a 1 in the handler.} The interrupt is a level; with \bitfield{SYSWDTHWRST} set the chip resets after the claim is completed regardless.
+\paragraph{Clear \bitfield{SYSWDTIF} with a 1 in the handler.} The interrupt is a level. A handler that completes the claim with the flag still set arms a reset on the next event.

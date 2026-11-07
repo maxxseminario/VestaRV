@@ -293,10 +293,9 @@ begin
                 -- Set interrupt flag on WDT timeout
                 wdt_if <= '1';
 
-                -- Generate the trigger pulse if interrupts are enabled; delivery masking is the router row's job, not SYSTEM's.
-                if wdt_ie = '1' then
-                    wdt_trigger <= '1';
-                end if;
+                -- Every timeout pulses the trigger: wdt_rst_cond decides what it does, and with IE clear that is a reset, which is what the boot ROM's backstop arms for.
+                -- Delivery masking is the router row's job, not SYSTEM's.
+                wdt_trigger <= '1';
             else
                 -- Clear trigger after one cycle (pulse)
                 wdt_trigger <= '0';
