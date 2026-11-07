@@ -145,7 +145,6 @@ for plain `bazel`.
 | Run the full ISA simulation regression (GHDL, no licenses) | `tools/bin/bazel test //opensource_sim:isa_regression` |
 | Core and peripheral unit benches (26) | `tools/bin/bazel test //hdl/common/tb:all` |
 | Synthesizability of every block (39 entities) | `tools/bin/bazel test //hdl/common/synth:synth` |
-| Frozen flop, latch and cell counts for those entities | `tools/bin/bazel test //toolchains/ghdl:synth_census_test` |
 | Python tooling and docs gates | `tools/bin/bazel test //tools/... //docs/...` |
 | Bind the FPGA cut against the synthesizable stand-in cells | `tools/bin/bazel test //opensource_sim/fpga_default:fpga_default_elaborate` |
 | Write the ordered VHDL file list a Vivado run reads | `tools/bin/bazel build //opensource_sim/fpga_default:fpga_default_vivado_files` |

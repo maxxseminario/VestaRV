@@ -1,7 +1,7 @@
 -- VestaRV: synthesis black boxes for the cells ghdl --synth must not look inside
 -- MCU.vhd and hart_tile.vhd instantiate three compiled memory macros and three analog cells by direct entity work.<name> association, so each has to be a design unit before the instantiating unit is analyzed; the only other HDL for them is the non-synthesizable behavioural models in hdl/common/sim/.
 -- Each stub mirrors the real cell's port names, directions and widths exactly and drives every output to a constant: an undriven output raises -Wnowrite, which toolchains/ghdl/synth_census.py treats as fatal. Nothing is registered, so a stub adds no flop or latch to a census row.
--- A port list changed on the real macro and not mirrored here leaves the gate green. The blackbox list is frozen per target in toolchains/ghdl/synth_census.json, so a cell cannot be added here and quietly dropped from a graded hierarchy.
+-- A port list changed on the real macro and not mirrored here leaves the gate green.
 -- hdl/common/synth is a bazel package and //hdl:vhdl_sources does not descend into a subpackage, so no simulation source list reaches these stubs: only the ghdl_synth_test targets in this package name them by path.
 
 library IEEE;

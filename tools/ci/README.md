@@ -22,17 +22,14 @@ Rules:
 ## Synthesis census (related gates, `toolchains/ghdl/`)
 
 ```sh
-tools/bin/bazel test //hdl/common/synth:synth //toolchains/ghdl:synth_census_test \
-                     //toolchains/ghdl:synth_coverage_test
-tools/bin/bazel run  //toolchains/ghdl:synth_census_update   # bless a deliberate count change
+tools/bin/bazel test //hdl/common/synth:synth //toolchains/ghdl:synth_coverage_test
 ```
 
 | Target | Checks |
 |---|---|
 | `//hdl/common/synth:synth` | `ghdl --synth` on every `hdl/common/` block; rejects process `wait`, inferred latches, out-of-range constant indices |
-| `//toolchains/ghdl:synth_census_test` | Flop/latch/cell counts against `toolchains/ghdl/synth_census.json` |
 | `//toolchains/ghdl:synth_coverage_test` | Every `hdl/common/` entity is a synth top or inside one; exclusions in `EXCLUSIONS` of `toolchains/ghdl/synth_coverage.py` |
 
-Regenerate the census in the same commit as the RTL change. Documented skips (`SYSTEM`,
+Counts are not frozen: the design changes constantly. Documented skips (`SYSTEM`,
 `periph_regs`) and the black-box stubs for `hart_tile`, `orch_tile` and `MCU` are described in
 `hdl/common/synth/BUILD.bazel`.

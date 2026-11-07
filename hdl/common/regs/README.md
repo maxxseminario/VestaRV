@@ -17,4 +17,4 @@ tools/bin/bazel run //platform/common/python:rdl_regs_headers   # software/inclu
 tables (`NWORDS RSTVAL IMPL W1C WOSET WOT PULSE RCLR HWOWN`); design note `REGFILE.md`,
 bench `hdl/common/tb/periph_regs_tb.vhd`. 20 blocks use it; IRQROUTER (524-word window,
 64 decoded) and DEBUG (on the DMI) cannot. A change to it or to any `vhdl/` table moves
-every frozen count in `toolchains/ghdl/synth_census.json` (`//toolchains/ghdl:synth_census_test`).
+the synthesis census counts of every block that uses it.

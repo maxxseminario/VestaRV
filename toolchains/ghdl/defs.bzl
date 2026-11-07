@@ -420,8 +420,8 @@ rather than to report.
 # The action exits 0 even when GHDL fails, recording status="error" plus the
 # log, so a broken design gives a RED TEST with the diagnostics attached
 # rather than a build error with nothing kept.  The census is also exposed in
-# the "census" output group, which is how //toolchains/ghdl:synth_census_test
-# reads every block's counts without re-running anything.
+# the "census" output group, which is how //toolchains/ghdl:synth_coverage_test
+# reads every block's hierarchy without re-running anything.
 #
 # THE LATCH POLICY.  GHDL 6.0.0 has no --latches=off: `--latches` is an opt-in
 # that ALLOWS latches, and the default already errors on one, naming the net.
@@ -505,8 +505,7 @@ def _ghdl_synth_test_impl(ctx):
 
     if ctx.attr.skip_reason:
         # A documented skip is still a target, still in the suite, and still in
-        # the frozen census -- what is frozen is the REASON, so deleting the
-        # reason without deleting the skip fails //toolchains/ghdl:synth_census_test.
+        # the census, which records the REASON.
         ctx.actions.write(netlist, "")
         ctx.actions.write(log, "skipped: " + ctx.attr.skip_reason + "\n")
         ctx.actions.write(census, json.encode_indent(struct(

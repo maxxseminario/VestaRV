@@ -3,7 +3,7 @@
 # The suite is //hdl/common/synth:synth and not //hdl/common:synth because a BUILD file at
 # hdl/common/ would carve the entire RTL tree out of //hdl:vhdl_sources' glob. Source lists
 # are not repeated: these targets reuse //hdl/common/tb's vhdl_source_sets, and only NPU and
-# the vesta hart, which have no bench, are defined below. Counts are frozen in synth_census.json.
+# the vesta hart, which have no bench, are defined below.
 
 load("//opensource_sim/mcu:defs.bzl", "VESTA_MCU_RTL")
 load("//toolchains/ghdl:defs.bzl", "ghdl_synth_test", "vhdl_source_set")
@@ -836,9 +836,9 @@ test_suite(
 
 # Every target's census JSON, pulled out of the "census" output group that
 # ghdl_synth_test declares alongside its test executable.  This is what lets
-# //toolchains/ghdl:synth_census_test grade all 39 blocks without re-running a
-# single synthesis: the counts are already on disk as build outputs of the
-# same actions the tests read.
+# //toolchains/ghdl:synth_coverage_test read all 39 blocks' hierarchies without
+# re-running a single synthesis: the censuses are already on disk as build
+# outputs of the same actions the tests read.
 filegroup(
     name = "synth_censuses",
     testonly = True,

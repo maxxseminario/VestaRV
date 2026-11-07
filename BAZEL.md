@@ -42,7 +42,7 @@ below are `bazel query` output, not estimates.
 | ISA test images | `//verification/isa:all_images` (518 files: 259 programs, plain and flashed), per-suite `:rv32ui_rcfs` / `:rv32ui_flashed` ... plus ON-polarity `os_*` variants | `:image_contract_test` |
 | Open-source simulation (GHDL, no licenses) | toolchain: `//toolchains/ghdl:ghdl` (`@ghdl//:ghdl_mcode`, built from source) | `//opensource_sim:isa_rv32ui` ... `:isa_rv32uzf` (9 suites, `:isa_regression` aggregate), 43 per-test `//opensource_sim/isa:rv32ui-p-*`, 22 `//opensource_sim/pmp:*` (`:pmp` aggregate, both fetch-ahead polarities), MCU-level `//opensource_sim/mcu:mcu_elaborate` / `:tcm_port_tb`, `//opensource_sim/asic_default:*` (2), `//opensource_sim/fpga_default:fpga_default_elaborate` and `//opensource_sim/rv4th:rv4th_forth` (boot ROM Forth monitor over UART0; `:rv4th_forth_full` is the `manual` whole-bench variant) |
 | Unit benches | RTL source sets per block | `//hdl/common/tb:all`: 26 `ghdl_test` benches, one per peripheral plus `mp_arbiter_tb`, `pmp_unit_tb`, `dbg_module_tb`, `jtag_dtm_tb`, `periph_regs_tb`, `sync_tb`, `arb_lat_tb`, `irq_sys_tb`; plus `:fpu_vectors_format_test` |
-| Synthesizability | - | `//hdl/common/synth:synth`, 39 `ghdl --synth` targets; `//toolchains/ghdl:synth_census_test` freezes their flop, latch and cell counts (39 entities, 2 recorded as skipped), `:synth_coverage_test` fails when an entity under `hdl/common/` is synthesized by nothing |
+| Synthesizability | - | `//hdl/common/synth:synth`, 39 `ghdl --synth` targets (2 recorded as skipped); `//toolchains/ghdl:synth_coverage_test` fails when an entity under `hdl/common/` is synthesized by nothing |
 | Performance | - | `//verification/cpi:cpi_default` / `:cpi_full` / `:micro` (58 tests: recorded cycle and instruction counts per benchmark) |
 | Python tooling | `//tools/cosim`, `//tools/randgen`, `//tools/python`, `//tools/build`, `//tools/ci`, `//verification/npu` | comparator, oracle, randgen, tracer-independence, entity-defaults, knob classes, doc-links, image maps, bazelignore and VHDL style, NPU golden regen + validate_mlp (9) |
 | Docs provenance | - | `//docs:theme_sync_test`, `//tools/python:check_doc_links_test`, register-browser and web-data gates under `//platform/common` |
@@ -64,7 +64,7 @@ Writers (`bazel run` targets that edit the source tree) are deliberate and
 enumerated: `//:regs` and the three emitters it chains
 (`//platform/common/python:rdl_vhdl_pkgs`, `:rdl_regs_headers`, `:generate`),
 `//platform/common/python:splice_register_browser` and `:splice_web_data`,
-`//tools/python:theme_sync`, and `//toolchains/ghdl:synth_census_update`.
+and `//tools/python:theme_sync`.
 Everything under `bazel build`/`bazel test` is sandboxed and never touches the
 tree. Never run `bazel run //:generate` on its own casually, it is the raw
 generator and writes wherever it runs; the hermetic path is
@@ -175,8 +175,8 @@ enforced.
 
 `sim.yml`'s **`GHDL ISA regression (bazel)`** runs the GHDL half:
 `//opensource_sim:isa_regression`, the `//hdl/common/tb:all` unit benches,
-`//hdl/common/synth:synth`, `//toolchains/ghdl:synth_census_test` and
-`:synth_coverage_test`, `//verification/cpi:cpi_default`,
+`//hdl/common/synth:synth` and
+`//toolchains/ghdl:synth_coverage_test`, `//verification/cpi:cpi_default`,
 `//opensource_sim/pmp:pmp`, `//opensource_sim/mcu:mcu_elaborate`,
 `//opensource_sim/castalia_b:castalia_b_elaborate`,
 `//opensource_sim/fpga_default:fpga_default_elaborate`, `//opensource_sim/tile_isa:tile_rv32ui`

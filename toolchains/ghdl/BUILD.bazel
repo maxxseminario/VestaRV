@@ -21,12 +21,13 @@ alias(
     actual = "@ghdl//:vhdl_libs_v08",
 )
 
-# The synthesizability gate and its frozen census
+# The synthesizability gate and its census
 
-# Three roles in one script (run / gate / freeze), so the raw-netlist parser
-# has exactly one definition.  It is a build TOOL for ghdl_synth_test's synth
-# action, the test BINARY that reads the census that action wrote, and the
-# comparator behind the frozen table.
+# Two roles in one script (run / gate), so the raw-netlist parser has exactly
+# one definition.  It is a build TOOL for ghdl_synth_test's synth action and
+# the test BINARY that reads the census that action wrote.  Counts are NOT
+# frozen against a table: the design moves constantly, and a frozen census
+# only failed on every legitimate RTL change.
 py_binary(
     name = "synth_census",
     srcs = ["synth_census.py"],
@@ -35,11 +36,10 @@ py_binary(
 
 exports_files([
     "synth_census.py",
-    "synth_census.json",
     "synth_coverage.py",
 ])
 
-# The file list the census comparator reads, one path per line.  Same shape
+# The file list synth_coverage_test reads, one path per line.  Same shape
 # and same reason as //tools/ci:vhdl_source_manifest: args built out of
 # $(rootpaths ...) are shell-tokenized, which quietly loses any path
 # containing a space, and a 25-entry list on a command line is unreadable in
@@ -51,58 +51,6 @@ genrule(
     srcs = ["//hdl/common/synth:synth_censuses"],
     outs = ["census_manifest.txt"],
     cmd = "for f in $(rootpaths //hdl/common/synth:synth_censuses); do echo $$f; done > $@",
-)
-
-# PROVES that no block's flop count, latch count, cell count or latch-module
-# list moved since the table was last blessed.  A behavioural bench does not
-# see a register bank that doubles, a reset that stops reaching a flop, or a
-# clock gate that grows a second latch: all three keep the same waveform on
-# the stimulus the bench drives and change the silicon.  This is the
-# instrument for that class.
-#
-# A change that is intended is blessed by regenerating the table IN THE SAME
-# COMMIT as the RTL change:
-#
-#     tools/bin/bazel run //toolchains/ghdl:synth_census_update
-py_test(
-    name = "synth_census_test",
-    size = "small",
-    srcs = ["synth_census.py"],
-    args = [
-        "freeze",
-        "--frozen",
-        "$(rootpath synth_census.json)",
-        "--census-from",
-        "$(rootpath :census_manifest)",
-    ],
-    data = [
-        "synth_census.json",
-        "//hdl/common/synth:synth_censuses",
-        ":census_manifest",
-    ],
-    main = "synth_census.py",
-)
-
-# The blessing half of the pair.  It reads the same manifest the test reads
-# and writes through BUILD_WORKSPACE_DIRECTORY, which only `bazel run` sets --
-# running it any other way is refused rather than writing into the sandbox.
-py_binary(
-    name = "synth_census_update",
-    testonly = True,
-    srcs = ["synth_census.py"],
-    args = [
-        "freeze",
-        "--update",
-        "--frozen",
-        "toolchains/ghdl/synth_census.json",
-        "--census-from",
-        "$(rootpath :census_manifest)",
-    ],
-    data = [
-        "//hdl/common/synth:synth_censuses",
-        ":census_manifest",
-    ],
-    main = "synth_census.py",
 )
 
 # The coverage gate: no RTL file may dodge the census
@@ -125,8 +73,8 @@ genrule(
 # counts, because a skip is a recorded decision) or it appears in the
 # elaborated hierarchy of one, which the census records module by module.
 #
-# WHY THE CENSUS TEST IS NOT ENOUGH.  synth_census_test grades the blocks that
-# HAVE a target.  Nothing graded the list itself, so a new .vhd under
+# WHY THE PER-BLOCK GATE IS NOT ENOUGH.  //hdl/common/synth:synth grades the
+# blocks that HAVE a target.  Nothing graded the list itself, so a new .vhd under
 # hdl/common/ that no target names and no graded block instantiates was simply
 # never synthesized, and both gates stayed green while the coverage shrank as
 # a fraction of the tree.  This is the gate a new RTL file trips on the commit

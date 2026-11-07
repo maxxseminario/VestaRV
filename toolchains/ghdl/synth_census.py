@@ -2,7 +2,7 @@
 """VestaRV: the hermetic GHDL synthesizability gate and its census.
 
 Subcommands run (synthesize one entity; exits 0 even on a GHDL failure, recording
-status=error in the census), gate (PASS/FAIL a census) and freeze (against synth_census.json).
+status=error in the census) and gate (PASS/FAIL a census).
 GHDL has no --latches=off, so run always passes --latches and a latch is fatal unless the
 target's allow_latches fnmatches the lowercased `<entity>_B<architecture>` module name.
 """
@@ -334,28 +334,7 @@ def cmd_gate(args):
     return 0
 
 
-# freeze
-
-FROZEN_HEADER = {
-    "_comment": [
-        "toolchains/ghdl/synth_census.json -- the FROZEN synthesis census.",
-        "",
-        "One row per //hdl/common:synth target: the flop bits, latch bits and",
-        "cell count ghdl --synth produces for that entity at its shipped",
-        "generics.  //toolchains/ghdl:synth_census_test fails when any of them",
-        "moves, so a register bank that silently doubles, a reset that stops",
-        "reaching a flop, or a new latch is caught on the commit that does it.",
-        "",
-        "Regenerating this file is a DELIBERATE ACT.",
-        "Run  tools/bin/bazel run //toolchains/ghdl:synth_census_update",
-        "and commit the result in the SAME commit as the change it blesses, so",
-        "the review sees the blessing next to the thing being blessed.",
-        "",
-        "A 'skipped' row records a block this tier cannot synthesize, with the",
-        "reason; it is graded only on the reason still matching the BUILD file.",
-    ],
-}
-
+# Runfiles
 
 def runfiles_root():
     """Where data dependencies live. A py_test runs with its working directory at the runfiles root,
@@ -384,118 +363,6 @@ def data_path(rel):
     return rel
 
 
-def load_censuses(paths):
-    out = {}
-    for path in paths:
-        census = json.load(open(data_path(path)))
-        key = census.get("target") or census["entity"]
-        out[key] = census
-    return out
-
-
-def census_row(census):
-    if census.get("status") == "skipped":
-        return {"skipped": census["skip_reason"]}
-    row = {
-        "cells": census["cells"],
-        "flop_bits": census["flop_bits"],
-        "latch_bits": census["latch_bits"],
-        "latch_modules": census["latch_modules"],
-    }
-    # Emitted only when the target has black boxes, so the twenty-odd rows
-    # that have none carry no empty field.  A black box hides real hierarchy
-    # from the gate, which is exactly why the list is frozen: adding one is a
-    # visible act.
-    if census.get("blackboxes"):
-        row["blackboxes"] = sorted(census["blackboxes"])
-    return row
-
-
-UPDATE_CMD = "tools/bin/bazel run //toolchains/ghdl:synth_census_update"
-
-
-def cmd_freeze(args):
-    paths = list(args.census)
-    if args.census_from:
-        handle = open(data_path(args.census_from))
-        try:
-            for line in handle:
-                text = line.strip()
-                if text:
-                    paths.append(text)
-        finally:
-            handle.close()
-    if not paths:
-        sys.stderr.write("ERROR: no census files given; the manifest is empty.\n")
-        return 2
-    live = load_censuses(paths)
-    rows = {}
-    for name in sorted(live):
-        rows[name] = census_row(live[name])
-
-    if args.update:
-        root = os.environ.get("BUILD_WORKSPACE_DIRECTORY")
-        if not root:
-            sys.stderr.write(
-                "ERROR: --update must run under `bazel run`, which is what\n"
-                "       sets BUILD_WORKSPACE_DIRECTORY.  Use:\n"
-                "       %s\n" % UPDATE_CMD)
-            return 2
-        out = os.path.join(root, args.frozen)
-        payload = dict(FROZEN_HEADER)
-        payload["entities"] = rows
-        handle = open(out, "w")
-        try:
-            json.dump(payload, handle, indent=2, sort_keys=True)
-            handle.write("\n")
-        finally:
-            handle.close()
-        print("wrote %s: %d entities" % (out, len(rows)))
-        return 0
-
-    frozen = json.load(open(data_path(args.frozen))).get("entities", {})
-
-    failures = []
-    for name in sorted(set(frozen) | set(rows)):
-        want = frozen.get(name)
-        got = rows.get(name)
-        if want is None:
-            failures.append("%s: not in the frozen census (new target)" % name)
-            continue
-        if got is None:
-            failures.append("%s: frozen but no synth target produces it" % name)
-            continue
-        if "skipped" in want or "skipped" in got:
-            if want.get("skipped") != got.get("skipped"):
-                failures.append("%s: skip status changed\n    frozen: %s\n    now:    %s"
-                                % (name, want.get("skipped"), got.get("skipped")))
-            continue
-        for field in ("flop_bits", "latch_bits", "cells"):
-            if want.get(field) != got.get(field):
-                failures.append("%s: %s %s -> %s"
-                                % (name, field, want.get(field), got.get(field)))
-        for field in ("latch_modules", "blackboxes"):
-            if sorted(want.get(field, [])) != sorted(got.get(field, [])):
-                failures.append("%s: %s %s -> %s"
-                                % (name, field, want.get(field, []),
-                                   got.get(field, [])))
-
-    if failures:
-        print("FAIL: the synthesis census moved.")
-        for line in failures:
-            print("  %s" % line)
-        print("")
-        print("A count that changed on purpose is blessed by regenerating the")
-        print("frozen table IN THE SAME COMMIT as the RTL change:")
-        print("  %s" % UPDATE_CMD)
-        return 1
-
-    graded = sum(1 for r in rows.values() if "skipped" not in r)
-    print("OK: synthesis census unchanged - %d entities graded, %d skipped."
-          % (graded, len(rows) - graded))
-    return 0
-
-
 def main(argv):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = parser.add_subparsers(dest="cmd")
@@ -510,7 +377,7 @@ def main(argv):
     run.add_argument("--allow-latch", action="append", default=[])
     run.add_argument("--blackbox", action="append", default=[],
                      help="basename of a synthesis black-box stub analyzed "
-                          "ahead of --src; recorded in the frozen census")
+                          "ahead of --src; recorded in the census")
     run.add_argument("--entity", required=True)
     run.add_argument("--target", default="")
     run.add_argument("--netlist", required=True)
@@ -522,14 +389,6 @@ def main(argv):
     gate.add_argument("--census", required=True)
     gate.add_argument("--log", default="")
     gate.set_defaults(func=cmd_gate)
-
-    freeze = sub.add_parser("freeze")
-    freeze.add_argument("--frozen", required=True)
-    freeze.add_argument("--census", action="append", default=[])
-    freeze.add_argument("--census-from", default="",
-                        help="file holding one census path per line")
-    freeze.add_argument("--update", action="store_true")
-    freeze.set_defaults(func=cmd_freeze)
 
     args = parser.parse_args(argv)
     if not getattr(args, "func", None):

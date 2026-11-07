@@ -267,8 +267,7 @@ not cover a register, it does not prove that register.
   `tags = ["ghdl"]`.
 - `hdl/common/synth/BUILD.bazel`: a `ghdl_synth_test` on the same source set, and
   the target added to `SYNTH_TARGETS`. Zero latches is a requirement, not an
-  observation. `//toolchains/ghdl:synth_census_test` then freezes the flop, latch
-  and cell counts.
+  observation.
 - The other lists that read the RTL tree, each of which wants the package
   immediately before its entity: `REGS_PACKAGES` in
   `platform/common/python/verify_stage.py`, `opensource_sim/mcu/defs.bzl`,
@@ -277,8 +276,7 @@ not cover a register, it does not prove that register.
   one `read_hdl` line for the package and one for the entity, in that order.
 
 ```bash
-tools/bin/bazel test //hdl/common/tb:<BLOCK>_tb //hdl/common/synth:<BLOCK> \
-                     //toolchains/ghdl:synth_census_test
+tools/bin/bazel test //hdl/common/tb:<BLOCK>_tb //hdl/common/synth:<BLOCK>
 ```
 
 ### 7. The TRM intro chapter
