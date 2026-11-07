@@ -565,10 +565,9 @@ filegroup(
 
 # CONTRACT TEST
 #
-# tools/cosim/gate/bootrom_mp_rom.rcf is the ONLY tracked .rcf in the tree
-# (.gitignore re-includes tools/cosim/gate/*.rcf over the global *.rcf rule),
-# and it is the MP bootrom image, not an ISA test image, so there is no tracked
-# golden for anything this package produces and no golden diff to wire up.
+# No .rcf is tracked anywhere in the tree (the boot ROM is pinned by md5 in
+# software/bootrom_mp/rom_rcf.md5, not by a stored image), so there is no
+# tracked golden for anything this package produces and no golden diff to wire up.
 # Byte identity against the on-disk verification/isa/rcf/ set was therefore
 # measured by hand and reported; what stands as a test here is the image
 # CONTRACT, which is what a stale or mis-staged image violates first:

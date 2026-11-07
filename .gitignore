@@ -62,16 +62,8 @@ logo/
 
 # Generic EDA and simulation intermediates, in case a tool runs outside its tree.
 *.rcf
-# One exception: the canonical copy of the boot ROM image under tools/cosim/gate/.
-# It is the exact byte stream both sides of the COSIM_BOOT lockstep execute, the
-# reference from pc=0 and the behavioural ROM model by hardcoded path, so a silent
-# change to it is a silent change to the four pinned gate numbers. The live copy
-# at software/bootrom_mp/bin/rom.rcf stays excluded by the software/*/bin/ rule
-# below; this negation covers only the record here. The negation works because
-# *.rcf is a file-name rule and tools/cosim/ is not excluded. It would not work
-# under xcelium/, where a directory rule excludes the parent and git cannot
-# re-include a file beneath it.
-!tools/cosim/gate/*.rcf
+# No .rcf is tracked anywhere, the boot ROM image included: only the source that
+# builds it is (software/bootrom_mp/, md5 pinned in software/bootrom_mp/rom_rcf.md5).
 *.trn
 *.dsn
 *.pak

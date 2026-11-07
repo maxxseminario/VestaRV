@@ -2,6 +2,7 @@
 
 Everything transient lives under <worktree>/xcelium/riscv_test/perf_mp (gitignored). Python 3.6: the host has no newer one.
 """
+import hashlib
 import json
 import os
 import re
@@ -32,10 +33,17 @@ def sh(cmd, **kw):
 def setup(stalls=(0, 3)):
     """Prepare the run dir and elaborate one snapshot per negative-control stall value."""
     os.makedirs(os.path.join(RUN, "hdl"), exist_ok=True)
+    # The ROM image is built from source (make -C software/bootrom_mp), never tracked;
+    # its md5 is pinned in software/bootrom_mp/rom_rcf.md5.
+    rom = os.path.join(ROOT, "software/bootrom_mp/bin/rom.rcf")
+    pin = open(os.path.join(ROOT, "software/bootrom_mp/rom_rcf.md5")).read().split()[0]
+    assert os.path.isfile(rom), "no boot ROM at %s; build it: make -C software/bootrom_mp" % rom
+    assert hashlib.md5(open(rom, "rb").read()).hexdigest() == pin, \
+        "boot ROM %s does not match the md5 pinned in software/bootrom_mp/rom_rcf.md5" % rom
     for f in ("ARM_IP_RAM.vhd", "ARM_IP_ROM.vhd"):
         s = open(os.path.join(SIMHDL_SRC, f)).read()
         s = s.replace("/home/mseminario2/vestarv/software/bootrom_mp/bin/rom.rcf",
-                      os.path.join(ROOT, "tools/cosim/gate/bootrom_mp_rom.rcf"))
+                      rom)
         open(os.path.join(RUN, "hdl", f), "w").write(s)
     tb = open(os.path.join(ROOT, "hdl/common/tb/riscv_tb.vhd")).read()
     n = tb.count("constant SIMULATION_TIMEOUT : time := 100000 us;")

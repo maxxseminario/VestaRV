@@ -19,7 +19,8 @@ python3.6 check_results.py results/mpcpi.json t1_lw_n0   # gate against expected
 ```
 
 Needs the gitignored `ARM_IP_RAM.vhd`/`ARM_IP_ROM.vhd` from `~/vestarv/hdl/common/sim` (read only; the ROM path is
-retargeted to `tools/cosim/gate/bootrom_mp_rom.rcf`) and the pad Verilog named in `cell_list.txt`.
+retargeted to this tree's `software/bootrom_mp/bin/rom.rcf`, built by `make -C software/bootrom_mp` and checked against
+the md5 in `software/bootrom_mp/rom_rcf.md5`) and the pad Verilog named in `cell_list.txt`.
 
 ## Files
 

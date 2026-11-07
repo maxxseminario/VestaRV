@@ -90,37 +90,36 @@ rv32_firmware(
     rcf_name = "rom.rcf",
 )
 
-# The pinned bench copy of the ROM image, tracked under a name that does not
-# collide with the global *.rcf gitignore.
-# tools/cosim/gate/bootrom_mp_rom.rcf and software/bootrom_mp/bin/rom.rcf are
-# mirrors of it; the three are one md5, currently 57b6a0ddd38bc64e89ef9fe91decf902.
+# The ROM image is never tracked: the repository carries only the source that
+# builds it. rom_rcf.md5 pins the image's md5, currently
+# 57b6a0ddd38bc64e89ef9fe91decf902, and every consumer (this test, the lockstep
+# gate checker, the coverage and perf benches) checks a built image against it.
+# software/bootrom_mp/bin/rom.rcf, the copy the behavioural ROM model reads, is
+# built by `make` in this directory and gitignored.
 # The image is 7,532 bytes of 8,192. The cosim boot-mode X pins in xrun_cosim.sh
 # sit at pc 0x5c and 0x15c, so a cut that moves any word below 0x39C makes them
 # stale and they must be re-measured against the new image.
 # ~/chips/myshkin/ip/rom2k_hvt_pg IS THREE CUTS BEHIND THIS IMAGE. Recompiling it
 # is a signoff_mp job and the plate is stale until it is done.
-filegroup(
-    name = "rom_rcf_golden",
-    srcs = ["testdata/rom_rcf_golden.txt"],
-)
+exports_files(["rom_rcf.md5"])
 
-# Proves the hermetic bazel build still reproduces the mask ROM content that
-# was taped out. If this fails, either the toolchain pin moved or a source
-# under src/ changed, and the physical part no longer matches the tree.
+# Proves the hermetic bazel build still reproduces the pinned ROM content. If
+# this fails, either the toolchain pin moved or a source under src/ changed:
+# re-pin rom_rcf.md5 deliberately, with the change that caused it.
 py_test(
     name = "rom_rcf_reproducibility_test",
-    srcs = ["//software/testtools:compare_text.py"],
+    srcs = ["//software/testtools:check_md5.py"],
     args = [
         "$(location rom.rcf)",
-        "$(location testdata/rom_rcf_golden.txt)",
+        "$(location rom_rcf.md5)",
         "--label",
         "bazel-built-rom.rcf",
     ],
     data = [
         "rom.rcf",
-        "testdata/rom_rcf_golden.txt",
+        "rom_rcf.md5",
     ],
-    main = "//software/testtools:compare_text.py",
+    main = "//software/testtools:check_md5.py",
     size = "small",
 )
 

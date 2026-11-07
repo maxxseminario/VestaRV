@@ -38,16 +38,18 @@ NHARTS=$(cat "$IMG_DIR/.nharts" 2>/dev/null || echo 5)
 LINK="x""xxxxxxxxxxxxxxxxx.rcf"     # 18 x + .rcf, see gen_cov_mon.py
 
 # The gitignored ARM memory models are not in a worktree; they are read in place, and the
-# ROM model opens this absolute path, so its identity is checked against the tracked record.
+# ROM model opens this absolute path, so its identity is checked against the pinned md5.
 SIM_MODELS="$HOME/vestarv/hdl/common/sim"
 ROM_ABS="$HOME/vestarv/software/bootrom_mp/bin/rom.rcf"
-ROM_REF="$ROOT/tools/cosim/gate/bootrom_mp_rom.rcf"
+ROM_PIN="$ROOT/software/bootrom_mp/rom_rcf.md5"
 
 die() { echo "run_coverage: $*" >&2; exit 1; }
 
 do_build() {
     [ -f "$STAGE/cell_list_behavioral.txt" ] || die "no stage at $STAGE; see README.md"
-    cmp -s "$ROM_ABS" "$ROM_REF" || die "boot ROM $ROM_ABS differs from $ROM_REF"
+    [ -f "$ROM_ABS" ] || die "no boot ROM at $ROM_ABS; build it: make -C software/bootrom_mp"
+    [ "$(md5sum < "$ROM_ABS" | cut -c1-32)" = "$(cut -c1-32 "$ROM_PIN")" ] \
+        || die "boot ROM $ROM_ABS does not match the md5 pinned in $ROM_PIN"
     mkdir -p "$COV_WORK/gen" "$COV_WORK/log" "$COV_WORK/xcelium.d/work"
     cd "$COV_WORK" || exit 1
     cat > cds.lib <<LIB

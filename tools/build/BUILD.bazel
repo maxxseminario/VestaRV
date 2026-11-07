@@ -6,7 +6,7 @@ package(default_visibility = ["//visibility:public"])
 
 # The single canonical bin -> RCF converter (replaces the five divergent
 # od+awk copies in the makefiles). Byte-verified against the pinned
-# software/bootrom_mp/bin/rom.rcf gate artifact.
+# software/bootrom_mp/bin/rom.rcf (md5 pinned in software/bootrom_mp/rom_rcf.md5).
 py_binary(
     name = "bin2rcf",
     srcs = ["scripts/bin2rcf.py"],
@@ -29,8 +29,8 @@ py_binary(
 # FROM, and they are a verbatim copy of //platform/common:castalia_linker_scripts,
 # so the recorded divergence is empty. The two sets are allowed to diverge again
 # when the chip map moves; :rom_plate_link_env_test is what makes that visible.
-# The boot image and its two recorded goldens share one md5,
-# 57b6a0ddd38bc64e89ef9fe91decf902; the physical rom2k_hvt_pg plate is THREE cuts
+# The boot image md5 is pinned in software/bootrom_mp/rom_rcf.md5
+# (57b6a0ddd38bc64e89ef9fe91decf902); the physical rom2k_hvt_pg plate is THREE cuts
 # behind them and stays stale until signoff_mp recompiles it.
 #
 # A stale script here is not a packaging problem. While memory.x described a

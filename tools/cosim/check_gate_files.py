@@ -7,6 +7,7 @@
 # canonical-copy idiom exists. --update records a change; --restore refuses without --force.
 
 import difflib
+import hashlib
 import os
 import shutil
 import stat
@@ -265,24 +266,6 @@ GATE_FILES = [
      'xrun_cosim.sh DIEs without this file; it is 20 lines and lives outside '
      'the repo, so neither git nor this checker saw it until now'),
 
-    # The boot ROM image both sides of COSIM_BOOT lockstep execute. Regenerable
-    # from tracked source (`software/bootrom_mp/`), but it is the exact byte
-    # stream the reference runs from pc=0, the behavioural ROM model reads by
-    # hardcoded path, and the four pins are measured against — so a silent
-    # change to it is a silent change to the gate.
-    #
-    # The image is re-cut whenever a source under software/bootrom_mp/src/ or the
-    # generated memory map moves, and software/bootrom_mp/testdata/rom_rcf_golden.txt
-    # moves with it; the three copies are one md5,
-    # 57b6a0ddd38bc64e89ef9fe91decf902.
-    # The boot-mode x pins in cosim_xallow.txt are pc 0x5a and pc 0x1b6, both
-    # re-measured against this image (W8, 2026-09-13): the 8-test COSIM_BOOT=1
-    # sweep applies each exactly once. Re-measure them from a fresh trace after
-    # any cut that moves a word below 0x1b8.
-    ('bootrom_mp_rom.rcf',
-     'software/bootrom_mp/bin/rom.rcf',
-     'the boot ROM image the COSIM_BOOT reference and the behavioural ROM '
-     'model both execute (.gitignore:83)'),
 
     # The debug-mode
     # acceptance instruments. They are gate files by the same argument as
@@ -733,6 +716,33 @@ GATE_FILES = [
 ]
 
 
+# The boot ROM image both sides of COSIM_BOOT lockstep execute: the reference runs it
+# from pc=0 and the behavioural ROM model reads it by hardcoded path, so a silent
+# change to it is a silent change to the gate. It is NOT kept as a canonical copy:
+# no ROM image is tracked, only the source that builds it (`make -C
+# software/bootrom_mp`), and its md5 is pinned in software/bootrom_mp/rom_rcf.md5.
+# The boot-mode x pins in cosim_xallow.txt are pc 0x5a and pc 0x1b6; re-measure them
+# from a fresh trace after any cut that moves a word below 0x1b8.
+ROM_LIVE = 'software/bootrom_mp/bin/rom.rcf'
+ROM_PIN = 'software/bootrom_mp/rom_rcf.md5'
+
+
+def checkRom(root):
+	"""Return None if the built ROM matches its pinned md5, else a one-line reason."""
+	pinPath = os.path.join(root, ROM_PIN)
+	livePathAbs = os.path.join(root, ROM_LIVE)
+	with open(pinPath) as f:
+		pinned = f.read().split()[0].lower()
+	if not os.path.isfile(livePathAbs):
+		return 'MISSING ' + ROM_LIVE + ' -- build it: make -C software/bootrom_mp'
+	with open(livePathAbs, 'rb') as f:
+		actual = hashlib.md5(f.read()).hexdigest()
+	if actual != pinned:
+		return (ROM_LIVE + ' md5 ' + actual + ' != pinned ' + pinned + ' in ' + ROM_PIN
+		        + ' -- rebuild it (make -C software/bootrom_mp), or re-pin deliberately')
+	return None
+
+
 def repoRoot():
 	here = os.path.dirname(os.path.abspath(__file__))
 	return os.path.abspath(os.path.join(here, '..', '..'))
@@ -862,7 +872,17 @@ def main():
 		if len(diff) > maxShow:
 			print('  ... (' + str(len(diff) - maxShow) + ' more diff lines suppressed)')
 
+	romProblem = checkRom(root)
+	if romProblem:
+		print('')
+		print('BOOT ROM: ' + romProblem)
+	else:
+		print('  boot ROM ' + ROM_LIVE + ' matches ' + ROM_PIN)
+
 	print('')
+	if romProblem and not missing and not drift:
+		print('check_gate_files: boot ROM does not match its pin (see above)')
+		return 1 if os.path.isfile(os.path.join(root, ROM_LIVE)) else 2
 	if missing:
 		print('check_gate_files: MISSING ' + str(len(missing)) + ' file(s): ' + ', '.join(missing))
 		return 2
