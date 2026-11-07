@@ -35,6 +35,7 @@ include $(src_dir)/rv32uzfh/Makefrag
 include $(src_dir)/rv32uzba/Makefrag
 include $(src_dir)/rv32uzbb/Makefrag
 include $(src_dir)/rv32uzbc/Makefrag
+include $(src_dir)/rv32uscar/Makefrag
 include $(src_dir)/rv32uzbs/Makefrag
 include $(src_dir)/rv32uzicond/Makefrag
 include $(src_dir)/rv32uzabha/Makefrag
@@ -321,6 +322,7 @@ $(eval $(call compile_template,rv32uzfh,-march=rv32g_zfh -mabi=ilp32))
 $(eval $(call compile_template,rv32uzba,-march=rv32gc_zba -mabi=ilp32))
 $(eval $(call compile_template,rv32uzbb,-march=rv32gc_zbb -mabi=ilp32))
 $(eval $(call compile_template,rv32uzbc,-march=rv32gc_zbc -mabi=ilp32))
+$(eval $(call compile_template,rv32uscar,-march=rv32imac -mabi=ilp32))
 $(eval $(call compile_template,rv32uzbs,-march=rv32gc_zbs -mabi=ilp32))
 # rv32uzicond (X1): directed czero.eqz/czero.nez via mnemonics. The installed
 # gas/gcc 13.2 accept _zicond in -march, so no .insn fallback is needed. This
@@ -404,6 +406,7 @@ rv32uzba_group = $(filter %rv32uzba%, $(wildcard *))
 rv32uzbb_group = $(filter %rv32uzbb%, $(wildcard *))
 rv32uzbs_group = $(filter %rv32uzbs%, $(wildcard *))
 rv32uzbc_group = $(filter %rv32uzbc%, $(wildcard *))
+rv32uscar_group = $(filter %rv32uscar%, $(wildcard *))
 rv32ziscr_group = $(filter %rv32ziscr%, $(wildcard *))
 
 .PHONY: riscv32-clean
@@ -430,6 +433,9 @@ riscv32uzbs-clean :
 
 riscv32uzbc-clean :
 	rm -f $(rv32uzbc_group)
+
+riscv32uscar-clean :
+	rm -f $(rv32uscar_group)
 
 riscv32ziscr-clean :
 	rm -f $(rv32ziscr_group)
@@ -506,6 +512,12 @@ rv32uzbs-flash: riscv32uzbs-clean rv32uzbs
 	@echo "Flashing: Prepending binary header lines to rv32uzbs .rcf files ..."
 	@echo "Files to flash: " rcf/*rv32uzbs*.rcf
 	@./flash_prepend.sh "rcf/*rv32uzbs*.rcf"
+
+.PHONY: rv32uscar-flash
+rv32uscar-flash: riscv32uscar-clean rv32uscar
+	@echo "Flashing: Prepending binary header lines to rv32uscar .rcf files ..."
+	@echo "Files to flash: " rcf/*rv32uscar*.rcf
+	@./flash_prepend.sh "rcf/*rv32uscar*.rcf"
 
 .PHONY: rv32uzbc-flash
 rv32uzbc-flash: riscv32uzbc-clean rv32uzbc

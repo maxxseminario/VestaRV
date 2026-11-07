@@ -1,0 +1,18 @@
+#=======================================================================
+# Makefrag for rv32uscar tests: bugs that reached silicon. See README.md.
+#-----------------------------------------------------------------------
+
+rv32uscar_sc_tests = \
+	divrd \
+	caddsp \
+	xori80 \
+	misald \
+	cluix0 \
+	csrrmw \
+	jalrb0 \
+	wdtirq \
+	UARTov \
+	nputhk \
+
+rv32uscar_p_tests = $(addprefix rv32uscar-p-, $(rv32uscar_sc_tests))
+rv32uscar_v_tests = $(addprefix rv32uscar-v-, $(rv32uscar_sc_tests))

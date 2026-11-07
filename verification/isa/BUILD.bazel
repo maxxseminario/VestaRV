@@ -218,7 +218,6 @@ _RV32UA_TESTS = [
     "privwfi",
     "privcsr",
     "privecall",
-    "corefix",
     "privirq",
     "privumode",
     "privucsr",
@@ -330,6 +329,19 @@ _RV32UZF_TESTS = [
 ]
 
 # Suite name, -march, test list.  The mabi is ilp32 throughout.
+_RV32USCAR_TESTS = [
+    "divrd",
+    "caddsp",
+    "xori80",
+    "misald",
+    "cluix0",
+    "csrrmw",
+    "jalrb0",
+    "wdtirq",
+    "UARTov",
+    "nputhk",
+]
+
 _CI_SUITES = [
     ("rv32ui", "rv32imc", _RV32UI_TESTS),
     ("rv32um", "rv32imc", _RV32UM_TESTS),
@@ -338,6 +350,7 @@ _CI_SUITES = [
     ("rv32uzba", "rv32gc_zba", _RV32UZBA_TESTS),
     ("rv32uzbb", "rv32gc_zbb", _RV32UZBB_TESTS),
     ("rv32uzbc", "rv32gc_zbc", _RV32UZBC_TESTS),
+    ("rv32uscar", "rv32imac", _RV32USCAR_TESTS),
     ("rv32uzbs", "rv32gc_zbs", _RV32UZBS_TESTS),
 ]
 
@@ -599,6 +612,8 @@ py_test(
         ":rv32uzba_rcfs",
         ":rv32uzbc_flashed",
         ":rv32uzbc_rcfs",
+        ":rv32uscar_flashed",
+        ":rv32uscar_rcfs",
         ":rv32um_flashed",
         ":rv32um_rcfs",
     ],

@@ -446,7 +446,8 @@ end component;
         end loop;
 
         -- UART Short Connections for testing (pin 4 shorted to 7, pin 5 shorted to 6)
-        if uart_test = '1' and flash_awake = '0' then
+        -- Not gated on flash_awake: the flash is on another port, and Castalia's boot leaves it awake.
+        if uart_test = '1' then
             -- P2.4 shorted to P2.7
             if prt2_dir(4) = '0' and prt2_dir(7) = '1' then
                 gpio1_drv_sig(7) <= prt2(4);

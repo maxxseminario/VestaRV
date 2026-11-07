@@ -459,8 +459,17 @@ CATALOG = [
     # Standard trap delivery: these have no OFF arm.
     T('rv32ua-p-privcsr', 'atomics trapCsr'), T('rv32ua-p-privecall', 'atomics trapCsr'),
     T('rv32ua-p-privirq', 'atomics trapCsr'), T('rv32ua-p-privwfi', 'atomics trapCsr'),
-    # The five core defects of 952c06ea, one check each. The check id is in t4.
-    T('rv32ua-p-corefix', 'atomics trapCsr compressed'),
+    # rv32uscar: bugs that reached silicon, one test per Myshkin erratum. See its README.
+    T('rv32uscar-p-divrd', 'atomics div'),
+    T('rv32uscar-p-caddsp', 'atomics compressed'),
+    T('rv32uscar-p-xori80', 'atomics'),
+    T('rv32uscar-p-misald', 'atomics trapCsr'),
+    T('rv32uscar-p-cluix0', 'atomics compressed'),
+    T('rv32uscar-p-csrrmw', 'atomics trapCsr'),
+    T('rv32uscar-p-jalrb0', 'atomics'),
+    T('rv32uscar-p-wdtirq', 'atomics'),
+    T('rv32uscar-p-UARTov', 'atomics uart1'),
+    T('rv32uscar-p-nputhk', 'atomics npu'),
 ]
 
 
