@@ -1,8 +1,8 @@
 # See LICENSE for license details.
 
 # VestaRV: misaligned halfword AMO behaviour
-# SPEC AGAINST CORE: the Zabha spec says a misaligned halfword AMO raises a store or AMO address-misaligned exception. THIS CORE HAS NO DATA-ADDRESS-MISALIGNMENT EXCEPTION and no mcause or mtval CSRs, and word AMOs likewise do not trap on misalignment, so "misaligned exactly like word AMOs" means NON-TRAPPING here: the sub-word datapath rounds down to the containing half, with the lane select keying on address bit 1 only, exactly as SH, LH and word AMOs do, so a naturally aligned software contract holds and a misaligned access is benign, with no trap, no hang and no cross-half corruption.
-# This test proves that observable behaviour: an amoadd.h at offset 1 accesses half 0 just like offset 0, and one at offset 3 accesses half 1 just like offset 2, with no hang and the other half intact. ON-POLARITY ONLY, with the encodings written as `.insn`.
+# With the trap CSRs a misaligned halfword AMO raises store/AMO address-misaligned, cause 6, with mtval = the address and memory untouched, as the Zabha spec says.
+# Without them the cause cannot be reported, so the access still issues and rounds down to its half: offset 1 acts as offset 0, offset 3 as offset 2. Each build asserts its own behaviour.
 
 #include "riscv_test.h"
 #include "test_macros.h"
@@ -15,6 +15,78 @@
 RVTEST_RV32U
 RVTEST_CODE_BEGIN
 
+    la   s0, amo_w
+
+#ifdef CORE_ENABLE_TRAPCSR
+    .option push
+    .option arch, +zicsr
+
+    li   s3, 0                     # traps taken
+    la   t0, zm_handler
+    csrw 0x305, t0
+    csrw 0x304, x0
+    csrw 0x300, x0
+    csrw 0x7C0, x0                 # standard delivery
+
+    li   t0, 0x11110000
+    sw   t0, 0(s0)
+    li   a1, 0x0007
+    li   a4, 0x0BADF00D
+
+    addi a3, s0, 1                 # misaligned by 1
+    la   s1, zm_at1
+zm_at1:
+    AMOADD_H(a4, a3, a1)
+    li   t1, 1
+    bne  s3, t1, zm_fail
+    li   t1, 6
+    bne  s4, t1, zm_fail
+    bne  s5, s1, zm_fail
+    bne  s7, a3, zm_fail
+
+    addi a3, s0, 3                 # misaligned by 1 into the high half
+    la   s1, zm_at3
+zm_at3:
+    AMOADD_H(a4, a3, a1)
+    li   t1, 2
+    bne  s3, t1, zm_fail
+    li   t1, 6
+    bne  s4, t1, zm_fail
+    bne  s5, s1, zm_fail
+    bne  s7, a3, zm_fail
+
+    li   t1, 0x0BADF00D            # rd and memory untouched
+    bne  a4, t1, zm_fail
+    lw   a5, 0(s0)
+    li   t1, 0x11110000
+    bne  a5, t1, zm_fail
+
+    addi a3, s0, 2                 # aligned control: no trap
+    AMOADD_H(a4, a3, a1)
+    li   t1, 2
+    bne  s3, t1, zm_fail
+    lw   a5, 0(s0)
+    li   t1, 0x11180000
+    bne  a5, t1, zm_fail
+
+    li   t0, 1
+    csrw 0x7C0, t0
+    csrw 0x300, x0
+    csrw 0x305, x0
+    RVTEST_PASS
+
+    .align 2
+zm_handler:
+    csrr s4, 0x342                 # mcause
+    csrr s5, 0x341                 # mepc
+    csrr s7, 0x343                 # mtval
+    addi s3, s3, 1
+    addi t5, s5, 4
+    csrw 0x341, t5
+    mret
+
+    .option pop
+#else
     la   s0, amo_w
 
     # offset 1 (misaligned): must behave like offset 0 -> accesses HALF0
@@ -42,6 +114,7 @@ RVTEST_CODE_BEGIN
     bne  a4, t1, zm_fail
 
     RVTEST_PASS
+#endif
 
 zm_fail:
     RVTEST_FAIL

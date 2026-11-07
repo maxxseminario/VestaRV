@@ -5,6 +5,7 @@
 ../../../hdl/common/commune/FPSigmoid.vhd
 ../../../hdl/common/commune/TieLow.vhd
 ../../../hdl/common/constants.vhd
+../../../hdl/common/sync.vhd
 ../../../hdl/common/macros/macros.vhd
 ../../../hdl/argus/MemoryMap.vhd
 ../../../hdl/common/tb/serial_flash.vhd

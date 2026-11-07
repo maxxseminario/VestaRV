@@ -115,7 +115,7 @@ Port $x$ owns eight consecutive vectors, one per pin, in the order listed in Tab
 
 \section{Usage notes}
 
-\paragraph{Disable the pin interrupt before changing its edge.} Writing \register{PxIES}[y] while \register{PxIE}[y] is set can raise a spurious interrupt, because the edge detector sees the selection change as an edge.
+\paragraph{Changing the edge does not raise an interrupt.} \register{PxIES}[y] only selects which transition of the synchronised pin sets \register{PxIF}[y], so writing it with the pin steady sets nothing, and firmware cannot use it to synthesize an interrupt. The flag rises three peripheral clocks after the pin edge, and a pulse shorter than one peripheral clock is not captured.
 
 \paragraph{Clear \register{PxIF}[y] with a 1 before returning.} The interrupt is a level; a handler that returns with the flag set is re-entered.
 

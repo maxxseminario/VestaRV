@@ -203,6 +203,7 @@ end component;
 
     signal gpio2_test : std_logic := '0'; -- high if the current test is a gpio test
     signal gpio1_test : std_logic := '0'; -- high if the current test is a gpio1 test
+    signal wgpio_test : std_logic := '0'; -- high for the wgpio test, which loops GPIO4/5 outputs back to their inputs
     signal spi_test : std_logic := '0'; -- high if the current test is a spi test
     signal uart_test : std_logic := '0'; -- high if the current test is a uart test
     signal timer_test : std_logic := '0'; -- high if the current test is a timer test
@@ -289,8 +290,9 @@ end component;
     );
 
     -- GPIO4/GPIO5 (prt5/prt6) have no package pads in this testbench: drive their inputs idle-low and leave their outputs unobserved.
-    prt5_in <= (others => '0');
-    prt6_in <= (others => '0');
+    -- The wgpio test is the exception: it needs a real pin edge, so here the pad reads back what the port drives, as a bonded pad would. prt_dir is the pad OEN, active low.
+    prt5_in <= (prt5_out and not prt5_dir) when wgpio_test = '1' else (others => '0');
+    prt6_in <= (prt6_out and not prt6_dir) when wgpio_test = '1' else (others => '0');
 
     cs_flash <= spi_cs when boot_done_flag = '0' or spifem_test = '1'
                 else '1';
@@ -428,6 +430,7 @@ end component;
     timer_test <= '1' when contains_timer(ram_file_name) else '0';
     gpio2_test <= '1' when contains_gpio2(ram_file_name) else '0';
     gpio1_test <= '1' when contains_gpio1(ram_file_name) else '0';
+    wgpio_test <= '1' when contains_wgpio(ram_file_name) else '0';
     spifem_test <= '1' when contains_spifem(ram_file_name) else '0';
     
     prt1(pnum_gpio0_miso) <= spi_miso when flash_awake = '1' else 'Z';

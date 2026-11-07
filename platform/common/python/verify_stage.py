@@ -221,10 +221,10 @@ CATALOG = [
     # Each has an ON arm (#ifdef CORE_ENABLE_<K>) and an OFF arm, so NO knob tag
     # -- see the population note above. shcboz/shcmp/shcmppush/shcmt are hart-0
     # directed (no MP_LAUNCH_* in the source), so they carry no `tiles` tag.
-    T('rv32ua-p-shzabha', 'tiles atomics'),
-    T('rv32ua-p-shzacas', 'tiles atomics'),
-    T('rv32ua-p-shcaslr', 'tiles atomics'),
-    T('rv32ua-p-shmixw', 'tiles atomics'),
+    T('rv32ua-p-shzabha', 'tiles atomics tilezabha'),
+    T('rv32ua-p-shzacas', 'tiles atomics tilezacas'),
+    T('rv32ua-p-shcaslr', 'tiles atomics tilezacas'),
+    T('rv32ua-p-shmixw', 'tiles atomics tilezabha'),
     T('rv32ua-p-shcboz', 'atomics'),
     T('rv32ua-p-shcmp', 'atomics'),
     # shcmppush and shpause derive the CLINT offset from NHARTS, as extzawrs.S does, rather
@@ -239,7 +239,7 @@ CATALOG = [
     #     and shcmt, which are untagged and off-arm on Argus for the same reason.
     T('rv32ua-p-shcmppush', 'atomics'),
     T('rv32ua-p-shcmt', 'atomics'),
-    T('rv32ua-p-shpause', 'tiles atomics'),
+    T('rv32ua-p-shpause', 'tiles atomics tilezihint'),
     T('rv32ua-p-amoadd_w', 'atomics'),
     # K2: AMO address-aliasing directed test (hart-0, no build-time dispatch).
     T('rv32ua-p-amoalias', 'atomics'),
@@ -443,6 +443,24 @@ CATALOG = [
     T('rv32uzf-p-dnan', 'zfinx', True), T('rv32uzf-p-dpmzero', 'zfinx', True),
     T('rv32uzf-p-dfcvttab', 'zfinx', True), T('rv32uzf-p-daccum', 'zfinx', True),
     T('rv32uzf-p-drdx0', 'zfinx', True), T('rv32uzf-p-dsgnj', 'zfinx', True),
+    # Rows that were built on every run and passed, but were never selected. A green
+    # suite said nothing about them, which is how wgpio stayed broken from September.
+    T('rv32ui-p-xori'), T('rv32ui-p-ld_st'), T('rv32ui-p-st_ld'),
+    T('rv32ui-p-shfault', 'tiles'),
+    T('rv32ui-p-wgpio'),
+    T('rv32ui-p-wperiph', 'qspi i3c nfc'), T('rv32ui-p-wqspi', 'qspi'),
+    T('rv32ui-p-wi3c', 'i3c'), T('rv32ui-p-wnfc', 'nfc'),
+    # One-defect detectors, both polarities.
+    T('rv32ua-p-csrleak', 'atomics'), T('rv32ua-p-csrrevrt', 'atomics'),
+    T('rv32ua-p-ignleak', 'atomics tiles'), T('rv32ua-p-slpleak', 'atomics tiles'),
+    T('rv32ua-p-insretov', 'atomics'), T('rv32ua-p-iretphan', 'atomics tiles'),
+    T('rv32ua-p-lrrs2', 'atomics'), T('rv32ua-p-scfailrd', 'atomics'),
+    T('rv32ua-p-dbgdenymp', 'atomics tiles'),
+    # Standard trap delivery: these have no OFF arm.
+    T('rv32ua-p-privcsr', 'atomics trapCsr'), T('rv32ua-p-privecall', 'atomics trapCsr'),
+    T('rv32ua-p-privirq', 'atomics trapCsr'), T('rv32ua-p-privwfi', 'atomics trapCsr'),
+    # The five core defects of 952c06ea, one check each. The check id is in t4.
+    T('rv32ua-p-corefix', 'atomics trapCsr compressed'),
 ]
 
 
@@ -756,6 +774,12 @@ def config_tags(cfg):
     # inside the test can make it true.
     if isa.get('bitmanip') and not isa.get('minimalTiles'):
         tags.add('tilebitmanip')
+    # The same asymmetry for the both-polarity rows whose ON arm runs on the tiles too:
+    # compiled ON, they execute an extension a minimal tile does not have. The tag is
+    # absent only in that case, so an OFF build still runs the row through its OFF arm.
+    for k in ('zabha', 'zacas', 'zihint'):
+        if not (isa.get(k) and isa.get('minimalTiles')):
+            tags.add('tile' + k)
     # `nozkn` is a NEGATIVE structural predicate, and the only
     # one in this table. It exists because Zknh ALLOCATES ENCODINGS IN THE SPACE
     # RV32 RESERVES for shamt[5]=1, which is exactly the space `fk51mp` exists to
@@ -848,7 +872,7 @@ def config_tags(cfg):
         tags.add('eventFabric')
     # Firmware smoke companions gated by their peripheral
     # knob (wrtc/wpwm/wow join only the config(s) that instantiate the block).
-    for knob in ('rtc', 'pwm', 'onewire', 'i2ctarget'):
+    for knob in ('rtc', 'pwm', 'onewire', 'i2ctarget', 'qspi', 'i3c', 'nfc'):
         if cfg.get('peripherals', {}).get(knob):
             tags.add(knob)
     if int(cfg['numHarts']) >= 2:

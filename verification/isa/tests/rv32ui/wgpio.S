@@ -2,15 +2,19 @@
 
 # VestaRV: GPIO interrupt delivery for the highest source IDs
 # Hart 0 only, tiles parked. GPIO4 at 0x6300 and GPIO5 at 0x6400 deliver firmware-synthesized edges, which proves the FOURTH per-hart enable word HhENX. The vectors are 98, GPIO4 bit 0, and 113, GPIO5 bit 7, the CORNERS of that word at bits 2 and 17. The pending and in-service read-only words cover sources 0 to 95 only, SO DELIVERY IS PROVEN BY HANDLER DONE FLAGS ALONE.
-# THERE IS NO EXTERNAL STIMULUS: the pads idle LOW in the testbench, and the edge comes from the IES flip. With the input at 0, write PxIE = 1 FIRST, because the glitch-free clock gate latches the enable while its clock input is low, and then write PxIES = 1, which makes the combinational edge signal, the input exclusive-ORed with PxIES, go 0 to 1; that rising edge sets PxIF, which with PxIE set drives the level interrupt. It is cleared by writing 1 to PxIF.
-# The idiom is validated behaviourally FIRST on an unrouted pin before the routed interrupt arms rely on it. GPIO is pure mclk, so no SYS_CLK_CR write is needed. Register offsets: PxIF at +0x18, PxIES at +0x1C and PxIE at +0x20.
+# THE EDGE IS A REAL PIN EDGE: for this test only, riscv_tb reads each GPIO4/5 output back on its input, as a bonded pad does, so driving PxOUT with PxDIR set makes the transition the synchronous edge detector needs.
+# Writing PxIES with the pin steady must NOT set PxIF: since f1082c42 it only selects the polarity of a pin transition. The first section proves both on an unrouted pin before the routed interrupt arms rely on them. GPIO is pure mclk, so no SYS_CLK_CR write is needed.
 
 #include "riscv_test.h"
 #include "test_macros.h"
 
+#define G4_OUTS     0x6308
+#define G4_DIR      0x6314
 #define G4_IF       0x6318
 #define G4_IES      0x631C
 #define G4_IE       0x6320
+#define G5_OUTS     0x6408
+#define G5_DIR      0x6414
 #define G5_IF       0x6418
 #define G5_IES      0x641C
 #define G5_IE       0x6420
@@ -31,24 +35,46 @@ RVTEST_CODE_BEGIN
     sw   x0, 0(s1)
 
     # -----------------------------------------------------------------------
-    # Idiom validation (throwaway): GPIO4 B1, UNROUTED (HhENX still 0 -> no
-    # delivery). Prove PxIE-then-PxIES synthesizes a rising edge that sets PxIF.
+    # Edge validation on GPIO4 B1, UNROUTED (HhENX still 0 -> no delivery).
     # -----------------------------------------------------------------------
+    li   t2, G4_DIR
+    li   t0, 0x83                # drive B0, B1 and B7
+    sw   t0, 0(t2)
+    li   t2, G5_DIR
+    li   t0, 0x80                # drive B7
+    sw   t0, 0(t2)
+
     li   t2, G4_IE
     li   t0, 0x2
-    sw   t0, 0(t2)               # PxIE bit1 = 1 (latch En while ClkIn=0)
+    sw   t0, 0(t2)               # PxIE bit1 = 1
+
+    # A PxIES flip with the pin steady is not an edge.
     li   t2, G4_IES
-    sw   t0, 0(t2)               # PxIES bit1 = 1 -> synth edge on bit1
+    sw   t0, 0(t2)               # falling edge selected, pin low
+    sw   x0, 0(t2)               # back to rising
     li   t2, G4_IF
-    li   s2, 20000
-idiom_poll:
+    li   s2, 64
+ies_quiet:
     lw   t0, 0(t2)
     andi t0, t0, 0x2
-    bnez t0, idiom_ok            # PxIF bit1 set -> idiom works
+    bnez t0, wgpio_fail          # PxIF set by a select change
     addi s2, s2, -1
-    bnez s2, idiom_poll
+    bnez s2, ies_quiet
+
+    # A real rising edge on the pin sets the flag.
+    li   t2, G4_OUTS
+    li   t0, 0x2
+    sw   t0, 0(t2)               # P4.1 rises
+    li   t2, G4_IF
+    li   s2, 20000
+edge_poll:
+    lw   t0, 0(t2)
+    andi t0, t0, 0x2
+    bnez t0, edge_ok
+    addi s2, s2, -1
+    bnez s2, edge_poll
     j    wgpio_fail
-idiom_ok:
+edge_ok:
     li   t0, 0x2
     sw   t0, 0(t2)               # tidy: W1C clear PxIF bit1
 
@@ -62,22 +88,22 @@ idiom_ok:
     bne  t0, t1, wgpio_fail
 
     # -----------------------------------------------------------------------
-    # Arm GPIO4 B0 (vec 98): PxIE first, then PxIES -> edge -> irq -> meip
+    # Arm GPIO4 B0 (vec 98): PxIE, then a rising edge -> irq -> meip
     # -----------------------------------------------------------------------
     li   t2, G4_IE
     li   t0, 0x1
     sw   t0, 0(t2)               # PxIE bit0 = 1 (bit1 enable cleared)
-    li   t2, G4_IES
-    sw   t0, 0(t2)               # PxIES bit0 = 1 -> synth edge on bit0
+    li   t2, G4_OUTS
+    sw   t0, 0(t2)               # P4.0 rises
 
     # -----------------------------------------------------------------------
-    # Arm GPIO5 B7 (vec 113): PxIE first, then PxIES
+    # Arm GPIO5 B7 (vec 113): the same on the top source
     # -----------------------------------------------------------------------
     li   t2, G5_IE
     li   t0, 0x80
     sw   t0, 0(t2)               # PxIE bit7 = 1
-    li   t2, G5_IES
-    sw   t0, 0(t2)               # PxIES bit7 = 1 -> synth edge on bit7
+    li   t2, G5_OUTS
+    sw   t0, 0(t2)               # P5.7 rises
 
     # wait for BOTH IRQs delivered (order-independent DONE flags), bounded
     li   s3, 20000

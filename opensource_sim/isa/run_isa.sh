@@ -224,7 +224,7 @@ declare -A SKIP=(
 #     generics this TB's map predates and leaves off — or read hpm counters
 #     wired to the hart_tile shared bus. Their home is the MCU trap-watch
 #     harness (behavioral_mp), not this TB.
-for t in amorsv casgrant csrleak dbgdenymp dbghaltmp dbgstepmp fk51mp \
+for t in amorsv casgrant corefix csrleak dbgdenymp dbghaltmp dbgstepmp fk51mp \
          idcsrmp ignleak insretov iretphan pmpfq pmprt1 pmprt2 pmprt3 \
          pmprt4 pmprt5 pmprt6 privcsr privebrk privecal privecall privirq \
          privmcau privmepc privmie privmip privmret privmscr privmst \

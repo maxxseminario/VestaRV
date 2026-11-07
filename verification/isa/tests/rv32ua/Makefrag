@@ -110,6 +110,7 @@ rv32ua_sc_tests = \
 	pmpfq \
 	packalias \
 	fk51mp \
+	corefix \
 	idcsrmp \
 	dbgdenymp \
 	dbghaltmp \

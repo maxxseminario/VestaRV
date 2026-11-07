@@ -19,6 +19,7 @@ package tb_defs is
     -- Substring probes over the test-file name, plus the pass banner and a file-existence check.
     function contains_gpio1(s : string) return boolean;
     function contains_gpio2(s : string) return boolean;
+    function contains_wgpio(s : string) return boolean;
     function contains_spi(s : string) return boolean;
     function contains_uart(s : string) return boolean;
     function contains_timer(s : string) return boolean;
@@ -52,6 +53,19 @@ package body tb_defs is
             return found;
     end function;      
     
+    function contains_wgpio(s : string) return boolean is
+        constant substr : string := "wgpio";
+        begin
+            for i in s'range loop
+                if i + substr'length - 1 <= s'high then
+                    if s(i to i+substr'length-1) = substr then
+                        return true;
+                    end if;
+                end if;
+            end loop;
+            return false;
+        end function;
+
     function contains_gpio1(s : string) return boolean is
         constant substr : string := "GPIO1";
         variable found : boolean := false;
