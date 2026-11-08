@@ -1,7 +1,7 @@
-/home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/verilog/tphn65gpgv2od3_sl.v
-/opt/design_kits/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/verilog/tsmc65_hvt_sc_adv10.v
-/home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg.v
-/home/mseminario2/chips/myshkin/ip/sram1p16k_hvt_pg/sram1p16k_hvt_pg.v
+$VESTA_TSMC65_IP/tsmc/pads/tphn65gpgv2od3_sl/verilog/tphn65gpgv2od3_sl.v
+$KIT_HOME/TSMC65-IP/arm/sc10/hvt/aci/sc-ad10/verilog/tsmc65_hvt_sc_adv10.v
+$MYSHKIN_IP/rom_hvt_pg/rom_hvt_pg.v
+$MYSHKIN_IP/sram1p16k_hvt_pg/sram1p16k_hvt_pg.v
 ../../../genus/MCU_MP/out/MCU_MP.genus.dbgon.v
 ../../../hdl/common/constants.vhd
 ../../../hdl/common/macros/macros.vhd

@@ -743,6 +743,83 @@ def checkRom(root):
 	return None
 
 
+# Host-specific install prefixes. The tracked cell lists name them by token at the
+# start of a line, because Xcelium does not expand $VAR in a file argument
+# (*E,COFILE): --restore writes the live copy with each token expanded, the drift
+# check compares against the expanded text, and --update folds the prefixes back
+# into tokens. Same convention as verification/perf_mp/build.sh and
+# verification/riscof/sim/stage.sh ($VESTA_TSMC65_IP), the genus flow tcl
+# ($MYSHKIN_IP) and cdspaths.example.sh ($KIT_HOME).
+PATH_TOKENS = [
+	('$VESTA_TSMC65_IP', 'VESTA_TSMC65_IP', os.path.join('~', 'lib', 'TSMC65-IP')),
+	('$MYSHKIN_IP', 'MYSHKIN_IP', os.path.join('~', 'chips', 'myshkin', 'ip')),
+	('$KIT_HOME', 'KIT_HOME', '/opt/design_kits'),
+]
+
+
+def isTemplated(name):
+	"""Only the HDL cell lists carry path tokens; every other file is copied verbatim."""
+	return os.path.basename(name).startswith('cell_list')
+
+
+def tokenValues():
+	"""token -> expanded prefix, from the environment or the documented default."""
+	return [(tok, os.path.expanduser(os.environ.get(var) or default).rstrip('/'))
+	        for tok, var, default in PATH_TOKENS]
+
+
+def expandLine(line, values):
+	for tok, val in values:
+		if line.startswith(tok + '/'):
+			return val + line[len(tok):]
+	return line
+
+
+def collapseLine(line, values):
+	for tok, val in sorted(values, key=lambda tv: -len(tv[1])):
+		if line.startswith(val + '/'):
+			return tok + line[len(val):]
+	return line
+
+
+def canonLines(name, canonPath):
+	"""The canonical file as its live copy should read (tokens expanded)."""
+	lines = readLines(canonPath)
+	if isTemplated(name):
+		values = tokenValues()
+		lines = [expandLine(l, values) for l in lines]
+	return lines
+
+
+def writeLines(lines, src, dst):
+	"""Write `lines` to dst, carrying src's executable bit like copyPreservingMode."""
+	d = os.path.dirname(dst)
+	if d and not os.path.isdir(d):
+		os.makedirs(d)
+	with open(dst, 'w', newline='') as f:
+		f.write('\n'.join(lines))
+	srcMode = os.stat(src).st_mode
+	if srcMode & stat.S_IXUSR:
+		os.chmod(dst, os.stat(dst).st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
+def installCanon(name, canonPath, liveAbs):
+	"""--restore: canonical -> live, expanding path tokens in a cell list."""
+	if isTemplated(name):
+		writeLines(canonLines(name, canonPath), canonPath, liveAbs)
+	else:
+		copyPreservingMode(canonPath, liveAbs)
+
+
+def recordLive(name, liveAbs, canonPath):
+	"""--update: live -> canonical, folding host prefixes back into tokens."""
+	if isTemplated(name):
+		values = tokenValues()
+		writeLines([collapseLine(l, values) for l in readLines(liveAbs)], liveAbs, canonPath)
+	else:
+		copyPreservingMode(liveAbs, canonPath)
+
+
 def repoRoot():
 	here = os.path.dirname(os.path.abspath(__file__))
 	return os.path.abspath(os.path.join(here, '..', '..'))
@@ -804,7 +881,7 @@ def main():
 			# GATE_FILES. Without it, adding a row to the table above could only
 			# ever report MISSING and the record could never be created.
 			if update and liveRel is not None and os.path.isfile(livePath(root, liveRel)):
-				copyPreservingMode(livePath(root, liveRel), canonPath)
+				recordLive(name, livePath(root, liveRel), canonPath)
 				print('  ADOPTED canonical copy from live: ' + name)
 				print('    COMMIT tools/cosim/gate/' + name + ' with the change that motivated it.')
 				matched += 1
@@ -821,14 +898,14 @@ def main():
 		liveAbs = livePath(root, liveRel)
 
 		if restore:
-			if os.path.isfile(liveAbs) and readLines(liveAbs) != readLines(canonPath) and not force:
+			if os.path.isfile(liveAbs) and readLines(liveAbs) != canonLines(name, canonPath) and not force:
 				print('REFUSING to overwrite a DIFFERING live copy: ' + liveRel)
 				print('  The live file is not the canonical one. If the live version is the')
 				print('  correct one, run --update to record it. If you really mean to discard')
 				print('  it, re-run --restore --force.')
 				drift.append(name)
 				continue
-			copyPreservingMode(canonPath, liveAbs)
+			installCanon(name, canonPath, liveAbs)
 			print('  restored  ' + liveRel)
 			matched += 1
 			continue
@@ -841,7 +918,7 @@ def main():
 			missing.append(name)
 			continue
 
-		canon = readLines(canonPath)
+		canon = canonLines(name, canonPath)
 		live = readLines(liveAbs)
 
 		if canon == live:
@@ -849,7 +926,7 @@ def main():
 			continue
 
 		if update:
-			copyPreservingMode(liveAbs, canonPath)
+			recordLive(name, liveAbs, canonPath)
 			print('  UPDATED canonical copy from live: ' + name)
 			print('    COMMIT tools/cosim/gate/' + name + ' with the change that motivated it.')
 			matched += 1

@@ -13,71 +13,35 @@ VestaRV uses [semantic versioning](https://semver.org/) read against **silicon**
 | **Minor** | A substantial capability added to an existing chip: new ISA extensions, new peripherals, a new verification methodology, a physical-design close | `x.1.0`, `x.2.0`, … |
 | **Patch** | Documentation, tooling, repository hygiene, and self-contained bug fixes | `x.y.1`, `x.y.2`, … |
 
-**`1.x` is the single-core Myshkin line** — `1.0.0` is the taped-out chip
-(TSMC 65nm, November 2025), and the `1.0.x` / `1.1.x` releases that follow are
-its post-tape-out bring-up, characterisation and verification work on the same
-silicon.
+**`1.x` is the single-core Myshkin line.** `1.0.0` is the taped-out chip (TSMC
+65nm, November 2025); the `1.0.x` / `1.1.x` releases are post-tape-out bring-up,
+characterisation and verification on the same silicon.
 
-**`2.x` is the multi-core line, and it targets the next tape-out.** It is a
-genuinely different chip: 4 harts, a shared-memory fabric, a chip generator that
-emits the whole configuration from one source. **No `2.x` release has been
-fabricated** — Castalia and Argus are tape-out-ready designs. Only `1.0.0`
-exists in silicon.
+**`2.x` is the multi-core line and targets the next tape-out.** It is a different
+chip: 4 harts, a shared-memory fabric, and a generator that emits the whole
+configuration from one source. **No `2.x` release has been fabricated**; Castalia
+and Argus are tape-out-ready designs. Only `1.0.0` exists in silicon.
 
-Releases below were reconstructed retroactively from the development log; each
-names the commit it is anchored to.
+Releases below were reconstructed retroactively; each names the commit it is
+anchored to.
 
 ---
 
 ## [Unreleased]
 
 ### Added
-- **Physical CI (tier 3), `physical.yml`.** The sky130 RTL-to-GDSII flow now
-  runs in CI on GitHub-hosted runners: the GHDL Verilog bridge and the cocotb
-  core smoke sim on every PR/push/merge-group (minutes, hosted,
-  required-check-safe), and the full LibreLane hardening weekly / on the
-  `run-physical` PR label / on `workflow_dispatch` / on every release tag.
-  Signoff is gated by `sky130/check_metrics.py` on `final/metrics.json` (six
-  counts, present and zero; missing = fail), never on mid-run logs.
-- **Release automation, `release.yml`.** Pushing a tag `vX.Y.Z` re-proves the
-  physical flow at that tag (via `workflow_call` into `physical.yml`) and
-  publishes a GitHub Release whose notes are that version's CHANGELOG section
-  (a missing section fails the release) and whose assets are the signoff
-  bundle (GDS, netlists, metrics, reports), the bridge netlist, and the TRM.
-- **Merge queue doctrine, `.github/MERGE_QUEUE.md`** + `merge_group` triggers
-  on the tier-1 and tier-3 fast jobs; `sim.yml` and the harden job stay out of
-  the queue by design (shared license seat / 4–5 h wall time).
+- Physical CI (`physical.yml`): sky130 RTL-to-GDSII on GitHub-hosted runners — GHDL bridge and cocotb smoke on every PR/push, full LibreLane hardening weekly, on label, on dispatch and on release tags; signoff gated by `sky130/check_metrics.py` on `final/metrics.json`.
+- Release automation (`release.yml`): a `vX.Y.Z` tag re-proves the physical flow and publishes a GitHub Release with this changelog's section as notes and the signoff bundle, bridge netlist and TRM as assets.
+- Merge-queue support (`.github/MERGE_QUEUE.md`, `merge_group` triggers on the fast CI jobs).
 
 ### Changed
-- **CI is GitHub-hosted only, by policy and by gate.** Every workflow runs on
-  hosted runners; ci.yml's "GitHub-hosted-runners-only gate" fails any
-  workflow that targets a self-hosted runner, so the exclusion is enforced,
-  not just current. (A brief full stand-down of all triggers the same day
-  was reverted — the request was "no self-hosted runners", not "no CI".)
-- **The CI simulation tier is now the open-source GHDL ISA regression, run as
-  bazel tests on hosted runners** (`sim.yml` rewritten; the self-hosted
-  Cadence tier is preserved in git history and documented for revival in
-  `.github/RUNNER_SETUP.md`). `//opensource_sim` wraps
-  `opensource_sim/isa/run_isa.sh` in prebuilt-image mode: one `sh_test` per
-  suite, images from `//verification/isa`'s new ON-polarity `os_*` targets,
-  simulator and VHDL std libraries from the hermetic `@ghdl` module — the
-  runner installs only bazelisk. No more yellow runs queued against a runner
-  that cannot take them.
+- CI runs on GitHub-hosted runners only, enforced by a `ci.yml` gate that rejects self-hosted targets.
+- The CI simulation tier is now the open-source GHDL ISA regression, run as bazel tests (`//opensource_sim`) with a hermetic `@ghdl` toolchain.
 
 ### Fixed
-- **The register-browser provenance gate was red on main since `085eef9`** and
-  had no repair tool (the K7/F-K5-2 class): the page's embedded memory map
-  was stale against the generator. `splice_register_browser.py` now exists,
-  `make web` splices and re-checks both docs pages, and the page is respliced.
-- **The self-hosted sim runner never had the `cadence` label** — registered
-  2026-07-18 with the labels prompt skipped, so `runs-on: [self-hosted,
-  cadence]` never matched and every `sim.yml` run since then queued and was
-  cancelled by its successor without a single test executing. Diagnosis and
-  the one-click fix are documented in `.github/RUNNER_SETUP.md`; applying the
-  label needs the repo GUI and is not yet done.
-- The site's "Connect" card linked to a placeholder LinkedIn URL. `pages.yml`
-  gates only on the relative-link checker, which classifies external URLs as
-  unverified, so nothing caught it.
+- The register-browser provenance gate: added `splice_register_browser.py`; `make web` now splices and re-checks both docs pages.
+- Self-hosted `sim.yml` runs never executed because the runner lacked its `cadence` label.
+- A placeholder LinkedIn URL on the site's "Connect" card.
 
 ---
 
@@ -86,273 +50,177 @@ names the commit it is anchored to.
 Anchor: `2f98999`
 
 ### Fixed
-- **Four required read-only M-mode CSRs were absent from the decode map.**
-  `mvendorid` (0xF11), `marchid` (0xF12), `mimpid` (0xF13) and `mconfigptr`
-  (0xF15) were missing from `csr_addr_valid`, so a plain `csrr` of a CSR the
-  specification *requires* every RISC-V core to implement raised an
-  illegal-instruction exception — and because the reset configuration's
-  `TRAP_STATE` is terminal, the hart wedged there forever. They now retire and
-  read zero, which is a **defined** answer ("not implemented" / "not
-  assigned"), not a missing one: discovery software must read these registers
-  and interpret zero rather than infer absence. Writing any of them remains an
-  illegal instruction in every build.
+- `mvendorid`, `marchid`, `mimpid` and `mconfigptr` were missing from the CSR decode map, so reading them trapped; they now read zero (writes remain illegal).
 
 ### Added
-- A blind detector (`idcsrmp`) that guards the *shape* of the fix rather than
-  just its outcome — it fails if the fix is over-wide (0xF10/0xF16 must keep
-  trapping) or over-narrow (a legal 0xF14 read must succeed). It joins both
-  standing lists, moving four counts on purpose: suite 141 → 142, default
-  `SUITE=full` 148 → 149, Argus N=18 142 → 143, knobs-on canary 67 → 68.
-- A "Machine Information Registers" section in the TRM's privileged-architecture
-  chapter, deliberately outside the `trapCsr` guard because — unlike every
-  register in the trap-CSR table — these five exist in *every* configuration.
-- This changelog's retroactive version history, and annotated tags for all
-  20 prior releases.
+- The `idcsrmp` detector test, which also checks the fix is neither over-wide (0xF10/0xF16 still trap) nor over-narrow (0xF14 reads).
+- A "Machine Information Registers" section in the TRM privileged-architecture chapter.
+- This changelog's retroactive version history and annotated tags for all prior releases.
 
 ### Changed
-- The README now describes the chip *generator* and its three chips rather than
-  a single core, and Core Specifications separates what is always built from
-  what is selectable per configuration (Zfinx, the crypto set, code-size
-  extensions, U-mode, PMP, counters).
-- `sim.yml` job names no longer carry hardcoded test counts. Both had gone
-  stale — the smoke job claimed 27 against a 29-entry list, the full job 117
-  against a standing 141 — so they name their source list instead of a number
-  that rots.
+- The README describes the chip generator and its three chips; Core Specifications separates always-built features from per-configuration options.
+- `sim.yml` job names reference their test lists instead of hardcoded counts.
 
 ---
 
-## [2.10.1] — 2026-08-04 — Lineage merge + CI provenance fix
+## [2.10.1] — 2026-08-04 — Lineage merge and CI provenance fix
 
 Anchor: `9e104b8`
 
 ### Added
-- Merged the `sky130-flow` branch into the mainline: an open-source
-  RTL-to-GDSII path (GHDL bridge, LibreLane config, cocotb smoke test) and a
-  GHDL-based ISA regression running 139/139 including the Zfinx FPU and the
-  crypto extensions.
+- Merged the sky130 open-source flow: GHDL bridge, LibreLane config, cocotb smoke test, and a GHDL ISA regression (139/139, including Zfinx and crypto).
 
 ### Fixed
-- Two GHDL synthesis blockers in the core: a `std_logic_vector'` qualification
-  for the SH2ADD/SH3ADD `&` overload, and a clamp on reserved `Zcmp` `rlist`
-  encodings 0–3 that otherwise violate the declared `1..13` subtype range when
-  the lookup is evaluated from reset. Both are behaviour-neutral on defined
-  encodings.
-- `docs/register_browser.html` re-embedded from the generated `MemoryMap.json`.
-  It had carried a stale `ENABLE_TRAPCSR: false` since the trap-CSR default
-  flipped, failing the CI provenance gate and publishing wrong data to the
-  documentation site.
+- Two GHDL synthesis blockers in the core (SH2ADD/SH3ADD `&` qualification; reserved `Zcmp` `rlist` 0–3 range clamp), behaviour-neutral on defined encodings.
+- `docs/register_browser.html` re-embedded from the generated `MemoryMap.json` (stale `ENABLE_TRAPCSR`).
 
-## [2.10.0] — 2026-08-04 — K-series: per-configuration verification matrix
+## [2.10.0] — 2026-08-04 — Per-configuration verification matrix
 
 Anchor: `c7e7f94`
 
 ### Added
-- A 28-row configuration matrix: every shipped knob combination is built,
-  simulated and pinned, rather than only the default build.
-- A constrained-random program generator (`tools/randgen`) with a two-gate
-  legality design, plus blind detector tests for each defect below.
-- An image-polarity tripwire that compares every standing-gate image
-  byte-for-byte across both `#ifdef` polarities.
+- A 28-row configuration matrix: every shipped knob combination is built, simulated and pinned.
+- A constrained-random program generator (`tools/randgen`) and detector tests for each defect below.
+- An image-polarity tripwire comparing standing-gate images across both `#ifdef` polarities.
 
 ### Changed
-- **`priv.trapCsr` now defaults on for both chips.** The standard M-mode trap
-  architecture ships in every build. Boot is bit-identical — `mtrapctl.LEGACY`
-  resets to 1, so a chip boots on the legacy vector path and enters standard
-  delivery only when firmware opts in per hart. Cost: +144 flops per tile,
-  +3.85 % standard-cell area, timing neutral.
+- `priv.trapCsr` defaults on for both chips; boot is bit-identical (`mtrapctl.LEGACY` resets to 1). Cost: +144 flops per tile, +3.85 % cell area, timing neutral.
 
 ### Fixed
-- **Six RTL defects**, each found by generated or matrix stimulus and each
-  shipped with a detector that was proven to fail before the fix:
-  divider magnitude handling at `INT_MIN`; an unqualified divide dispatch that
-  let a split-fetch bubble re-arm the divider with the previous operation's
-  selects; a `ZEXT.H` decode that aliased the `pack` encoding space; `shamt[5]`
-  being accepted on RV32; and two comparator/tracer defects.
-- Both divider defects are **plausibly present in taped-out Myshkin silicon**
-  (shared `div.vhd`/`alu.vhd` lineage) — flagged for validation assessment.
+- Six RTL defects: divider `INT_MIN` magnitude handling, an unqualified divide dispatch, `ZEXT.H` aliasing `pack`, `shamt[5]` accepted on RV32, and two comparator/tracer defects.
+- Both divider defects are plausibly present in Myshkin silicon (shared lineage) and are flagged for validation.
 
-## [2.9.0] — 2026-08-02 — S-series: structural retire of the commit path
+## [2.9.0] — 2026-08-02 — Structural commit-path consolidation
 
 Anchor: `a3180fa`
 
 ### Changed
-- Consolidated 271 scattered commit sites into 8, migrating every FSM shape to
-  a single commit block. Bit-exact at every one of the 19 commits — verified
-  against a 4.6-million-record instruction stream that did not move.
+- Consolidated 271 commit sites into 8 under a single commit block, bit-exact against a 4.6-million-record instruction trace.
 
 ### Added
-- Permanent design assertions and masks enforcing the commit invariant.
-- 34 PSL properties on the four leaf units, 21 of them mutant-proven.
+- Permanent design assertions enforcing the commit invariant.
+- 34 PSL properties on the four leaf units, 21 mutant-proven.
 
-## [2.8.0] — 2026-07-31 — Lockstep co-simulation + the F-series fix pass
+## [2.8.0] — 2026-07-31 — Lockstep co-simulation
 
 Anchor: `f75ba3c`
 
 ### Added
-- **Spike lockstep co-simulation** (`tools/cosim`): every retired instruction is
-  compared against a reference model, single-hart and multi-hart, with a tracked
-  gate-file record and drift checker.
+- Spike lockstep co-simulation (`tools/cosim`), single- and multi-hart, with a tracked gate-file record and drift checker.
 
 ### Fixed
-- Twelve RTL findings closed, including several that committed real,
-  side-effecting bus traffic where none was architecturally justified:
-  `TRAP_STATE` performed a store on every cycle of its self-loop; a failed
-  `sc.w` still performed a bus read; **every `iret` issued a phantom
-  side-effecting read — recorded as a silicon erratum**; `lr.w` addressed the
-  bus at the wrong operand and armed the reservation there.
-- A write to a read-only CSR now traps in every build. This retroactively made
-  the `unimp` encoding trap rather than being accepted and dropped as a silent
-  NOP, which it had been for years.
+- Twelve RTL findings, including spurious bus traffic: a store every cycle in `TRAP_STATE`, a bus read on failed `sc.w`, a phantom read on every `iret` (silicon erratum), and `lr.w` addressing the wrong operand.
+- Writes to read-only CSRs now trap in every build, so `unimp` traps instead of executing as a NOP.
 
 ## [2.7.0] — 2026-07-29 — Privileged architecture
 
 Anchor: `74baa48`
 
 ### Added
-- Standard M-mode trap CSRs (`mstatus`/`mtvec`/`mie`/`mip`/`mscratch`/`mepc`/
-  `mcause`/`mtval` plus a custom `mtrapctl` legacy-select), standard trap
-  delivery, MRET/ECALL/EBREAK.
-- **U-mode**: privilege register, MPP push/pop, `mcounteren`, `misa.U`, and a
-  U-mode decode gate.
-- **PMP (Smpmp)** physical memory protection.
-- All three default to off at this release; the build is bit-identical to a
-  pre-P1 chip unless enabled.
+- Standard M-mode trap CSRs and delivery (`mstatus`/`mtvec`/`mie`/`mip`/`mscratch`/`mepc`/`mcause`/`mtval`, custom `mtrapctl`), MRET/ECALL/EBREAK.
+- U-mode: privilege register, MPP push/pop, `mcounteren`, `misa.U`, U-mode decode gate.
+- PMP (Smpmp) physical memory protection.
+- All three default off; the default build is bit-identical to the previous release.
 
 ### Fixed
-- A U-mode CSR-write escape, a trapping-AMO write in the default build, and a
-  PMP MRET-return escape — three real defects found by the programme itself.
+- A U-mode CSR-write escape, a trapping-AMO write in the default build, and a PMP MRET-return escape.
 
 ## [2.6.0] — 2026-07-27 — Field power, event fabric, and the full-peripheral chip
 
 Anchor: `8eeb491`
 
 ### Added
-- **EVFAB0 event fabric** @0x6B00: an 8-channel PPI-style crossbar routing 16
-  events to 10 tasks with pre-mask taps in ten blocks.
-- **Field-power mode**: PGOOD hold-in-reset boot gating, strap/field wake
-  sources, per-bank shared-RAM gating, and a harvested-boot ROM path that
-  provisions the NFC tag and sleeps instead of downloading from flash.
-- A per-chip analog TRM chapter with bias-generator, control-amplifier and
-  transimpedance-stage characterisation, and generated waveform figures.
+- EVFAB0 event fabric @0x6B00: an 8-channel crossbar routing 16 events to 10 tasks.
+- Field-power mode: PGOOD boot gating, strap/field wake, per-bank shared-RAM gating, and a harvested-boot ROM path that provisions the NFC tag.
+- A per-chip analog TRM chapter (bias generator, control amplifier, transimpedance stage) with generated figures.
 
 ### Fixed
-- **A real VDD–VSS short in the PDB3A pad-ring cell**, found during the
-  symmetric full-peripheral-chip signoff and confirmed to be inherited family-wide.
-- A nibble-packing bug in the harvested bootrom's `P6AFS` write, found by a
-  composed board-level bench.
+- A VDD–VSS short in the PDB3A pad-ring cell, inherited family-wide.
+- A nibble-packing bug in the harvested bootrom's `P6AFS` write.
 
-## [2.5.0] — 2026-07-23 — Digital peripheral family + NPU modes
+## [2.5.0] — 2026-07-23 — Digital peripheral family and NPU modes
 
 Anchor: `55361d9`
 
 ### Added
-- **Nine new peripherals**, each with RTL, a bench, gate closure and generator
-  integration: QSPI, I3C, NFC, RTC (always-on wall clock), PWM (2-channel,
-  shadow-buffered), 1-Wire, **DMA** (the first new arbiter master, N=5),
-  I2C target mode, and a TRNG.
-- **NPU P4 family**: signed architecture, CONV1D mode, XNOR-popcount binary
-  mode, GEMM mode, and activation functions (sigmoid/ReLU/tanh/clamp/exp).
-- A think-done interrupt for the NPU.
+- Nine peripherals with RTL, bench, gate closure and generator integration: QSPI, I3C, NFC, RTC, PWM, 1-Wire, DMA (fifth arbiter master), I2C target mode, TRNG.
+- NPU: signed architecture, CONV1D, XNOR-popcount binary and GEMM modes, activation functions (sigmoid/ReLU/tanh/clamp/exp).
+- An NPU think-done interrupt.
 
 ### Fixed
-- A gate-level X-collapse root-caused to three nested defects; the full-peripheral gate
-  smoke went 27/27 green for the first time.
+- A gate-level X-collapse with three nested causes; the full-peripheral gate smoke passes 27/27.
 
-## [2.4.0] — 2026-07-18 — X-series ISA extensions + CI
+## [2.4.0] — 2026-07-18 — ISA extensions and CI
 
 Anchor: `539e87d`
 
 ### Added
-- **Scalar crypto**: Zbkb, Zbkc, Zbkx, and Zkn (AES + SHA).
-- **Zicboz** cache-block zero, **Zcmp**/**Zcmt** code-size reduction.
-- **Zfinx** single-precision FPU operating in the x-registers.
-- GitHub Actions CI: generator gates, docs gates, software build, and a
-  self-hosted Cadence simulation tier.
-- Core width parameterisation (`XLEN`/`ILEN`/`SHAMT_W`) replacing hardcoded
-  32-bit widths, with no behaviour change.
+- Scalar crypto: Zbkb, Zbkc, Zbkx, Zkn (AES + SHA).
+- Zicboz cache-block zero; Zcmp/Zcmt code-size reduction.
+- Zfinx single-precision FPU in the x-registers.
+- GitHub Actions CI: generator, docs and software-build gates, plus a Cadence simulation tier.
+- Core width parameterisation (`XLEN`/`ILEN`/`SHAMT_W`), no behaviour change.
 
 ### Fixed
-- A divide-aliasing bug: an ungated `EXECUTE`→`DIV_WAIT` writeback.
-- A stale WDT unlock key in the register browser, caught by the first CI run.
+- Divide aliasing from an ungated `EXECUTE`→`DIV_WAIT` writeback.
+- A stale WDT unlock key in the register browser.
 
 ## [2.3.0] — 2026-07-16 — Interrupt fabric, chip-tops, and the public site
 
 Anchor: `df5b9aa`
 
 ### Changed
-- Replaced the interrupt fan-out with **`irq_router`** @0x7000: a PLIC-style
-  controller with atomic claim/complete, one registered `meip` wire per hart,
-  exactly-once delivery, and fixed lowest-ID priority. Handlers moved to a
-  plain-ret ABI under a dispatcher.
+- `irq_router` @0x7000 replaces the interrupt fan-out: PLIC-style claim/complete, one `meip` per hart, fixed lowest-ID priority; handlers use a plain-ret ABI.
 
 ### Added
-- Connected pad-ring chip-tops for Castalia (C0) and Argus (A6/A7), with
-  Calibre DRC and Pegasus LVS harnesses and a make-based signoff front end.
-- The public documentation site: landing page, schematic figures, interactive
-  chip configurator, register browser and roadmap.
-- A power dashboard scraping Genus/Innovus reports into a per-block page.
+- Pad-ring chip-tops for Castalia and Argus with Calibre DRC / Pegasus LVS harnesses and a make-based signoff front end.
+- The public documentation site: landing page, schematics, chip configurator, register browser, roadmap.
+- A power dashboard built from Genus/Innovus reports.
 
 ### Removed
-- The SYSTEM0 interrupt enable/priority/recursion path and its packing quirk.
+- The SYSTEM0 interrupt enable/priority/recursion path.
 
 ## [2.2.0] — 2026-07-12 — Argus, signoff closure, and the repository split
 
 Anchor: `382d361`
 
 ### Added
-- **Argus**, an 18-hart teaching chip generated from the same source with
-  128 KiB shared RAM, 32 hardware mutexes and no NPU.
-- Signoff DRC (Calibre) and LVS (Pegasus) closure, low-power MTCMOS
-  verification, and rail analysis.
-- A pre-commit gate that stops a stale TRM from being committed.
+- Argus: an 18-hart teaching chip from the same source (128 KiB shared RAM, 32 hardware mutexes, no NPU).
+- Signoff DRC (Calibre) and LVS (Pegasus) closure, MTCMOS verification, and rail analysis.
+- A pre-commit gate that blocks committing a stale TRM.
 
 ### Changed
-- Split `hdl/`, `platform/` and `innovus/` into one directory per chip
-  instantiation, freezing the Myshkin trees.
+- `hdl/`, `platform/` and `innovus/` split per chip; Myshkin trees frozen.
 
 ## [2.1.0] — 2026-07-09 — Configurable ISA, power gating, and the pad ring
 
 Anchor: `691f8fd`
 
 ### Added
-- **Configurable core ISA extensions**: M/A/C/Zb* become generics; a disabled
-  extension traps as illegal and its hardware is generated away. A read-only
-  `misa` CSR advertises the built set.
-- **MTCMOS power gating**: every hart tile is a switchable header-gated domain
-  with hardware gate/wake sequencing, driven by a new `PWRCTRL` @0x4B00.
-- Multi-alternate-function GPIO (`PxAFS` plane select, up to 8 AFs per pin).
-- An interactive chip configurator and a `CONFIG=` JSON input to `make chip`.
+- Configurable ISA extensions: M/A/C/Zb* as generics (disabled extensions trap and are generated away), advertised by a read-only `misa`.
+- MTCMOS power gating: each hart tile is a header-gated domain with hardware sequencing via `PWRCTRL` @0x4B00.
+- Multi-alternate-function GPIO (`PxAFS`, up to 8 AFs per pin).
+- An interactive chip configurator and `CONFIG=` JSON input to `make chip`.
 
 ### Changed
-- Digital-only respin: the AFE and SARADC analog blocks are dropped end to end.
+- Digital-only respin: AFE and SARADC dropped.
 
 ## [2.0.0] — 2026-07-06 — Castalia: the multi-core chip and its generator
 
 Anchor: `e45d58c` · **targets the next tape-out; not fabricated**
 
-The single-core Myshkin SoC becomes a **family of chips generated from one
-source**. This is a different piece of silicon, hence the major bump.
+The single-core Myshkin SoC becomes a family of chips generated from one source.
 
 ### Added
-- **Multi-hart architecture**: four harts behind a serializing round-robin
-  `mp_arbiter`, a CLINT (software + per-hart timer interrupts), a 16-entry
-  hardware mutex bank, grant-locked cross-hart atomics, and LR/SC.
-- **Memory-map rework**: a private 16 KiB TCM per hart, everything else behind
-  the shared window — peripherals at their legacy addresses, 64 KiB shared bulk
-  RAM, NPU staging RAM.
-- **Single-ROM boot**: all four harts reset to PC 0x0 and fetch one shared boot
-  ROM; tiles park until an msip loader fills their TCM. The preloaded-TCM
-  fiction is retired end to end.
-- **Tile extraction**: four structurally identical `hart_tile` instances on a
-  registered boundary, hardened once and instantiated four times.
-- **The chip generator** (`make chip`): headers, linker scripts, drop-in
-  `MCU.vhd`/`MemoryMap.vhd` proven byte-identical to the live RTL, and the
-  config-driven TRM PDF. `make verify` proves a configuration boots.
+- Multi-hart architecture: four harts behind a round-robin `mp_arbiter`, CLINT, 16-entry hardware mutex bank, grant-locked cross-hart atomics, LR/SC.
+- Memory map: 16 KiB private TCM per hart; peripherals, 64 KiB shared bulk RAM and NPU staging RAM behind the shared window.
+- Single-ROM boot: all harts start at 0x0 from one shared ROM; tiles park until an msip loader fills their TCM.
+- Tile extraction: four identical `hart_tile` instances on a registered boundary, hardened once.
+- The chip generator (`make chip`): headers, linker scripts, `MCU.vhd`/`MemoryMap.vhd` byte-identical to the RTL, and the TRM; `make verify` proves a configuration boots.
 - Execute-from-shared support and a latency-insensitive arbiter.
 
 ### Fixed
-- A `hw_clint_en` port default lost at a netlist boundary meant tiles could
-  never wake — a silicon-class bug only the physical flow could catch.
+- A `hw_clint_en` port default lost at a netlist boundary, which kept tiles from waking.
 
 ---
 
@@ -361,13 +229,11 @@ source**. This is a different piece of silicon, hence the major bump.
 Anchor: `e195dea`
 
 ### Added
-- Standalone VHDL testbenches for UART, GPIO, TIMER, SPI, I2C, SYSTEM and NPU,
-  plus a shared testbench helper library and a unified Xcelium setup.
+- Standalone VHDL testbenches for UART, GPIO, TIMER, SPI, I2C, SYSTEM and NPU, a shared helper library, and a unified Xcelium setup.
 
 ### Fixed
-- A UART RX overflow flag checking the wrong status bit (TX-complete instead of
-  RX-complete), so overflows were never flagged.
-- Compressed-instruction handling: `c.addi16sp` and compressed `jal`.
+- UART RX overflow checked TX-complete instead of RX-complete, so overflows were never flagged.
+- Compressed-instruction handling of `c.addi16sp` and compressed `jal`.
 
 ## [1.1.4] — 2026-06-29 — Simulation throughput and repository hygiene
 
@@ -377,42 +243,33 @@ Anchor: `a01bca7`
 - Parallel Xcelium simulation runs.
 
 ### Fixed
-- `flash_prepend.sh` program start address (0x8200 → 0x8000): the binary
-  compiles the IVT to 0x8000 and start code to 0x8200.
+- `flash_prepend.sh` program start address (0x8200 → 0x8000).
 
 ## [1.1.3] — 2026-05-05 — 12-bit DSADC acquisition
 
 Anchor: `5e0ca46`
 
 ### Added
-- A fast DSADC acquisition path and histogram tooling for the 12-bit
-  dual-slope converter.
+- A fast acquisition path and histogram tooling for the 12-bit dual-slope ADC.
 
 ## [1.1.2] — 2026-04-27 — Firmware toolchain and flash programming
 
 Anchor: `02285fa`
 
 ### Added
-- A C toolchain and firmware examples building against the auto-generated
-  `MemoryMap.h`.
-- Flash programming infrastructure: a Raspberry Pi programmer, a UART
-  programmer, and Forth-based RAM upload/streaming tools with corruption
-  detection and retry.
+- A C toolchain and firmware examples built against the generated `MemoryMap.h`.
+- Flash programming: Raspberry Pi and UART programmers, and Forth-based RAM upload/streaming with corruption detection and retry.
 - AFE bring-up firmware and dashboard bitfield support.
 
 ### Fixed
-- Silicon bring-up findings on real Myshkin parts: the TIMER0 clock source
-  constant was wrong (the timer ran correctly in simulation but counted at 0 Hz
-  on silicon), and a header/port mapping confusion between GPIO2 and Port 3.
+- Silicon bring-up: a wrong TIMER0 clock-source constant (0 Hz on silicon) and a GPIO2/Port 3 header mapping mix-up.
 
 ## [1.1.1] — 2026-04-19 — Publication restructure
 
 Anchor: `9a0bc05`
 
 ### Changed
-- Restructured the repository for public release; renamed `hardware/` to
-  `hdl/`; replaced the TRM symlink with a real committed PDF so it resolves on
-  GitHub.
+- Restructured for public release: `hardware/` renamed to `hdl/`; the TRM symlink replaced with a committed PDF.
 
 ## [1.1.0] — 2026-04-18 — Silicon bring-up and ADC characterisation
 
@@ -421,23 +278,18 @@ Anchor: `94022d5`
 First substantial work on fabricated Myshkin silicon.
 
 ### Added
-- **The Forth dashboard**: a bench debug GUI driving the chip over UART through
-  its ROM Forth interpreter, with live register and bitfield views.
-- SARADC data acquisition with logging, histogram generation, and **INL/DNL
-  analysis**.
+- The Forth dashboard: a bench debug GUI driving the chip over UART through its ROM Forth interpreter.
+- SARADC acquisition with logging, histograms and INL/DNL analysis.
 
 ### Fixed
-- A hardware MSB inversion in ADC readings, and UART transaction corruption
-  handled with strict address-echo validation.
+- An MSB inversion in ADC readings, and UART transaction corruption (now rejected by address-echo validation).
 
 ## [1.0.2] — 2026-03-19 — Documentation set
 
 Anchor: `3d54553`
 
 ### Added
-- The Myshkin user guide and Technical Reference Manual, HDL and verification
-  READMEs, this changelog, and open-source simulation build instructions
-  (GHDL / NVC).
+- Myshkin user guide and TRM, HDL and verification READMEs, this changelog, and GHDL/NVC simulation instructions.
 - Silicon-validated status for the Myshkin tape-out.
 
 ## [1.0.1] — 2026-02-17 — Public repository release
@@ -445,8 +297,7 @@ Anchor: `3d54553`
 Anchor: `4602ccc`
 
 ### Added
-- The `implementations/` tree recording the Myshkin ASIC (TSMC 65nm, November
-  2025 tape-out).
+- The `implementations/` tree recording the Myshkin ASIC.
 - A firmware project generator with a barebones template.
 - Verification and firmware READMEs.
 
@@ -457,58 +308,54 @@ Anchor: `4602ccc`
 
 ## [1.0.0] — Nov. 2025 — Myshkin Tape-out
 
-First complete VestaRV SoC tape-out. Submitted to TSMC 65nm GP process, November 2025.
+First complete VestaRV SoC tape-out, TSMC 65nm GP, November 2025.
 
 ### Added
-- **VestaRV core** — RV32IMAC + ZBA/ZBB/ZBC/ZBS multicycle processor
+- **VestaRV core**: RV32IMAC + Zba/Zbb/Zbc/Zbs multicycle processor
   - Stack-based recursive interrupt controller (83 vectors)
   - Fast hardware multiplier and multi-cycle divider
-  - RVC split-fetch handler for compressed instructions at 4-byte boundaries
+  - RVC split-fetch for compressed instructions at 4-byte boundaries
   - Machine-mode CSR unit
-- **Peripheral set**
-  - GPIO (4× 8-bit ports with alternate function mux)
+- **Peripherals**
+  - GPIO (4× 8-bit ports with alternate-function mux)
   - SPI master × 2 (one with native SPI-flash extension)
   - UART × 2
   - I2C × 2
   - 32-bit Timer/Counter × 2
-  - SYSTEM peripheral (clock mux, DCO, watchdog, CRC, power gating)
-  - NPU — fixed-point neural network accelerator
-  - SARADC — SAR ADC peripheral interface
-  - AFE — potentiostat + 12-bit dual-slope ADC for electrochemical sensing
-- **Memory configuration**
+  - SYSTEM (clock mux, DCO, watchdog, CRC, power gating)
+  - NPU (fixed-point neural network accelerator)
+  - SARADC interface
+  - AFE (potentiostat + 12-bit dual-slope ADC for electrochemical sensing)
+- **Memory**
   - 16 KiB ROM (ARM Artisan)
   - 32 KiB RAM (2× 16 KiB ARM Artisan SRAM)
-  - Native SPI flash read window 
+  - Native SPI flash read window
 - **Firmware**
   - Bootrom with Forth interpreter (`rv4th`)
-  - SPI flash boot support
+  - SPI flash boot
 - **Verification**
-  - Full RV32UI / RV32UM / RV32UA / RV32UC ISA test suite (adapted from riscv-tests) — implemented as RISC-V assembly programs simulated on the full chip in VHDL testbench
-  - Peripheral verification primarily through assembly-level tests simulated at the full chip level; select peripherals additionally verified with dedicated VHDL-level testbenches (located in `hdl/MCU/tb/`)
-  - Standard benchmark suite (dhrystone, coremark-style benchmarks)
+  - RV32UI / RV32UM / RV32UA / RV32UC ISA suites (adapted from riscv-tests), run on the full chip in a VHDL testbench
+  - Chip-level assembly peripheral tests, plus VHDL testbenches for selected peripherals
+  - Benchmarks (Dhrystone, CoreMark-style)
 - **Documentation**
   - [Technical Reference Manual](implementations/asic/myshkin-2025-11/docs/TRM.pdf)
-  - Implementation READMEs for Myshkin ASIC
-  - Build system and verification READMEs
+  - Implementation, build-system and verification READMEs
 
 ### Implementation Details (Myshkin)
 - **Die size**: 1.0 mm × 1.5 mm
 - **Package**: QFN-44
 - **Process**: TSMC 65nm GP CMOS
-- **Target supply**: 1.0 V digital core / 2.5 V analog / 3.3 V I/0
-- **Clock**: Up to 24 MHz
-- **Analog front-end power**: < 325 µW at 2.5 V
+- **Supplies**: 1.0 V core / 2.5 V analog / 3.3 V I/O
+- **Clock**: up to 24 MHz
+- **AFE power**: < 325 µW at 2.5 V
 
 ---
 
 ## Repository History
 
-Prior to the 1.0.0 release, VestaRV was developed as a private personal project. The initial public release coincides with the Myshkin tape-out submission via the University of Nebraska-Lincoln (IC Design Group).
+Before 1.0.0, VestaRV was a private personal project. The first public release coincides with the Myshkin tape-out submission via the University of Nebraska-Lincoln (IC Design Group).
 
-Every release from `1.0.1` onward carries an annotated git tag, and the version
-headings above link to the diff that release introduced. **`1.0.0` has no tag**
-— the Myshkin tape-out predates this repository's first commit, so no commit
-honestly represents it.
+Every release from `1.0.1` onward has an annotated git tag, and the version headings link to each release's diff. `1.0.0` has no tag: the tape-out predates the repository's first commit.
 
 <!-- Release comparison links. Generated from the tag list; regenerate if tags change. -->
 [2.11.0]: https://github.com/maxxseminario/VestaRV/compare/v2.10.1...v2.11.0
