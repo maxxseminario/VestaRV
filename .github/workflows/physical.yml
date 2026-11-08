@@ -70,7 +70,7 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y --no-install-recommends libgnat-13
           mkdir -p "$HOME/ghdl"
-          curl -sSL "https://github.com/ghdl/ghdl/releases/download/v${GHDL_VERSION}/ghdl-mcode-${GHDL_VERSION}-ubuntu24.04-x86_64.tar.gz" \
+          curl -fsSL --retry 5 --retry-delay 15 "https://github.com/ghdl/ghdl/releases/download/v${GHDL_VERSION}/ghdl-mcode-${GHDL_VERSION}-ubuntu24.04-x86_64.tar.gz" \
             | tar -xz -C "$HOME/ghdl"
           echo "$HOME/ghdl/ghdl-mcode-${GHDL_VERSION}-ubuntu24.04-x86_64/bin" >> "$GITHUB_PATH"
 
@@ -114,7 +114,7 @@ jobs:
           sudo apt-get update -q
           sudo apt-get install -y --no-install-recommends libgnat-13
           mkdir -p "$HOME/ghdl"
-          curl -sSL "https://github.com/ghdl/ghdl/releases/download/v${GHDL_VERSION}/ghdl-mcode-${GHDL_VERSION}-ubuntu24.04-x86_64.tar.gz" \
+          curl -fsSL --retry 5 --retry-delay 15 "https://github.com/ghdl/ghdl/releases/download/v${GHDL_VERSION}/ghdl-mcode-${GHDL_VERSION}-ubuntu24.04-x86_64.tar.gz" \
             | tar -xz -C "$HOME/ghdl"
           echo "$HOME/ghdl/ghdl-mcode-${GHDL_VERSION}-ubuntu24.04-x86_64/bin" >> "$GITHUB_PATH"
 

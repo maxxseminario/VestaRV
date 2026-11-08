@@ -5,7 +5,7 @@
 set -eu
 dir="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p "$dir/bin"
-curl -fsSL -o "$dir/bin/bazel" \
+curl -fsSL --retry 5 --retry-delay 15 -o "$dir/bin/bazel" \
     https://github.com/bazelbuild/bazelisk/releases/latest/download/bazelisk-linux-amd64
 chmod +x "$dir/bin/bazel"
 "$dir/bin/bazel" version

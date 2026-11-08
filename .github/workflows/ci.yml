@@ -78,7 +78,7 @@ jobs:
         if: steps.cache-gcc.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/riscv-toolchain
-          curl -sSL "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v${XPACK_GCC_VERSION}/xpack-riscv-none-elf-gcc-${XPACK_GCC_VERSION}-linux-x64.tar.gz" \
+          curl -fsSL --retry 5 --retry-delay 15 "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v${XPACK_GCC_VERSION}/xpack-riscv-none-elf-gcc-${XPACK_GCC_VERSION}-linux-x64.tar.gz" \
             | tar -xz -C ~/riscv-toolchain
 
       - name: Add toolchain to PATH
@@ -156,7 +156,7 @@ jobs:
         if: steps.cache-gcc.outputs.cache-hit != 'true'
         run: |
           mkdir -p ~/riscv-toolchain
-          curl -sSL "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v${XPACK_GCC_VERSION}/xpack-riscv-none-elf-gcc-${XPACK_GCC_VERSION}-linux-x64.tar.gz" \
+          curl -fsSL --retry 5 --retry-delay 15 "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v${XPACK_GCC_VERSION}/xpack-riscv-none-elf-gcc-${XPACK_GCC_VERSION}-linux-x64.tar.gz" \
             | tar -xz -C ~/riscv-toolchain
 
       - name: Add toolchain to PATH
