@@ -22,8 +22,8 @@
      - Light is opt-in:  <html data-theme="light">.
      - Persistence:  localStorage key "vesta-theme", value "light" or "".
      - First visit with no stored value: honour prefers-color-scheme.
-   The toggle/boot JS is NOT part of the CSS block — see THEME_ADOPTION.md for
-   the canonical <script> snippet and the header/nav markup.
+   The toggle/boot JS and the header/nav markup are NOT part of the CSS block;
+   copy them from any adopting page, e.g. register_browser.html.
 
    IDENTITY: Vesta = the hearth. Deep warm charcoal like cooling forge-iron;
    flame orange + amber accents; the light variant is warm off-white ("ash").

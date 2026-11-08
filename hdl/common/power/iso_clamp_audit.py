@@ -40,8 +40,8 @@ The rule, per hart_tile instance:
         register reset values (cpf/hart_tile.cpf).
 
 Reads text, like //hdl/common/cdc:cdc_manifest_test, so it sees the emitter's
-output and not a synthesised structure. The structural counterpart is the gate
-netlist clamp audit recorded in docs/vestarv_roadmap.html (PG1).
+output and not a synthesised structure. The structural counterpart is a gate
+netlist clamp audit.
 
     iso_clamp_audit.py --files-from <list> --entity hdl/common/hart_tile.vhd \
                        --allowlist hdl/common/power/iso_clamp_allowlist.json

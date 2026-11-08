@@ -54,7 +54,7 @@ py_test(
     main = "check_doc_links.py",
 )
 
-# The theme splicer THEME_ADOPTION.md section 1 promises
+# The theme splicer promises
 
 # Writer: run it in the workspace to re-splice vesta_theme.css into every
 # marked page. The --check side of it is tested by //docs:theme_sync_test.

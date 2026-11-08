@@ -126,14 +126,14 @@ jobs:
         run: python3 -m py_compile platform/common/python/*.py
 
       # Owner policy (2026-08-21): CI runs on GitHub-hosted runners ONLY.
-      # No workflow may target a self-hosted runner — the Cadence tier's
-      # revival (see .github/RUNNER_SETUP.md) must consciously delete this
-      # gate in the same commit that brings such a job back.
+      # No workflow may target a self-hosted runner — reviving the Cadence
+      # tier must consciously delete this gate in the same commit that brings
+      # such a job back.
       - name: GitHub-hosted-runners-only gate
         # The [-] class keeps this step's own pattern from matching itself.
         run: |
           if grep -nE "runs-on:.*self[-]hosted" .github/workflows/*.yml; then
-            echo "::error::A workflow targets a self-hosted runner — this repo's CI is GitHub-hosted only (owner policy 2026-08-21, .github/RUNNER_SETUP.md)."
+            echo "::error::A workflow targets a self-hosted runner — this repo's CI is GitHub-hosted only (owner policy 2026-08-21)."
             exit 1
           fi
           echo "OK: every runs-on in .github/workflows/ is GitHub-hosted"

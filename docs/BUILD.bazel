@@ -37,10 +37,10 @@ filegroup(
     ]),
 )
 
-# THEME_ADOPTION.md section 1: the block between /* VESTA_THEME_BEGIN */ and
+# The block between /* VESTA_THEME_BEGIN */ and
 # /* VESTA_THEME_END */ in vesta_theme.css is pasted verbatim into every page
 # that adopts the design system. This is the drift check for that copy.
-# Pages carrying no markers (vestarv_roadmap.html, afe_rev2_*) are outside the
+# Pages carrying no markers (afe_rev2_*) are outside the
 # system and are not discovered, so they are not graded.
 py_test(
     name = "theme_sync_test",

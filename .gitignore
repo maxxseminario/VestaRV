@@ -246,8 +246,7 @@ docs/publications/
 docs/afe_rev2_*.html
 
 
-# The interactive roadmap and block-diagram pages (docs/vestarv_roadmap.html,
-# docs/castalia_soc.html, docs/vestarv_core.html, docs/castalia_full.html) are
+# The interactive block-diagram pages (docs/castalia_soc.html, docs/vestarv_core.html, docs/castalia_full.html) are
 # published on GitHub Pages and therefore deliberately absent from this file.
 
 # The generated power dashboard; tools/python/gen_power_dashboard.py rebuilds it.
@@ -361,3 +360,6 @@ private/
 /verification/coverage/coverage.md
 /verification/riscof/riscof_report.md
 /docs/THEME_ADOPTION.md
+/assets/web/MANIFEST.md
+/.github/RUNNER_SETUP.md
+/docs/vestarv_roadmap.html

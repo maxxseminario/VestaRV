@@ -30,11 +30,11 @@ Field widths: `hart` 2, `cycle` 8, `pc`/`addr`/`epc`/`tval`/`rdval`/`val`/`data`
 8, `insn` **4 or 8** (see §1), `rd` 2, `size` 1, `csr` 3, `cause` 8, `priv` 1,
 `kind` a lowercase keyword.
 
-### Deviations from the kickoff §4 proposal — and why
+### Deviations from the original proposal — and why
 
-| Kickoff proposal | Frozen form | Reason |
+| Original proposal | Frozen form | Reason |
 |---|---|---|
-| all values 8 hex digits | `insn` is **4** digits for a 16-bit instruction | Spike prints the instruction at its native width (`commit_log_print_value(…, insn.length()*8, …)`); zero-extending to 8 would make a compressed `a011` indistinguishable from a 32-bit `0000a011`. Kickoff §3b already requires logging the 16-bit form. |
+| all values 8 hex digits | `insn` is **4** digits for a 16-bit instruction | Spike prints the instruction at its native width (`commit_log_print_value(…, insn.length()*8, …)`); zero-extending to 8 would make a compressed `a011` indistinguishable from a 32-bit `0000a011`. |
 | `M … <lanes> …` | `M … <size> …` | Spike never emits a lane mask. For stores it emits size implicitly (§2); a 1-digit byte count is the widest field **both** sides can produce. The RTL's active-low `wen` mask is normalized into (byte address, size). |
 | `C` as its own event | still its own record, but **derived** | Spike does not emit a CSR line. CSR writes are extra fields on the retire line (§3), so the parser splits one Spike line into 1×R + n×M + n×C. |
 | `T` compared | `T` **not compared** in V2 | Spike's commit log carries no trap information whatsoever (§4, proven). |
@@ -300,7 +300,7 @@ but two events) is worth having in a trace a human is reading.
 
 **Amended by A7:** the `iret` stack POP is likewise no longer an `M … L …`
 record (it rode `MEMORY_WAIT` with `isr_ret='1'`, which is *not* a retire, so it
-injected a compared record no retire owned — `v1_report.md` §7.3). It is now
+injected a compared record no retire owned). It is now
 `# IRETPOP <hart> <cycle> <addr>`, bounded by an equality against
 `stack_pointer`, with `# IRETPOPBAD` on a miss.
 
@@ -430,8 +430,8 @@ Amendments are numbered, dated, and never silently rewrite frozen semantics.
   compared stream, becoming `# IRQPUSH` (legacy `IRQ_SV` return-PC push) and
   `# IRETPOP` (the `iret` stack pop). Rationale: both are genuine committed
   transactions that (a) have no Spike counterpart and (b) belong to no retire,
-  so each misaligns the compared stream the instant an interrupt is taken —
-  the `v1_report.md` §7.3 V3 TODO. Per the A3 principle each reclassification is
+  so each misaligns the compared stream the instant an interrupt is taken.
+  Per the A3 principle each reclassification is
   **bounded by an equality**, never by FSM state alone, and the bound is a real
   hardware contract needing no arithmetic: the push address must equal
   `sp_write_data` (`IRQ_SV` drives both from `sp-4` in the same cycle,
@@ -475,7 +475,7 @@ Amendments are numbered, dated, and never silently rewrite frozen semantics.
   visible in the run log. A9 is the operational form of **ruling A2** (refuse by
   default; permit only what is named, justified, and counted) and it is NOT a
   "skip x" switch.
-  The two seed records, both `v1_report.md` §8.2 benign-and-real, both verified
+  The two seed records, both benign and real, both verified
   stable across two byte-identical runs, live in
   `xcelium/riscv_test/behavioral_mp/cosim_xallow.txt` with their rationales:
   `pc 00000070 / addr 00004000` (GPIO0 `PxIN`, undriven pads, observed
@@ -603,7 +603,7 @@ Amendments are numbered, dated, and never silently rewrite frozen semantics.
   `iret` pops it back, so the net is zero.
 
   **STATUS: IMPLEMENTED, NEGATIVE-CONTROL-PROVEN *UNEXERCISED* BY THE STAGE 2-3
-  CORPUS.** (Fable ruling, 2026-07-30: keep, and label it.) `mk_inject
+  CORPUS.** `mk_inject
   --no-reg-replay` drops the `G` set; run across **five** bracketed tile cells —
   `shboot` h01, `shlock` h01, `shspin` h01, `shcount` h02, `shuart` h01 — with the
   perturbation confirmed landed each time (7 → 0 `G` records), **every one still
@@ -615,7 +615,7 @@ Amendments are numbered, dated, and never silently rewrite frozen semantics.
   So `G` is **correct precaution, not validated coverage**, and it must never be
   quoted as the latter. It is kept rather than deleted because deleting working
   safety mid-phase is the worse risk, and no test may be manufactured to exercise
-  it (kickoff §1: this program writes no tests). **Validation is deferred to the
+  it (this program writes no tests). **Validation is deferred to the
   first test that genuinely needs it — likeliest a Stage-5 mid-test re-park
   (`shwfi`/`shirq`/`shafe`), where the woken image resumes into code it did not
   itself enter.** If Stage 5 runs, validate `G` there with a landed-perturbation
@@ -643,7 +643,7 @@ Amendments are numbered, dated, and never silently rewrite frozen semantics.
   ordinary `store`) and execute-from-shared all work natively, and the reference's
   shared memory is correct **at every read point by construction**.
   What is given up is stated plainly: the *provenance* of a shared value. Lockstep
-  never claimed it — cross-hart effects arrive as data (kickoff §4).
+  never claimed it — cross-hart effects arrive as data.
   **(b) Partition.** Bracket-interior `P`/inject entries are **DROPPED from the
   mainline replay list**, because the reference does not execute the interior and
   so never asks for those values; the interior's memory effects reach it through
@@ -678,7 +678,7 @@ Amendments are numbered, dated, and never silently rewrite frozen semantics.
   **Therefore the SC's success/failure DECISION is ASSERTED, not compared. Say so
   wherever an SC result is reported.**
 
-  **RESTATED 2026-07-30 (Fable ruling, after the A15 measurement below).** The
+  **RESTATED 2026-07-30, after the A15 measurement below.** The
   first draft of this amendment listed the SC's **`rd`** as a compared field. **It
   is not, and the claim must not be repeated.** The oracle that decides whether to
   emit an `F` *is* `rd` — A15 proves it has to be, because a globally-failed SC
@@ -701,7 +701,7 @@ Amendments are numbered, dated, and never silently rewrite frozen semantics.
      assertions (`shcount`'s counter == 4×64, `shlrsc`'s foreign-write leg) are
      not superseded by lockstep.
 
-  **THE WEAKENING, ACCEPTED EXPLICITLY (Fable ruling, 2026-07-30), and its three
+  **THE WEAKENING, ACCEPTED EXPLICITLY, and its three
   compensations.** Consequence stated first, in the words it must always be
   reported in: **the historical M4b "SC premature write" bug — a failed SC that
   nevertheless commits a write — would NOT be caught by lockstep AT THE SC
@@ -725,7 +725,7 @@ Amendments are numbered, dated, and never silently rewrite frozen semantics.
   (c) **The full remedy is formal, not comparative.** `resv_unit`'s adjudication
       is the thing being taken as true, and the durable fix is to prove it
       rather than to sample it — the **`resv_unit` properties** step on the
-      core-RTL roadmap (`~/work/chip_docs/castalia/core_rtl_roadmap.md`).
+      core-RTL roadmap.
       Lockstep structurally cannot supply it: §4.8's "atomicity is taken as
       true" is a statement about the method, not about this implementation.
       Cross-referenced here so the gap has an owner.
@@ -789,9 +789,8 @@ somewhere, which is the one failure mode of the whole design (`v4_design.md`
   ```
   and at the other site the `0000dead` "store" to `00010044` is never observed
   by anyone: hart 1 later writes `01c0ffee` there and reads back `01c0ffee`.
-  **Memory was not modified. This is NOT a silicon bug** — see
-  `~/work/chip_docs/castalia/lockstep/rtl_findings.md` finding T2 for the
-  tracer-limitation note.
+  **Memory was not modified. This is NOT a silicon bug**: it is a tracer
+  limitation.
 
   **The rule.** An `M … S` that immediately follows an `sc.w` retire whose `rd`
   is nonzero is **DROPPED from the compared stream**, because it describes a write

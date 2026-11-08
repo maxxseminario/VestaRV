@@ -3,8 +3,7 @@ name: Simulation (open source)
 # Tier 2 — the GHDL ISA regression as bazel tests on GitHub-hosted runners.
 #
 # This REPLACES the self-hosted Cadence/Xcelium tier (2026-08-21): that
-# runner never executed a job (the `cadence` label was never applied — see
-# .github/RUNNER_SETUP.md for the post-mortem and how to bring it back), and
+# runner never executed a job (the `cadence` label was never applied), and
 # every push left a yellow queued run behind it. The full Cadence workflow is
 # preserved in this file's git history for when the bench runner returns;
 # nothing here forecloses that.
