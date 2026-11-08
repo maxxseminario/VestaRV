@@ -7,6 +7,8 @@ preview*.out
 # Scratch page renders from visual checking (pdftoppm -png).
 pv-*.png
 pvx-*.png
+pxpg-*.png
+pxfix-*.png
 
 # Raw Maestro/OCEAN extraction dumps (maestro2tex stage 1: *.csv, *.meta and
 # corners_<Block>.json). Nothing in the TRM build reads them: the figures and
