@@ -93,16 +93,17 @@ jobs:
       - name: Byte-compile the chip generator
         run: python3 -m py_compile platform/common/python/*.py
 
-      # Owner policy (2026-08-21): GitHub-hosted runners only. Reviving a
-      # self-hosted tier deletes this gate in the same commit.
+      # Public repo: jobs run on GitHub-hosted runners only, never self-hosted
+      # (a fork PR could otherwise run code on the host). Catches every runs-on
+      # form (scalar, list, multi-line) in workflows and composite actions.
       - name: GitHub-hosted-runners-only gate
         # The [-] class keeps the pattern from matching this line.
         run: |
-          if grep -nE "runs-on:.*self[-]hosted" .github/workflows/*.yml; then
-            echo "::error::A workflow targets a self-hosted runner; this repo's CI is GitHub-hosted only (owner policy 2026-08-21)."
+          if grep -rnE "^[^#]*self[-]hosted" .github/workflows .github/actions; then
+            echo "::error::A workflow targets a runner that is not GitHub-hosted; this public repo allows GitHub-hosted runners only."
             exit 1
           fi
-          echo "OK: every runs-on in .github/workflows/ is GitHub-hosted"
+          echo "OK: every job runs on a GitHub-hosted runner"
 
   software-build:
     name: Bootrom + ISA image builds

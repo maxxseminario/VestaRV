@@ -65,8 +65,7 @@ by design (a 4–5 h GDSII run has no business in a merge path), so requiring it
 stalls the queue.
 
 `sim.yml` is the hosted GHDL regression; with its path filter removed it can be
-required (budget ~20-35 min). The old rule ("never require a sim.yml job")
-applied to the self-hosted Cadence tier and applies again if that tier returns.
+required (budget ~20-35 min).
 
 ## 2. Repo settings
 

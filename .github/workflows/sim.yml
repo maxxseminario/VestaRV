@@ -2,8 +2,7 @@ name: Simulation (open source)
 
 # Tier 2: the GHDL regression as bazel tests. Everything is hermetic: images
 # come from //verification/isa (hermetic xPack GCC), @ghdl is built from source
-# and the runner needs only bazelisk. The self-hosted Cadence tier this
-# replaced (2026-08-21) is in this file's git history.
+# and the runner needs only bazelisk.
 #
 # A cold cache builds GHDL from source (~15-30 min); warm runs are the sims.
 # The cocotb smoke test is physical.yml's sim-smoke, not here.
