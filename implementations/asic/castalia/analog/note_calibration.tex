@@ -68,8 +68,12 @@ while that zero stays inside the converter window, which requires
 \SI{10}{\kilo\ohm} electrode (Section~\ref{sss:pixel-mc}) is outside it and those
 samples are recoverable by nothing.
 
-\paragraph{Out of reach.} The reference DAC's \(-6.6\)~LSB of DNL is lost command
-resolution, up to \SI{3.5}{\milli\volt} at the worst code, and no constant
+% 2026-10-14: DNL from tab_dacr2r12_mc_ideal (dac_mc/mc_stats.txt dnl_min -6.499 LSB,
+% LSB 610.35 uV -> step -5.499 LSB = -3.36 mV); the former -6.6 LSB / 3.5 mV was the
+% withdrawn supply-block run (tab_dacr2r12_mc_wpsu, -6.629 x 528.96 uV).
+\paragraph{Out of reach.} The reference DAC's worst Monte Carlo DNL,
+\(-6.5\)~LSB (Table~\ref{tab:dacr2r12-mc-ideal}), is a \SI{3.4}{\milli\volt}
+backward step at the worst code: lost command resolution, since no constant
 creates a code the ladder does not produce. A reference-electrode junction
 potential is indistinguishable from A1's offset, so only a zero taken \emph{wet}
 against that electrode absorbs it. The temperature dependence of every constant

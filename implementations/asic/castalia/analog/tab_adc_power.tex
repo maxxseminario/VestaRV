@@ -19,15 +19,19 @@
 %% maestro_char headless run (maestro/summary_adc_dc.txt, 9 points, all within
 %% 0.02 uA of each other); design-rate protocol from corners/corner_table.txt
 %% tt row; corner range from the same corner table (cf. tab_adc_corners).
+%% RELABELLED 2026-10-14 (CAMPAIGN_LOG "SAR-CLK"): the "As delivered" column
+%% is the rev-1 Myshkin SARADC.vhd bench stimulus (simstim/adc/adc_clk_gated.pwl),
+%% not the chip; Castalia's AFE2.vhd gives 521.7 kSa/s at 24 MHz MCLK (unsimulated
+%% on the extracted macro). Data unchanged.
 %% Step dependence: the same nominal point reads 6.36 uA on a 63-code sweep
 %% step and 12.56 uA on a 220-code step.
 \begin{table}[htbp]
   \centering
-  \caption[{Conversion timing, supply current and conversion energy on the delivered and design-rate clock protocols.}]{Conversion timing, supply current and conversion energy of the extracted converter on the two clock protocols of Section~\ref{ss:adc}, nominal corner, \SI{37}{\celsius}. Currents are averaged over one whole conversion rather than sampled, and on a 63-code sweep step: the switching term dominates, so the same point reads \SI{12.56}{\micro\ampere} on a 220-code step, and any quoted current must name its step. The corner range is the design-rate protocol across the five corners of Table~\ref{tab:adc-corners}. Over a whole conversion the digital \SI{2.5}{\volt} rail carries leakage only.}
+  \caption[{Conversion timing, supply current and conversion energy on the rev-1 bench stimulus and the design-rate clock protocol.}]{Conversion timing, supply current and conversion energy of the extracted converter on the rev-1 bench stimulus and the design-rate protocol of Section~\ref{ss:adc}, nominal corner, \SI{37}{\celsius}; neither column is the chip's \SI{521.7}{kSa/s} at a \SI{24}{\mega\hertz} MCLK, which is not simulated. Currents are averaged over one whole conversion rather than sampled, and on a 63-code sweep step: the switching term dominates, so the same point reads \SI{12.56}{\micro\ampere} on a 220-code step, and any quoted current must name its step. The corner range is the design-rate protocol across the five corners of Table~\ref{tab:adc-corners}. Over a whole conversion the digital \SI{2.5}{\volt} rail carries leakage only.}
   \label{tab:adc-power}
   \begin{tabular}{llrrr}
     \toprule
-    Parameter & Unit & As delivered & Design rate & Corner range \\
+    Parameter & Unit & Rev-1 stimulus & Design rate & Corner range \\
     \midrule
     Trigger clock                & \si{\mega\hertz}   & 20 & 20 & 20 \\
     Falling edges per conversion &                    & 10 & 10 & 10 \\
