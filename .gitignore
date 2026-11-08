@@ -351,3 +351,13 @@ sky130/sim/*.vcd
 # from there. See private/analog/README.md.
 private/
 /private
+
+# Internal plans and working notes: kept locally, not published
+/implementations/asic/castalia/docs/afe_summary_2026-09-06.md
+/implementations/asic/castalia/docs/commit_plan_2026-09-06.md
+/implementations/asic/castalia/docs/dft_decision_2026-09-13.md
+/implementations/asic/castalia/docs/gpio-pinmux-flexibility-plan.md
+/implementations/asic/castalia/docs/tapeout_plan_2026-09-05.md
+/verification/coverage/coverage.md
+/verification/riscof/riscof_report.md
+/docs/THEME_ADOPTION.md
