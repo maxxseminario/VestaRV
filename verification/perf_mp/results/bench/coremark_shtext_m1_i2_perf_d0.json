@@ -2,8 +2,8 @@
 "arb": [
 {
 "0": [
-214100,
-856486,
+222175,
+888786,
 12
 ],
 "1": [
@@ -78,11 +78,11 @@
 "passed": true,
 "run": "perf",
 "sizes": {
-"h0": "/home/mseminario2/vestarv/.claude/worktrees/agent-a264e3edcb37bbcbd/xcelium/riscv_test/perf_mp/bimg/coremark_shtext_m1_i2_perf_d0/h0.elf  :\nsection             size     addr\n.tcm_text              0    32768\n.tcm_ro             1540    32768\n.data                 24    34308\n.shbss                 0   124928\n.bss                  28    34332\n.text               7680    67840\n.comment              51        0\n.riscv.attributes     93        0\nTotal               9416\n\n\n",
-"tile": "/home/mseminario2/vestarv/.claude/worktrees/agent-a264e3edcb37bbcbd/xcelium/riscv_test/perf_mp/bimg/coremark_shtext_m1_i2_perf_d0/tile.elf  :\nsection              size     addr\n.tcm_text               0    32768\n.tcm_ro              1524    32768\n.data                  24    34292\n.shbss                  0   124928\n.bss                   28    34316\n.text                8412    80384\n.comment               51        0\n.riscv.attributes      51        0\nTotal               10090\n\n\n"
+"h0": "xcelium/riscv_test/perf_mp/bimg/coremark_shtext_m1_i2_perf_d0/h0.elf  :\nsection             size     addr\n.tcm_text              0    32768\n.tcm_ro             1540    32768\n.data                 24    34308\n.shbss                 0   124928\n.bss                  28    34332\n.text               7684    67840\n.comment              51        0\n.riscv.attributes     93        0\nTotal               9420\n\n\n",
+"tile": "xcelium/riscv_test/perf_mp/bimg/coremark_shtext_m1_i2_perf_d0/tile.elf  :\nsection              size     addr\n.tcm_text               0    32768\n.tcm_ro              1524    32768\n.data                  24    34292\n.shbss                  0   124928\n.bss                   28    34316\n.text                8416    80384\n.comment               51        0\n.riscv.attributes      51        0\nTotal               10094\n\n\n"
 },
 "stall": 0,
 "tag": "coremark_shtext_m1_i2_perf_d0",
 "variant": "shtext",
-"wall_s": 240.2
+"wall_s": 255.2
 }

@@ -330,8 +330,8 @@
 "passed": true,
 "run": "perf",
 "sizes": {
-"h0": "/home/mseminario2/vestarv/xcelium/riscv_test/perf_mp/bimg/crtfix_dhry_m1f/h0.elf  :\nsection              size    addr\n.tcm_text            4956   32768\n.tcm_ro                 0   37724\n.data                   0   37724\n.shbss              10000   71680\n.bss                  256   37724\n.text                 376   67840\n.comment               51       0\n.riscv.attributes      93       0\nTotal               15732\n\n\n",
-"tile": "/home/mseminario2/vestarv/xcelium/riscv_test/perf_mp/bimg/crtfix_dhry_m1f/h1.elf  :\nsection              size    addr\n.tcm_text            5180   32768\n.tcm_ro                 0   37948\n.data                   0   37948\n.shbss              10000   81920\n.bss                  256   37948\n.text                 376   68608\n.comment               51       0\n.riscv.attributes      51       0\nTotal               15914\n\n\n"
+"h0": "xcelium/riscv_test/perf_mp/bimg/crtfix_dhry_m1f/h0.elf  :\nsection              size    addr\n.tcm_text            4956   32768\n.tcm_ro                 0   37724\n.data                   0   37724\n.shbss              10000   71680\n.bss                  256   37724\n.text                 376   67840\n.comment               51       0\n.riscv.attributes      93       0\nTotal               15732\n\n\n",
+"tile": "xcelium/riscv_test/perf_mp/bimg/crtfix_dhry_m1f/h1.elf  :\nsection              size    addr\n.tcm_text            5180   32768\n.tcm_ro                 0   37948\n.data                   0   37948\n.shbss              10000   81920\n.bss                  256   37948\n.text                 376   68608\n.comment               51       0\n.riscv.attributes      51       0\nTotal               15914\n\n\n"
 },
 "stall": 0,
 "tag": "crtfix_dhry_m1f",

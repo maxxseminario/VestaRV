@@ -2,8 +2,8 @@
 "arb": [
 {
 "0": [
-415169,
-1726020,
+423330,
+1758664,
 12
 ],
 "1": [
@@ -350,11 +350,11 @@
 "passed": true,
 "run": "perf",
 "sizes": {
-"h0": "/home/mseminario2/vestarv/.claude/worktrees/agent-a264e3edcb37bbcbd/xcelium/riscv_test/perf_mp/bimg/coremark_hot_m1f_i10_perf_d0/h0.elf  :\nsection             size     addr\n.tcm_text           4672    32768\n.tcm_ro                0    37440\n.data                 24    37440\n.shbss                 0   124928\n.bss                  28    37464\n.text               4488    67840\n.comment              51        0\n.riscv.attributes     93        0\nTotal               9356\n\n\n",
-"tile": "/home/mseminario2/vestarv/.claude/worktrees/agent-a264e3edcb37bbcbd/xcelium/riscv_test/perf_mp/bimg/coremark_hot_m1f_i10_perf_d0/tile.elf  :\nsection              size     addr\n.tcm_text            5292    32768\n.tcm_ro                 0    38060\n.data                  24    38060\n.shbss                  0   124928\n.bss                   28    38084\n.text                4592    80384\n.comment               51        0\n.riscv.attributes      51        0\nTotal               10038\n\n\n"
+"h0": "xcelium/riscv_test/perf_mp/bimg/coremark_hot_m1f_i10_perf_d0/h0.elf  :\nsection             size     addr\n.tcm_text           4672    32768\n.tcm_ro                0    37440\n.data                 24    37440\n.shbss                 0   124928\n.bss                  28    37464\n.text               4492    67840\n.comment              51        0\n.riscv.attributes     93        0\nTotal               9360\n\n\n",
+"tile": "xcelium/riscv_test/perf_mp/bimg/coremark_hot_m1f_i10_perf_d0/tile.elf  :\nsection              size     addr\n.tcm_text            5292    32768\n.tcm_ro                 0    38060\n.data                  24    38060\n.shbss                  0   124928\n.bss                   28    38084\n.text                4596    80384\n.comment               51        0\n.riscv.attributes      51        0\nTotal               10042\n\n\n"
 },
 "stall": 0,
 "tag": "coremark_hot_m1f_i10_perf_d0",
 "variant": "hot",
-"wall_s": 1481.5
+"wall_s": 1501.5
 }

@@ -110,7 +110,8 @@ def syms(elf):
 
 
 def size_report(elf):
-    return sh(["riscv-none-elf-size", "-A", elf])
+    # size -A names the ELF in its header; store it repo-relative so results carry no checkout path.
+    return sh(["riscv-none-elf-size", "-A", elf]).replace(elf, os.path.relpath(elf, ROOT), 1)
 
 
 def build_coremark(tag, variant, iters, run, stackfill):
