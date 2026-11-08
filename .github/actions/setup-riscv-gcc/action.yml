@@ -23,9 +23,10 @@ runs:
         XPACK_GCC_VERSION: ${{ inputs.version }}
       run: |
         mkdir -p ~/riscv-toolchain
-        curl -fsSL --retry 5 --retry-delay 15 \
-          "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v${XPACK_GCC_VERSION}/xpack-riscv-none-elf-gcc-${XPACK_GCC_VERSION}-linux-x64.tar.gz" \
-          | tar -xz -C ~/riscv-toolchain
+        tgz="$RUNNER_TEMP/xpack-gcc.tar.gz"
+        curl -fsSL --retry 5 --retry-delay 15 -o "$tgz" \
+          "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v${XPACK_GCC_VERSION}/xpack-riscv-none-elf-gcc-${XPACK_GCC_VERSION}-linux-x64.tar.gz"
+        tar -xzf "$tgz" -C ~/riscv-toolchain
 
     - name: Add to PATH
       shell: bash

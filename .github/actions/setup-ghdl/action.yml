@@ -25,9 +25,10 @@ runs:
         GHDL_VERSION: ${{ inputs.version }}
       run: |
         mkdir -p ~/ghdl
-        curl -fsSL --retry 5 --retry-delay 15 \
-          "https://github.com/ghdl/ghdl/releases/download/v${GHDL_VERSION}/ghdl-mcode-${GHDL_VERSION}-ubuntu24.04-x86_64.tar.gz" \
-          | tar -xz -C ~/ghdl
+        tgz="$RUNNER_TEMP/ghdl.tar.gz"
+        curl -fsSL --retry 5 --retry-delay 15 -o "$tgz" \
+          "https://github.com/ghdl/ghdl/releases/download/v${GHDL_VERSION}/ghdl-mcode-${GHDL_VERSION}-ubuntu24.04-x86_64.tar.gz"
+        tar -xzf "$tgz" -C ~/ghdl
 
     # libgnat is GHDL's Ada runtime; the tarball links it dynamically.
     - name: Install runtime and add to PATH
