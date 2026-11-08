@@ -126,28 +126,36 @@ unknown key raises rather than falling back to a default.
 ## Build and verify
 
 Everything builds and tests through **Bazel**, hermetically: a fresh clone needs
-no locally installed toolchain. Bazel provisions Python, a C/C++ toolchain, the
-exact RISC-V cross-compiler the mask ROM was pinned to, a from-source GHDL and a
-hermetic TeX Live.
+no locally installed toolchain. Bazel provisions Python 3.11, a C/C++ toolchain
+(zig), the exact RISC-V cross-compiler the mask ROM was pinned to, a from-source
+GHDL and a hermetic TeX Live. `tools/bin/bazel` is bazelisk, which runs the
+version pinned in `.bazelversion`; add `<repo>/tools/bin` to `PATH` for plain
+`bazel`. Run every command from the repository root.
 
-Run every command from the repository root. Add `<repo>/tools/bin` to `PATH`
-for plain `bazel`.
+The first build fetches roughly 1 GB of toolchains and compiles GHDL from source
+(10-20 minutes cold); after that everything is cached, including across
+output-base wipes (disk cache in `.bazelrc`). Old-glibc hosts are handled
+automatically: the xPack `ld` is wrapped at fetch time when `~/local-glibc`
+exists, and GHDL links with `-B/usr/bin`; both are inert on modern hosts.
 
 | What you want | Command |
 |---|---|
-| The whole gate set (337 tests) | `tools/bin/bazel test //...` |
-| Generate a chip (RTL, headers, linker scripts, TRM sources) | `tools/bin/bazel build //platform/common:chip_artifacts_castalia` |
+| The whole gate set | `tools/bin/bazel test //...` |
+| Generate a chip (RTL, headers, linker scripts, pad ring, TRM sources), sandboxed | `tools/bin/bazel build //platform/common:chip_artifacts_castalia` (also `_argus`, `_castalia_b`, `_asic_default`, `_fpga_default`) |
 | Prove the generated RTL matches the tracked RTL | `tools/bin/bazel test //platform/...` |
-| Regenerate everything derived from the register descriptions | `tools/bin/bazel run //:regs` |
+| Regenerate everything derived from the register descriptions (writes the tree) | `tools/bin/bazel run //:regs` |
 | Build the mask-ROM image | `tools/bin/bazel build //software/bootrom_mp:rom_rcf` |
-| Build every firmware app | `tools/bin/bazel build //software/...` |
-| Build all 259 ISA test programs (518 images, plain and flashed) | `tools/bin/bazel build //verification/isa:all_images` |
-| Run the full ISA simulation regression (GHDL, no licenses) | `tools/bin/bazel test //opensource_sim:isa_regression` |
-| Core and peripheral unit benches (26) | `tools/bin/bazel test //hdl/common/tb:all` |
-| Synthesizability of every block (39 entities) | `tools/bin/bazel test //hdl/common/synth:synth` |
+| Build every firmware app; golden gates | `tools/bin/bazel build //software/...`, `tools/bin/bazel test //software/...` |
+| Build every ISA test program, plain and flashed | `tools/bin/bazel build //verification/isa:all_images` |
+| Full ISA simulation regression (GHDL, no licenses) | `tools/bin/bazel test //opensource_sim:isa_regression` |
+| PMP and MCU-level GHDL benches | `tools/bin/bazel test //opensource_sim/pmp:pmp //opensource_sim/mcu:mcu_elaborate` |
+| Core and peripheral unit benches | `tools/bin/bazel test //hdl/common/tb:all` |
+| Synthesizability of every block | `tools/bin/bazel test //hdl/common/synth:synth //toolchains/ghdl:synth_coverage_test` |
+| CPI against recorded counts | `tools/bin/bazel test //verification/cpi:cpi_default` |
 | Python tooling and docs gates | `tools/bin/bazel test //tools/... //docs/...` |
 | Bind the FPGA cut against the synthesizable stand-in cells | `tools/bin/bazel test //opensource_sim/fpga_default:fpga_default_elaborate` |
 | Write the ordered VHDL file list a Vivado run reads | `tools/bin/bazel build //opensource_sim/fpga_default:fpga_default_vivado_files` |
+| TRM PDF (host TeX, `manual`) | `tools/bin/bazel build //platform/common/latex/bazel:trm_pdf_local` |
 
 Configurations live in [`platform/common/config`](platform/common/config) and are
 selected with `CONFIG=`. `castalia.json` is the reference chip: hart 0 is an
@@ -157,22 +165,102 @@ teaching chip, `asic_default.json` the minimal ASIC starting point and
 `fpga_default.json` the FPGA one. A bare build with no `CONFIG=` is the
 reference chip, which is the configuration the tracked RTL identity gates grade.
 
-The first build fetches roughly 1 GB of toolchains and compiles GHDL from source
-(10-20 minutes cold); everything after that is cached, including across
-output-base wipes. No target carries the `known_red` tag today; CI still passes
-`--test_tag_filters=-known_red` so a future understood-but-unadjudicated red can
-be tagged rather than left to rot.
-
 A fully open-source path needs no proprietary EDA license:
-`tools/bin/bazel test //opensource_sim:isa_regression` runs the
-riscv-tests-derived suite on a GHDL built from source. The one piece Bazel does
-not run is the cocotb smoke test, `./opensource_sim/run_sim.sh --smoke-only`.
-See [`opensource_sim/README.md`](opensource_sim/README.md) and
-[`sky130/README.md`](sky130/README.md), the companion flow that takes the same
-RTL to a signed-off sky130 GDSII.
+`//opensource_sim:isa_regression` runs the riscv-tests-derived suite on a GHDL
+built from source. The cocotb smoke test, `./opensource_sim/run_sim.sh --smoke-only`,
+runs outside Bazel. See [`opensource_sim/README.md`](opensource_sim/README.md)
+and [`sky130/README.md`](sky130/README.md), the companion flow that takes the
+same RTL to a signed-off sky130 GDSII.
 
-[`BAZEL.md`](BAZEL.md) has the full target map, the conventions and what
-deliberately stays outside Bazel.
+### Writers
+
+`bazel build` and `bazel test` are sandboxed and never write into the source
+tree. The `bazel run` targets that do are deliberate and enumerated: `//:regs`
+and the three emitters it chains (`//platform/common/python:rdl_vhdl_pkgs`,
+`:rdl_regs_headers`, `:generate`), `//platform/common/python:splice_register_browser`,
+`:splice_web_data` and `//tools/python:theme_sync`. `bazel run //:generate` is the
+raw generator and writes wherever its `--out` points (default `platform/common/`);
+use `chip_artifacts_<chip>` for a sandboxed build and `//:regs` to update tracked
+products.
+
+```bash
+tools/bin/bazel run //:regs                    # .rdl -> VHDL packages -> C headers -> generator
+tools/bin/bazel run //tools/python:theme_sync  # re-splice the theme block into docs/
+tools/bin/bazel run //platform/common/python:splice_register_browser -- --data <MemoryMap.json> docs/register_browser.html
+```
+
+### Outside Bazel
+
+- **Cadence flows**: Xcelium regressions (`xcelium/*/xrun_parallel.sh`),
+  Genus, Innovus, Pegasus, `make verify` and the PSL runs need licensed tools;
+  run them after `source cdspaths.sh`. They are permanently out of `//...`; a
+  future wrapper must be tagged `manual`, `local` and `no-sandbox`.
+- **In-tree regeneration** of tracked products such as `hdl/common/MCU.vhd` or
+  `hdl/common/regs/vhdl/` goes through the writers above (or
+  `make -C platform/common chip` for the generator half); `bazel test
+  //platform/...` proves the result. Fully hermetic LaTeX is blocked upstream
+  (bazel_latex is lualatex-only and lacks packages the TRM uses).
+- **Bench tools** (`rv4th_terminal.py`, the Forth dashboard, flash and chip
+  programmers) talk to physical boards; their pip dependencies are unpinned.
+- **Myshkin generator** (`platform/myshkin`) overwrites tracked files in place,
+  so it cannot be sandboxed; run it directly.
+- **Spike lockstep build** (`tools/cosim/build_vesta_ref.sh`) uses an
+  out-of-repo pinned Spike.
+
+### Conventions
+
+- **Goldens**: firmware images are locked by tracked `testdata/*_golden.txt`
+  files (`*.rcf` is gitignored). Changing firmware means regenerating the golden
+  in the same commit.
+- **Known red**: CI passes `--test_tag_filters=-known_red` so a failure that is
+  understood but not yet adjudicated can be tagged rather than left to rot. The
+  tag comes off in the commit that adjudicates it. `check_publish_test` (manual)
+  is red whenever TRM-affecting commits have landed since the last publish; that
+  is the point of the gate.
+- **`private/`** is gitignored and listed in `.bazelignore`; its BUILD files name
+  artifacts the public tree does not define. The Genus and Xcelium flows read it
+  directly.
+- **Untracked-file skew**: local `bazel test //...` sees untracked files; CI's
+  clean checkout does not. Before pushing BUILD-graph changes run
+  `git stash -u && tools/bin/bazel build //... ; git stash pop`, or use a clean
+  worktree.
+- **CRLF is load-bearing** in much of the VHDL; never let a tool rewrite line
+  endings. Hygiene gates (CRLF manifest, VHDL ASCII style, `.bazelignore`,
+  tracked outputs) are in [`tools/ci/`](tools/ci/README.md).
+- A new `BUILD.bazel` inside `hdl/` creates a package that hides its files from
+  `//hdl:vhdl_sources`'s glob; re-export them through a filegroup as
+  `//hdl/common/tb:tb_vhdl_sources` does.
+- The EDA output trees (`signoff_mp/`, `xcelium/`, `innovus/`, `genus/`,
+  hundreds of GB) are listed in `.bazelignore`; never remove entries.
+
+### CI
+
+| Workflow job | Runs |
+|---|---|
+| `ci.yml` **Bazel hermetic gates** | Lockfile check, analysis of `//...`, then every test outside the GHDL trees; asserts `git status --porcelain` is empty afterwards |
+| `sim.yml` **GHDL ISA regression (bazel)** | The GHDL targets, each named explicitly |
+| `ci.yml` **Chip generator gates**, **Docs link + generator syntax gates**, **Bootrom + ISA image builds**, **Repo hygiene gates** | Scripts run directly (the hygiene checks need git history) |
+| `physical.yml`, `release.yml` | sky130 flow and tagged releases ([`sky130/README.md`](sky130/README.md)) |
+
+```bash
+tools/bin/bazel mod deps --lockfile_mode=error
+tools/bin/bazel build --nobuild -- //... -//opensource_sim/... -//hdl/common/tb/... -//toolchains/...
+tools/bin/bazel test --build_tests_only --test_tag_filters=-known_red \
+  -- //... -//opensource_sim/... -//hdl/common/tb/... -//toolchains/... \
+     -//hdl/common/synth/... -//verification/cpi/...
+```
+
+- The `--` before the negative patterns is required; Bazel rejects a bare
+  leading `-//...` as a malformed option.
+- `//hdl/common/synth` and `//verification/cpi` run GHDL, so they are tested in
+  `sim.yml` but still analyzed in `ci.yml`, which catches a broken BUILD file in
+  seconds.
+- `sim.yml` never uses `//opensource_sim/...` by wildcard. A new GHDL target runs
+  in a local `bazel test //...` but in **neither** workflow until it is named in
+  `sim.yml`.
+- Required-check names are matched verbatim by the merge-queue ruleset; rename a
+  job only together with the ruleset. See
+  [`.github/MERGE_QUEUE.md`](.github/MERGE_QUEUE.md).
 
 ---
 
@@ -245,6 +333,26 @@ Regenerate the whole chain with `tools/bin/bazel run //:regs`, then review with
 [`tools/rdl/README.md`](tools/rdl/README.md).
 
 ---
+
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| [`hdl/`](hdl/README.md) | VHDL-2008 RTL: live shared tree in `hdl/common/`, frozen chip snapshots, FPGA stand-in cells |
+| [`platform/`](platform/common/README.md) | Chip generators: `platform/common` (Castalia, Argus, defaults), frozen [`platform/myshkin`](platform/myshkin/README.md) |
+| [`implementations/`](implementations/README.md) | Per-chip documentation, TRMs and FPGA flows |
+| [`software/`](software/README.md) | Mask boot ROM, debug trampoline, firmware apps, shared headers |
+| [`verification/`](verification/README.md) | ISA test images, NPU golden model, CPI and multi-hart performance harnesses, coverage, conformance |
+| [`opensource_sim/`](opensource_sim/README.md) | License-free GHDL simulation targets |
+| [`sky130/`](sky130/README.md) | Open-source RTL-to-GDSII flow on SkyWater sky130 |
+| `tools/` | Build scripts ([`build`](tools/build/README.md)), CI checks ([`ci`](tools/ci/README.md)), Spike lockstep ([`cosim`](tools/cosim/README.md)), SystemRDL ([`rdl`](tools/rdl/README.md)), bench debug ([`debug`](tools/debug/README.md)), random-program generator (`randgen`), Python utilities |
+| `toolchains/` | Bazel toolchain rules: from-source GHDL, pinned RISC-V GCC |
+| `docs/` | Static site: configurator, register browser, new-chip guide ([`docs/new_chip.md`](docs/new_chip.md)) |
+| `assets/` | Logos and README figures |
+| `cdspaths.example.sh` | Template for `cdspaths.sh` (gitignored), the environment for the licensed Cadence flows; scripts source it via `tools/source_cdspaths.sh` |
+
+`genus/`, `innovus/`, `xcelium/`, `signoff_mp/`, `cpf/`, `std_cells/` and
+`private/` are gitignored working trees for the licensed flows.
 
 ## Author and support
 

@@ -7,14 +7,14 @@
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
-T=/home/mseminario2/chips/myshkin
+T="${MYSHKIN_ROOT:-$HOME/chips/myshkin}"
 W="$1"; KIND="$2"; HDL="${3:-$T/hdl}"
 R="$W/xcelium/riscv_test"; D="$R/$KIND"
 mkdir -p "$D/log" "$R/rcf"
 ln -sfn "$HDL" "$W/hdl"; ln -sfn "$T/ip" "$W/ip"; ln -sfn "$T/innovus" "$W/innovus"
 ln -sfn "$T/genus" "$W/genus"
 cp "$T/xcelium/disable_x_warnings.tcl" "$W/xcelium/"
-set +u; source "$REPO/cdspaths.sh" >/dev/null; set -u
+set +u; source "$REPO/tools/source_cdspaths.sh" >/dev/null; set -u
 cd "$D" || exit 2
 CC="riscv-none-elf-gcc -march=rv32imac_zba_zbb_zbc_zbs_zicsr -mabi=ilp32 -nostdlib -nostartfiles"
 if [ "${TEST:-chip}" = flash ]; then
@@ -94,7 +94,7 @@ open('riscv_tb.vhd', 'w', newline='').write(t)
 PY
 sed -e '/tb_defs.vhd/d' -e '/riscv_tb.vhd/d' "$T/xcelium/riscv_test/$KIND/cell_list_$KIND.txt" > cells.txt
 # The behavioral ROM model opens the overwritten image by absolute path.
-sed 's#"/home/mseminario2/chips/myshkin/ip/rom_hvt_pg/rom_hvt_pg_verilog.rcf"#"rom_hvt_pg_verilog.rcf"#' \
+sed 's#"[^"]*/ip/rom_hvt_pg/rom_hvt_pg_verilog.rcf"#"rom_hvt_pg_verilog.rcf"#' \
     "$HDL/MCU/sim/ARM_IP_ROM.vhd" > ARM_IP_ROM.vhd
 sed -i 's#^.*sim/ARM_IP_ROM.vhd#ARM_IP_ROM.vhd#' cells.txt
 SDF=""

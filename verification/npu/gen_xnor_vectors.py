@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """VestaRV: golden-vector generator for the NPU XNOR and popcount binary mode.
 
-A new datapath with no MAC and no sigmoid, so nothing here imports npu_fixed.py; the
+A new datapath with no MAC and no sigmoid, so nothing here imports npu_golden_model.py; the
 arithmetic is exact Python integers. Packing is LSB-first, weights neuron-major, and the
 last word is tail-masked when K mod 32 is nonzero because staged tail bits hold garbage.
 value_n = 2*popcount(XNOR(a, w_n)) - K, fires at >= THRESH, output +/-1.0 in Q7.24.

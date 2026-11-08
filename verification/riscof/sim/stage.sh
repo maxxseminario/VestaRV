@@ -6,7 +6,9 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../../.." && pwd)"
 STAGE="${STAGE:-$REPO/xcelium/riscof}"
-set +u; source "$REPO/cdspaths.sh"; set -u
+set +u; source "$REPO/tools/source_cdspaths.sh"; set -u
+# cell_list.txt names the pad library as $VESTA_TSMC65_IP; expanded below.
+VESTA_TSMC65_IP="${VESTA_TSMC65_IP:-$HOME/lib/TSMC65-IP}"
 mkdir -p "$STAGE"
 cd "$STAGE"
 if [ ! -f "$REPO/software/bootrom_mp/bin/rom.rcf" ]; then
@@ -18,7 +20,7 @@ fi
 cmp "$REPO/software/bootrom_mp/bin/rom.rcf" "$HOME/vestarv/software/bootrom_mp/bin/rom.rcf"
 /usr/bin/python3.6 "$HERE/gen_tb.py" "$REPO/hdl/common/tb/riscv_tb.vhd" riscof_tb.vhd
 sed -e "s#^\.\./\.\./hdl/common/sim/ARM_IP#$HOME/vestarv/hdl/common/sim/ARM_IP#" \
-    -e "s#^\.\./\.\./#$REPO/#" "$HERE/cell_list.txt" > cell_list.txt
+    -e "s#^\.\./\.\./#$REPO/#" -e "s#^\$VESTA_TSMC65_IP/#$VESTA_TSMC65_IP/#" "$HERE/cell_list.txt" > cell_list.txt
 rm -rf xcelium.d
 xrun -elaborate $(cat cell_list.txt) -top riscv_tb -v200x -work work -access +r \
      -controlrelax nlstex -relax -snapshot riscof -xmlibdirname "$STAGE/xcelium.d" \

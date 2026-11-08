@@ -1,4 +1,4 @@
-/home/mseminario2/lib/TSMC65-IP/tsmc/pads/tphn65gpgv2od3_sl/verilog/tphn65gpgv2od3_sl.v
+$VESTA_TSMC65_IP/tsmc/pads/tphn65gpgv2od3_sl/verilog/tphn65gpgv2od3_sl.v
 ../../hdl/common/commune/fixed_float_types_c.vhdl
 ../../hdl/common/commune/fixed_pkg_c.vhdl
 ../../hdl/common/commune/FPMac.vhd

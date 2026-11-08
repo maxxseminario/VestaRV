@@ -1,4 +1,4 @@
-# Build system — shared build infrastructure for VestaRV firmware
+# tools/build: shared firmware build infrastructure
 
 | Directory | Contents |
 |---|---|
@@ -31,7 +31,7 @@ tools/bin/bazel test  //software/...        # firmware goldens exercise both con
 | `//tools/build:firmware_image_map_test` | Product images' sections stay inside the memory map |
 | `//tools/build:verification_image_map_test` | Same check over the ISA and CPI verification images |
 
-Build map: [`BAZEL.md`](../../BAZEL.md). Firmware targets: [`software/README.md`](../../software/README.md).
+Bazel overview: [root README](../../README.md#build-and-verify). Firmware targets: [`software/README.md`](../../software/README.md).
 
 ## Outside Bazel
 
@@ -41,9 +41,9 @@ bench tools need a host `riscv-none-elf-gcc` (13.2.0 or later, e.g. the
 Bazel ignores it.
 
 ```sh
-export RISCV_TOOLCHAIN_DIR=~/riscv-toolchain/xpack-riscv-none-elf-gcc-13.2.0-2
+export RISCV_TOOLCHAIN_DIR=<install dir>/xpack-riscv-none-elf-gcc-13.2.0-2
 pip install intelhex      # bench/programmer tools only
 ```
 
 The bench and programmer tools (`tools/chip_programmer/`, `tools/flash_programmer/`,
-`tools/PyEmanate/`) are untracked and live only on the bench machine.
+`tools/PyEmanate/`) are not tracked in this repository.

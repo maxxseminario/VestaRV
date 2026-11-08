@@ -1,4 +1,4 @@
-# riscof — RISCOF / riscv-arch-test conformance for VestaRV
+# verification/riscof: riscv-arch-test conformance
 
 Runs the official riscv-arch-test suite (3.x, the RISCOF-format tree) on the Castalia
 multi-hart behavioural simulation and compares every signature with Spike and Sail. The
@@ -16,9 +16,10 @@ reads the signature back through its load path and streams it to the bench on `a
 
 ## Run
 
-Needs Xcelium (`cdspaths.sh`), `riscv-none-elf-gcc`, Spike from `~/local/`, a python >= 3.7
-environment with `pip install riscof`, a riscv-arch-test checkout (tag 3.10.0 was used)
-and optionally the prebuilt `sail_riscv_sim` from the sail-riscv releases page.
+Needs Xcelium (`cdspaths.sh`), `riscv-none-elf-gcc`, Spike (path from the `spike` key of
+the reference plugin config in `ref/`), a python >= 3.7 environment with `pip install riscof`,
+a riscv-arch-test checkout (tag 3.10.0 was used) and optionally the prebuilt
+`sail_riscv_sim` from the sail-riscv releases page.
 
 ```sh
 sim/stage.sh                                  # compile + elaborate into xcelium/riscof

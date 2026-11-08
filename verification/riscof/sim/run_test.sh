@@ -10,7 +10,7 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../../.." && pwd)"
 STAGE="${STAGE:-$REPO/xcelium/riscof}"
 RCF="$(readlink -f "$1")"; RUN="$2"; TMO="${3:-900}"; TCL="${4:-$HERE/run.tcl}"
-source "$REPO/cdspaths.sh" >/dev/null
+source "$REPO/tools/source_cdspaths.sh" >/dev/null
 mkdir -p "$RUN"; cd "$RUN" || exit 2
 rm -f signature.out xrun.log elab.log xxxxxxxxxxxxxxxxxxxximage.rcf
 ln -s "$RCF" xxxxxxxxxxxxxxxxxxxximage.rcf

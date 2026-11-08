@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """VestaRV: golden values for the wactf.S firmware smoke test.
 
-A standalone helper reusing npu_fixed.think_layer()/activate() for the ACTF sweep at the
+A standalone helper reusing npu_golden_model.think_layer()/activate() for the ACTF sweep at the
 silicon generics. One staged MLP layer, NI=0 and NN=1, is reused across THINKs with only
 OVSAR (and WVSAR where the accumulator magnitude must change) re-pointed, so results never
 overwrite each other. Run with /usr/bin/python3, which does not strip quotes.
@@ -10,7 +10,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from npu_fixed import think_layer, activate, sigmoid, relu, tanh_approx, clamp01, exp_approx  # noqa: E402
+from npu_golden_model import think_layer, activate, sigmoid, relu, tanh_approx, clamp01, exp_approx  # noqa: E402
 
 X_M, W_M, Y_M, N_BITS, RHO = 0, 7, 7, 24, 2
 

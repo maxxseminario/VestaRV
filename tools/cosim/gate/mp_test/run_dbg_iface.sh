@@ -13,7 +13,7 @@
 #
 # This dir is under xcelium/ (gitignored); the BENCH is tracked
 # (hdl/common/tb/dbg_iface_tb.vhd).  Precedent: run_pmp_unit.sh.
-source ~/vestarv/cdspaths.sh
+source "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)/tools/source_cdspaths.sh"
 
 # D1MUT_HDL lets the D1 validation pass point this bench at the mutation
 # scratch RTL (xcelium/riscv_test/d1mut/rtl) instead of the working tree.

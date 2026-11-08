@@ -14,7 +14,7 @@
 # run and the gate sim must bind the real tile netlist instead.
 
 set INPUT_DIR        ../common/in
-set IP_DIR           /home/mseminario2/chips/myshkin/ip
+set IP_DIR           [expr {[info exists ::env(MYSHKIN_IP)] ? $::env(MYSHKIN_IP) : "$::env(HOME)/chips/myshkin/ip"}]
 set OUTPUT_DIR       out
 set REPORT_DIR       rpt
 set HDL_DIR          ../../hdl

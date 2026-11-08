@@ -1,4 +1,4 @@
-# software — VestaRV firmware
+# software: VestaRV firmware
 
 Firmware for the VestaRV core: the mask boot ROM, the debug trampoline, and small
 RAM applications. Bazel provisions the pinned RISC-V compiler and gates every image
@@ -63,5 +63,4 @@ Then copy [`blinky/BUILD.bazel`](blinky/BUILD.bazel) (a `myshkin_app` from
 | `commune/` | shared headers (`include/`) and library code (`src/`) |
 
 A host `riscv-none-elf-` toolchain is needed only outside Bazel (bench tools,
-Cadence simulation): [`tools/build/README.md`](../tools/build/README.md). Full Bazel
-map: [`BAZEL.md`](../BAZEL.md). Testbenches: [`hdl/myshkin/tb/`](../hdl/myshkin/tb/).
+Cadence simulation): [`tools/build/README.md`](../tools/build/README.md). Bazel overview: [root README](../README.md#build-and-verify). Testbenches: [`hdl/myshkin/tb/`](../hdl/myshkin/tb/).

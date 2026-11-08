@@ -121,7 +121,7 @@ set ::TAP_DMIRESETS 0
 
 # ---------------------------------------------------------------------------
 # THE 16-STATE GRAPH.  Transcribed from Spike jtag_dtm.cc:60-77 (READ at
-# authoring time from /home/mseminario2/local/src/spike-src, HEAD 3d8eb089),
+# authoring time from ~/local/src/spike-src, HEAD 3d8eb089),
 # in Spike's own enum order (jtag_dtm.h:8-25).  Entry i = {next_if_tms0
 # next_if_tms1}.  This is the standard IEEE 1149.1 graph; Spike is quoted
 # because d3_spec 1 names it as THE reference.

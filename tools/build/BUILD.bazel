@@ -215,7 +215,7 @@ py_test(
 #
 # THE TAG COMES OFF in the commit that repoints those two linker scripts off
 # the 0xA000-0xBFFF hole and re-homes the oversized CPI working sets, per
-# BAZEL.md "Known red". It is NOT a carve-out for the boot ROM: flashboot.elf
+# README.md "Known red". It is NOT a carve-out for the boot ROM: flashboot.elf
 # sits in :firmware_image_map_test above, untagged, and that target reported it
 # 16,060 bytes over before the .noinit fix landed.
 py_test(

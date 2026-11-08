@@ -1,4 +1,4 @@
-# blinky — toolchain and simulation smoke application
+# blinky: toolchain and simulation smoke application
 
 Minimal VestaRV application and the template the other app packages were cloned
 from. Shared targets and conventions: [`software/README.md`](../README.md).

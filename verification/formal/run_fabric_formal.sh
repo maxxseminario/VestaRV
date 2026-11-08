@@ -7,8 +7,8 @@
 # signal. rc 0 pass, 1 property failure, 2 infrastructure. `set -u` is absent
 # because cdspaths.sh references a never-defined assuraPath and would kill the
 # shell before xrun runs.
-. ~/vestarv/cdspaths.sh >/dev/null 2>&1
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+VESTA_ROOT="$ROOT"; . "$ROOT/tools/source_cdspaths.sh" >/dev/null 2>&1
 HDL="$ROOT/hdl/common"
 FORMAL="$ROOT/verification/formal"
 MODE=${MODE:-props}

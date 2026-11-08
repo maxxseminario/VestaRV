@@ -12,7 +12,7 @@
 # 22-char x-padded filename — the files in ../rcf/ are already padded, so the
 # match below just picks one and passes its full path.
 
-source ~/vestarv/cdspaths.sh
+source "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)/tools/source_cdspaths.sh"
 
 PAT="${1:-shmem}"
 # XRUN_MODE=batch (set by xrun_batch.sh) -> no -gui flag; default = GUI

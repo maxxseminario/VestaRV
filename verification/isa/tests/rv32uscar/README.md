@@ -7,9 +7,11 @@ ordinary suite.
 
 Run them with the rest of the regression (`make verify SUITE=full`), or alone:
 
-    cd xcelium/riscv_test/verify_castalia
-    grep -h rv32uscar xrun_parallel.sh | tr -d ' "' > scars.txt
-    TESTS_FILE=scars.txt ./xrun_parallel.sh
+```sh
+cd xcelium/riscv_test/verify_castalia
+grep -h rv32uscar xrun_parallel.sh | tr -d ' "' > scars.txt
+TESTS_FILE=scars.txt ./xrun_parallel.sh
+```
 
 | Test | Erratum | Needs |
 |---|---|---|

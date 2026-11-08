@@ -2,8 +2,8 @@
 
 Myshkin RTL (TSMC 65 nm, November 2025) with five post-tape-out fixes in `periph/UART.vhd`,
 `periph/SYSTEM.vhd`, `periph/NPU.vhd`, `vesta/c_dec.vhd` and `vesta/vesta.vhd`, so it is not
-what was fabricated. The fabricated RTL is `~/chips/myshkin/hdl/MCU`. Frozen: do not edit; RTL
-work goes to [`hdl/common/`](../common/README.md). Chip docs:
+what was fabricated; the fabricated RTL and netlist are not in this repository. Frozen: do
+not edit; RTL work goes to [`hdl/common/`](../common/README.md). Chip docs:
 [`implementations/asic/myshkin-2025-11/`](../../implementations/asic/myshkin-2025-11/README.md).
 
 | Path | Contents |

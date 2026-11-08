@@ -30,7 +30,7 @@
 # (hdl/common/tb/dbg_tap_tb.vhd).  Precedent: run_dbg_dmi.sh, run_dbg_iface.sh.
 #
 # NEVER pipe this through `head` (SIGPIPE kills the sim, leaving a stale log).
-source ~/vestarv/cdspaths.sh
+source "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)/tools/source_cdspaths.sh"
 
 BASE_DIR="$(cd "$(dirname "$0")" && pwd)"
 RT="$BASE_DIR/../riscv_test"

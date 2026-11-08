@@ -24,7 +24,7 @@
 #
 # NEVER pipe this through `head` (SIGPIPE kills the sim and leaves a stale log).
 cd "$(dirname "$0")"
-source ~/vestarv/cdspaths.sh
+source "$(git rev-parse --show-toplevel)/tools/source_cdspaths.sh"   # cwd is this script's directory
 
 PAT="${1:?usage: xrun_dbg.sh <test-pattern> <harness.tcl>}"
 TCL="${2:?usage: xrun_dbg.sh <test-pattern> <harness.tcl>}"

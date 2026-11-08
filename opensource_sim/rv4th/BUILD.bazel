@@ -44,7 +44,7 @@
 # THE ROM CONTENTS. This bench's whole subject is what the boot image does, so
 # an empty ROM model is useless -- and hdl/common/sim/ARM_IP_ROM.vhd, the one
 # model that loads an image, is untracked AND opens
-# /home/mseminario2/vestarv/software/bootrom_mp/bin/rom.rcf by absolute path.
+# <home>/vestarv/software/bootrom_mp/bin/rom.rcf by absolute path.
 # //opensource_sim/mcu:mem_macros_sim.vhd now carries the loader instead, and
 # takes its path from work.rom_image_pkg, which :rv4th_rom_image is generated
 # to hold. That path is $(rootpath) of //software/bootrom_mp:rom_rcf, so it is

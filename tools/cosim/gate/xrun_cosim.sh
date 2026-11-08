@@ -34,7 +34,7 @@
 #
 # Environment knobs (all optional):
 #   MAX_PARALLEL   parallel workers (default 4). Xcelium seats are a SHARED pool
-#                  (5280@poseidon) — keep this modest.
+#                  (the site licence server) — keep this modest.
 #   TESTS_FILE     alternate sweep list (one rcf basename or path per line)
 #   TEST_TIMEOUT   per-sim wall-clock kill, seconds (default 180 = the 1-minute
 #                  rule's 3x "this is a finding" threshold; a traced sim is ~5 s)
@@ -97,7 +97,7 @@
 # reuse. Per-TEST artifacts (elab/sim log, image log, make log) keep their old
 # unsuffixed names: there is one elaboration and one simulation per test.
 
-source ~/vestarv/cdspaths.sh
+source "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)/tools/source_cdspaths.sh"
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 cd "$HERE" || exit 1

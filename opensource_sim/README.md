@@ -1,4 +1,4 @@
-# opensource_sim — open-source simulation of the `vesta` core
+# opensource_sim: open-source simulation of the `vesta` core
 
 License-free functional verification of the bare `vesta` core (RV32IMAC + Zb\*,
 X-series Z-extensions, Zfinx FPU): GHDL simulator, a cocotb smoke test, and the
@@ -25,7 +25,7 @@ tools/bin/bazel test //opensource_sim:isa_regression
 | `//verification/isa:os_rv32ui_rcfs` | build | ON-polarity images a suite consumes |
 | `//toolchains/ghdl:ghdl` | build | the from-source GHDL |
 
-Full map: [`BAZEL.md`](../BAZEL.md).
+Bazel overview: [root README](../README.md#build-and-verify).
 
 ## Coverage and results
 

@@ -76,7 +76,7 @@ generator's built-in default. The resolved form is tracked as
 
 ## Contents
 
-- `docs/`: Technical Reference Manual (`TRM.pdf`) and planning notes
+- `docs/`: Technical Reference Manual (`TRM.pdf`) and its tile figures
 - `analog/`: measured analog chapter of the TRM
 
 Contact: Maxx Seminario (mseminario2@huskers.unl.edu).

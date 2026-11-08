@@ -6,12 +6,12 @@
 #   ./xrun_parallel.sh
 #   MAX_PARALLEL=8 ./xrun_parallel.sh
 # MAX_PARALLEL is the number of simultaneous simulations. Each xmsim holds one
-# Xcelium_Single_Core license and the pool on poseidon has 40 seats shared with
+# Xcelium_Single_Core license and the site pool has 40 seats shared with
 # every other user, so 40 is the ceiling and headroom is polite. The sims pass
 # -licqueue, so one that cannot get a seat waits instead of failing. The host has
 # 128 cores and 251 GB, so licenses are the limit, not the machine.
 
-source ~/vestarv/cdspaths.sh
+source "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)/tools/source_cdspaths.sh"
 
 BEHAVIORAL_DIR="$(cd "$(dirname "$0")" && pwd)"
 WRAPPERS_DIR="$BEHAVIORAL_DIR/wrappers"

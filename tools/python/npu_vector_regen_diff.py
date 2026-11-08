@@ -53,7 +53,7 @@ def main(argv=None):
     srcdir = os.path.dirname(gen)
     work = tempfile.mkdtemp(prefix="npuvec")
     try:
-        # The generators import their siblings (npu_fixed, and for the golden
+        # The generators import their siblings (npu_golden_model, and for the golden
         # partners each other), so the whole module set travels together.
         staged = os.path.join(work, "npu")
         os.makedirs(staged)

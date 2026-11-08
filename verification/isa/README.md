@@ -1,4 +1,4 @@
-# verification/isa — ISA test images
+# verification/isa: ISA test images
 
 riscv-tests-derived instruction tests plus VestaRV peripheral, boot and SPI-flash
 suites, built into `.elf`/`.dump`/`.bin`/`.rcf` images for the VHDL testbenches.
@@ -25,7 +25,7 @@ tools/bin/bazel build //verification/isa:all_images
 | `:scalar_macros`, `:npu_data` | filegroup | `macros/scalar` headers; NPU golden set for [`../npu`](../npu/README.md) |
 
 All labels are in `//verification/isa`. Simulation targets are in
-[`opensource_sim`](../../opensource_sim/README.md); full map in [`BAZEL.md`](../../BAZEL.md).
+[`opensource_sim`](../../opensource_sim/README.md); Bazel overview in [root README](../../README.md#build-and-verify).
 
 ## Make (host toolchain)
 

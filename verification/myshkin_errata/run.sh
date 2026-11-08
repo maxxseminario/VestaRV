@@ -6,7 +6,7 @@ REPO="$(cd "$HERE/../.." && pwd)"
 W="$1"
 mkdir -p "$W"
 cd "$W" || exit 2
-set +u; source "$REPO/cdspaths.sh" >/dev/null; set -u
+set +u; source "$REPO/tools/source_cdspaths.sh" >/dev/null; set -u
 riscv-none-elf-gcc -march=rv32imac_zba_zbb_zbc_zbs_zicsr -mabi=ilp32 -nostdlib -nostartfiles \
     -T "$HERE/link.ld" "$HERE/errata.S" -o e.elf || exit 1
 /usr/bin/python3.6 "$HERE/mk_image.py" e.elf image.hex || exit 1

@@ -35,7 +35,7 @@
 set INPUT_DIR        ../common/in
 # ROM/SRAM hard-IP timing libs. The old ../ip tree (~/vestarv/ip) is gone; the
 # Myshkin IP now lives here (same libs the single-core tape-out used).
-set IP_DIR           /home/mseminario2/chips/myshkin/ip
+set IP_DIR           [expr {[info exists ::env(MYSHKIN_IP)] ? $::env(MYSHKIN_IP) : "$::env(HOME)/chips/myshkin/ip"}]
 set IC_DIR           ../../ic
 set OUTPUT_DIR       out
 set REPORT_DIR       rpt

@@ -239,7 +239,7 @@ jobs:
       # //tools/randgen:test_randgen k3s01 campaign-pin drift was adjudicated
       # 2026-08-23 and the tag came off with it. The filter stays as the
       # standing mechanism; the rule is that the tag comes off in the same
-      # commit that adjudicates the failure - see BAZEL.md "Known red".
+      # commit that adjudicates the failure - see README.md "Known red".
       #
       # //hdl/common/synth is excluded for the same reason: it is the
       # `ghdl --synth` synthesizability gate, so every one of its 39 targets
@@ -268,7 +268,7 @@ jobs:
                -//implementations/fpga/bringup/... \
             2>&1 | tee bazel_ci.log
 
-      # BAZEL.md's central claim: everything under `bazel build`/`bazel test`
+      # README.md's central build claim: everything under `bazel build`/`bazel test`
       # is sandboxed and never touches the source tree (only three deliberate
       # `bazel run` writers do). This step is that claim as a gate. The
       # bazel-* convenience symlinks are gitignored, so a clean tree here is

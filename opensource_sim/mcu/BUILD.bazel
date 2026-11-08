@@ -42,8 +42,8 @@
 # them, so no hermetic target can name them, and //hdl:vhdl_sources only
 # appears to contain them because its glob is evaluated against a working
 # tree that happens to have them on disk. ARM_IP_ROM.vhd is worse than
-# untracked for a test: its ROM loader opens an ABSOLUTE path under
-# /home/mseminario2/vestarv/software/bootrom_mp.
+# untracked for a test: its ROM loader opens an ABSOLUTE path into the
+# owner's checkout (<home>/vestarv/software/bootrom_mp).
 #
 # mem_macros_sim.vhd is this package's answer: a tracked, hand-written stand-in
 # that declares the same three entities with the same port lists, backed by a

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""VestaRV: validate npu_fixed.py bit-exactly against the NPU MLP bench golden files.
+"""VestaRV: validate npu_golden_model.py bit-exactly against the NPU MLP bench golden files.
 
 One network, two fixed-point configurations: 'bench' is NPU_tb.vhd's generic defaults
 (X_M=0, W_M=3, Y_M=3, N=15, RHO=2), 'chip' is the MCU instantiation's (W_M=7, Y_M=7,
@@ -10,7 +10,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from npu_fixed import (  # noqa: E402
+from npu_golden_model import (  # noqa: E402
     think_layer, raw_to_float, raw_to_hex,
 )
 

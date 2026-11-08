@@ -7,3 +7,12 @@ preview*.out
 # Scratch page renders from visual checking (pdftoppm -png).
 pv-*.png
 pvx-*.png
+
+# Raw Maestro/OCEAN extraction dumps (maestro2tex stage 1: *.csv, *.meta and
+# corners_<Block>.json). Nothing in the TRM build reads them: the figures and
+# tables read only data/*.dat and the generated *.tex, and //:castalia_analog_chapter
+# already excludes data/raw/**. Re-rendering needs the private maestro2tex configs,
+# so the raw dumps are archived outside the published tree.
+/data/raw/
+# An extra electrode-panel trace that no fig_*.tex reads.
+/data/electrode_panel_prog.dat

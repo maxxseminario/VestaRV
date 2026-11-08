@@ -18,7 +18,7 @@
 # about a minute of wall time, and frozen sim time at 100% CPU is a combinational
 # loop.
 
-source ~/vestarv/cdspaths.sh
+source "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)/tools/source_cdspaths.sh"
 
 BEHAVIORAL_DIR="$(cd "$(dirname "$0")" && pwd)"
 WRAPPERS_DIR="$BEHAVIORAL_DIR/wrappers"

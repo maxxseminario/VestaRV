@@ -1,4 +1,4 @@
-# Example ASIC Chip
+# Example ASIC chip
 
 Template for documenting a new VestaRV ASIC. A new chip is a new configuration of the
 `platform/common/` generator; [`docs/new_chip.md`](../../../docs/new_chip.md) has the

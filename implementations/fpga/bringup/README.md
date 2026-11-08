@@ -3,19 +3,22 @@
 The boot ROM loads a test program from an external SPI flash and runs it. Run
 everything from the repo root.
 
-**1. Toolchain**
-```
+## 1. Toolchain
+
+```sh
 sh tools/get_bazel.sh
 ```
 
-**2. Build the boot ROM**
-```
+## 2. Build the boot ROM
+
+```sh
 tools/bin/bazel build //software/bootrom_mp:rom_rcf
 ```
 Output: `bazel-bin/software/bootrom_mp/rom.rcf`
 
-**3. Build the flash image**
-```
+## 3. Build the flash image
+
+```sh
 tools/bin/bazel build //implementations/fpga/bringup:flash_payload_bin
 ```
 Output: `bazel-bin/implementations/fpga/bringup/flash_payload.bin`, the
@@ -23,23 +26,25 @@ Output: `bazel-bin/implementations/fpga/bringup/flash_payload.bin`, the
 
 For an LED instead of the `a0` check, use `slowblink`, which toggles P3.0 at a few
 hertz from a CPU loop:
-```
+```sh
 tools/bin/bazel build //implementations/fpga/bringup:slowblink_flash_bin
 ```
 Output: `bazel-bin/implementations/fpga/bringup/slowblink_flash.bin`.
 `blinky` clocks its timer from SMCLK, which the ROM switches to LFXT after a flash
 boot, so it toggles only every few minutes.
 
-**4. Simulate the boot (optional, ~2 min)**
-```
+## 4. Simulate the boot (optional, ~2 min)
+
+```sh
 tools/bin/bazel test //implementations/fpga/bringup:fpga_flash_boot
 ```
 `:<app>_flash_boot` runs the same boot for each of the five firmware apps.
 The boot timeline is in
 `bazel-testlogs/implementations/fpga/bringup/fpga_flash_boot/test.outputs/run.log`.
 
-**5. Board top level and pins**
-```
+## 5. Board top level and pins
+
+```sh
 tools/bin/bazel build //implementations/fpga/bringup:fpga_top
 ```
 Outputs in `bazel-bin/implementations/fpga/bringup/`, generated from the chip's
@@ -64,10 +69,10 @@ Outputs in `bazel-bin/implementations/fpga/bringup/`, generated from the chip's
 
 Port `pK_B` is pad-ring pin `PK.B`, which the firmware headers call `P(K+1).B`.
 
-**6. Synthesize**
+## 6. Synthesize
 
 Out of context, `MCU` as top (no board needed):
-```
+```sh
 tools/bin/bazel build //opensource_sim/fpga_default:fpga_default_vivado_files
 vivado -mode batch -nojournal -nolog \
     -source implementations/fpga/synth/vivado_ooc_synth.tcl \
@@ -76,5 +81,7 @@ vivado -mode batch -nojournal -nolog \
 For a bitstream, use the same file list plus `fpga_top.vhd`, `fpga_top` as top,
 the filled-in `fpga_pins.xdc`, and `rom.rcf` in Vivado's working directory.
 
-**7. Boot.** Strap `p0_7` high and release reset. `pass_led` lights when the
+## 7. Boot
+
+Strap `p0_7` high and release reset. `pass_led` lights when the
 payload passes; with `slowblink`, `p2_0` blinks.

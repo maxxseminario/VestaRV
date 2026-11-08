@@ -8,8 +8,8 @@ package(default_visibility = ["//visibility:public"])
 # Nothing here reimplements the sfixed semantics; think_layer/mac_step/activate
 # are the single entry point, which is what makes the vectors comparable.
 py_library(
-    name = "npu_fixed",
-    srcs = ["npu_fixed.py"],
+    name = "npu_golden_model",
+    srcs = ["npu_golden_model.py"],
     imports = ["."],
 )
 
@@ -60,7 +60,7 @@ _REGEN = {
 ]
 
 # The firmware-smoke golden generators. These write nothing: each computes the
-# expected words for its wNNN.S smoke through npu_fixed and then runs its own
+# expected words for its wNNN.S smoke through npu_golden_model and then runs its own
 # self-checks, so a non-zero exit is a real arithmetic disagreement.
 [
     py_test(
@@ -68,7 +68,7 @@ _REGEN = {
         size = "small",
         srcs = [name + ".py"],
         main = name + ".py",
-        deps = [":npu_fixed"] + ([":xnor_gen_lib"] if name == "gen_wxnpu_golden" else []),
+        deps = [":npu_golden_model"] + ([":xnor_gen_lib"] if name == "gen_wxnpu_golden" else []),
     )
     for name in [
         "gen_wactf_golden",
@@ -85,16 +85,16 @@ py_library(
     name = "xnor_gen_lib",
     srcs = ["gen_xnor_vectors.py"],
     imports = ["."],
-    deps = [":npu_fixed"],
+    deps = [":npu_golden_model"],
 )
 
-# npu_fixed against the real NPU MLP golden files
+# npu_golden_model against the real NPU MLP golden files
 
 py_binary(
     name = "validate_mlp",
     srcs = ["validate_mlp.py"],
     main = "validate_mlp.py",
-    deps = [":npu_fixed"],
+    deps = [":npu_golden_model"],
 )
 
 # NOT YET A TEST. The chip-config golden set is
@@ -116,7 +116,7 @@ py_test(
     ],
     data = ["//verification/isa:npu_data"],
     main = "validate_mlp.py",
-    deps = [":npu_fixed"],
+    deps = [":npu_golden_model"],
 )
 #
 # Measured standalone at HEAD: 201/201 bit-exact, rc 0.

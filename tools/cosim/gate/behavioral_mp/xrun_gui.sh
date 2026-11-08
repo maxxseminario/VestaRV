@@ -19,7 +19,7 @@
 # In SimVision, add the signals listed in SHMEM_DEBUG_NOTES.txt (they live under
 # :uut:dut:  for the MCU, and :uut:dut:core:  for the vesta FSM) and Run.
 
-source ~/vestarv/cdspaths.sh
+source "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)/tools/source_cdspaths.sh"
 
 BEHAVIORAL_DIR="$(cd "$(dirname "$0")" && pwd)"
 

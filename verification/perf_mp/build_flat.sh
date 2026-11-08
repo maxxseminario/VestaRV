@@ -1,7 +1,7 @@
 #!/bin/bash
 # Compile the core plus the patched vesta_cpi_tb into its own library under $1. See run_flat.py.
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-source "$ROOT/cdspaths.sh" >/dev/null 2>&1
+source "$ROOT/tools/source_cdspaths.sh" >/dev/null 2>&1
 cd "$1" || exit 1
 mkdir -p xcelium.d/work
 cat > cds.lib <<LIB

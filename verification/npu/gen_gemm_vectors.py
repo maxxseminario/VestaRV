@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """VestaRV: frozen golden-vector generator for the NPU GEMM mode, Q0.24 in, Q7.24 out.
 
-GEMM is M independent MLP THINKs, so every value comes from npu_fixed.think_layer() called
+GEMM is M independent MLP THINKs, so every value comes from npu_golden_model.think_layer() called
 once per output row; nothing here reimplements mac_step, resize or sigmoid. A is row-major
 and B column-major, which is the contiguous walk think_layer() makes per column. The five
 self-tests run against in-memory data and only an all-pass writes the golden files.
@@ -11,7 +11,7 @@ import random
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from npu_fixed import (think_layer, mac_step, resize_sfixed, _sat_bounds,  # noqa: E402
+from npu_golden_model import (think_layer, mac_step, resize_sfixed, _sat_bounds,  # noqa: E402
                         ROUND_TRUNCATE, SAT_SATURATE)
 
 # Frozen MCU/chip generics (npu_gemm_design.md binding inputs)
@@ -46,13 +46,13 @@ def gemm_compute(A, w_list, M, K, N, aen, actf=0):
 
 
 # Self-test support: a walk REPLICA (bookkeeping only -- calls ONLY
-# npu_fixed.mac_step for the actual arithmetic, and npu_fixed.resize_sfixed
+# npu_golden_model.mac_step for the actual arithmetic, and npu_golden_model.resize_sfixed
 # with a DIFFERENT round_style purely to detect whether rounding fired; it
 # never reimplements the round/saturate RULE itself, it just asks the
 # library's own two public, already-parameterized entry points what each
 # would have done, and diffs). Used by self-tests (d) and (e).
 def _mac_step_with_round_flag(acc_raw, a_raw, b_raw, acc_m, n_bits):
-    """new_acc is exactly npu_fixed.mac_step's result. `rounded` asks resize_sfixed what the
+    """new_acc is exactly npu_golden_model.mac_step's result. `rounded` asks resize_sfixed what the
     truncating resize would have produced from the identical exact widened sum and reports
     whether the two differ; the widening step is lossless, so only the resizes decide.
     """

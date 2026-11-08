@@ -1,4 +1,4 @@
-# tools/ci — pre-merge checks
+# tools/ci: pre-merge checks
 
 Run from the repo root with host `python3` (3.6) or CI's 3.11. Exit 0 = pass, 1 = finding,
 2 = could not run (never a pass).

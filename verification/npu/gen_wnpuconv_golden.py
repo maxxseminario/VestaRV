@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """VestaRV: golden values for the wnpuconv.S firmware smoke test.
 
-A standalone helper reusing npu_fixed.py's arithmetic core for the one CONV case wnpuconv.S
+A standalone helper reusing npu_golden_model.py's arithmetic core for the one CONV case wnpuconv.S
 exercises at the silicon generics: K=4, Cin=2, Cout=2, Lout=4, S=1, D=1, BEN=1, AEN=0, so
 L=7. The per-MAC-step trace reports whether the resize actually added +1, so the case is
 known to exercise rounding. Run with /usr/bin/python3, which does not strip quotes.
@@ -10,7 +10,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from npu_fixed import mac_step, int_to_sfixed  # noqa: E402
+from npu_golden_model import mac_step, int_to_sfixed  # noqa: E402
 
 X_M, W_M, Y_M, N_BITS, RHO = 0, 7, 7, 24, 2
 K, CIN, COUT, LOUT, S, D, BEN, AEN = 4, 2, 2, 4, 1, 1, True, False

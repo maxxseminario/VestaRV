@@ -11,7 +11,7 @@
 # cdspaths.sh references a never-defined assuraPath and would kill the shell
 # before xrun runs.
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-. "$ROOT/cdspaths.sh" >/dev/null 2>&1
+VESTA_ROOT="$ROOT"; . "$ROOT/tools/source_cdspaths.sh" >/dev/null 2>&1
 F="$ROOT/verification/formal"
 CHIP=${CHIP:-verify_castaliapmp}
 TEST=${TEST:-rv32ua-p-pmpfq}

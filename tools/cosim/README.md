@@ -1,10 +1,10 @@
-# `tools/cosim/` — VestaRV ↔ Spike lockstep tooling
+# tools/cosim: VestaRV-Spike lockstep tooling
 
 Compares the RTL commit trace (`vesta_tracer.vhd`) against a Spike `--log-commits` log,
 record by record. The wire format is specified in [`RECORD_FORMAT.md`](RECORD_FORMAT.md);
-generated traces, logs and runner scratch live under the gitignored `xcelium/`. Run every
-script with `/usr/bin/python3.6`, never `python3` (on this host it may be Calibre's wrapper,
-which strips quotes). Stdlib only.
+generated traces, logs and runner scratch live under the gitignored `xcelium/`. Stdlib only.
+Run every script with a plain CPython (`/usr/bin/python3.6`): a `python3` on `PATH` may be a
+tool wrapper (Calibre ships one) that strips quotes.
 
 | File | Role |
 |---|---|
@@ -35,7 +35,7 @@ tools/bin/bazel test //tools/cosim/...
 | `//tools/cosim:check_knob_classes_test` | Knob classification matches what tests dispatch on |
 
 The Xcelium lockstep gates and `check_gate_files.py` stay outside Bazel (licensed tools;
-gitignored inputs). Build map: [`BAZEL.md`](../../BAZEL.md).
+gitignored inputs). Bazel overview: [root README](../../README.md#build-and-verify).
 
 ## Gate infrastructure (`gate/`)
 
@@ -56,7 +56,7 @@ Negative control (~2 min; artifacts in `$NEGCTRL_WORKDIR`, default
 `xcelium/riscv_test/behavioral_mp/cosim_work/negctrl_plant/`):
 
 ```sh
-source ~/vestarv/cdspaths.sh
+source cdspaths.sh
 bash tools/cosim/gate/negctrl_RERUN.sh
 ```
 

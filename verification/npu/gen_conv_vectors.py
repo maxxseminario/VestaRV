@@ -4,13 +4,13 @@
 The 12-scalar cfg header has no L field, so this and NPU_conv_tb.vhd both derive the physical
 input length from L = D*(K-1) + 1 + (Lout-1)*S and never agree out of band. Accumulation is
 pinned: bias first when BEN, then c outer, k inner, which is the contiguous weight walk
-think_layer() makes. No arithmetic is reimplemented; every step runs through npu_fixed.
+think_layer() makes. No arithmetic is reimplemented; every step runs through npu_golden_model.
 """
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from npu_fixed import think_layer  # noqa: E402  -- the only arithmetic entry point used
+from npu_golden_model import think_layer  # noqa: E402  -- the only arithmetic entry point used
 
 # Frozen MCU/chip generics (npu_conv_design.md binding inputs)
 X_M = 0
@@ -49,7 +49,7 @@ def predicted_cycles(K, Cin, Cout, Lout, BEN):
 def compute_conv(inputs, weights, cin, k, cout, lout, s, d, ben, aen, actf=0):
     """inputs is Cin lists of length L, weights a flat filter-major list, bias-first per filter when
     ben; returns Cout lists of length Lout, post-activation when aen. Every MAC and activation
-    step runs through npu_fixed, so this only does the pinned c-outer, k-inner index bookkeeping.
+    step runs through npu_golden_model, so this only does the pinned c-outer, k-inner index bookkeeping.
     """
     weights_per_filter = (1 if ben else 0) + cin * k
     outputs = []
@@ -268,7 +268,7 @@ def gen_aen_relu_exp():
     # is a real activation post-P4.4, not a sigmoid-behaves-as-0 poke).
     # Reuses the EXACT SAME inputs/weights as gen_aen() above (k=4 cin=2
     # cout=2 lout=4 s=1 d=1, in_val/w_val, no bias) and recomputes through
-    # npu_fixed.think_layer(..., actf=1) via compute_conv's actf
+    # npu_golden_model.think_layer(..., actf=1) via compute_conv's actf
     # passthrough -- the frozen "aen" cfg/in/w/exp quartet itself is never
     # touched; this emits ONLY the one new expected-output file.
     k, cin, cout, lout, s, d = 4, 2, 2, 4, 1, 1
@@ -299,7 +299,7 @@ def gen_sat():
     # taps at (max weight * max input) -> positive clamp. filter 1: all taps
     # at (min weight * max input) -> negative clamp. Single-channel, single
     # output -- the FINAL value equals the exact clamp bound, which is
-    # sufficient proof the per-step round+saturate path (npu_fixed.mac_step,
+    # sufficient proof the per-step round+saturate path (npu_golden_model.mac_step,
     # reused unmodified) actually hit it (saturation, once hit, cannot be
     # undone by further same-direction accumulation).
     k, cin, cout, lout, s, d = 4, 1, 2, 1, 1, 1

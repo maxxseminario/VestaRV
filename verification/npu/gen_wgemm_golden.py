@@ -2,7 +2,7 @@
 """VestaRV: golden values for the wgemm.S firmware smoke test.
 
 A standalone helper, not part of the frozen bench pipeline, computing the two-layer chained
-GEMM case at the silicon generics through npu_fixed.think_layer(). Layer 2 reads layer 1's
+GEMM case at the silicon generics through npu_golden_model.think_layer(). Layer 2 reads layer 1's
 output in place (IVSAR2 = OVSAR1), which is legal only while C1 satisfies the Q0.24 |C|<1
 contract; that is asserted. Run with /usr/bin/python3: the default python3 strips quotes.
 """
@@ -10,7 +10,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from npu_fixed import think_layer  # noqa: E402
+from npu_golden_model import think_layer  # noqa: E402
 
 X_M, W_M, Y_M, N_BITS, RHO = 0, 7, 7, 24, 2
 

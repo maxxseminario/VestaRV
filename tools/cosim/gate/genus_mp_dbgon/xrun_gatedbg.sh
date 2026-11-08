@@ -46,7 +46,7 @@
 # OUTPUT: xrun_gatedbg.log.  NEVER pipe this through `head` (SIGPIPE kills the
 # sim and leaves a stale log that parses perfectly).
 cd "$(dirname "$0")"
-source ~/vestarv/cdspaths.sh
+source "$(git rev-parse --show-toplevel)/tools/source_cdspaths.sh"   # cwd is this script's directory
 
 TCL="${1:?usage: xrun_gatedbg.sh <harness.tcl> [test-pattern]}"
 PAT="${2:-simple}"

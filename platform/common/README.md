@@ -5,7 +5,7 @@ four rv32iac tiles) and Argus (18 harts). `python/generate.py` is the single sou
 for the memory map, pinout, generated RTL, headers, linker scripts and TRM. Register maps
 come from SystemRDL ([`tools/rdl/README.md`](../../tools/rdl/README.md)). Outputs land in
 `out/`, `config/` and `latex/TRM/`; the tracked RTL in `hdl/common/` is never written, and
-gates prove the generated VHDL is a drop-in for it. Full Bazel map: [`BAZEL.md`](../../BAZEL.md).
+gates prove the generated VHDL is a drop-in for it. Bazel overview: [root README](../../README.md#build-and-verify).
 
 ## Running the generator
 
@@ -43,7 +43,7 @@ Make, from `platform/common/` (`make help` lists everything):
 `make verify` and `verify-lps` need licensed Cadence tools and a host `riscv-none-elf-`
 toolchain. `make verify` is the only check that a configuration boots; only `verify-lps`
 exercises power intent. `xcelium/riscv_test/behavioral_mp/` is a smoke run, not the
-regression (`xcelium/riscv_test/README.suites`).
+regression.
 
 ## Targets and artifacts
 

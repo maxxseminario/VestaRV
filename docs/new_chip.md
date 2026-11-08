@@ -343,4 +343,4 @@ tools/bin/bazel test //...
 `hdl/common/regs/REGFILE.md` is the `periph_regs` design note, the full
 property-to-mask table and the migration recipe for an existing block.
 `tools/rdl/README.md` is the SystemRDL toolchain, the four emitters, the registry
-and the four adoption levels. `BAZEL.md` is the full target map.
+and the four adoption levels. The root `README.md` (Build and verify) lists the key targets.

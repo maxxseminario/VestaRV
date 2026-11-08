@@ -16,7 +16,11 @@ from concurrent.futures import ThreadPoolExecutor
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 RUN = os.path.join(ROOT, "xcelium", "riscv_test", "perf_mp")
-SIMHDL_SRC = os.path.expanduser("~/vestarv/hdl/common/sim")  # ARM_IP_* models are gitignored there; read-only use
+# ARM_IP_* models are gitignored, so a worktree lacks them; read them (read-only) from VESTA_SIMHDL,
+# else this tree if it has them, else the main checkout at ~/vestarv.
+SIMHDL_SRC = os.environ.get("VESTA_SIMHDL") or next(
+    (d for d in (os.path.join(ROOT, "hdl/common/sim"), os.path.expanduser("~/vestarv/hdl/common/sim"))
+     if os.path.isfile(os.path.join(d, "ARM_IP_ROM.vhd"))), os.path.expanduser("~/vestarv/hdl/common/sim"))
 PY = "/usr/bin/python3.6"
 MAX_PARALLEL = int(os.environ.get("MAX_PARALLEL", "4"))
 MARCH_H0 = "rv32imac_zicsr_zba_zbb_zbc_zbs"   # hart 0 orchestrator: shipped CORE_ENABLE_* set
@@ -42,8 +46,8 @@ def setup(stalls=(0, 3)):
         "boot ROM %s does not match the md5 pinned in software/bootrom_mp/rom_rcf.md5" % rom
     for f in ("ARM_IP_RAM.vhd", "ARM_IP_ROM.vhd"):
         s = open(os.path.join(SIMHDL_SRC, f)).read()
-        s = s.replace("/home/mseminario2/vestarv/software/bootrom_mp/bin/rom.rcf",
-                      rom)
+        # The untracked model opens the ROM by an absolute path into its owner's checkout.
+        s = re.sub(r'"[^"]*/software/bootrom_mp/bin/rom\.rcf"', lambda m: '"%s"' % rom, s)
         open(os.path.join(RUN, "hdl", f), "w").write(s)
     tb = open(os.path.join(ROOT, "hdl/common/tb/riscv_tb.vhd")).read()
     n = tb.count("constant SIMULATION_TIMEOUT : time := 100000 us;")

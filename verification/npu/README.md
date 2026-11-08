@@ -1,4 +1,4 @@
-# verification/npu — NPU golden model
+# verification/npu: NPU golden model
 
 Integer-only, bit-exact Python model of the NPU fixed-point datapath
 (`hdl/common/periph/NPU.vhd`, `hdl/common/commune/FPMac.vhd`,
@@ -16,17 +16,17 @@ tools/bin/bazel test //verification/npu/...     # from the repo root
 |---|---|
 | `:validate_mlp_test` | reproduces the chip-config MLP golden set (`verification/isa/tests/periph/NPU_data`) bit-exactly, 201/201 |
 | `:regen_{actf,conv,gemm,xnor}_vectors_test` | tracked `*_vectors/` equal what the generators produce now (regenerated in a scratch tree) |
-| `:gen_{wactf,wgemm,wnpuconv,wxnpu}_golden_test` | firmware-smoke golden generators agree with `npu_fixed` |
+| `:gen_{wactf,wgemm,wnpuconv,wxnpu}_golden_test` | firmware-smoke golden generators agree with `npu_golden_model` |
 | `:validate_mlp` | runner binary; `bazel run` with an absolute `--data-dir` for the mismatch trace |
-| `:npu_fixed`, `:xnor_gen_lib` | libraries: fixed-point arithmetic, XNOR encoders |
+| `:npu_golden_model`, `:xnor_gen_lib` | libraries: fixed-point arithmetic, XNOR encoders |
 
-All labels are in `//verification/npu`. Full map: [`BAZEL.md`](../../BAZEL.md).
+All labels are in `//verification/npu`. Bazel overview: [root README](../../README.md#build-and-verify).
 
 ## Files
 
 | File | Role |
 |---|---|
-| `npu_fixed.py` | `resize_sfixed`, `int_to_sfixed`, `mac_step`, `sigmoid`, `think_layer` (one NPU THINK, bias first) |
+| `npu_golden_model.py` | `resize_sfixed`, `int_to_sfixed`, `mac_step`, `sigmoid`, `think_layer` (one NPU THINK, bias first) |
 | `validate_mlp.py` | checks the 2-layer `y = 2x^2 + 1` MLP from `hdl/common/tb/NPU_tb.vhd` against golden files |
 | `gen_{actf,gemm,conv,xnor}_vectors.py` | vector generators feeding `*_vectors/` |
 | `gen_w*_golden.py` | firmware-smoke golden generators |
@@ -40,7 +40,7 @@ All labels are in `//verification/npu`. Full map: [`BAZEL.md`](../../BAZEL.md).
 
 ```sh
 cd verification/npu
-/usr/bin/python3 validate_mlp.py                       # all four, hard-coded under ~/vestarv
+/usr/bin/python3 validate_mlp.py                       # all four default directories
 /usr/bin/python3 validate_mlp.py --data-dir ../isa/tests/periph/NPU_data --config chip
 ```
 
@@ -48,8 +48,10 @@ Exit 0 iff 100 % bit-exact; mismatches print a per-neuron hex trace (first five)
 
 ## Caveats
 
-- Run scripts as files, never `python3 -c`: this host's default `python3` is a
-  Calibre wrapper that strips quotes. `/usr/bin/python3` is plain CPython.
+- Run scripts as files with a plain CPython (`/usr/bin/python3`), never `python3 -c`:
+  a `python3` on `PATH` may be a tool wrapper (Calibre ships one) that strips quotes.
+- With no `--data-dir`, `validate_mlp.py` reads four directories under a checkout at
+  `~/vestarv`; pass `--data-dir` and `--config` elsewhere.
 - `int_to_sfixed` reproduces `fixed_pkg`'s saturating integer constants:
   `to_sfixed(1, 0, -N)` gives `2^N - 1`, not `2^N`.
 - `gen_conv_vectors.py` has no RTL counterpart; its layout and format are provisional.

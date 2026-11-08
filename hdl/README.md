@@ -1,4 +1,4 @@
-# HDL Sources
+# HDL sources
 
 VHDL-2008 RTL for VestaRV. All RTL changes go to `common/`; the chip snapshots are
 frozen.
@@ -26,8 +26,8 @@ From the repo root (`sh tools/get_bazel.sh` once):
 | `//tools:check_tracer_independence_test` | test | `vesta_tracer.vhd` derives retire from its own logic |
 
 `//hdl/common/tb:fpu_vectors_generated` is a convenience build; `gen_fpu_vectors.sh`
-under a native gcc stays authoritative (see `common/tb/BUILD.bazel`). Full map:
-[`BAZEL.md`](../BAZEL.md).
+under a native gcc stays authoritative (see `common/tb/BUILD.bazel`). Bazel
+overview: [root README](../README.md#build-and-verify).
 
 Interactive simulation (waveforms, single-stepping) is outside Bazel: use any
 VHDL-2008 simulator (GHDL, NVC, Questa, Xcelium).

@@ -20,7 +20,7 @@
 # UNEXPECTED_PASS, TIMEOUT and FAIL all mean a broken gating path. The compile and
 # elaborate mechanics mirror behavioral_mp/xrun_parallel.sh.
 
-source ~/vestarv/cdspaths.sh
+source "$(git -C "$(dirname "$0")" rev-parse --show-toplevel)/tools/source_cdspaths.sh"
 set -u
 
 DIR="$(cd "$(dirname "$0")" && pwd)"

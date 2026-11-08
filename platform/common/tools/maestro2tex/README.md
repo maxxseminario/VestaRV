@@ -24,7 +24,7 @@ re-renders without OCEAN or a licence.
 | `<Block>.tex` | Master fragment the TRM inputs |
 | `fig_<id>.tex`, `tab_<id>.tex` | One figure / table each |
 | `preview_<Block>.tex` | Standalone proof sheet |
-| `data/*.dat`, `data/raw/` | Plot data; raw CSVs and `corners_<Block>.json` (commit these: Maestro rotates runs away) |
+| `data/*.dat`, `data/raw/` | Plot data; raw CSVs and `corners_<Block>.json` (archive these outside the repo: Maestro rotates runs away) |
 | `data/extract_<Block>.ocn/.log` | Extraction script and OCEAN log |
 
 A config declares `signals` (any OCEAN expression, waveform or scalar), logical `tests`

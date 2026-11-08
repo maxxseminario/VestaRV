@@ -6,7 +6,7 @@
 # never-defined assuraPath, so `set -u` kills the shell before xrun runs and
 # the failure is indistinguishable from a real property fire.
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-. "$ROOT/cdspaths.sh" >/dev/null 2>&1
+VESTA_ROOT="$ROOT"; . "$ROOT/tools/source_cdspaths.sh" >/dev/null 2>&1
 HDL="$ROOT/hdl/common"; F="$ROOT/verification/formal"
 MODE=${MODE:-props}          # props | witness
 WORK=${WORK:-/tmp/s4_pmp_$$}

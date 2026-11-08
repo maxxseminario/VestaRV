@@ -1,4 +1,4 @@
-# VestaRV → SkyWater sky130: open-source RTL-to-GDSII flow
+# sky130: open-source RTL-to-GDSII flow
 
 Takes the `vesta` core (RV32IMAC+Zb\*, multicycle) from VHDL to signoff-clean sky130 GDSII
 with FOSS tools only: GHDL, Yosys, OpenROAD via LibreLane, magic, KLayout, netgen, cocotb.
@@ -37,7 +37,7 @@ Verify signoff from `runs/<tag>/final/metrics.json`, not the logs: `magic__drc_e
 ## Bazel (verification only)
 
 The flow above is not Bazel-managed. Bazel runs the GHDL ISA regression over the same RTL,
-with GHDL built from source. From the repo root (build map: [`BAZEL.md`](../BAZEL.md)):
+with GHDL built from source. From the repo root (Bazel overview: [root README](../README.md#build-and-verify)):
 
 ```sh
 sh tools/get_bazel.sh

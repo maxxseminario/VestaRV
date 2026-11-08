@@ -1,4 +1,4 @@
-# verification — VestaRV verification suite
+# verification: VestaRV verification suite
 
 ISA test images, NPU golden model, CPI harness, benchmarks and the shared
 riscv-tests environment. Bazel fetches the pinned RISC-V compiler and GHDL; run
@@ -19,7 +19,7 @@ tools/bin/bazel test //verification/...
 | `//verification/cpi/...` | test | CPI against recorded values |
 | `//opensource_sim:isa_regression` | test | all nine ISA suites on the RTL under GHDL |
 
-Full map: [`BAZEL.md`](../BAZEL.md).
+Bazel overview: [root README](../README.md#build-and-verify).
 
 | Directory | Contents |
 |---|---|

@@ -15,12 +15,10 @@ Xcelium code and FSM coverage over the behavioral suite at the shipped configura
 
 ## Why there is no IMC here
 
-The Xcelium 20.09 install has no `imc`: it ships in vManager, which is not installed. The
-only `imc` on the host is IUS 15.2 (`/mnt/poseidon/cadence/INCISIV152/tools.lnx86/vmgr/bin/imc`)
-and it rejects a 20.09 database with `serialization exception`. Running IUS 15.2 to make a
-database it could read fails on licensing. What 20.09 does install is the UCIS read API, so
-the per-test databases are read through it and merged by key. All tests share one snapshot,
-hence one model, which is the condition that makes a sum equal to an IMC union merge.
+Xcelium 20.09 ships `imc` only with vManager, and an older IMC (IUS 15.2) rejects a 20.09
+database with `serialization exception`. 20.09 does install the UCIS read API, so the per-test
+databases are read through it and merged by key. All tests share one snapshot, hence one
+model, which is the condition that makes a sum equal to an IMC union merge.
 
 ## Prerequisites, once per tree
 

@@ -4,7 +4,7 @@ Pi setup and wiring: [`RPI_SETUP.md`](RPI_SETUP.md) (`enable_uart=1`, `dtoverlay
 serial console off, user in `dialout,gpio`, `python3-serial python3-gpiozero`).
 
 ```bash
-cd ~/vestarv/tools/debug
+cd tools/debug
 python3 rv4th_terminal.py --reset-pin 17
 ```
 

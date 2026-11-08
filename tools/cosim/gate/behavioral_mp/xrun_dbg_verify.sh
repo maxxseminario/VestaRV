@@ -34,7 +34,7 @@
 # OUTPUT: <verifydir>/xrun_dbg.log
 # NEVER pipe this through `head` (SIGPIPE kills the sim, leaving a stale log).
 cd "$(dirname "$0")"
-source ~/vestarv/cdspaths.sh
+source "$(git rev-parse --show-toplevel)/tools/source_cdspaths.sh"   # cwd is this script's directory
 
 VDIR="${1:?usage: xrun_dbg_verify.sh <verifydir> <rcf-path> <harness.tcl>}"
 RCF="${2:?usage: xrun_dbg_verify.sh <verifydir> <rcf-path> <harness.tcl>}"

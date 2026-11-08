@@ -1,4 +1,4 @@
-# verification/cpi — CPI measurement harness
+# verification/cpi: CPI measurement harness
 
 Measures the `vesta` core's cycles per instruction on the RTL under GHDL and gates
 each image's counters against `expected.json`. The results populate the TRM's CPI

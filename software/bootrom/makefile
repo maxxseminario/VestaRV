@@ -48,7 +48,7 @@ SIZE_FLAGS	= -fno-tree-loop-distribute-patterns
 CFLAGS	= -Werror -Wall -Wunused -march=$(ARCH) $(OPTIMIZATION_FLAGS) $(SIZE_FLAGS) -D__nostdlib__ -I $(GCC_INC_DIR) -I $(INC_DIR) -I $(LIB_INC_DIR) -g
 LFLAGS	= -lgcc -march=$(ARCH) $(OPTIMIZATION_FLAGS) $(SIZE_FLAGS) -nostartfiles -Wl,-Bstatic,-T,$(LD_SCRIPT),-Map,$(BIN_DIR)/$(TARGET).map,--cref -L $(LD_DIR) -g
 
-# Toolchain. The path below is the openSUSE VM on poseidon.
+# Toolchain. The path below is the maintainer's build host; override RISCV_DIR for yours.
 
 RISCV_DIR	= ~/riscv-toolchain/xpack-riscv-none-elf-gcc-13.2.0-2
 

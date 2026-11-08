@@ -10,7 +10,9 @@ Two gates cover clock-domain crossings; they see different things.
 Counts are frozen in `cdc_manifest.json`. Bless an intended change in the same commit
 as the RTL change:
 
-    tools/bin/bazel run //hdl/common/cdc:cdc_manifest_update
+```sh
+tools/bin/bazel run //hdl/common/cdc:cdc_manifest_update
+```
 
 `GENUS_CDC_STRICT` defaults to 1: an unwaived crossing fails the flow and writes no
 output. `GENUS_CDC_STRICT=0` disarms it for debug: the census still writes

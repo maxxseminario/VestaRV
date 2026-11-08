@@ -1,4 +1,4 @@
-# VestaRV Implementations
+# Implementations
 
 Per-chip documentation for VestaRV instantiations. Castalia, Argus and the default
 configurations are produced by the `platform/common/` generator
@@ -29,7 +29,7 @@ tools/bin/bazel test  //platform/...                              # generator ga
 `//:generate` takes `-- --config <file> --out <dir>` to select a configuration and
 output root. The `chip_artifacts_*` targets run the same generator in a sandbox and
 are what the gates grade. Cadence flows (Genus, Innovus, Pegasus, Xcelium) run outside
-Bazel after `source cdspaths.sh`. Full map: [`BAZEL.md`](../BAZEL.md).
+Bazel after `source cdspaths.sh`. Bazel overview: [root README](../README.md#build-and-verify).
 
 ## Adding an implementation
 

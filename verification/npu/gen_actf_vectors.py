@@ -10,7 +10,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from npu_fixed import (think_layer, mac_step, sigmoid, activate,           # noqa: E402
+from npu_golden_model import (think_layer, mac_step, sigmoid, activate,           # noqa: E402
                         relu, tanh_approx, clamp01, exp_approx,
                         resize_sfixed, _sat_bounds)
 

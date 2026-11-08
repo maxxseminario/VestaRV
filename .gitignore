@@ -363,3 +363,8 @@ private/
 /assets/web/MANIFEST.md
 /.github/RUNNER_SETUP.md
 /docs/vestarv_roadmap.html
+
+# Site tool environment: licence servers and install paths for this host. The
+# tracked template is cdspaths.example.sh; copy it to cdspaths.sh and edit it.
+# Scripts find it through tools/source_cdspaths.sh.
+/cdspaths.sh

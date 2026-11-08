@@ -20,7 +20,8 @@ python3.6 run_par.py report      # speedup, parallel efficiency, aggregate IPC/C
 python3.6 check_results.py results/mpcpi.json t1_lw_n0   # gate against expected_mp.json
 ```
 
-Needs the gitignored `ARM_IP_RAM.vhd`/`ARM_IP_ROM.vhd` from `~/vestarv/hdl/common/sim` (read only; the ROM path is
+Needs the gitignored `ARM_IP_RAM.vhd`/`ARM_IP_ROM.vhd` in `hdl/common/sim`, or the directory named by
+`VESTA_SIMHDL` (read only; the ROM path is
 retargeted to this tree's `software/bootrom_mp/bin/rom.rcf`, built by `make -C software/bootrom_mp` and checked against
 the md5 in `software/bootrom_mp/rom_rcf.md5`) and the pad Verilog named in `cell_list.txt`.
 

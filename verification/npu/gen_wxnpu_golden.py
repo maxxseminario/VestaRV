@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """VestaRV: golden values for the wxnpu.S firmware smoke test.
 
-Imports the frozen arithmetic from gen_xnor_vectors.py rather than npu_fixed.py: XNOR is an
+Imports the frozen arithmetic from gen_xnor_vectors.py rather than npu_golden_model.py: XNOR is an
 integer-only datapath with no MAC or sigmoid. K=40 is deliberate, giving a partial last word
 (tail_mask 0xFF); adversarial garbage is staged in those tail bits and the script proves an
 unmasked DUT would flip a fire decision. Run with /usr/bin/python3, which does not strip quotes.
