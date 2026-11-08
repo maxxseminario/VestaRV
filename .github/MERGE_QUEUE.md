@@ -6,8 +6,8 @@ thing outside the repo is a branch ruleset you set once in the GUI.
 
 ## What it buys this repo
 
-CI's `push:` trigger only watches `main` and `multicore-mp`, so work on a topic
-branch is unproven until it lands. The queue closes that: before a PR merges,
+CI's `push:` trigger only watches `main`, so work on a topic branch is unproven
+until it lands. The queue closes that: before a PR merges,
 GitHub builds a throwaway `gh-readonly-queue/main/...` branch holding the PR
 **rebased onto current main plus every PR ahead of it in the queue**, runs the
 required checks against that, and only merges if they pass. A PR that is green
@@ -52,36 +52,32 @@ not build GHDL. Requiring it is the single highest-value addition to the queue.
 ASCII style, `.bazelignore` integrity, no EDA output tracked). It checks out
 with `fetch-depth: 0` because the hygiene scan is diff-scoped on pull requests.
 
-Two more hosted, fast, `merge_group`-triggered candidates from `physical.yml`
-(tier 3) are safe to add if you also want the queue to prove GHDL still
-elaborates the tree and the core still executes:
-
-```
-Verilog bridge (GHDL synth)
-Core smoke sim (cocotb on GHDL)
-```
+Only `ci.yml` jobs are safe as required checks today. `physical.yml` runs on
+pull requests only when `hdl/`, `sky130/` or its own files change, and `sim.yml`
+skips changes confined to `docs/` and `*.md`. A required check whose workflow is
+path-filtered out of a PR never reports, and GitHub blocks that PR. To require
+`Verilog bridge (GHDL synth)`, `Core smoke sim (cocotb on GHDL)` or
+`GHDL ISA regression (bazel)`, first delete that workflow's `pull_request` path
+filter (`merge_group` is never path-filtered).
 
 Do **not** add `physical.yml`'s harden job: it is skipped on merge-group events
 by design (a 4–5 h GDSII run has no business in a merge path), so requiring it
-stalls the queue exactly like a `sim.yml` job would.
+stalls the queue.
 
-`sim.yml` is, since 2026-08-21, the **hosted** GHDL ISA regression under bazel
-(the self-hosted Cadence tier it replaced lives in that file's git history).
-It has a `merge_group:` trigger and no shared-license concurrency, so its
-`GHDL ISA regression (bazel)` job MAY be added as a required check — budget
-~10 min warm-cache. The old rule ("never require a sim.yml job") applied to
-the Cadence tier and applies again the day that tier returns.
+`sim.yml` is the hosted GHDL regression; with its path filter removed it can be
+required (budget ~20-35 min). The old rule ("never require a sim.yml job")
+applied to the self-hosted Cadence tier and applies again if that tier returns.
 
 ## 2. Repo settings
 
 Settings -> Rules -> Rulesets -> New branch ruleset:
 
-* Target: `main` (add `multicore-mp` too if you want the same discipline there).
+* Target: `main`.
 * Enforcement status: **Active**.
 * Rules:
   * **Require a pull request before merging** — 0 approvals is fine for a
     solo repo; the queue is here for correctness, not review ceremony.
-  * **Require status checks to pass** — add the three names above.
+  * **Require status checks to pass** — add the five names above.
   * **Require merge queue**.
   * **Block force pushes** (default on, keep it).
 
@@ -99,15 +95,15 @@ Then open the merge-queue rule's settings:
 
 | Trigger | Runs | Notes |
 | --- | --- | --- |
-| PR opened / pushed | `ci.yml` tier 1 + `sim.yml` ISA regression + `physical.yml` fast jobs | All hosted, license-free. Duplicated by the queue run later; that is expected and cheap. |
+| PR opened / pushed | `ci.yml` tier 1 + `sim.yml` ISA regression (unless docs-only) + `physical.yml` fast jobs (if `hdl/` or `sky130/` changed) | All hosted, license-free. Duplicated by the queue run later; that is expected and cheap. |
 | PR labelled `run-physical` | `physical.yml` harden (full GDSII) | Opt-in, 4–5 h. |
 | Queued for merge | `ci.yml` tier 1 (+ any of the hosted sim/physical jobs made required) on the rebased candidate | The gate that actually protects `main`. |
-| Queue merges to `main` | `sim.yml` regression + `pages.yml` deploy | Both key off `push: branches: [main]`, and the queue's merge is such a push. Post-merge safety net. |
+| Queue merges to `main` | `ci.yml`, `sim.yml`, `physical.yml` fast jobs, `pages.yml` deploy (each subject to its path filter) | All key off `push: branches: [main]`, and the queue's merge is such a push. Post-merge safety net. |
 
 ## 4. Verifying it works
 
 Open a throwaway PR, let tier 1 go green, and merge it through the queue. In the
-PR timeline you should see a "queued" entry and a second set of the three checks
+PR timeline you should see a "queued" entry and a second set of the required checks
 attributed to a `merge_group` event on a `gh-readonly-queue/main/...` ref. If the
 PR sits in the queue with no checks starting, the `merge_group:` trigger is
-missing from `ci.yml` or a `sim.yml` job got added to the required list.
+missing from `ci.yml` or a path-filtered job got added to the required list.

@@ -1,0 +1,42 @@
+name: Set up GHDL
+description: Install a cached GHDL mcode release build and put it on PATH.
+
+inputs:
+  version:
+    description: GHDL release, e.g. 6.0.0.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    # The release tarball is built per OS; ubuntu24.04 must match the caller's
+    # runs-on image.
+    - name: Cache GHDL
+      id: cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/ghdl
+        key: ghdl-mcode-${{ inputs.version }}-ubuntu24.04-x86_64
+
+    - name: Download GHDL
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        GHDL_VERSION: ${{ inputs.version }}
+      run: |
+        mkdir -p ~/ghdl
+        curl -fsSL --retry 5 --retry-delay 15 \
+          "https://github.com/ghdl/ghdl/releases/download/v${GHDL_VERSION}/ghdl-mcode-${GHDL_VERSION}-ubuntu24.04-x86_64.tar.gz" \
+          | tar -xz -C ~/ghdl
+
+    # libgnat is GHDL's Ada runtime; the tarball links it dynamically.
+    - name: Install runtime and add to PATH
+      shell: bash
+      env:
+        GHDL_VERSION: ${{ inputs.version }}
+      run: |
+        if ! ldconfig -p | grep -q 'libgnat-13\.so'; then
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends libgnat-13
+        fi
+        echo "$HOME/ghdl/ghdl-mcode-${GHDL_VERSION}-ubuntu24.04-x86_64/bin" >> "$GITHUB_PATH"

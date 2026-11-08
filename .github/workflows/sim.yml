@@ -1,43 +1,30 @@
 name: Simulation (open source)
 
-# Tier 2 — the GHDL ISA regression as bazel tests on GitHub-hosted runners.
+# Tier 2: the GHDL regression as bazel tests. Everything is hermetic: images
+# come from //verification/isa (hermetic xPack GCC), @ghdl is built from source
+# and the runner needs only bazelisk. The self-hosted Cadence tier this
+# replaced (2026-08-21) is in this file's git history.
 #
-# This REPLACES the self-hosted Cadence/Xcelium tier (2026-08-21): that
-# runner never executed a job (the `cadence` label was never applied), and
-# every push left a yellow queued run behind it. The full Cadence workflow is
-# preserved in this file's git history for when the bench runner returns;
-# nothing here forecloses that.
-#
-# What runs: `bazel test //opensource_sim:isa_regression` — one sh_test per
-# ISA suite (9 suites), driving opensource_sim/isa/run_isa.sh in
-# prebuilt-image mode. The explicit suite target, NOT //opensource_sim/...:
-# the per-test ghdl_test port growing in //opensource_sim/isa joins this
-# gate deliberately (see the note in opensource_sim/BUILD.bazel), never by
-# wildcard while it is mid-port. EVERYTHING is hermetic inside bazel: the RISC-V images
-# come from //verification/isa's os_* targets (hermetic xPack GCC), the
-# simulator is @ghdl built from source (mcode), and its VHDL-2008 std/ieee
-# libraries are bazel outputs. The runner needs NO EDA installs — only
-# bazelisk, which tools/get_bazel.sh fetches.
-#
-# The cocotb smoke test is deliberately NOT here: physical.yml's sim-smoke
-# job runs it on every PR/push already.
-#
-# Cost note: the first run on a cold cache builds GHDL from source (GNAT
-# bootstrap + Ada compile, ~15-30 min). The bazel disk cache below carries
-# the toolchain across runs, so warm runs are dominated by the ~139 GHDL
-# sims (~5-10 min at 4 local test jobs).
+# A cold cache builds GHDL from source (~15-30 min); warm runs are the sims.
+# The cocotb smoke test is physical.yml's sim-smoke, not here.
 
 on:
   push:
-    branches: [main, multicore-mp]
+    branches: [main]
+    paths-ignore: ["docs/**", "**.md"]
   pull_request:
+    paths-ignore: ["docs/**", "**.md"]
   merge_group:
   schedule:
-    - cron: "30 8 * * *"   # nightly (UTC), same slot the Cadence tier held
+    - cron: "30 8 * * *" # nightly, 08:30 UTC
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: sim-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   isa-regression:
@@ -46,17 +33,21 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Cache Bazel binary
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/bazelisk
+          key: bazelisk-${{ hashFiles('.bazelversion') }}
 
       - name: Fetch bazelisk
         run: ./tools/get_bazel.sh
 
-      # One cache, two payloads: the disk cache (action outputs — including
-      # the from-source GHDL build) and the repository cache (downloaded
-      # externals: GNAT, xPack GCC, zig). Keyed on the module lockfile; the
-      # restore-key keeps a stale-but-warm cache useful after a dep bump.
-      - name: Cache bazel disk + repository cache
-        uses: actions/cache@v4
+      # Disk cache carries the from-source GHDL build; the restore-key keeps a
+      # stale-but-warm cache useful after a dependency bump.
+      - name: Cache Bazel disk + repository cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cache/bazel-disk-cache
@@ -64,77 +55,29 @@ jobs:
           key: bazel-sim-${{ hashFiles('MODULE.bazel.lock', '.bazelversion') }}
           restore-keys: bazel-sim-
 
-      # //hdl/common/tb carries the standalone unit benches (mp_arbiter,
-      # pmp_unit, the FPU vector format check). They are GHDL-backed, so they
-      # ride with this job rather than ci.yml's bazel-gates, which deliberately
-      # excludes everything that would drag in the from-source GHDL build.
-      #
-      # //verification/cpi:cpi_default is the CPI measurement harness's fast
-      # set (all 36 micro-kernels plus the three short benchmarks in both
-      # -march polarities), which gates the numbers TRM Section 12 publishes.
-      # The named suite, NOT //verification/cpi/...: the long benchmarks in
-      # that package are `manual` and are minutes of simulation each.
-      #
-      # //opensource_sim/pmp:pmp is the PMP regression's RTL half: the fifteen
-      # rv32ua PMP images run against a core elaborated with TRAPCSR, U-mode
-      # and PMP true, at BOTH polarities of ENABLE_IF_AHEAD. Both matter. The
-      # fetch-ahead re-points the instruction-fetch check address, and a
-      # mutation that restores the old one is caught ONLY by the ifahead_on
-      # half, so a single-polarity gate would not see that regression at all.
-      # //opensource_sim/mcu:mcu_elaborate is the only thing in the estate that
-      # elaborates hdl/common/MCU.vhd. Every other GHDL target here, this
-      # workflow's whole ISA regression included, instantiates the bare CORE.
-      # MCU.vhd is GENERATED and moves on every knob change, and its size
-      # asserts against the ROM and TCM macros execute at time zero, so the
-      # target is a 1 ns run and not just an analysis. It is named explicitly
-      # for the reason the header gives: this job takes targets, never
-      # //opensource_sim/... by wildcard.
-      #
-      # //opensource_sim/rv4th:rv4th_forth boots that same MCU out of the REAL
-      # boot ROM image and drives the Forth monitor over UART0 -- the only gate
-      # anywhere on the interactive face of the fabricated part. It is the
-      # slowest test in this job at about 4 minutes, and it is the fast half of
-      # its bench: :rv4th_forth_full adds the 131 ms clock-frequency
-      # measurement and is `manual`. Named explicitly, same rule as above.
-      #
-      # //opensource_sim/castalia_b:castalia_b_elaborate is :mcu_elaborate for
-      # config/castalia_b.json, whose hart 0 turns on every selectable isa.*
-      # extension plus U-mode and PMP. It is the only target anywhere that binds
-      # the generate arms those knobs open -- the Zfinx FPU, the Zkn round units,
-      # pmp_unit.vhd and the pmpcfg/pmpaddr bank -- into a whole MCU, and its RTL
-      # is a build output of //platform/common:chip_artifacts_castalia_b, so it
-      # also catches an all-on generation that emits an MCU.vhd which does not
-      # elaborate. Same 1 ns run and the same reason as :mcu_elaborate above.
-      #
-      # //opensource_sim/fpga_default:fpga_default_elaborate is :mcu_elaborate for
-      # config/fpga_default.json bound against hdl/fpga/ instead of hdl/common/sim/. It
-      # is the only gate anywhere that analyzes the synthesizable stand-in cells
-      # a bitstream is built from, and the only one that proves the FPGA
-      # bring-up cut's generated MCU.vhd binds them by name.
-      #
-      # //opensource_sim/tile_isa:tile_rv32ui is the CORNER-TILE polarity of the
-      # rv32ui suite: the same bare core with M and B off, which is what
-      # isa.minimalTiles builds harts 1-4 as. The regression above runs M and B
-      # ON and the genus tile flow only asserts the divider is absent, so without
-      # this the shipped tile ISA executed no instruction in any gate. 42 targets,
-      # about 6.6 s each.
-      #
-      # //hdl/common/synth:synth is the `ghdl --synth` synthesizability gate
-      # and //toolchains/ghdl:synth_coverage_test the gate on the LIST --
-      # it fails when an entity under hdl/common/ is synthesized by nothing.
-      # They live here, not in ci.yml's `//...` job, because they run the
-      # simulator: ci.yml excludes them for the same reason it excludes
-      # //hdl/common/tb.  All 40 together add under 8 s.
-      #
-      # //implementations/fpga/bringup:all boots the fpga_default cut (hdl/fpga/ cells)
-      # from a SPI flash model through the real boot ROM: the rv32ui-p-simple payload
-      # and each of the five firmware apps, which must be entered at 0x8200 and do what
-      # they say, and once more through the generated board top (fpga_top). It found the FPGA ClkBufEn sampling its enable on the wrong edge and
-      # the apps linked off the ROM's entry point. Seven benches, about 1-2 min each.
+      # Targets are named, never //opensource_sim/... by wildcard: a new GHDL
+      # target joins this gate only by being listed here.
+      #   isa_regression          9 ISA suites, bare core, M and B on
+      #   hdl/common/tb:all       standalone unit benches
+      #   synth, synth_coverage   `ghdl --synth` on every block; every entity covered
+      #   cpi_default             CPI micro-kernels + short benchmarks (TRM Section 12)
+      #   pmp                     rv32ua PMP images, both ENABLE_IF_AHEAD polarities
+      #   *_elaborate             the generated MCU.vhd for castalia, castalia_b
+      #                           (every isa.* knob on) and fpga_default (hdl/fpga cells)
+      #   fpga/bringup:all        SPI-flash boot of fpga_default through the real ROM
+      #   tile_rv32ui             rv32ui with M and B off (the corner-tile ISA)
+      #   rv4th_forth             real boot ROM + Forth monitor over UART0 (~4 min)
       - name: Run ISA regression + GHDL unit benches
         run: |
           set -o pipefail
-          tools/bin/bazel test //opensource_sim:isa_regression //hdl/common/tb:all \
+          tools/bin/bazel test \
+            --repository_cache=~/.cache/bazel-repo-cache \
+            --test_tag_filters=-known_red \
+            --test_output=errors \
+            --test_summary=detailed \
+            -- \
+            //opensource_sim:isa_regression \
+            //hdl/common/tb:all \
             //hdl/common/synth:synth \
             //toolchains/ghdl:synth_coverage_test \
             //verification/cpi:cpi_default \
@@ -145,29 +88,8 @@ jobs:
             //implementations/fpga/bringup:all \
             //opensource_sim/tile_isa:tile_rv32ui \
             //opensource_sim/rv4th:rv4th_forth \
-            --repository_cache=~/.cache/bazel-repo-cache \
-            --test_tag_filters=-known_red \
-            --test_output=errors \
-            --test_summary=detailed 2>&1 | tee bazel_ci.log
+            2>&1 | tee bazel_ci.log
 
-      # Raw job logs are auth-only; annotations are anonymously readable via
-      # the check-runs API — the diagnostic channel a credential-less bench
-      # session can see (same pattern as physical.yml). Two sources, because
-      # they cover different failure phases: bazel's own ERROR lines catch
-      # loading/analysis failures (a missing package produces NO test.log at
-      # all — learned on 0c0bff1), test.log tails catch actual sim failures.
       - name: Surface failure diagnostics as annotations
         if: failure()
-        run: |
-          grep -E "^ERROR:" bazel_ci.log | head -5 | while IFS= read -r line; do
-            echo "::error::bazel: ${line}"
-          done
-          find bazel-testlogs -name test.log 2>/dev/null | while read -r f; do
-            if grep -qE "^FAIL|TIMEOUT|ERROR" "$f"; then
-              echo "== $f"
-              tail -20 "$f"
-              grep -E "^(FAIL|TIMEOUT)" "$f" | head -3 | while IFS= read -r line; do
-                echo "::error::${f#bazel-testlogs/}: ${line}"
-              done
-            fi
-          done
+        uses: ./.github/actions/annotate-bazel-failures

@@ -10,6 +10,11 @@
   </tr>
 </table>
 
+[![CI](https://github.com/maxxseminario/VestaRV/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/maxxseminario/VestaRV/actions/workflows/ci.yml)
+[![Simulation](https://github.com/maxxseminario/VestaRV/actions/workflows/sim.yml/badge.svg?branch=main)](https://github.com/maxxseminario/VestaRV/actions/workflows/sim.yml)
+[![Physical](https://github.com/maxxseminario/VestaRV/actions/workflows/physical.yml/badge.svg?branch=main)](https://github.com/maxxseminario/VestaRV/actions/workflows/physical.yml)
+[![Pages](https://github.com/maxxseminario/VestaRV/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/maxxseminario/VestaRV/actions/workflows/pages.yml)
+
 VestaRV is a 32-bit RISC-V processor core written in VHDL from the official
 instruction-set specification, deriving from no existing implementation. The
 repository around it is a chip generator: one configuration file fixes the hart
@@ -240,21 +245,26 @@ tools/bin/bazel run //platform/common/python:splice_register_browser -- --data <
 | `ci.yml` **Bazel hermetic gates** | Lockfile check, analysis of `//...`, then every test outside the GHDL trees; asserts `git status --porcelain` is empty afterwards |
 | `sim.yml` **GHDL ISA regression (bazel)** | The GHDL targets, each named explicitly |
 | `ci.yml` **Chip generator gates**, **Docs link + generator syntax gates**, **Bootrom + ISA image builds**, **Repo hygiene gates** | Scripts run directly (the hygiene checks need git history) |
-| `physical.yml`, `release.yml` | sky130 flow and tagged releases ([`sky130/README.md`](sky130/README.md)) |
+| `physical.yml` **Verilog bridge (GHDL synth)**, **Core smoke sim (cocotb on GHDL)**, **Full GDSII hardening + signoff gate (LibreLane)** | Bridge and smoke when `hdl/` or `sky130/` changes; hardening weekly, on dispatch, on the `run-physical` label and per release ([`sky130/README.md`](sky130/README.md)) |
+| `release.yml` | Tag `vX.Y.Z`: changelog gate, `physical.yml` with hardening, GitHub release |
+| `pages.yml` | Deploys `docs/` behind the link check when it changes on `main` |
 
 ```bash
 tools/bin/bazel mod deps --lockfile_mode=error
 tools/bin/bazel build --nobuild -- //... -//opensource_sim/... -//hdl/common/tb/... -//toolchains/...
 tools/bin/bazel test --build_tests_only --test_tag_filters=-known_red \
   -- //... -//opensource_sim/... -//hdl/common/tb/... -//toolchains/... \
-     -//hdl/common/synth/... -//verification/cpi/...
+     -//hdl/common/synth/... -//verification/cpi/... -//implementations/fpga/bringup/...
 ```
 
 - The `--` before the negative patterns is required; Bazel rejects a bare
   leading `-//...` as a malformed option.
-- `//hdl/common/synth` and `//verification/cpi` run GHDL, so they are tested in
-  `sim.yml` but still analyzed in `ci.yml`, which catches a broken BUILD file in
-  seconds.
+- `//hdl/common/synth`, `//verification/cpi` and `//implementations/fpga/bringup`
+  run GHDL, so they are tested in `sim.yml` but still analyzed in `ci.yml`, which
+  catches a broken BUILD file in seconds.
+- `ci.yml` runs on every push to `main`, PR and merge-queue candidate. `sim.yml`
+  skips changes confined to `docs/` and `*.md`; `physical.yml`'s fast jobs run
+  only when `hdl/` or `sky130/` changes. Superseded PR runs are cancelled.
 - `sim.yml` never uses `//opensource_sim/...` by wildcard. A new GHDL target runs
   in a local `bazel test //...` but in **neither** workflow until it is named in
   `sim.yml`.

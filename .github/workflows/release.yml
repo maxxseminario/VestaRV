@@ -1,21 +1,11 @@
 name: Release (tagged version)
 
-# Stable-versioning CD: pushing a tag `vX.Y.Z` produces a GitHub Release whose
-# notes are the CHANGELOG section for that version and whose assets are the
-# re-proven physical results at exactly that tag: the GHDL bridge netlist, the
-# full LibreLane signoff bundle (GDSII, netlists, metrics.json, reports), and
-# the published TRM.
-#
-# The physical flow is not duplicated here — this workflow CALLS physical.yml
-# (workflow_call), so a release runs the same jobs, same gates, same artifact
-# names as the weekly hardening, and the signoff gate (check_metrics.py) must
-# pass before anything is published. A tag on a commit that no longer hardens
-# clean produces no release.
-#
-# The changelog gate makes versioning honest: the tag must have a matching
-# `## [X.Y.Z]` section in CHANGELOG.md (the versioning scheme is defined at
-# the top of that file — semver read against silicon). Tag it AFTER moving the
-# Unreleased notes into a real section, or the release stops here.
+# Pushing tag vX.Y.Z publishes a GitHub Release whose notes are CHANGELOG.md's
+# "## [X.Y.Z]" section and whose assets are re-proven at that tag: the GHDL
+# bridge netlist, the LibreLane signoff bundle and the published TRM.
+# physical.yml is called, not duplicated, so check_metrics.py must pass before
+# anything is published. Move the Unreleased notes into a real section before
+# tagging, or the release stops at the changelog gate.
 
 on:
   push:
@@ -27,10 +17,11 @@ permissions:
 jobs:
   changelog:
     name: Changelog release-notes gate
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Extract this version's section from CHANGELOG.md
         run: |
@@ -41,21 +32,20 @@ jobs:
             hit { seen = 1; print }
           ' CHANGELOG.md > release_notes.md
           if ! [ -s release_notes.md ]; then
-            echo "::error::CHANGELOG.md has no \"## [$VER]\" section — write the changelog entry, commit it, then re-tag."
+            echo "::error::CHANGELOG.md has no \"## [$VER]\" section; write the changelog entry, commit it, then re-tag."
             exit 1
           fi
           echo "release notes ($(wc -l < release_notes.md) lines):"
           cat release_notes.md
 
       - name: Upload release notes
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-notes
           path: release_notes.md
           if-no-files-found: error
 
-  # Same jobs, same gates, same artifact names as the weekly run; the called
-  # workflow's uploads land in THIS run, where publish picks them up.
+  # The called workflow's uploads land in this run, where publish reads them.
   physical:
     name: Physical flow
     uses: ./.github/workflows/physical.yml
@@ -65,37 +55,37 @@ jobs:
   publish:
     name: Publish GitHub release
     needs: [changelog, physical]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: write
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Download run artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           path: artifacts
 
-      # artifacts/vesta-sky130-signoff/<runtag>/final/... (upload-artifact
-      # rooted the archive at sky130/runs). One run tag per CI run.
+      # Layout: artifacts/vesta-sky130-signoff/<runtag>/final/...
       - name: Assemble release assets
         run: |
           set -eu
           mkdir -p assets
-          signoff_dir="$(dirname "$(find artifacts/vesta-sky130-signoff -name metrics.json -path '*/final/*' | head -1)")"
-          test -n "$signoff_dir" || { echo "::error::signoff artifact has no final/metrics.json"; exit 1; }
-          cp "$signoff_dir/metrics.json" "assets/vesta-sky130-metrics-${GITHUB_REF_NAME}.json"
+          metrics="$(find artifacts/vesta-sky130-signoff -name metrics.json -path '*/final/*' | head -1)"
+          test -n "$metrics" || { echo "::error::signoff artifact has no final/metrics.json"; exit 1; }
+          signoff_dir="$(dirname "$metrics")"
+          cp "$metrics" "assets/vesta-sky130-metrics-${GITHUB_REF_NAME}.json"
           tar -czf "assets/vesta-sky130-signoff-${GITHUB_REF_NAME}.tar.gz" \
               -C "$(dirname "$signoff_dir")" final
           cp artifacts/vesta-verilog/vesta.v "assets/vesta-${GITHUB_REF_NAME}.v"
           cp implementations/asic/castalia/docs/TRM.pdf "assets/VestaRV-TRM-${GITHUB_REF_NAME}.pdf"
           ls -l assets/
 
-      # Idempotent: a re-run of this job refreshes the assets on the existing
-      # release instead of failing on "already exists".
+      # Idempotent: a re-run refreshes the assets of an existing release.
       - name: Create or update the release
         run: |
           set -eu

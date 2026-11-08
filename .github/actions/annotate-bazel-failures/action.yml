@@ -1,0 +1,36 @@
+name: Annotate Bazel failures
+description: >-
+  Re-emit Bazel ERROR lines and failing test.log lines as ::error::
+  annotations. Annotations are readable anonymously through the check-runs
+  API; raw job logs are not.
+
+inputs:
+  log:
+    description: The tee'd output of the bazel command.
+    default: bazel_ci.log
+
+runs:
+  using: composite
+  steps:
+    # Two sources for two failure phases: bazel's ERROR lines catch
+    # loading/analysis failures (which leave no test.log), test.log tails
+    # catch test failures.
+    - name: Annotate
+      shell: bash
+      env:
+        LOG: ${{ inputs.log }}
+      run: |
+        if [ -f "$LOG" ]; then
+          grep -E "^ERROR:" "$LOG" | head -5 | while IFS= read -r line; do
+            echo "::error::bazel: ${line}"
+          done
+        fi
+        find bazel-testlogs/ -name test.log 2>/dev/null | while read -r f; do
+          if grep -qE "^FAIL|TIMEOUT|ERROR" "$f"; then
+            echo "== $f"
+            tail -20 "$f"
+            grep -E "^(FAIL|TIMEOUT)" "$f" | head -3 | while IFS= read -r line; do
+              echo "::error::${f#bazel-testlogs/}: ${line}"
+            done
+          fi
+        done

@@ -1,0 +1,34 @@
+name: Set up RISC-V GCC
+description: Install a cached xPack riscv-none-elf-gcc release and put it on PATH.
+
+inputs:
+  version:
+    description: xPack release, e.g. 13.2.0-2.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Cache RISC-V toolchain
+      id: cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/riscv-toolchain
+        key: xpack-riscv-none-elf-gcc-${{ inputs.version }}
+
+    - name: Download RISC-V toolchain
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        XPACK_GCC_VERSION: ${{ inputs.version }}
+      run: |
+        mkdir -p ~/riscv-toolchain
+        curl -fsSL --retry 5 --retry-delay 15 \
+          "https://github.com/xpack-dev-tools/riscv-none-elf-gcc-xpack/releases/download/v${XPACK_GCC_VERSION}/xpack-riscv-none-elf-gcc-${XPACK_GCC_VERSION}-linux-x64.tar.gz" \
+          | tar -xz -C ~/riscv-toolchain
+
+    - name: Add to PATH
+      shell: bash
+      env:
+        XPACK_GCC_VERSION: ${{ inputs.version }}
+      run: echo "$HOME/riscv-toolchain/xpack-riscv-none-elf-gcc-${XPACK_GCC_VERSION}/bin" >> "$GITHUB_PATH"
