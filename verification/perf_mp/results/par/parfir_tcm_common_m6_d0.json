@@ -1,0 +1,69 @@
+{
+ "agg_cpi": 0.5154502172117784,
+ "agg_ipc": 1.9400515638722469,
+ "all_ok": true,
+ "arb_run": {
+  "0": [
+   0,
+   0,
+   0
+  ],
+  "1": [
+   1564,
+   6267,
+   14
+  ],
+  "2": [
+   1559,
+   6239,
+   6
+  ],
+  "3": [
+   0,
+   0,
+   0
+  ],
+  "4": [
+   0,
+   0,
+   0
+  ]
+ },
+ "harts": {
+  "1": {
+   "checksum": 462013985,
+   "checksum_ok": true,
+   "cycles": 919977,
+   "instret": 892447,
+   "lo": 0,
+   "n": 2,
+   "rank": 0,
+   "t_end": 2101128,
+   "t_start": 1181150
+  },
+  "2": {
+   "checksum": 1473817967,
+   "checksum_ok": true,
+   "cycles": 919977,
+   "instret": 892447,
+   "lo": 600,
+   "n": 2,
+   "rank": 1,
+   "t_end": 2101174,
+   "t_start": 1181196
+  }
+ },
+ "isa": "common",
+ "kernel": "fir",
+ "killed": false,
+ "mask": 6,
+ "nout": 1200,
+ "ntap": 16,
+ "passed": true,
+ "place": "tcm",
+ "stall": 0,
+ "sum_instret": 1784894,
+ "tag": "parfir_tcm_common_m6_d0",
+ "wall_cycles": 920024,
+ "wall_s": 135.1
+}

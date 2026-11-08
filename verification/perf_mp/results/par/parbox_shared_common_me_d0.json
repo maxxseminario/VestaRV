@@ -1,0 +1,80 @@
+{
+ "agg_cpi": 0.9720190369015802,
+ "agg_ipc": 1.0287864352817742,
+ "all_ok": true,
+ "arb_run": {
+  "0": [
+   2,
+   8,
+   4
+  ],
+  "1": [
+   7215,
+   29702,
+   28
+  ],
+  "2": [
+   7211,
+   29667,
+   13
+  ],
+  "3": [
+   7211,
+   29658,
+   12
+  ],
+  "4": [
+   0,
+   0,
+   0
+  ]
+ },
+ "harts": {
+  "1": {
+   "checksum": 1597743000,
+   "checksum_ok": true,
+   "cycles": 82864,
+   "instret": 28436,
+   "lo": 0,
+   "n": 3,
+   "rank": 0,
+   "t_end": 1210537,
+   "t_start": 1127673
+  },
+  "2": {
+   "checksum": 1826054740,
+   "checksum_ok": true,
+   "cycles": 82865,
+   "instret": 28436,
+   "lo": 400,
+   "n": 3,
+   "rank": 1,
+   "t_end": 1210579,
+   "t_start": 1127714
+  },
+  "3": {
+   "checksum": 2733044081,
+   "checksum_ok": true,
+   "cycles": 82858,
+   "instret": 28436,
+   "lo": 800,
+   "n": 3,
+   "rank": 2,
+   "t_end": 1210594,
+   "t_start": 1127736
+  }
+ },
+ "isa": "common",
+ "kernel": "box",
+ "killed": false,
+ "mask": 14,
+ "nout": 1200,
+ "ntap": 16,
+ "passed": true,
+ "place": "shared",
+ "stall": 0,
+ "sum_instret": 85308,
+ "tag": "parbox_shared_common_me_d0",
+ "wall_cycles": 82921,
+ "wall_s": 65.1
+}

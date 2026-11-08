@@ -1,0 +1,74 @@
+{
+ "agg_cpi": 0.8068135335709694,
+ "agg_ipc": 1.2394437604113855,
+ "all_ok": true,
+ "arb_run": {
+  "0": [
+   0,
+   0,
+   0
+  ],
+  "1": [
+   351,
+   1441,
+   13
+  ],
+  "2": [
+   345,
+   1417,
+   12
+  ],
+  "3": [
+   0,
+   0,
+   0
+  ],
+  "4": [
+   0,
+   0,
+   0
+  ]
+ },
+ "final": {
+  "bins_checksum": 331685812,
+  "bins_total": 1200,
+  "hart": 2
+ },
+ "harts": {
+  "1": {
+   "checksum": 0,
+   "checksum_ok": true,
+   "cycles": 13740,
+   "instret": 8556,
+   "lo": 0,
+   "n": 2,
+   "rank": 0,
+   "t_end": 1202473,
+   "t_start": 1188733
+  },
+  "2": {
+   "checksum": 0,
+   "checksum_ok": true,
+   "cycles": 13761,
+   "instret": 8557,
+   "lo": 600,
+   "n": 2,
+   "rank": 1,
+   "t_end": 1202540,
+   "t_start": 1188780
+  }
+ },
+ "isa": "common",
+ "kernel": "hist",
+ "killed": false,
+ "mask": 6,
+ "nout": 1200,
+ "ntap": 16,
+ "passed": true,
+ "place": "tcm",
+ "stall": 0,
+ "sum_instret": 17113,
+ "tag": "parhist_tcm_common_m6_d0",
+ "wall_cycles": 13807,
+ "wall_s": 60.1
+}

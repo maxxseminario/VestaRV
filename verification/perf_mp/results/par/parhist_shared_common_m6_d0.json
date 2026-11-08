@@ -1,0 +1,74 @@
+{
+ "agg_cpi": 2.1634756995581736,
+ "agg_ipc": 0.4622191967324711,
+ "all_ok": true,
+ "arb_run": {
+  "0": [
+   4,
+   17,
+   5
+  ],
+  "1": [
+   1819,
+   10876,
+   12
+  ],
+  "2": [
+   1811,
+   10859,
+   17
+  ],
+  "3": [
+   0,
+   0,
+   0
+  ],
+  "4": [
+   0,
+   0,
+   0
+  ]
+ },
+ "final": {
+  "bins_checksum": 331685812,
+  "bins_total": 1200,
+  "hart": 2
+ },
+ "harts": {
+  "1": {
+   "checksum": 0,
+   "checksum_ok": true,
+   "cycles": 23444,
+   "instret": 5432,
+   "lo": 0,
+   "n": 2,
+   "rank": 0,
+   "t_end": 1175440,
+   "t_start": 1151995
+  },
+  "2": {
+   "checksum": 0,
+   "checksum_ok": true,
+   "cycles": 23457,
+   "instret": 5432,
+   "lo": 600,
+   "n": 2,
+   "rank": 1,
+   "t_end": 1175499,
+   "t_start": 1152042
+  }
+ },
+ "isa": "common",
+ "kernel": "hist",
+ "killed": false,
+ "mask": 6,
+ "nout": 1200,
+ "ntap": 16,
+ "passed": true,
+ "place": "shared",
+ "stall": 0,
+ "sum_instret": 10864,
+ "tag": "parhist_shared_common_m6_d0",
+ "wall_cycles": 23504,
+ "wall_s": 60.1
+}

@@ -1,0 +1,107 @@
+{
+ "agg_cpi": 1.762043795620438,
+ "agg_ipc": 0.5675227837613919,
+ "all_ok": true,
+ "arb_run": {
+  "0": [
+   735,
+   14286,
+   46
+  ],
+  "1": [
+   733,
+   14243,
+   49
+  ],
+  "2": [
+   732,
+   14257,
+   39
+  ],
+  "3": [
+   734,
+   14273,
+   29
+  ],
+  "4": [
+   731,
+   14249,
+   36
+  ]
+ },
+ "final": {
+  "bins_checksum": 331685812,
+  "bins_total": 1200,
+  "hart": 4
+ },
+ "harts": {
+  "0": {
+   "checksum": 0,
+   "checksum_ok": true,
+   "cycles": 19180,
+   "instret": 2192,
+   "lo": 0,
+   "n": 5,
+   "rank": 0,
+   "t_end": 1191362,
+   "t_start": 1172142
+  },
+  "1": {
+   "checksum": 0,
+   "checksum_ok": true,
+   "cycles": 19230,
+   "instret": 2192,
+   "lo": 240,
+   "n": 5,
+   "rank": 1,
+   "t_end": 1191425,
+   "t_start": 1172188
+  },
+  "2": {
+   "checksum": 0,
+   "checksum_ok": true,
+   "cycles": 19251,
+   "instret": 2192,
+   "lo": 480,
+   "n": 5,
+   "rank": 2,
+   "t_end": 1191431,
+   "t_start": 1172183
+  },
+  "3": {
+   "checksum": 0,
+   "checksum_ok": true,
+   "cycles": 19214,
+   "instret": 2192,
+   "lo": 720,
+   "n": 5,
+   "rank": 3,
+   "t_end": 1191377,
+   "t_start": 1172161
+  },
+  "4": {
+   "checksum": 0,
+   "checksum_ok": true,
+   "cycles": 19244,
+   "instret": 2192,
+   "lo": 960,
+   "n": 5,
+   "rank": 4,
+   "t_end": 1191454,
+   "t_start": 1172216
+  }
+ },
+ "isa": "common",
+ "kernel": "hist",
+ "killed": false,
+ "mask": 31,
+ "nout": 1200,
+ "ntap": 16,
+ "passed": true,
+ "place": "shared",
+ "stall": 0,
+ "sum_instret": 10960,
+ "tag": "parhist_shared_common_m1f_d0",
+ "wall_cycles": 19312,
+ "wall_s": 60.1
+}

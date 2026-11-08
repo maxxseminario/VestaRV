@@ -1,0 +1,58 @@
+{
+ "agg_cpi": 1.091359777364069,
+ "agg_ipc": 0.9162881212419907,
+ "all_ok": true,
+ "arb_run": {
+  "0": [
+   4,
+   16,
+   4
+  ],
+  "1": [
+   21612,
+   86449,
+   5
+  ],
+  "2": [
+   0,
+   0,
+   0
+  ],
+  "3": [
+   0,
+   0,
+   0
+  ],
+  "4": [
+   0,
+   0,
+   0
+  ]
+ },
+ "harts": {
+  "1": {
+   "checksum": 1992500393,
+   "checksum_ok": true,
+   "cycles": 1935699,
+   "instret": 1773658,
+   "lo": 0,
+   "n": 1,
+   "rank": 0,
+   "t_end": 3064532,
+   "t_start": 1128833
+  }
+ },
+ "isa": "common",
+ "kernel": "fir",
+ "killed": false,
+ "mask": 2,
+ "nout": 1200,
+ "ntap": 16,
+ "passed": true,
+ "place": "shared",
+ "stall": 0,
+ "sum_instret": 1773658,
+ "tag": "parfir_shared_common_m2_d0",
+ "wall_cycles": 1935699,
+ "wall_s": 165.1
+}

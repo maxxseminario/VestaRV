@@ -1,0 +1,80 @@
+{
+ "agg_cpi": 0.3436693071048685,
+ "agg_ipc": 2.9097739580650317,
+ "all_ok": true,
+ "arb_run": {
+  "0": [
+   0,
+   0,
+   0
+  ],
+  "1": [
+   1050,
+   4248,
+   15
+  ],
+  "2": [
+   1045,
+   4216,
+   17
+  ],
+  "3": [
+   1043,
+   4206,
+   15
+  ],
+  "4": [
+   0,
+   0,
+   0
+  ]
+ },
+ "harts": {
+  "1": {
+   "checksum": 4232079692,
+   "checksum_ok": true,
+   "cycles": 613359,
+   "instret": 594977,
+   "lo": 0,
+   "n": 3,
+   "rank": 0,
+   "t_end": 1806930,
+   "t_start": 1193568
+  },
+  "2": {
+   "checksum": 1746024307,
+   "checksum_ok": true,
+   "cycles": 613345,
+   "instret": 594977,
+   "lo": 400,
+   "n": 3,
+   "rank": 1,
+   "t_end": 1806961,
+   "t_start": 1193613
+  },
+  "3": {
+   "checksum": 3186632183,
+   "checksum_ok": true,
+   "cycles": 613355,
+   "instret": 594977,
+   "lo": 800,
+   "n": 3,
+   "rank": 2,
+   "t_end": 1806994,
+   "t_start": 1193634
+  }
+ },
+ "isa": "common",
+ "kernel": "fir",
+ "killed": false,
+ "mask": 14,
+ "nout": 1200,
+ "ntap": 16,
+ "passed": true,
+ "place": "tcm",
+ "stall": 0,
+ "sum_instret": 1784931,
+ "tag": "parfir_tcm_common_me_d0",
+ "wall_cycles": 613426,
+ "wall_s": 125.1
+}

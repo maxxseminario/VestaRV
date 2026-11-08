@@ -1,0 +1,58 @@
+{
+ "agg_cpi": 1.3825538240828334,
+ "agg_ipc": 0.723299145813282,
+ "all_ok": true,
+ "arb_run": {
+  "0": [
+   3108,
+   12432,
+   4
+  ],
+  "1": [
+   0,
+   0,
+   0
+  ],
+  "2": [
+   0,
+   0,
+   0
+  ],
+  "3": [
+   0,
+   0,
+   0
+  ],
+  "4": [
+   0,
+   0,
+   0
+  ]
+ },
+ "harts": {
+  "0": {
+   "checksum": 2676556350,
+   "checksum_ok": true,
+   "cycles": 132992,
+   "instret": 96193,
+   "lo": 0,
+   "n": 1,
+   "rank": 0,
+   "t_end": 948148,
+   "t_start": 815156
+  }
+ },
+ "isa": "common",
+ "kernel": "box",
+ "killed": false,
+ "mask": 1,
+ "nout": 1200,
+ "ntap": 16,
+ "passed": true,
+ "place": "tcm",
+ "stall": 0,
+ "sum_instret": 96193,
+ "tag": "parbox_tcm_common_m1_d0",
+ "wall_cycles": 132992,
+ "wall_s": 50.0
+}

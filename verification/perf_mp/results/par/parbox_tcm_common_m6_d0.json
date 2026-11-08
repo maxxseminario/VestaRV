@@ -1,0 +1,69 @@
+{
+ "agg_cpi": 0.6918528525407877,
+ "agg_ipc": 1.4453940550039803,
+ "all_ok": true,
+ "arb_run": {
+  "0": [
+   0,
+   0,
+   0
+  ],
+  "1": [
+   1564,
+   6269,
+   12
+  ],
+  "2": [
+   1559,
+   6240,
+   6
+  ],
+  "3": [
+   0,
+   0,
+   0
+  ],
+  "4": [
+   0,
+   0,
+   0
+  ]
+ },
+ "harts": {
+  "1": {
+   "checksum": 3927979490,
+   "checksum_ok": true,
+   "cycles": 66532,
+   "instret": 48115,
+   "lo": 0,
+   "n": 2,
+   "rank": 0,
+   "t_end": 1229593,
+   "t_start": 1163061
+  },
+  "2": {
+   "checksum": 2103648779,
+   "checksum_ok": true,
+   "cycles": 66530,
+   "instret": 48115,
+   "lo": 600,
+   "n": 2,
+   "rank": 1,
+   "t_end": 1229638,
+   "t_start": 1163108
+  }
+ },
+ "isa": "common",
+ "kernel": "box",
+ "killed": false,
+ "mask": 6,
+ "nout": 1200,
+ "ntap": 16,
+ "passed": true,
+ "place": "tcm",
+ "stall": 0,
+ "sum_instret": 96230,
+ "tag": "parbox_tcm_common_m6_d0",
+ "wall_cycles": 66577,
+ "wall_s": 65.1
+}

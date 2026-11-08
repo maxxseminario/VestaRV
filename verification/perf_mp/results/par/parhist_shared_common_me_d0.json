@@ -1,0 +1,85 @@
+{
+ "agg_cpi": 1.9185022026431717,
+ "agg_ipc": 0.521239954075775,
+ "all_ok": true,
+ "arb_run": {
+  "0": [
+   4,
+   18,
+   6
+  ],
+  "1": [
+   1214,
+   12489,
+   28
+  ],
+  "2": [
+   1211,
+   12447,
+   23
+  ],
+  "3": [
+   1211,
+   12437,
+   14
+  ],
+  "4": [
+   0,
+   0,
+   0
+  ]
+ },
+ "final": {
+  "bins_checksum": 331685812,
+  "bins_total": 1200,
+  "hart": 3
+ },
+ "harts": {
+  "1": {
+   "checksum": 0,
+   "checksum_ok": true,
+   "cycles": 20822,
+   "instret": 3632,
+   "lo": 0,
+   "n": 3,
+   "rank": 0,
+   "t_end": 1182913,
+   "t_start": 1162077
+  },
+  "2": {
+   "checksum": 0,
+   "checksum_ok": true,
+   "cycles": 20848,
+   "instret": 3632,
+   "lo": 400,
+   "n": 3,
+   "rank": 1,
+   "t_end": 1182967,
+   "t_start": 1162119
+  },
+  "3": {
+   "checksum": 0,
+   "checksum_ok": true,
+   "cycles": 20838,
+   "instret": 3632,
+   "lo": 800,
+   "n": 3,
+   "rank": 2,
+   "t_end": 1182981,
+   "t_start": 1162146
+  }
+ },
+ "isa": "common",
+ "kernel": "hist",
+ "killed": false,
+ "mask": 14,
+ "nout": 1200,
+ "ntap": 16,
+ "passed": true,
+ "place": "shared",
+ "stall": 0,
+ "sum_instret": 10896,
+ "tag": "parhist_shared_common_me_d0",
+ "wall_cycles": 20904,
+ "wall_s": 60.1
+}

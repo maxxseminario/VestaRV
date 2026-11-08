@@ -37,6 +37,11 @@ _start:
     lw      s1, 0(s1)
     bnez    s0, tile_side
 
+    /* hart 0 leaves the ROM in legacy IRQ mode (mtrapctl.LEGACY=1), where an msip is vectored through IVT slot 83 =
+       0x814C, which is inside this image's TCM text. A tile that finishes first pokes msip[0] (below), so switch to
+       standard delivery BEFORE any tile runs; mstatus.MIE is 0, so nothing is taken until hart0_wait's WFI. */
+    csrw    0x7C0, x0
+
     /* hart 0: clear the protocol words, ignite tiles */
     li      t0, READY
     li      t1, 0x80

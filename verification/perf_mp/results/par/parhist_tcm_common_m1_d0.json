@@ -1,0 +1,63 @@
+{
+ "agg_cpi": 1.6017794231802711,
+ "agg_ipc": 0.6243056849953401,
+ "all_ok": true,
+ "arb_run": {
+  "0": [
+   658,
+   2632,
+   4
+  ],
+  "1": [
+   0,
+   0,
+   0
+  ],
+  "2": [
+   0,
+   0,
+   0
+  ],
+  "3": [
+   0,
+   0,
+   0
+  ],
+  "4": [
+   0,
+   0,
+   0
+  ]
+ },
+ "final": {
+  "bins_checksum": 331685812,
+  "bins_total": 1200,
+  "hart": 0
+ },
+ "harts": {
+  "0": {
+   "checksum": 0,
+   "checksum_ok": true,
+   "cycles": 26825,
+   "instret": 16747,
+   "lo": 0,
+   "n": 1,
+   "rank": 0,
+   "t_end": 872647,
+   "t_start": 845822
+  }
+ },
+ "isa": "common",
+ "kernel": "hist",
+ "killed": false,
+ "mask": 1,
+ "nout": 1200,
+ "ntap": 16,
+ "passed": true,
+ "place": "tcm",
+ "stall": 0,
+ "sum_instret": 16747,
+ "tag": "parhist_tcm_common_m1_d0",
+ "wall_cycles": 26825,
+ "wall_s": 45.0
+}
