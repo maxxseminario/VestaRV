@@ -97,7 +97,7 @@ Then open the merge-queue rule's settings:
 | PR opened / pushed | `ci.yml` tier 1 + `sim.yml` ISA regression (unless docs-only) + `physical.yml` fast jobs (if `hdl/` or `sky130/` changed) | All hosted, license-free. Duplicated by the queue run later; that is expected and cheap. |
 | PR labelled `run-physical` | `physical.yml` harden (full GDSII) | Opt-in, 4–5 h. |
 | Queued for merge | `ci.yml` tier 1 (+ any of the hosted sim/physical jobs made required) on the rebased candidate | The gate that actually protects `main`. |
-| Queue merges to `main` | `ci.yml`, `sim.yml`, `physical.yml` fast jobs, `pages.yml` deploy (each subject to its path filter) | All key off `push: branches: [main]`, and the queue's merge is such a push. Post-merge safety net. |
+| Queue merges to `main` | `ci.yml`, `sim.yml`, `physical.yml` fast jobs (each subject to its path filter) | All key off `push: branches: [main]`, and the queue's merge is such a push. Post-merge safety net. |
 
 ## 4. Verifying it works
 

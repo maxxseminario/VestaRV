@@ -47,7 +47,7 @@ export VESTA_TRM_BUILD_HASH
 # prose and the generated file headers: make chip CHIP_NAME=MyChip
 CHIP_NAME ?=
 
-# Configuration file, written by hand or exported by docs/chip_configurator.html:
+# Configuration file (JSON, schema in python/generate.py _CONFIG_SCHEMA):
 # make chip CONFIG=path/to/config.json
 # Knobs: chipName, numHarts, numMutexes, registerFileDualPort, isa.*, memory.*,
 # peripherals.npu. Every key is optional and an unknown key is a hard error, which
@@ -71,7 +71,7 @@ help:
 	@echo "  make chip         - Generate the full chip configuration AND its TRM PDF:"
 	@echo "                      headers, linker scripts, drop-in HDL, JSON, TRM LaTeX + PDF"
 	@echo "                      (optional: CHIP_NAME=MyChip renames the chip everywhere;"
-	@echo "                       CONFIG=cfg.json feeds a docs/chip_configurator.html export)"
+	@echo "                       CONFIG=cfg.json supplies a configuration file)"
 	@echo "  make generate     - Chip artifacts only (no PDF)"
 	@echo "  make pdf          - Compile the Technical Reference Manual PDF only"
 	@echo "  make publish      - Copy the built TRM.pdf to implementations/asic/castalia/docs/"
@@ -99,7 +99,6 @@ help:
 	@echo "=========================================="
 
 # Chip artifacts: memory map to headers, linker scripts, HDL, JSON, TRM LaTeX.
-SYNC_MODE ?= --strict
 
 # The generator needs a SystemRDL-capable interpreter: generate.py reads
 # hdl/common/regs/rdl/*.rdl for its register maps, systemrdl-compiler needs Python
@@ -124,9 +123,6 @@ generate:
 	@echo ""
 	@echo "C-compiling the emitted MemoryMap.h (riscv-none-elf-gcc -fsyntax-only)..."
 	@python3 python/check_memorymap_h.py out/software/include/MemoryMap.h
-	@echo ""
-	@echo "Checking docs/chip_configurator.html against the schema/pad-ring/geometry..."
-	@python3 python/check_configurator_sync.py $(SYNC_MODE)
 	@echo ""
 	@echo "Checking intro-chapter register names against the generated memory map..."
 	@python3 python/check_intro_names.py
@@ -198,35 +194,13 @@ trm-lint:
 		exit 1; fi
 	@echo "✅ TRM text lint clean (no leaked LaTeX, no unresolved references)"
 
-# Web data export. generate.py emits out/web/chip_data.js itself; `make web`
-# regenerates it and copies config/MemoryMap.json alongside for the register
-# browser. Both outputs stay under platform/common/out/web/. web-copy is the
-# copy-only step the chip chain reuses so a full `make chip` does not regenerate
-# twice.
-#
-# The inner generate here runs non-strict, SYNC_MODE empty, and the strict check
-# runs after the splice. A strict inner generate would make `make web` fail on the
-# very drift it exists to repair, while running the check afterwards still ends the
-# target red if the splice did not fix it. The default `make generate` is unchanged
-# and still a hard gate.
+# Machine-readable chip data. generate.py emits out/web/chip_data.js itself;
+# `make web` regenerates it and copies config/MemoryMap.json alongside. Both
+# outputs stay under platform/common/out/web/. web-copy is the copy-only step the
+# chip chain reuses so a full `make chip` does not regenerate twice.
 web:
-	@$(MAKE) --no-print-directory generate SYNC_MODE=
+	@$(MAKE) --no-print-directory generate
 	@$(MAKE) --no-print-directory web-copy
-	@if [ -z "$(CONFIG)" ]; then \
-		python3 python/splice_web_data.py ../../docs/chip_configurator.html && \
-		echo "  • spliced VESTA_DATA into docs/chip_configurator.html (S7 consumption contract)"; \
-		python3 python/splice_register_browser.py ../../docs/register_browser.html && \
-		echo "  • spliced VESTA_REGDATA into docs/register_browser.html (register-browser provenance)"; \
-	else \
-		echo "  • CONFIG build — skipping the docs/ splices (the pages carry the default bundle)"; \
-	fi
-	@echo ""
-	@echo "Re-checking the splices under the STRICT gates..."
-	@python3 python/check_configurator_sync.py --strict
-	@if [ -z "$(CONFIG)" ]; then \
-		python3 ../../tools/python/check_register_browser.py \
-			--page ../../docs/register_browser.html --map out/web/MemoryMap.json; \
-	fi
 
 web-copy:
 	@echo "Exporting machine-readable chip data to out/web/..."
@@ -234,7 +208,7 @@ web-copy:
 	@cp config/MemoryMap.json out/web/MemoryMap.json
 	@echo "✅ Web export:"
 	@echo "  • out/web/chip_data.js   (VESTA_DATA: schema, defaults, packages, presets, memory map)"
-	@echo "  • out/web/MemoryMap.json (full peripheral→register→bitfield tree, for the register browser)"
+	@echo "  • out/web/MemoryMap.json (full peripheral→register→bitfield tree)"
 
 # Publish the built TRM to the implementations tree. Committing is left to the
 # caller, so a stale or broken PDF is never pushed by accident.

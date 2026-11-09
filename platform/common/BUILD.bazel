@@ -423,53 +423,6 @@ py_test(
     main = "check_runner.py",
 )
 
-# docs/chip_configurator.html against the schema, the spliced VESTA_DATA bundle
-# and the derived geometry, at the STRICT bar the Makefile uses.
-py_test(
-    name = "check_configurator_sync_test",
-    size = "small",
-    srcs = [CHECK_RUNNER],
-    args = [
-        "--script=platform/common/python/check_configurator_sync.py",
-        "--stage=platform/common/python=platform/common/python",
-        "--stage=docs/chip_configurator.html=docs/chip_configurator.html",
-        "--stage=$(rootpath :castalia_chip_data_js)=platform/common/out/web/chip_data.js",
-        "--stage=$(rootpath :castalia_resolved_config)=platform/common/config/ChipConfig.resolved.json",
-        "--",
-        "--strict",
-    ],
-    data = [
-        ":castalia_chip_data_js",
-        ":castalia_resolved_config",
-        "//docs:chip_configurator.html",
-        "//platform/common/python:check_scripts",
-        "//platform/common/python:generate.py",
-    ],
-    main = "check_runner.py",
-)
-
-# The VESTA_DATA region spliced into the configurator page must not be stale
-# against the bundle this build emits. Fully explicit paths, no staging.
-py_test(
-    name = "splice_web_data_check_test",
-    size = "small",
-    srcs = [CHECK_RUNNER],
-    args = [
-        "--script=platform/common/python/splice_web_data.py",
-        "--",
-        "--check",
-        "--data",
-        "$(rootpath :castalia_chip_data_js)",
-        "docs/chip_configurator.html",
-    ],
-    data = [
-        ":castalia_chip_data_js",
-        "//docs:chip_configurator.html",
-        "//platform/common/python:splice_web_data.py",
-    ],
-    main = "check_runner.py",
-)
-
 # Two independent generations of the same configuration, byte-compared.
 # The package model's ball-number gate and its negative control: an otherwise valid die-row
 # pad list with ONE pair of balls transposed must be reported, and the same list untransposed

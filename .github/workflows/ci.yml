@@ -1,9 +1,10 @@
 name: CI
 
 # Tier 1: fast, license-free checks from a bare checkout.
-#   generator-gates  `make generate` (header + configurator sync), MCU.vhd and
-#                    MemoryMap.vhd identity, register-browser provenance
-#   docs-gates       relative links, generator py_compile, hosted-runner policy
+#   generator-gates  `make generate` (header check), MCU.vhd and MemoryMap.vhd
+#                    identity
+#   docs-gates       relative links, generator py_compile, hosted-runner and
+#                    no-HTML policy
 #   software-build   MP bootrom + the N=4 MP ISA image set
 #   bazel-gates      `bazel test //...` minus the GHDL trees (sim.yml owns those)
 #   repo-hygiene     the tools/ci/ guards
@@ -56,10 +57,9 @@ jobs:
         with:
           version: ${{ env.XPACK_GCC_VERSION }}
 
-      # Runs check_memorymap_h.py and check_configurator_sync.py --strict;
-      # web-copy stages out/web/MemoryMap.json for the register-browser gate.
+      # Runs check_memorymap_h.py on the emitted header.
       - name: Generate chip artifacts
-        run: make -C platform/common generate web-copy
+        run: make -C platform/common generate
 
       # hdl/common/MCU.vhd is the generator product; a hand-edit cannot merge.
       - name: MCU.vhd identity gate (STRICT)
@@ -70,9 +70,6 @@ jobs:
       - name: MemoryMap.vhd drop-in gate
         working-directory: platform/common
         run: python3 python/check_memorymap_vhd.py ../../hdl/common/MemoryMap.vhd out/hdl/MemoryMap.vhd
-
-      - name: Register browser provenance gate
-        run: python3 tools/python/check_register_browser.py
 
   docs-gates:
     name: Docs link + generator syntax gates
@@ -104,6 +101,16 @@ jobs:
             exit 1
           fi
           echo "OK: every job runs on a GitHub-hosted runner"
+
+      # The repository carries no HTML pages. The one exemption is the debug
+      # dashboard's web UI, which its server serves (tools/debug/forth_dashboard*).
+      - name: No-HTML gate
+        run: |
+          if git ls-files '*.html' '*.htm' | grep -v '^tools/debug/forth_dashboard'; then
+            echo "::error::HTML files are not allowed in this repository."
+            exit 1
+          fi
+          echo "OK: no HTML pages tracked"
 
   software-build:
     name: Bootrom + ISA image builds

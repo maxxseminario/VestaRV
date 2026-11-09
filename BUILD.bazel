@@ -55,7 +55,7 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
-# Link TARGETS reached from docs/index.html (the published TRM PDFs).
+# Link TARGETS for the documentation link check (the published TRM PDFs).
 filegroup(
     name = "doc_link_targets",
     srcs = glob(

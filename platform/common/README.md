@@ -58,16 +58,9 @@ regression.
 | `out/software/include/MemoryMap.h`, `periph.S` | C and assembly register definitions |
 | `out/linker-scripts/` | `memory.x`, `periph.x`, ROM/RAM size files |
 | `out/pnr/chip_top_padring.tcl` | Pad ring for the Innovus chip-top flow |
-| `out/web/chip_data.js`, `MemoryMap.json` | Data for the configurator and register browser |
+| `out/web/chip_data.js`, `MemoryMap.json` | Machine-readable chip data (schema, defaults, memory map) |
 | `config/MemoryMap.json`, `ChipConfig.resolved.json`, `PadRing.json` | Memory map, resolved knobs, pad ring derived from the package model |
 | `latex/TRM/` | TRM LaTeX project |
-
-Writers into the source tree:
-
-```sh
-tools/bin/bazel run //platform/common/python:splice_web_data -- --data <chip_data.js> docs/chip_configurator.html
-tools/bin/bazel run //platform/common/python:splice_register_browser -- --data <MemoryMap.json> docs/register_browser.html
-```
 
 ## Gates
 
@@ -77,7 +70,6 @@ tools/bin/bazel run //platform/common/python:splice_register_browser -- --data <
 | `check_riscv_tb_vhd_test` | Testbench generator is a no-op at the tracked hart count |
 | `check_memorymap_h_test` | `MemoryMap.h` compiles with the hermetic riscv-gcc |
 | `check_intro_names_test` | Every register/field named in the intro chapters exists |
-| `check_configurator_sync_test`, `splice_web_data_check_test` | `docs/chip_configurator.html` matches the schema and current data bundle |
 | `generation_determinism_test` | Two generations are byte-identical |
 | `argus_generation_test`, `trm_latex_tree_test` | Argus generates; TRM tree is complete |
 | `//platform/common/python:check_config_defaults_test` | Each knob's schema default equals its `_cfg()` fallback |
@@ -85,8 +77,7 @@ tools/bin/bazel run //platform/common/python:splice_register_browser -- --data <
 
 ## Configurations
 
-A configuration is a JSON file in `config/`, written by hand or exported from
-[`docs/chip_configurator.html`](../../docs/chip_configurator.html). Knobs: `_CONFIG_SCHEMA`
+A configuration is a JSON file in `config/`, written by hand. Knobs: `_CONFIG_SCHEMA`
 in `python/generate.py`; unknown keys and out-of-range values are hard errors.
 
 | Config | Chip |
@@ -116,7 +107,7 @@ Rules that change results:
 
 - **Knob:** add it to `_CONFIG_SCHEMA` (validator) and `_CONFIG_META` (type, default,
   bounds), read it with `_cfg('<key>', <default>)`, and keep both defaults equal
-  (`check_config_defaults_test`). The configurator reads it from `chip_data.js`; resplice it.
+  (`check_config_defaults_test`).
 - **Peripheral:** write its `.rdl` and registry entry ([`tools/rdl`](../../tools/rdl/README.md)),
   declare the `PeripheralTemplate` in `generate.py` followed by `_rdlRegisters('<NAME>', p)`,
   instantiate it with `CreatePeripheral`, and add

@@ -51,7 +51,7 @@ make -C platform/common generate CONFIG=config/mychip.json
 
 The generation is itself a gate chain: schema validation and the
 `check_config_defaults` axis, a C compile of the emitted `MemoryMap.h` with
-`riscv-none-elf-gcc -fsyntax-only`, the configurator sync check, and
+`riscv-none-elf-gcc -fsyntax-only`, and
 `check_intro_names` against every TRM intro chapter. Any of them failing stops
 the run.
 
@@ -97,7 +97,7 @@ the two generated labels into the shared analysis order).
 | `out/software/include/MemoryMap.h`, `periph.S`, `core_features.h` | Firmware headers |
 | `out/linker-scripts/memory.x`, `periph.x`, `*.txt` | Linker regions and symbols |
 | `out/pnr/chip_top_padring.tcl` | The pad ring as ordered per-side lists |
-| `out/web/chip_data.js`, `MemoryMap.json` | The configurator and register-browser bundle |
+| `out/web/chip_data.js`, `MemoryMap.json` | Machine-readable chip data |
 | `config/MemoryMap.json` | The machine-readable memory map |
 | `config/ChipConfig.resolved.json`, `PadRing.json` | The resolved knobs and the derived pad ring, both TRACKED |
 | `platform/common/latex/TRM/` | The TRM LaTeX project for exactly this configuration |
@@ -129,7 +129,7 @@ only, which is why a copy of it can never ship as a phantom peripheral.
 `hdl/common/regs/rdl/<block>.rdl`, beside the twenty-two others. It is the
 authority: a width, an access code, a reset value or a field description written
 there reaches the VHDL package, the C header, the TRM table, `MemoryMap.h`,
-`MemoryMap.vhd`, the configurator and the register browser. Reserved bits are
+and `MemoryMap.vhd`. Reserved bits are
 absent, as SystemRDL intends. `vesta_access` is written on every field and is
 redundant on purpose.
 
@@ -317,8 +317,8 @@ out-of-tree block uses the `overlay-decls` and `overlay-instance` markers and th
 `mcuRegion` overlay stage instead, and touches no public file.
 
 **The gates.** `check_mcu_vhd_test`, `check_memorymap_vhd_test`,
-`check_memorymap_h_test`, `check_riscv_tb_vhd_test`, `generation_determinism_test`
-and `check_configurator_sync_test` hold the generated tree byte-identical to the
+`check_memorymap_h_test`, `check_riscv_tb_vhd_test` and `generation_determinism_test`
+hold the generated tree byte-identical to the
 tracked one, so a hook that changes anything it should not fails immediately.
 
 ### The whole set, once

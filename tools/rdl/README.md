@@ -3,7 +3,7 @@
 The SystemRDL descriptions in `hdl/common/regs/rdl/` are the register map for all 22
 peripherals. A width, access code, reset value or field description is written once there
 and reaches the TRM tables, `MemoryMap.h`, `MemoryMap.vhd`, `config/MemoryMap.json`, the
-configurator, the register browser, the VHDL register packages and the firmware headers.
+VHDL register packages and the firmware headers.
 `generate.py` builds every register template from the descriptions and holds no register
 data. Gates re-derive each block's decode from its VHDL and compare it with the description.
 AFE/BIASG descriptions live in the gitignored `private/analog/`.

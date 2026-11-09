@@ -3269,7 +3269,7 @@ def _hx(v):
 
 _resolvedConfig = [
 	('_comment', 'Resolved chip configuration — written by make chip (platform/common/python/generate.py). '
-		+ 'Inputs follow the CONFIG= JSON schema (docs/chip_configurator.html emits it); '
+		+ 'Inputs follow the CONFIG= JSON schema (_CONFIG_SCHEMA in generate.py); '
 		+ 'everything under "derived" is computed, not configurable.'),
 	('configFile', _cfgRecord),
 	('chipName', m.AsicName),

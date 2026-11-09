@@ -13,7 +13,6 @@
 [![CI](https://github.com/maxxseminario/VestaRV/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/maxxseminario/VestaRV/actions/workflows/ci.yml)
 [![Simulation](https://github.com/maxxseminario/VestaRV/actions/workflows/sim.yml/badge.svg?branch=main)](https://github.com/maxxseminario/VestaRV/actions/workflows/sim.yml)
 [![Physical](https://github.com/maxxseminario/VestaRV/actions/workflows/physical.yml/badge.svg?branch=main)](https://github.com/maxxseminario/VestaRV/actions/workflows/physical.yml)
-[![Pages](https://github.com/maxxseminario/VestaRV/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/maxxseminario/VestaRV/actions/workflows/pages.yml)
 
 VestaRV is a 32-bit RISC-V processor core written in VHDL from the official
 instruction-set specification, deriving from no existing implementation. The
@@ -182,16 +181,13 @@ same RTL to a signed-off sky130 GDSII.
 `bazel build` and `bazel test` are sandboxed and never write into the source
 tree. The `bazel run` targets that do are deliberate and enumerated: `//:regs`
 and the three emitters it chains (`//platform/common/python:rdl_vhdl_pkgs`,
-`:rdl_regs_headers`, `:generate`), `//platform/common/python:splice_register_browser`,
-`:splice_web_data` and `//tools/python:theme_sync`. `bazel run //:generate` is the
+`:rdl_regs_headers`, `:generate`). `bazel run //:generate` is the
 raw generator and writes wherever its `--out` points (default `platform/common/`);
 use `chip_artifacts_<chip>` for a sandboxed build and `//:regs` to update tracked
 products.
 
 ```bash
 tools/bin/bazel run //:regs                    # .rdl -> VHDL packages -> C headers -> generator
-tools/bin/bazel run //tools/python:theme_sync  # re-splice the theme block into docs/
-tools/bin/bazel run //platform/common/python:splice_register_browser -- --data <MemoryMap.json> docs/register_browser.html
 ```
 
 ### Outside Bazel
@@ -247,7 +243,6 @@ tools/bin/bazel run //platform/common/python:splice_register_browser -- --data <
 | `ci.yml` **Chip generator gates**, **Docs link + generator syntax gates**, **Bootrom + ISA image builds**, **Repo hygiene gates** | Scripts run directly (the hygiene checks need git history) |
 | `physical.yml` **Verilog bridge (GHDL synth)**, **Core smoke sim (cocotb on GHDL)**, **Full GDSII hardening + signoff gate (LibreLane)** | Bridge and smoke when `hdl/` or `sky130/` changes; hardening weekly, on dispatch, on the `run-physical` label and per release ([`sky130/README.md`](sky130/README.md)) |
 | `release.yml` | Tag `vX.Y.Z`: changelog gate, `physical.yml` with hardening, GitHub release |
-| `pages.yml` | Deploys `docs/` behind the link check when it changes on `main` |
 
 ```bash
 tools/bin/bazel mod deps --lockfile_mode=error
@@ -327,8 +322,8 @@ per block, 22 of them, plus the user-defined properties and the chip addrmap.
 A width, an access code, a reset value or a field description written there
 reaches the 22 VHDL packages in `hdl/common/regs/vhdl/`, the 21 C headers in
 `software/include/regs/`, `MemoryMap.h`, `MemoryMap.vhd`, the generator's
-peripheral templates, the TRM register chapters, the configurator and the
-register browser. Nothing generated is ever hand-edited.
+peripheral templates and the TRM register chapters. Nothing generated is ever
+hand-edited.
 
 The gates: `//platform/common:rdl_vhdl_pkg_test` fails on a one-byte difference
 between a tracked package and a fresh emission, `:rdl_pkg_vs_legacy_test` grades
@@ -357,7 +352,7 @@ Regenerate the whole chain with `tools/bin/bazel run //:regs`, then review with
 | [`sky130/`](sky130/README.md) | Open-source RTL-to-GDSII flow on SkyWater sky130 |
 | `tools/` | Build scripts ([`build`](tools/build/README.md)), CI checks ([`ci`](tools/ci/README.md)), Spike lockstep ([`cosim`](tools/cosim/README.md)), SystemRDL ([`rdl`](tools/rdl/README.md)), bench debug ([`debug`](tools/debug/README.md)), random-program generator (`randgen`), Python utilities |
 | `toolchains/` | Bazel toolchain rules: from-source GHDL, pinned RISC-V GCC |
-| `docs/` | Static site: configurator, register browser, new-chip guide ([`docs/new_chip.md`](docs/new_chip.md)) |
+| `docs/` | New-chip guide ([`docs/new_chip.md`](docs/new_chip.md)) |
 | `assets/` | Logos and README figures |
 | `cdspaths.example.sh` | Template for `cdspaths.sh` (gitignored), the environment for the licensed Cadence flows; scripts source it via `tools/source_cdspaths.sh` |
 

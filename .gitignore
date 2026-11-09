@@ -238,16 +238,12 @@ xcelium/**/*_actual_*.txt
 # Publications and conference material, copied in for local reference.
 docs/publications/
 
-# The AFE rev-2 engineering notes: internal analog design work that GitHub Pages
-# served publicly while nothing on the site linked it. The pages only cross-link
-# each other, so no link target is lost. They stay on disk: the .tex files under
-# implementations/asic/castalia/analog/ cite them by local path as the provenance
-# for their numbers.
-docs/afe_rev2_*.html
-
-
-# The interactive block-diagram pages (docs/castalia_soc.html, docs/vestarv_core.html, docs/castalia_full.html) are
-# published on GitHub Pages and therefore deliberately absent from this file.
+# No HTML pages in this repository (CI's No-HTML gate enforces it). Local HTML
+# notes such as docs/afe_rev2_*.html stay on disk only. The debug dashboard's
+# web UI is the one exemption.
+*.html
+*.htm
+!tools/debug/forth_dashboard*/**/*.html
 
 # The generated power dashboard; tools/python/gen_power_dashboard.py rebuilds it.
 power_dashboard.html

@@ -71,10 +71,7 @@ filegroup(
 filegroup(
     name = "check_scripts",
     srcs = glob(
-        [
-            "check_*.py",
-            "splice_*.py",
-        ],
+        ["check_*.py"],
         allow_empty = False,
     ),
 )
@@ -82,7 +79,6 @@ filegroup(
 exports_files(glob(
     [
         "check_*.py",
-        "splice_*.py",
         "generate.py",
     ],
     allow_empty = False,
@@ -97,14 +93,11 @@ exports_files(glob(
     )
     for script in [
         "check_config_defaults.py",
-        "check_configurator_sync.py",
         "check_intro_names.py",
         "check_mcu_vhd.py",
         "check_memorymap_h.py",
         "check_memorymap_vhd.py",
         "check_riscv_tb_vhd.py",
-        "splice_web_data.py",
-        "splice_register_browser.py",
     ]
 ]
 
