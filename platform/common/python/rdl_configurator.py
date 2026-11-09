@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""VestaRV: the configurator and register-browser JSON fragment of an .rdl block.
+"""VestaRV: the MemoryMap.json register fragment of an .rdl block.
 
 The Peripherals[].Registers[] sub-tree of config/MemoryMap.json, produced by the same
 Register.ToDict and BitField.ToDict methods, so a fragment splices in without a schema of its

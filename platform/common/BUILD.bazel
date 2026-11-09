@@ -174,7 +174,7 @@ filegroup(
     output_group = "log",
 )
 
-# The full peripheral -> register -> bitfield tree, for the register browser.
+# The full peripheral -> register -> bitfield tree (out/web/MemoryMap.json).
 chip_artifact(
     name = "castalia_memorymap_json",
     rel_path = "out/web/MemoryMap.json",

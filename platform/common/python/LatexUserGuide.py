@@ -383,7 +383,7 @@ class LatexUserGuide():
 		# The PWRCR gate mask, so the PWRCTRL chapter can state the blanket-gate constant instead
 		# of hardcoding one hart count's value (0x1E at N=5, 0x3FFFE at N=18). The mask is read off
 		# the register model, generate.py's PWRGATE bit field, which is also where MemoryMap.h's
-		# PWRGATE_MASK and the register browser come from, and is cross-checked against the hart
+		# PWRGATE_MASK and the out/web/ export come from, and is cross-checked against the hart
 		# count, so a change to either side that misses the other fails `make generate`. Defined
 		# unconditionally so the macro can never dangle.
 		_gateMask = None
@@ -1324,7 +1324,7 @@ class LatexUserGuide():
 	# Unified-configuration section + generated diagrams.
 	# All of these render from the SAME records generate.py builds for
 	# config/ChipConfig.resolved.json and config/PadRing.json, so the TRM,
-	# the make chip schema, and the configurator HTML cannot drift apart.
+	# the make chip schema and the out/web/ export cannot drift apart.
 
 	def GenerateChipConfigurationSection(self):
 		'''include/ChipConfigurationTable.tex — the make chip CONFIG= schema with
@@ -1412,8 +1412,8 @@ class LatexUserGuide():
 				% (missing, extra))
 
 		# Basic knobs first, advanced after a separator row. The grouping comes from the
-		# generator's own metadata (ConfigMeta[k]['group']), the same field the configurator
-		# collapses on, so the manual and the page cannot disagree about which is which. The
+		# generator's own metadata (ConfigMeta[k]['group']), the same field the out/web/
+		# export carries, so the manual and the data cannot disagree about which is which. The
 		# order WITHIN each group is keyOrder's, so the familiar core/isa/priv/memory/periph/
 		# package sequence survives. A build whose metadata carries no group prints one block.
 		meta = getattr(self.Gen, 'ConfigMeta', {}) or {}

@@ -927,7 +927,7 @@ class ChipGenerator():
 
 			# Machine-readable web bundle (out/web/chip_data.js): schema constraints, defaults, all
 			# package pad tables, derived presets and the memory map, single-sourced from this
-			# generator so docs/chip_configurator.html consumes rather than transcribes. Only on a
+			# generator so consumers read it rather than transcribe it. Only on a
 			# real build, test False, that carries the objects generate.py attaches before calling
 			# Generate().
 			if (test is False) and (getattr(self, 'PackageModels', None) is not None) and (getattr(self, 'ResolvedConfig', None) is not None):

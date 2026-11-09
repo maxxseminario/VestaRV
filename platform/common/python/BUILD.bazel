@@ -116,7 +116,7 @@ py_test(
 # SystemRDL (tools/rdl/README.md). rdl_model.py compiles a .rdl description into
 # the generator's own RegisterTemplate/BitField objects, and every emitter below
 # consumes those, so an .rdl peripheral reaches the TRM, the C header, the RTL
-# and the configurator through the code paths that are already gated.
+# and the web export through the code paths that are already gated.
 #
 # :rdl_lib is NOT folded into :chipgen_lib, but generate.py now DEPENDS on it:
 # most peripheral register maps are loaded from the .rdl descriptions rather than

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """VestaRV: assert every knob's two default literals in generate.py agree.
 
-_CONFIG_SCHEMA drives the configurator, the TRM tables and validation; the _cfg() literal
+_CONFIG_SCHEMA drives the out/web/ export, the TRM tables and validation; the _cfg() literal
 drives every generated artifact, and _cfg() never consults the schema, so a one-sided change
 is silent. generate.py is import-unsafe (importing it runs a generation), so the source is
 parsed textually and a key whose two sites are not both found fails rather than being skipped.
@@ -15,7 +15,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 GENERATE = os.path.join(HERE, 'generate.py')
 
 # chipName is the one deliberate asymmetry: the schema documents the shipped
-# name ('Castalia') for the configurator/TRM, while _cfg('chipName', None) uses
+# name ('Castalia') for the web export/TRM, while _cfg('chipName', None) uses
 # None as a sentinel meaning "no override -- keep the generator's built-in
 # name". Two different questions, two different answers, on purpose.
 EXEMPT = {'chipName': "schema documents the shipped name; _cfg uses None as the "
@@ -71,7 +71,7 @@ def main(argv):
         for site in cfg[k]:
             if site != schema[k]:
                 problems.append('  %s: SCHEMA default %s but _cfg() default %s -- '
-                                'the docs/configurator and the generated '
+                                'the schema export and the generated '
                                 'artifacts would disagree' % (k, schema[k], site))
     for k in sorted(cfg):
         if k not in schema and k not in EXEMPT:

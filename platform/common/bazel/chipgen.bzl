@@ -32,8 +32,8 @@ CHIP_OUT_FILES = [
 ]
 
 # out/web/MemoryMap.json is the Makefile's `web-copy` step, not something
-# generate.py writes; the action reproduces that copy so the register browser's
-# input has one canonical label.
+# generate.py writes; the action reproduces that copy so the
+# web export has one canonical label.
 _POST_COPY = ["config/MemoryMap.json=out/web/MemoryMap.json"]
 
 # An arbitrary fixed instant (2025-01-01 UTC), matching platform/common/Makefile's

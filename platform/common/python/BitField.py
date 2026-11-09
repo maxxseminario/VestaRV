@@ -1,7 +1,7 @@
 # VestaRV: one bit field of a register, in the chip description model.
 # A BitField carries its name, bit range, accessibility, reset value and value
 # descriptions, and is the unit every emitter renders: TRM tables, MemoryMap.h defines,
-# MemoryMap.vhd constants and the register browser.
+# MemoryMap.vhd constants and the out/web/ export.
 class BitField():
 	Name = None
 	Description = None

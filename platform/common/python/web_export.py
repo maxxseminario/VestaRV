@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""VestaRV: emit out/web/chip_data.js, the bundle the configurator and register browser read.
+"""VestaRV: emit out/web/chip_data.js, the machine-readable chip data bundle.
 
 Writes `const VESTA_DATA = {...}` with meta, schema, defaults, packages, derivedPresets,
 verifiedHarts and memoryRegions. Everything comes from the generator objects generate.py
@@ -411,7 +411,7 @@ def buildWebData(gen):
 		# record via gen.VerifiedHarts. They used to be a SECOND hardcoded copy
 		# here, and the copy rotted: CPR8 made numHarts=5 the shipped default and
 		# updated generate.py's console note, but this literal kept saying the
-		# golden master was 4 harts, so docs/chip_configurator.html badged the
+		# golden master was 4 harts, so the (since removed) configurator page badged the
 		# actual tape-out chip "sim-only (not elaborated)" for eight days. The
 		# fallback is empty, never a literal list: an older generator that does
 		# not attach the record should publish NO claim rather than a stale one.

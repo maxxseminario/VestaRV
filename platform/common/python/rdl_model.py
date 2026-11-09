@@ -2,7 +2,7 @@
 """VestaRV: compile a .rdl description into the generator's own register objects.
 
 Every emitter consumes RegisterTemplate and BitField objects, so an .rdl description reaches
-the TRM, the C header, the RTL package and the configurator through proven code. Two
+the TRM, the C header, the RTL package and the web export through proven code. Two
 properties are read from vesta_udp.rdl rather than inferred: vesta_access, re-derived here
 so the redundancy cannot rot, and vesta_named_values. Reserved gaps are filled unused=True.
 """

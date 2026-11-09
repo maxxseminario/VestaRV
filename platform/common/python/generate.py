@@ -92,7 +92,7 @@ if _cfgPath:
 # descriptions, package models, peripheral definitions and emitter fragments.
 # `overlay` is a generator directive, not a schema knob. It is consumed and removed
 # here, so it never reaches _validateChipConfig, the resolved-config record, the
-# configurator or the TRM tables. A relative path resolves against the configuration
+# web export or the TRM tables. A relative path resolves against the configuration
 # file's directory; VESTA_OVERLAY wins over both. Contract: overlay.py.
 import overlay
 overlay.setRoot(_CHIP_CONFIG.pop('overlay', ''),
@@ -111,7 +111,7 @@ def _cfg(dottedKey, default):
 	return node
 
 # _CONFIG_SCHEMA is the authoritative list of knobs a CONFIG= file may set.
-# docs/chip_configurator.html emits exactly these keys, the TRM's generated Chip
+# A CONFIG= file uses exactly these keys, the TRM's generated Chip
 # Configuration section documents them, and the resolved values land in
 # config/ChipConfig.resolved.json; all four move together. Every key is optional
 # (missing means the default here). An unknown key raises rather than falling back.
@@ -446,8 +446,8 @@ _CONFIG_SCHEMA = {
 }
 
 # _CONFIG_META: machine-readable metadata for the same schema keys, exported by
-# `make web` to out/web/chip_data.js so the configurator and register browser read
-# ranges, enums and defaults instead of re-hardcoding them. The validator lambdas above
+# `make web` to out/web/chip_data.js so consumers read ranges, enums and defaults
+# instead of re-hardcoding them. The validator lambdas above
 # stay authoritative for validation; these fields describe the same constraints
 # declaratively, and _checkConfigMeta() below proves the two never disagree.
 #   type    : 'bool' | 'int' | 'enum' | 'string'
@@ -568,8 +568,7 @@ _CONFIG_META = {
 # the package. `advanced` is everything else: the Z-series extensions, the privileged
 # architecture, debug, and the int knobs that size a block that is already on. The group is
 # presentation metadata only. It changes no default, no validation and no emitted byte; it
-# orders the TRM's configuration table, and docs/chip_configurator.html renders the advanced
-# knobs collapsed. Anything not matched here is advanced, so a knob added without a thought
+# orders the TRM's configuration table and marks the advanced knobs in the web export. Anything not matched here is advanced, so a knob added without a thought
 # about grouping hides rather than clutters.
 _BASIC_KNOBS = ('chipName', 'numHarts', 'orchestrator', 'numMutexes', 'registerFileDualPort',
 	'isa.mul', 'isa.fastMul', 'isa.div', 'isa.atomics', 'isa.compressed', 'isa.bitmanip',
@@ -638,8 +637,8 @@ _checkConfigMeta()
 
 def _validateChipConfig(node, path=''):
 	'''Walk the loaded JSON: leading-underscore keys are free-form comments,
-	   peripheralsPreview is a tolerated planning aid from older configurator
-	   exports, everything else must be a schema key with a passing value.'''
+	   peripheralsPreview is a tolerated planning aid from older configuration
+	   files, everything else must be a schema key with a passing value.'''
 	for key in node:
 		if key.startswith('_'):
 			continue
@@ -1122,7 +1121,7 @@ _stackPointerInit = _ramStart + _tcmSize
 
 def _isaString():
 	'''The march string this configuration implements (mirrors the misa CSR
-	   advertisement and the configurator's live ISA banner).'''
+	   advertisement).'''
 	s = 'rv32i'
 	if _isa['mul'] or _isa['div']:
 		s += 'm'
@@ -1186,7 +1185,7 @@ if (not _isa['atomics']) and numHarts > 1:
 	print('[generate] WARNING: isa.atomics=false on a multi-hart chip breaks the LR/SC + AMO + mutex lock infrastructure the sh tests rely on')
 # The verified-hart-count record, and the only authority for it. The fact is published
 # twice, in the console note below and in web_export.py's `verifiedHarts` bundle, which is
-# spliced into docs/chip_configurator.html and drives that page's per-hart-count badge, so
+# lists the proven hart counts, so
 # web_export reads m.VerifiedHarts rather than transcribing the values a second time.
 # The bar for membership is a hart count this tree can still build and elaborate today,
 # not one that passed a suite once. argus_generation_test proves only that a configuration
@@ -1478,7 +1477,7 @@ for _h, _w in enumerate(tcmWindows):
 # //platform/common:rdl_vs_vhdl_<block>_test re-derives out of the VHDL. There is no second
 # copy of a register, a width, an access code, a reset value or a field description in this
 # file: a correction is made in the .rdl and reaches the TRM table, MemoryMap.h, the
-# configurator and the register browser from there.
+# web export from there.
 # All twenty-two peripherals come from SystemRDL. CLINT, MUTEX, IRQROUTER and PWRCTRL,
 # whose register set and field geometry are functions of numHarts, numMutexes, masterW()
 # and vectorsCount, are parameterised components: register arrays, expressions in offsets
@@ -1706,8 +1705,8 @@ _rdlRegisters('IRQROUTER', p, parameters={
 # always-on hart is hart 0 in both shapes and every hart 1..numHarts-1 is a gateable channel
 # tile, so at numHarts=5 PWRCR gains bit 4 and PWRSR gains nibble 4.
 # The hart-0 clause is conditional so a non-orchestrator build keeps the historical sentence
-# verbatim: this text reaches MemoryMap.json, the register browser page and the TRM, and a
-# reworded default would churn all three.
+# verbatim: this text reaches MemoryMap.json and the TRM, and a
+# reworded default would churn both.
 _pwrHart0Clause = ('Hart 0 (the always-on soft orchestrator: SPI boot, console, CLINT owner) is always-on; its bit reads 0 and ignores writes.' if orchestrator else 'Hart 0 (the management hart: SPI boot, console, CLINT owner) is always-on; its bit reads 0 and ignores writes.')
 _pwrOrchNote = (' The orchestrator sits outside the MTCMOS fabric entirely (there are no header switches for the centre band), so a gate request for it would be a hardware lie, but it IS hart 0, so that is the same reserved bit 0 every configuration has always had, and a blanket PWRCR write gates every channel tile and leaves the orchestrator running.' if orchestrator else '')
 p = PeripheralTemplate(nameTemplate='PWRCTRL', description='Power controller for the switchable hart-tile power domains (M17 MTCMOS cold-gating). Each tile hart (1-' + str(numHarts - 1) + ') sits in its own header-switched power domain; setting that hart\'s gate bit walks a hardware sequencer through the only legal order: isolation clamps on, tile reset asserted, header switches opened (rail off). Clearing the bit reverses it: switches closed, a rail-settle delay, clamps released, reset released, at which point the tile COLD-BOOTS through the shared boot ROM (all state was lost), parks in WFI, and can be relaunched through the boot-ROM loader rows and a CLINT msip exactly as at chip power-on. ' + _pwrHart0Clause + _pwrOrchNote + ' Gate only a parked or otherwise quiesced tile: the hardware cannot deadlock (a clamped request looks released to the arbiter), but any in-flight work on the tile is destroyed; that is what cold-gating means.', bitFieldPrefix='PWR', latexIntroFileName='PWRCTRL-intro-castalia-2026-07.tex', latexFeatureSummary='Per-tile MTCMOS power gating with hardware gate/wake sequencing (cold-boot wake)')
@@ -3262,7 +3261,7 @@ import web_export as _webExport
 # The unified configuration record. One dict holds every knob the CONFIG= schema accepts
 # plus everything derived from them. It is attached to the generator so the TRM's generated
 # Chip Configuration section renders from it, and written to config/ChipConfig.resolved.json
-# after generation so `make show`, scripts and the configurator can read back exactly what
+# after generation so `make show`, and scripts can read back exactly what
 # was built. Addresses are 0x-strings; sizes are byte integers.
 def _hx(v):
 	return '0x' + format(int(v), 'X')
@@ -3316,8 +3315,8 @@ _resolvedConfig = [
 		('eventFabric', eventFabricPresent),
 		('pinmux', pinmuxPresent), ('pinmuxPads', pinmuxPads)]),
 	('package', [('model', packageModel), ('preliminary', packagePreliminary)]),
-	# The knob grouping, so a consumer of this record can present the schema the way the TRM and
-	# the configurator do without re-deriving the rule. Names only: the values are above.
+	# The knob grouping, so a consumer of this record can present the schema the way the TRM
+	# does without re-deriving the rule. Names only: the values are above.
 	('knobGroups', [
 		('basic', sorted(_k for _k in _CONFIG_META if _CONFIG_META[_k]['group'] == 'basic')),
 		('advanced', sorted(_k for _k in _CONFIG_META if _CONFIG_META[_k]['group'] == 'advanced')),
@@ -3381,14 +3380,13 @@ m.Orchestrator = orchestrator
 # documents the CONFIG= schema next to this build's resolved values.
 m.ConfigSchemaDoc = dict((k, _CONFIG_SCHEMA[k][0]) for k in _CONFIG_SCHEMA)
 # Declarative schema metadata and the resolved defaults, attached for the `make web` export
-# to out/web/chip_data.js so the configurator reads ranges, enums and defaults from the
+# to out/web/chip_data.js so consumers read ranges, enums and defaults from the
 # generator rather than re-hardcoding them.
 m.ConfigMeta = dict((k, dict(_CONFIG_META[k])) for k in _CONFIG_META)
 m.ConfigDefaults = dict((k, _CONFIG_META[k]['default']) for k in _CONFIG_META)
 # The verified hart counts, from the single record above, for the same export. web_export.py
-# publishes this verbatim as VESTA_DATA.verifiedHarts and the configurator badges
-# cfg.numHarts against the `values` list, so anything added here renders as a proven hart
-# count on a published page.
+# publishes this verbatim as VESTA_DATA.verifiedHarts, the `values` list of proven hart
+# counts, so anything added here is published as proven.
 m.VerifiedHarts = {
 	'values': [_n for _n, _d in _VERIFIED_HART_COUNTS],
 	'note': _verifiedHartsNote(),
@@ -3514,7 +3512,7 @@ m.Generate(test=False, force=True, saveHardware=True, saveSoftware=True)
 # SystemRDL side artifacts (tools/rdl/README.md).
 # The register maps are already in: _rdlRegisters() built most of the peripheral templates
 # above out of hdl/common/regs/rdl/, so the TRM tables, MemoryMap.h, MemoryMap.vhd and the
-# configurator data m.Generate() has just written are the descriptions. What is emitted here
+# web data m.Generate() has just written are the descriptions. What is emitted here
 # is the rest of what the descriptions can produce and the generator does not otherwise
 # write:
 #   out/rdl/<TAG>_reg_pkg.vhd   the offset, field and reset package a new peripheral can
