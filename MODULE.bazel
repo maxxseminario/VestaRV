@@ -9,11 +9,11 @@ module(
     version = "0.1.0",
 )
 
-bazel_dep(name = "rules_python", version = "1.5.1")
+bazel_dep(name = "rules_python", version = "1.9.0")
 
 # sh_test for the //opensource_sim GHDL suite wrappers (bazel 9 no longer
 # guarantees the native shell rules).
-bazel_dep(name = "rules_shell", version = "0.6.1")
+bazel_dep(name = "rules_shell", version = "0.7.1")
 
 # This host has no system C compiler, and py_binary needs a resolvable cc
 # toolchain even on linux. The zig-based hermetic toolchain is a static
