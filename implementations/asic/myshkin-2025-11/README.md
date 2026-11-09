@@ -13,7 +13,8 @@ Silicon received and validated March 2026. RTL is the frozen
 | Analog | Potentiostat front end, ADC |
 | Die / package | 1.0 × 1.5 mm, QFN-44 |
 
-The potentiostat paper received the Best Student Paper Award at IEEE ISCAS 2026.
+The potentiostat paper, [*An Electrochemical Sensing SoC for Autonomous Wound Monitoring*](docs/ISCAS2026_paper.pdf),
+received the Best Student Paper Award at IEEE ISCAS 2026. The [TRM v1.0.0](docs/TRM.pdf) sits beside it.
 
 ## Build
 

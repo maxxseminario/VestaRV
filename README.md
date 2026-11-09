@@ -26,7 +26,8 @@ versus RTL comparisons through a license-free GHDL regression of the core.
 > Register reference, system architecture, debug/JTAG chapter, analog front-end
 > chapter and programming guide for the five-hart chip, generated from the chip
 > configuration by [`platform/common`](platform/common/README.md).  
-> Also tracked: the [Myshkin TRM v1.0.0](implementations/asic/myshkin-2025-11/docs/TRM.pdf), the first VestaRV tape-out.
+> Also tracked: the [Myshkin TRM v1.0.0](implementations/asic/myshkin-2025-11/docs/TRM.pdf), the first VestaRV tape-out,
+> and its [ISCAS 2026 paper](implementations/asic/myshkin-2025-11/docs/ISCAS2026_paper.pdf) (Best Student Paper Award).
 
 > **Current version: v2.11.0**, the multi-core line. Silicon to date is
 > **v1.0.0** (Myshkin, TSMC 65nm, November 2025); no `2.x` configuration has
