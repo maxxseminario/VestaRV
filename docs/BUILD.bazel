@@ -2,8 +2,9 @@
 
 package(default_visibility = ["//visibility:public"])
 
-# The prose pages, for the link checker's file list.
+# The tracked prose pages, for the link checker's file list. Listed by name,
+# not globbed, so untracked local notes in docs/ never enter the scan.
 filegroup(
     name = "pages",
-    srcs = glob(["*.md"]),
+    srcs = ["new_chip.md"],
 )

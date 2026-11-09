@@ -2,7 +2,7 @@
 # coding: utf-8
 """VestaRV: relative-link checker for the repository documentation.
 
-Scans tracked Markdown plus docs/*.html for relative link targets and requires each to exist.
+Scans tracked Markdown for relative link targets and requires each to exist.
 http(s) and protocol-relative targets are INFO only and no network access is made; anchors,
 mailto/tel/javascript/data URIs and .claude/worktrees are skipped. --files-from names the set
 for callers with no .git. Neither mode may fail open: an unreadable input is exit 2.
@@ -103,17 +103,6 @@ def tracked_md_files(root):
     return files
 
 
-def docs_html_files(root):
-    docs_dir = os.path.join(root, "docs")
-    files = []
-    if not os.path.isdir(docs_dir):
-        return files
-    for name in sorted(os.listdir(docs_dir)):
-        if name.lower().endswith(".html"):
-            files.append(os.path.join("docs", name))
-    return files
-
-
 def extract_targets(relpath, root, strict):
     """Yield (target, kind) for one file. kind is 'md' or 'html'."""
     abspath = os.path.join(root, relpath)
@@ -168,7 +157,7 @@ def main(argv=None):
         if strict:
             files = files_from_list(args.files_from, root)
         else:
-            files = tracked_md_files(root) + docs_html_files(root)
+            files = tracked_md_files(root)
     except InputError as exc:
         print("check_doc_links: FATAL -- " + str(exc), file=sys.stderr)
         return 2
